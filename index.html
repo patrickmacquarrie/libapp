@@ -41,13 +41,17 @@ body{
 .btn-primary:hover{filter:brightness(1.06)}
 .btn-primary:active{transform:translateY(1px)}
 .btn-primary:disabled{opacity:.4;cursor:default;box-shadow:none}
+.btn-secondary{display:block;width:100%;padding:13px 18px;margin-top:10px;border:1.5px solid var(--wine);border-radius:14px;color:var(--wine);font-weight:700;font-size:15px;font-family:Inter,sans-serif;cursor:pointer;background:none}
+.btn-secondary:hover{background:var(--blush-soft)}
 .btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:14px 18px;margin-top:14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:600;font-size:15px;font-family:Inter,sans-serif;cursor:pointer;transition:box-shadow .15s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .btn-google:hover{box-shadow:0 4px 16px rgba(0,0,0,.13)}
 .btn-google:active{transform:translateY(1px)}
-.btn-google svg{flex-shrink:0}
 .btn-add{padding:11px 16px;border:1.5px solid var(--wine);border-radius:12px;background:none;color:var(--wine);font-weight:700;font-size:14px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-add:disabled{opacity:.35;cursor:default}
 .btn-x{border:none;background:none;color:#b08d95;font-size:16px;cursor:pointer;padding:4px 8px}
+.btn-small{padding:7px 14px;border:1.5px solid var(--wine);border-radius:10px;background:none;color:var(--wine);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
+.btn-small.filled{background:var(--wine);color:#fff;border-color:var(--wine)}
+.btn-small:disabled{opacity:.35;cursor:default}
 .budgetrow{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:600;color:#7a4a58;margin-bottom:6px}
 .budgetrow .n{font-family:'Playfair Display',serif;font-size:22px;color:var(--wine)}
 .budget-bar{height:10px;border-radius:999px;background:var(--blush-soft);overflow:hidden}
@@ -60,7 +64,7 @@ body{
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
 .field{flex:1;min-width:130px}
 label.small{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#9a6a76;display:block;margin-bottom:5px}
-select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px;color:var(--ink);font-family:Inter,sans-serif}
+select,input[type=text],input[type=email]{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px;color:var(--ink);font-family:Inter,sans-serif}
 input[type=range]{width:100%;accent-color:var(--rose)}
 .stakebox{display:flex;align-items:center;gap:10px}
 .stakeval{font-family:'Playfair Display',serif;font-size:24px;color:var(--wine);min-width:58px;text-align:center}
@@ -88,16 +92,11 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .crown{font-size:44px;line-height:1}
 .winner{font-family:'Playfair Display',serif;font-size:28px;color:var(--wine);margin:4px 0}
 .notice{border:1px dashed #e3cd93;background:#fdf8ec;border-radius:12px;padding:11px 14px;font-size:13px;color:#6d5324;line-height:1.5;margin:10px 0}
-.setup-notice{border:1px dashed var(--rose);background:#fff5f7;border-radius:12px;padding:14px 16px;font-size:13px;color:var(--wine-deep);line-height:1.7;margin:10px 0}
-.setup-notice strong{display:block;margin-bottom:6px;font-size:14px}
-.setup-notice a{color:var(--wine);font-weight:600}
 .loading{text-align:center;padding:60px 20px;color:#9a6a76;font-size:15px}
 .loading .spinner{font-size:28px;animation:spin 1.2s linear infinite;display:block;margin-bottom:12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .errcard{border:1px solid #f4b8c4;background:#fff5f7;border-radius:16px;padding:20px;margin:14px 0;color:var(--wine-deep)}
 .errcard h3{color:var(--wine);margin:0 0 8px;font-family:'Playfair Display',serif}
-.syncbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#7a4a58;background:var(--blush-soft);padding:3px 9px;border-radius:999px;cursor:pointer;margin-left:8px;border:none;font-family:Inter,sans-serif;vertical-align:middle}
-.syncbadge:hover{background:var(--blush)}
 .savebadge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
 .savebadge.saving{color:#7a4a58;background:var(--blush-soft)}
 .savebadge.saved{color:#2e7d4f;background:#e8f5e9}
@@ -109,6 +108,25 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .btn-signout:hover{background:var(--blush-soft)}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
+.pool-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fff;cursor:pointer;transition:box-shadow .15s}
+.pool-row:hover{box-shadow:0 4px 16px rgba(110,31,59,.1)}
+.pool-row .pname{font-family:'Playfair Display',serif;font-size:18px;color:var(--wine);font-weight:700}
+.pool-row .pmeta{font-size:12px;color:#9a6a76;margin-top:2px}
+.invite-row{border:1px dashed var(--gold);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fffaf1}
+.invite-row .iname{font-weight:700;color:var(--wine);font-size:15px}
+.invite-row .imeta{font-size:12.5px;color:#8a6116;margin:3px 0 10px}
+.invite-actions{display:flex;gap:8px}
+.email-chip{display:inline-flex;align-items:center;gap:6px;background:var(--blush-soft);color:var(--wine);font-size:13px;font-weight:600;padding:5px 10px;border-radius:999px;margin:3px 4px 3px 0}
+.email-chip button{border:none;background:none;color:var(--rose);cursor:pointer;font-size:13px;padding:0}
+.tabbar{display:flex;gap:6px;justify-content:center;margin:12px 0 4px}
+.tabbar button{padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:#7a4a58;font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
+.tabbar button.active{background:var(--wine);color:#fff;border-color:var(--wine)}
+.member-status{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.member-status:last-child{border-bottom:none}
+.member-status .dot{width:9px;height:9px;border-radius:50%}
+.dot.done{background:#2e7d4f}
+.dot.waiting{background:#c99a3f}
+.backlink{display:inline-block;font-size:13px;color:var(--rose);font-weight:600;cursor:pointer;background:none;border:none;font-family:Inter,sans-serif;padding:0;margin-bottom:4px}
 .divider{border:none;border-top:1px solid var(--line);margin:16px 0}
 .mkt-title{display:flex;align-items:baseline;justify-content:space-between}
 .multpill{font-size:11px;font-weight:700;color:var(--wine);background:var(--blush-soft);padding:3px 9px;border-radius:999px;white-space:nowrap}
@@ -118,12 +136,11 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 <body>
 <div id="root"></div>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
 
 const firebaseConfig = {
@@ -139,17 +156,58 @@ const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 
-// Expose to React via window
 window._fb = {
-  signIn: () => signInWithPopup(auth, new GoogleAuthProvider()),
+  signIn:  () => signInWithPopup(auth, new GoogleAuthProvider()),
   signOut: () => signOut(auth),
   onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
-  loadPicks: async (uid) => {
-    const snap = await getDoc(doc(db, 'picks', uid, 'data', 'state'));
-    return snap.exists() ? snap.data() : null;
+
+  getProfile: async (uid) => {
+    const s = await getDoc(doc(db,'users',uid));
+    return s.exists() ? s.data() : null;
   },
-  savePicks: async (uid, state) => {
-    await setDoc(doc(db, 'picks', uid, 'data', 'state'), state);
+  setProfile: (uid, data) => setDoc(doc(db,'users',uid), data, {merge:true}),
+
+  myPools: async (uid) => {
+    const q1 = query(collection(db,'pools'), where('members','array-contains',uid));
+    const snap = await getDocs(q1);
+    return snap.docs.map(d=>({id:d.id, ...d.data()}));
+  },
+  createPool: async (name, ownerUid) => {
+    const ref = await addDoc(collection(db,'pools'), {name, ownerUid, members:[ownerUid], createdAt:Date.now()});
+    return ref.id;
+  },
+
+  myInvites: async (email) => {
+    const q1 = query(collection(db,'invites'), where('toEmail','==',email.toLowerCase()), where('status','==','pending'));
+    const snap = await getDocs(q1);
+    return snap.docs.map(d=>({id:d.id, ...d.data()}));
+  },
+  sendInvite: (poolId, poolName, fromUid, fromUsername, toEmail) =>
+    addDoc(collection(db,'invites'), {poolId, poolName, fromUid, fromUsername, toEmail:toEmail.toLowerCase(), status:'pending', createdAt:Date.now()}),
+  acceptInvite: async (invite, uid) => {
+    await updateDoc(doc(db,'pools',invite.poolId), {members: arrayUnion(uid)});
+    await updateDoc(doc(db,'invites',invite.id), {status:'accepted'});
+  },
+  declineInvite: (inviteId) => updateDoc(doc(db,'invites',inviteId), {status:'declined'}),
+
+  loadPlayer: async (poolId, uid) => {
+    const s = await getDoc(doc(db,'pools',poolId,'players',uid));
+    return s.exists() ? s.data() : null;
+  },
+  savePlayer: (poolId, uid, data) => setDoc(doc(db,'pools',poolId,'players',uid), data, {merge:true}),
+  loadAllPlayers: async (poolId) => {
+    const snap = await getDocs(collection(db,'pools',poolId,'players'));
+    const out = {};
+    snap.docs.forEach(d => out[d.id] = d.data());
+    return out;
+  },
+  getUsers: async (uids) => {
+    const out = {};
+    await Promise.all(uids.map(async u => {
+      const s = await getDoc(doc(db,'users',u));
+      if (s.exists()) out[u] = s.data();
+    }));
+    return out;
   },
 };
 </script>
@@ -199,16 +257,15 @@ function toObjects(rows) {
 const pBool = v => String(v).toUpperCase() === 'TRUE';
 
 async function loadConfig() {
-  const [castR, couplesR, datingR, reunionR, oppsR, settR] = await Promise.all([
+  const [castR, couplesR, datingR, reunionR, settR] = await Promise.all([
     fetchTab('Cast'), fetchTab('Couples'), fetchTab('Dating Results'),
-    fetchTab('Reunion Results'), fetchTab('Opponents'), fetchTab('Settings'),
+    fetchTab('Reunion Results'), fetchTab('Settings'),
   ]);
 
   const S = Object.fromEntries(toObjects(settR).map(r => [r.key, r.value]));
   const RULES = {
     POINTS_PER_HEART: parseFloat(S.POINTS_PER_HEART)||2, K: parseFloat(S.K)||1,
     LEAD_STEP: parseFloat(S.LEAD_STEP)||0.5, WHO_TAG: parseFloat(S.WHO_TAG)||0.25,
-    POOL: parseInt(S.POOL)||3,
     phases: {
       pods:     {budget:parseInt(S.PODS_BUDGET)||200,     cap:parseInt(S.PODS_CAP)||60,     label:'Pods'},
       dating:   {budget:parseInt(S.DATING_BUDGET)||100,   cap:parseInt(S.DATING_CAP)||40,   label:'Dating'},
@@ -216,7 +273,6 @@ async function loadConfig() {
       reunion:  {budget:parseInt(S.REUNION_BUDGET)||100,  cap:parseInt(S.REUNION_CAP)||40,  label:'Reunion'},
     },
   };
-  const P1 = S.PLAYER1_NAME||'Dani', P2 = S.PLAYER2_NAME||'Reese';
 
   const castO = toObjects(castR);
   const MEN   = castO.filter(r=>r.gender?.toUpperCase()==='M').map(r=>r.name).filter(Boolean);
@@ -253,30 +309,11 @@ async function loadConfig() {
   });
   if(hasRR) RR.placeholders=false;
 
-  const OPP = {[P1]:{pods:[],dating:[],weddings:[],reunion:[]},[P2]:{pods:[],dating:[],weddings:[],reunion:[]}};
-  toObjects(oppsR).forEach(r=>{
-    const player=r.player, phase=r.phase?.toLowerCase(), stake=parseInt(r.stake);
-    if(!OPP[player]||!phase||!stake) return;
-    const cid=r.couple_id___pair, mkt=r.market?.toLowerCase()||'', win=parseInt(r.window___rung);
-    if(phase==='pods') OPP[player].pods.push({c:cid,s:stake,w:win||1});
-    else if(phase==='dating') { const p={m:mkt,c:cid,s:stake,w:win||6}; if(r.who_tag) p.who=r.who_tag; OPP[player].dating.push(p); }
-    else if(phase==='weddings') { const p={c:cid,o:r.outcome,s:stake,r:parseInt(r.window___rung)||0}; if(r.who_tag) p.who=r.who_tag; OPP[player].weddings.push(p); }
-    else if(phase==='reunion') {
-      const p={m:mkt,s:stake};
-      if(mkt==='still'||mkt==='back') p.c=cid;
-      else if(mkt==='newcouple') p.pair=cid;
-      else if(mkt==='lifeupdate') {p.person=cid;p.update=r.outcome;}
-      else if(mkt==='absent') p.person=cid;
-      else if(mkt==='confrontation') {p.a=cid;p.b=r.outcome;}
-      OPP[player].reunion.push(p);
-    }
-  });
-
-  return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,OPPONENTS:OPP,PLAYER1:P1,PLAYER2:P2};
+  return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR};
 }
 
 /* ================================================================== */
-/*  ENGINE                                                             */
+/*  ENGINE — pool-aware, picks keyed by member name                    */
 /* ================================================================== */
 
 const WED_MULT  = {married:[2.5,2,1.5],saysNo:[3,2.5,2],calledOff:[3,2.5,2]};
@@ -285,33 +322,34 @@ const REU_MULT  = {still:1,back:2,newCouple:3,lifeUpdate:3,absent:2,confrontatio
 const LIFE_UPD  = {engagedNew:'Engaged to someone new',marriedNew:'Married someone new',kid:'Had a kid'};
 const PH_ORDER  = ['pods','dating','weddings','reunion'];
 const PH_SPAN   = {pods:{endEp:6},dating:{endEp:9},weddings:{endEp:12},reunion:{endEp:13}};
+const PH_STARTW = {pods:1,dating:6,weddings:9,reunion:12};
 const NEXT_PH   = {pods:'dating',dating:'weddings',weddings:'reunion',reunion:null};
+const EMPTY_PICKS = {pods:[],dating:[],weddings:[],reunion:[]};
 
-function makeEngine(cfg) {
-  const {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,OPPONENTS,PLAYER1,PLAYER2} = cfg;
-  const MEMBERS = ['You',PLAYER1,PLAYER2];
+function makeEngine(cfg, poolSize) {
+  const {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS} = cfg;
+  const POOL = Math.max(poolSize, 2);
   const byId    = Object.fromEntries(COUPLES.map(c=>[c.id,c]));
   const isReal  = k=>!!byId[k];
-  const nameOf  = k=>isReal(k)?(byId[k].him+' & '+byId[k].her):k.split('|').join(' & ');
-  const membOf  = k=>isReal(k)?[byId[k].him,byId[k].her]:k.split('|');
+  const nameOf  = k=>isReal(k)?(byId[k].him+' & '+byId[k].her):String(k).split('|').join(' & ');
+  const membOf  = k=>isReal(k)?[byId[k].him,byId[k].her]:String(k).split('|');
   const whoNm   = (k,w)=>w==='both'?'both':(w==='him'?membOf(k)[0]:membOf(k)[1]);
   const fmt     = n=>String(+n.toFixed(2));
   const leadM   = f=>1+RULES.LEAD_STEP*Math.max(0,f);
-  const contraV = o=>1+RULES.K*(1-o/RULES.POOL);
-  const owTxt   = o=>o===1?'solo call':(o===RULES.POOL?'everyone called it':o+' of '+RULES.POOL+' called it');
+  const contraV = o=>1+RULES.K*(1-o/POOL);
+  const owTxt   = o=>o===1?'solo call':(o===POOL?'everyone called it':o+' of '+POOL+' called it');
   const calcPts = (s,m,o,t)=>Math.round(RULES.POINTS_PER_HEART*s*m*contraV(o)*(t||1));
 
   function mk({member,phase,ok,label,stake,mult,multLabel,owners,tag,tagLabel,note,placeholder,pending}) {
     return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,tag:tag||1,tagLabel,note,
-            placeholder:!!placeholder,pending:!!pending,points:ok?calcPts(stake,mult,owners,tag):0};
+            placeholder:!!placeholder,pending:!!pending,points:ok&&!pending?calcPts(stake,mult,owners,tag):0};
   }
 
-  function allP(phase,pp) {
-    return {You:pp[phase]||[],[PLAYER1]:OPPONENTS[PLAYER1][phase],[PLAYER2]:OPPONENTS[PLAYER2][phase]};
-  }
-
-  function resolveEpisode(phase,ep,pp) {
-    const all=allP(phase,pp), events=[], entries=[];
+  /* Resolve one episode across a set of members. picksBy = {memberName: picks[]} */
+  function resolveEpisode(phase, ep, picksBy) {
+    const MEMBERS = Object.keys(picksBy);
+    const all = picksBy;
+    const events=[], entries=[];
     if(phase==='pods') {
       COUPLES.filter(c=>c.engagedEp===ep).forEach(c=>{
         const owners=MEMBERS.filter(m=>all[m].some(p=>p.c===c.id)).length;
@@ -403,20 +441,35 @@ function makeEngine(cfg) {
     return {events,entries};
   }
 
-  function resolvePhaseClose(phase,pp) {
-    const all=allP(phase,pp), entries=[];
+  function resolvePhaseClose(phase, picksBy) {
+    const MEMBERS = Object.keys(picksBy), all = picksBy, entries=[];
     if(phase==='pods') MEMBERS.forEach(m=>all[m].filter(p=>!isReal(p.c)).forEach(p=>{ entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' never got engaged',stake:p.s})); }));
     if(phase==='dating') MEMBERS.forEach(m=>all[m].forEach(p=>{
-      if(p.m==='breakup'&&p.c!==DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Lost the race — '+(DATING_RESULTS.breakup.coupleId?nameOf(DATING_RESULTS.breakup.coupleId)+' broke first.':'no breakup scored.')}));
-      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' — slept together',stake:p.s,note:'Never shown on camera.',placeholder:true}));
-      if(p.m==='criticize'&&!DATING_RESULTS.criticize[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' — criticized the place',stake:p.s,note:'Never happened on camera.',placeholder:true}));
+      if(p.m==='breakup'&&p.c!==DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Lost the race'+(DATING_RESULTS.breakup.coupleId?' — '+nameOf(DATING_RESULTS.breakup.coupleId)+' broke first.':'.')}));
+      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' — slept together',stake:p.s,note:'Never shown on camera.'}));
+      if(p.m==='criticize'&&!DATING_RESULTS.criticize[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' — criticized the place',stake:p.s,note:'Never happened on camera.'}));
     }));
     return entries;
   }
 
+  /* Score a full phase for a set of members (used by the scoreboard once everyone completed) */
+  function scorePhase(phase, picksBy) {
+    const startEp = PH_STARTW[phase], endEp = PH_SPAN[phase].endEp;
+    let entries = [];
+    for (let ep = startEp; ep <= endEp; ep++) {
+      entries = entries.concat(resolveEpisode(phase, ep, picksBy).entries);
+    }
+    entries = entries.concat(resolvePhaseClose(phase, picksBy));
+    const totals = {};
+    Object.keys(picksBy).forEach(m=>totals[m]=0);
+    entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
+    return {entries, totals};
+  }
+
   const spentBy = picks => picks.reduce((t,p)=>t+p.s,0);
-  return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,OPPONENTS,MEMBERS,PLAYER1,PLAYER2,
-          nameOf,membOf,whoNm,fmt,leadM,contraV,owTxt,calcPts,resolveEpisode,resolvePhaseClose,spentBy};
+  return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,POOL,
+          nameOf,membOf,whoNm,fmt,leadM,contraV,owTxt,calcPts,
+          resolveEpisode,resolvePhaseClose,scorePhase,spentBy};
 }
 
 /* ================================================================== */
@@ -433,9 +486,10 @@ function Budget({phase,spent,RULES}) {
   const {budget}=RULES.phases[phase],left=budget-spent;
   return <div style={{margin:'10px 0 4px'}}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div></div>;
 }
-function Receipt({e,eng}) {
-  const {contraV,owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss'), cv=contraV(e.owners);
-  return <div className={cls}><span className="pts">{e.pending?'⏳':(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member==='You'?'You':e.member} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok?<div className="math">{e.stake} ♥ x {e.multLabel} x {String(+cv.toFixed(2))} {owTxt(e.owners)}{e.tagLabel?' x '+e.tagLabel.replace('x','x'):''} x {RULES.POINTS_PER_HEART} baseline = {e.points} pts</div>:<div className="math">{e.stake} ♥ staked{e.note?' · '+e.note:''}</div>}</div>;
+function Receipt({e,eng,meName}) {
+  const {contraV,owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss');
+  const cv=e.owners?contraV(e.owners):null;
+  return <div className={cls}><span className="pts">{e.pending?'⏳':(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meName?'You':e.member} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ x {e.multLabel} x {String(+cv.toFixed(2))} {owTxt(e.owners)}{e.tagLabel?' x '+e.tagLabel:''} x {RULES.POINTS_PER_HEART} baseline = {e.points} pts</div>:<div className="math">{e.stake} ♥ staked{e.note?' · '+e.note:''}</div>}</div>;
 }
 function Stepper({phase,RULES}) {
   const idx=PH_ORDER.indexOf(phase);
@@ -447,16 +501,9 @@ function Sel({label,value,onChange,options,placeholder}) {
 function StakeSlider({value,onChange,max}) {
   return <div className="field" style={{minWidth:170}}><label className="small">Stake (max {max})</label><div className="stakebox"><input type="range" min={5} max={max} step={5} value={Math.min(value,max)} onChange={ev=>onChange(+ev.target.value)}/><span className="stakeval">{Math.min(value,max)}♥</span></div></div>;
 }
-function Leaderboard({log,upTo,RULES,MEMBERS}) {
-  const phases=PH_ORDER.slice(0,PH_ORDER.indexOf(upTo)+1), totals={};
-  MEMBERS.forEach(m=>{totals[m]={};phases.forEach(p=>totals[m][p]=0);});
-  log.forEach(e=>{if(!e.pending&&phases.includes(e.phase))totals[e.member][e.phase]+=e.points;});
-  const rows=MEMBERS.map(m=>({m,...totals[m],tot:phases.reduce((t,p)=>t+totals[m][p],0)})).sort((a,b)=>b.tot-a.tot);
-  return <div className="lb"><table><thead><tr><th>Player</th>{phases.map(p=><th key={p}>{RULES.phases[p].label}</th>)}<th>Total</th></tr></thead><tbody>{rows.map(r=><tr key={r.m} className={r.m==='You'?'you':''}><td>{r.m}</td>{phases.map(p=><td key={p}>{r[p]}</td>)}<td className="tot">{r.tot}</td></tr>)}</tbody></table></div>;
-}
 
 /* ================================================================== */
-/*  BOARDS                                                             */
+/*  BOARDS (identical logic, engine passed in)                        */
 /* ================================================================== */
 
 function PodsBoard({w,picks,add,remove,spent,eng}) {
@@ -521,7 +568,89 @@ function ReunionBoard({picks,add,remove,spent,eng}) {
 }
 
 /* ================================================================== */
-/*  APP                                                                */
+/*  SCOREBOARD                                                         */
+/* ================================================================== */
+
+function Scoreboard({eng, playersByName, meName, myPhase}) {
+  const {RULES, scorePhase} = eng;
+  const names = Object.keys(playersByName);
+  const [openPhase, setOpenPhase] = useState(null);
+
+  // Per-phase status
+  const phaseStatus = {};
+  PH_ORDER.forEach(ph => {
+    const completedBy = names.filter(n => playersByName[n].completed && playersByName[n].completed[ph]);
+    phaseStatus[ph] = { completedBy, allDone: completedBy.length === names.length };
+  });
+
+  // Totals across fully-completed phases
+  const grandTotals = {};
+  names.forEach(n=>grandTotals[n]=0);
+  const phaseTotals = {};
+  PH_ORDER.forEach(ph => {
+    if (!phaseStatus[ph].allDone) return;
+    const picksBy = {};
+    names.forEach(n => picksBy[n] = (playersByName[n].picks && playersByName[n].picks[ph]) || []);
+    const {totals} = scorePhase(ph, picksBy);
+    phaseTotals[ph] = totals;
+    names.forEach(n => grandTotals[n] += totals[n] || 0);
+  });
+
+  const ranked = names.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]);
+  const donePhases = PH_ORDER.filter(ph=>phaseStatus[ph].allDone);
+
+  return <React.Fragment>
+    <div className="card">
+      <h2>Standings</h2>
+      {donePhases.length===0 && <p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
+      {donePhases.length>0 && <div className="lb"><table>
+        <thead><tr><th>Player</th>{donePhases.map(p=><th key={p}>{RULES.phases[p].label}</th>)}<th>Total</th></tr></thead>
+        <tbody>{ranked.map(n=><tr key={n} className={n===meName?'you':''}>
+          <td>{n===meName?'You':n}</td>
+          {donePhases.map(p=><td key={p}>{phaseTotals[p][n]||0}</td>)}
+          <td className="tot">{grandTotals[n]}</td>
+        </tr>)}</tbody>
+      </table></div>}
+    </div>
+
+    {PH_ORDER.map(ph => {
+      const st = phaseStatus[ph];
+      const isCurrent = ph === myPhase;
+      const notStarted = st.completedBy.length===0 && !isCurrent && PH_ORDER.indexOf(ph)>PH_ORDER.indexOf(myPhase);
+      if (notStarted) return null;
+      return <div className="card" key={ph}>
+        <h3>{RULES.phases[ph].label}</h3>
+        {st.allDone ? <React.Fragment>
+          <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
+            {openPhase===ph ? 'Hide pick breakdown' : 'Show pick breakdown'}
+          </button>
+          {openPhase===ph && (()=>{
+            const picksBy={};
+            names.forEach(n=>picksBy[n]=(playersByName[n].picks&&playersByName[n].picks[ph])||[]);
+            const {entries}=scorePhase(ph,picksBy);
+            return <div style={{marginTop:10}}>
+              {names.map(n=><div key={n}>
+                <h3 style={{marginTop:12}}>{n===meName?'Your picks':n}</h3>
+                {entries.filter(e=>e.member===n).length===0&&<p className="subtle">No picks this phase.</p>}
+                {entries.filter(e=>e.member===n).map((e,i)=><Receipt key={i} e={e} eng={eng} meName={meName}/>)}
+              </div>)}
+            </div>;
+          })()}
+        </React.Fragment> : <React.Fragment>
+          {names.map(n=><div className="member-status" key={n}>
+            <span className={'dot '+(st.completedBy.includes(n)?'done':'waiting')}></span>
+            <span>{n===meName?'You':n}</span>
+            <span className="subtle" style={{marginLeft:'auto'}}>{st.completedBy.includes(n)?'Completed':'Still picking...'}</span>
+          </div>)}
+          <p className="subtle" style={{marginTop:8}}>Picks stay hidden until everyone completes this phase.</p>
+        </React.Fragment>}
+      </div>;
+    })}
+  </React.Fragment>;
+}
+
+/* ================================================================== */
+/*  PHASE COPY                                                         */
 /* ================================================================== */
 
 const PH_INTRO = {
@@ -531,256 +660,386 @@ const PH_INTRO = {
   reunion:{tagline:'The victory lap. One lock before the reunion airs.',rules:<ul><li>New couple x3 · Life update x3 · Back together x2 · Absent castmate x2 · Confrontation x2 · Still together x1.</li><li>Budget 100, max 40 per pick.</li></ul>,scoring:<div><p>points = 2 x stake x difficulty x contrarian</p></div>},
 };
 
-const EMPTY_PICKS = {pods:[],dating:[],weddings:[],reunion:[]};
+/* ================================================================== */
+/*  APP                                                                */
+/* ================================================================== */
 
 function App() {
-  // Auth state
-  const [authState, setAuthState] = useState('checking'); // checking | signedout | signedin
-  const [user,      setUser]      = useState(null);
+  // Auth + profile
+  const [authState, setAuthState] = useState('checking');
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [usernameInput, setUsernameInput] = useState('');
 
-  // Config/sheet state
-  const [ls,   setLs]   = useState('loading');
-  const [err,  setErr]  = useState('');
-  const [eng,  setEng]  = useState(null);
-  const [sync, setSync] = useState(null);
+  // Config
+  const [cfg, setCfg] = useState(null);
+  const [cfgState, setCfgState] = useState('loading');
+  const [err, setErr] = useState('');
 
-  // Game state
-  const [phase,     setPhase]     = useState('pods');
-  const [screen,    setScreen]    = useState('intro');
-  const [w,         setW]         = useState(0);
-  const [picks,     setPicks]     = useState(EMPTY_PICKS);
-  const [log,       setLog]       = useState([]);
-  const [reveal,    setReveal]    = useState(null);
+  // Lobby
+  const [pools, setPools] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [lobbyLoading, setLobbyLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newPoolName, setNewPoolName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteList, setInviteList] = useState([]);
+
+  // Active pool + game
+  const [activePool, setActivePool] = useState(null);
+  const [poolPlayers, setPoolPlayers] = useState(null);  // {uid: playerDoc}
+  const [poolUsers, setPoolUsers] = useState(null);      // {uid: profile}
+  const [poolTab, setPoolTab] = useState('play');        // play | standings
+  const [eng, setEng] = useState(null);
+
+  const [phase, setPhase] = useState('pods');
+  const [screen, setScreen] = useState('intro');
+  const [w, setW] = useState(0);
+  const [picks, setPicks] = useState(EMPTY_PICKS);
+  const [completed, setCompleted] = useState({});
+  const [reveal, setReveal] = useState(null);
   const [closeInfo, setCloseInfo] = useState(null);
-
-  // Save badge
-  const [saveState, setSaveState] = useState(null); // null | saving | saved | error
+  const [saveState, setSaveState] = useState(null);
   const saveTimer = useRef(null);
 
-  // ── Auth listener ─────────────────────────────────────────────────
+  /* ── Auth ── */
   useEffect(() => {
-    const unsub = window._fb.onAuthStateChanged(u => {
+    return window._fb.onAuthStateChanged(async u => {
       setUser(u);
-      setAuthState(u ? 'signedin' : 'signedout');
+      if (u) {
+        const p = await window._fb.getProfile(u.uid);
+        setProfile(p);
+        setUsernameInput(p?.username || (u.displayName||'').split(' ')[0] || '');
+        setAuthState('signedin');
+      } else {
+        setProfile(null);
+        setAuthState('signedout');
+      }
     });
-    return unsub;
   }, []);
 
-  // ── Load sheet config ─────────────────────────────────────────────
-  const doLoad = useCallback(async () => {
-    setLs('loading');
-    try {
-      const cfg = await loadConfig();
-      setEng(makeEngine(cfg));
-      setSync(new Date());
-      setLs(cfg.MEN.length === 0 ? 'nocast' : 'ready');
-    } catch(e) { setErr(e.message); setLs('error'); }
-  }, []);
-
-  useEffect(() => { doLoad(); }, [doLoad]);
-
-  // ── Load saved picks from Firestore when user signs in ────────────
+  /* ── Config ── */
   useEffect(() => {
+    loadConfig().then(c => { setCfg(c); setCfgState(c.MEN.length===0?'nocast':'ready'); })
+      .catch(e => { setErr(e.message); setCfgState('error'); });
+  }, []);
+
+  /* ── Lobby data ── */
+  const loadLobby = useCallback(async () => {
     if (!user) return;
-    window._fb.loadPicks(user.uid).then(saved => {
-      if (!saved) return;
-      if (saved.picks)     setPicks(saved.picks);
-      if (saved.log)       setLog(saved.log);
-      if (saved.phase)     setPhase(saved.phase);
-      if (saved.screen)    setScreen(saved.screen);
-      if (saved.w != null) setW(saved.w);
-      if (saved.reveal)    setReveal(saved.reveal);
-      if (saved.closeInfo) setCloseInfo(saved.closeInfo);
-    }).catch(() => {});
+    setLobbyLoading(true);
+    try {
+      const [ps, is] = await Promise.all([
+        window._fb.myPools(user.uid),
+        window._fb.myInvites(user.email),
+      ]);
+      setPools(ps); setInvites(is);
+    } catch(e) { console.error(e); }
+    setLobbyLoading(false);
   }, [user]);
 
-  // ── Auto-save picks to Firestore ──────────────────────────────────
-  const saveToFirestore = useCallback((state) => {
-    if (!user) return;
+  useEffect(() => { if (authState==='signedin' && profile?.username) loadLobby(); }, [authState, profile, loadLobby]);
+
+  /* ── Enter a pool ── */
+  const enterPool = async (pool) => {
+    setActivePool(pool);
+    setPoolTab('play');
+    const engine = makeEngine(cfg, pool.members.length);
+    setEng(engine);
+    const [players, users] = await Promise.all([
+      window._fb.loadAllPlayers(pool.id),
+      window._fb.getUsers(pool.members),
+    ]);
+    setPoolPlayers(players); setPoolUsers(users);
+    // Load my state
+    const mine = players[user.uid];
+    if (mine) {
+      setPicks(mine.picks || EMPTY_PICKS);
+      setPhase(mine.phase || 'pods');
+      setScreen(mine.screen || 'intro');
+      setW(mine.w != null ? mine.w : 0);
+      setCompleted(mine.completed || {});
+      // Recompute reveal/closeInfo from state
+      if ((mine.screen==='board'||mine.screen==='close') && mine.w > 0) {
+        const r = engine.resolveEpisode(mine.phase||'pods', mine.w, {[profile.username]: (mine.picks||EMPTY_PICKS)[mine.phase||'pods']||[]});
+        const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
+        setReveal({ep:mine.w, ...pendified});
+        if (mine.screen==='close') {
+          const closing = engine.resolvePhaseClose(mine.phase||'pods', {[profile.username]:(mine.picks||EMPTY_PICKS)[mine.phase||'pods']||[]});
+          setCloseInfo({closing});
+        }
+      } else { setReveal(null); setCloseInfo(null); }
+    } else {
+      setPicks(EMPTY_PICKS); setPhase('pods'); setScreen('intro'); setW(0);
+      setCompleted({}); setReveal(null); setCloseInfo(null);
+    }
+  };
+
+  const exitPool = () => {
+    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setEng(null);
+    loadLobby();
+  };
+
+  /* ── Save player state ── */
+  const savePlayer = useCallback((state) => {
+    if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
     saveTimer.current = setTimeout(() => {
-      window._fb.savePicks(user.uid, state)
-        .then(() => { setSaveState('saved'); setTimeout(() => setSaveState(null), 2000); })
-        .catch(() => setSaveState('error'));
-    }, 800);
-  }, [user]);
+      window._fb.savePlayer(activePool.id, user.uid, {username: profile.username, ...state})
+        .then(()=>{setSaveState('saved');setTimeout(()=>setSaveState(null),2000);})
+        .catch(()=>setSaveState('error'));
+    }, 600);
+  }, [user, activePool, profile]);
 
-  const updatePicks = (newPicks) => {
-    setPicks(newPicks);
-    saveToFirestore({picks:newPicks, log, phase, screen, w, reveal, closeInfo});
-  };
-  const updateLog = (newLog) => {
-    setLog(newLog);
-    saveToFirestore({picks, log:newLog, phase, screen, w, reveal, closeInfo});
-  };
+  /* ── Handlers ── */
+  const handleSignIn  = () => window._fb.signIn().catch(e=>setErr(e.message));
+  const handleSignOut = () => { window._fb.signOut(); setActivePool(null); };
 
-  // ── Sign in / out ─────────────────────────────────────────────────
-  const handleSignIn  = () => window._fb.signIn().catch(e => setErr(e.message));
-  const handleSignOut = () => {
-    window._fb.signOut();
-    setPicks(EMPTY_PICKS); setLog([]); setPhase('pods');
-    setScreen('intro'); setW(0); setReveal(null); setCloseInfo(null);
+  const saveUsername = async () => {
+    const uname = usernameInput.trim();
+    if (!uname) return;
+    await window._fb.setProfile(user.uid, {username:uname, email:user.email.toLowerCase(), createdAt:Date.now()});
+    setProfile({username:uname, email:user.email.toLowerCase()});
   };
 
-  const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+  const addInviteEmail = () => {
+    const e = inviteEmail.trim().toLowerCase();
+    if (!e || !e.includes('@') || inviteList.includes(e) || e===user.email.toLowerCase()) return;
+    setInviteList([...inviteList, e]); setInviteEmail('');
+  };
 
-  // ── Auth check screen ─────────────────────────────────────────────
-  if (authState === 'checking') return (
-    <div className="app">
-      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
-      <div className="loading"><span className="spinner">♥</span>Signing you in...</div>
-    </div>
-  );
+  const doCreatePool = async () => {
+    const name = newPoolName.trim();
+    if (!name) return;
+    const poolId = await window._fb.createPool(name, user.uid);
+    await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, user.uid, profile.username, em)));
+    setCreating(false); setNewPoolName(''); setInviteList([]);
+    loadLobby();
+  };
 
-  if (authState === 'signedout') return (
-    <div className="app">
-      <div className="hdr">
-        <div className="eyebrow">Love Is Blind: UK</div>
-        <h1>Prediction Pool</h1>
-        <span className="seasonpill">Season 3</span>
-      </div>
-      <div className="card login-card">
-        <div className="heart-hero">♥</div>
-        <h2>Welcome</h2>
-        <p className="lede">Sign in with your Google account to make predictions and save your picks across sessions.</p>
-        <button className="btn-google" onClick={handleSignIn}>
-          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
-          Sign in with Google
-        </button>
-        {err && <p style={{color:'var(--rose)',fontSize:13,marginTop:10}}>{err}</p>}
-      </div>
-    </div>
-  );
+  const doAccept = async (inv) => { await window._fb.acceptInvite(inv, user.uid); loadLobby(); };
+  const doDecline = async (inv) => { await window._fb.declineInvite(inv.id); loadLobby(); };
 
-  // ── Sheet loading states ──────────────────────────────────────────
-  if (ls === 'loading') return (
-    <div className="app">
-      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
-      <div className="loading"><span className="spinner">♥</span>Loading from Google Sheets...</div>
-    </div>
-  );
-
-  if (ls === 'error') return (
-    <div className="app">
-      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
-      <div className="errcard"><h3>Couldn't read the sheet</h3><p>Make sure the sheet is shared as <b>"Anyone with the link can view"</b>, then refresh.</p><p style={{fontSize:12,color:'#9a6a76'}}>{err}</p><button className="btn-primary" onClick={doLoad}>Try again</button></div>
-    </div>
-  );
-
-  if (ls === 'nocast') return (
-    <div className="app">
-      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div>
-      <div className="card"><h2>Cast not yet entered</h2><p className="lede">Add names to the Cast tab in the sheet and refresh.</p><div className="setup-notice"><strong>Next step</strong><a href={sheetUrl} target="_blank" rel="noopener noreferrer">Open the Google Sheet</a> and fill in the Cast tab.</div><button className="btn-primary" onClick={doLoad}>Reload from sheet</button></div>
-    </div>
-  );
-
-  // ── Game ──────────────────────────────────────────────────────────
-  const {RULES,MEMBERS,PLAYER1,PLAYER2,resolveEpisode,resolvePhaseClose,spentBy} = eng;
-  const endEp = PH_SPAN[phase].endEp;
-  const spent = spentBy(picks[phase]);
+  /* Game actions */
+  const meName = profile?.username;
 
   const addPick = p => {
     const np = {...picks,[phase]:[...picks[phase],p]};
-    updatePicks(np);
+    setPicks(np);
+    savePlayer({picks:np, phase, screen, w, completed});
   };
   const removePick = i => {
     const np = {...picks,[phase]:picks[phase].filter((_,idx)=>idx!==i)};
-    updatePicks(np);
+    setPicks(np);
+    savePlayer({picks:np, phase, screen, w, completed});
   };
 
   const doGate = () => {
-    const ep = w+1, r = resolveEpisode(phase,ep,picks);
-    const newLog = [...log, ...r.entries];
-    const newW = ep;
+    const ep = w+1;
+    const endEp = PH_SPAN[phase].endEp;
+    const r = eng.resolveEpisode(phase, ep, {[meName]: picks[phase]});
+    const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
+    setW(ep); setReveal({ep, ...pendified});
     if (ep >= endEp) {
-      const closing = resolvePhaseClose(phase,picks);
-      const finalLog = [...newLog, ...closing];
-      const unspent = MEMBERS.map(m=>{const pk=m==='You'?picks[phase]:eng.OPPONENTS[m][phase];return{m,left:RULES.phases[phase].budget-spentBy(pk)};}).filter(u=>u.left>0);
-      const ci = {closing,unspent};
-      setLog(finalLog); setW(newW); setReveal({ep,...r}); setCloseInfo(ci); setScreen('close');
-      saveToFirestore({picks,log:finalLog,phase,screen:'close',w:newW,reveal:{ep,...r},closeInfo:ci});
+      const closing = eng.resolvePhaseClose(phase, {[meName]: picks[phase]});
+      const nc = {...completed, [phase]: true};
+      setCompleted(nc); setCloseInfo({closing}); setScreen('close');
+      savePlayer({picks, phase, screen:'close', w:ep, completed:nc});
     } else {
-      setLog(newLog); setW(newW); setReveal({ep,...r}); setScreen('board');
-      saveToFirestore({picks,log:newLog,phase,screen:'board',w:newW,reveal:{ep,...r},closeInfo});
+      setScreen('board');
+      savePlayer({picks, phase, screen:'board', w:ep, completed});
     }
   };
 
   const openNextPhase = () => {
     const next = NEXT_PH[phase];
-    if (!next) { setScreen('final'); saveToFirestore({picks,log,phase,screen:'final',w,reveal,closeInfo}); return; }
-    setPhase(next); setReveal(null); setScreen('intro');
-    saveToFirestore({picks,log,phase:next,screen:'intro',w,reveal:null,closeInfo:null});
+    if (!next) { setScreen('final'); savePlayer({picks, phase, screen:'final', w, completed}); return; }
+    setPhase(next); setReveal(null); setCloseInfo(null); setScreen('intro');
+    savePlayer({picks, phase:next, screen:'intro', w, completed});
   };
 
-  const winnerName = () => {
-    const t={};MEMBERS.forEach(m=>t[m]=0);log.forEach(e=>{if(!e.pending)t[e.member]+=e.points;});
-    return MEMBERS.slice().sort((a,b)=>t[b]-t[a])[0];
+  const refreshPool = async () => {
+    if (!activePool) return;
+    const players = await window._fb.loadAllPlayers(activePool.id);
+    setPoolPlayers(players);
   };
 
-  const saveBadge = saveState && (
-    <span className={`savebadge ${saveState}`}>
-      {saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}
-    </span>
-  );
+  /* ── RENDER ── */
 
-  const syncBadge = <button className="syncbadge" onClick={doLoad}>↻ {sync?sync.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'sync'}</button>;
+  if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
 
-  const RevealSummary = () => reveal && (
-    <div className="card">
-      <h2 style={{marginBottom:10}}>{phase==='reunion'?'The Reunion':'Episode '+reveal.ep}</h2>
-      {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved this episode</h3><div className="sub">The board carries forward.</div></div>}
-      {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
-      {reveal.entries.slice().sort((a,b)=>(a.member==='You'?-1:1)-(b.member==='You'?-1:1)).map((e,i)=><Receipt key={i} e={e} eng={eng}/>)}
+  if (authState==='signedout') return <div className="app">
+    <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3</span></div>
+    <div className="card login-card">
+      <div className="heart-hero">♥</div>
+      <h2>Welcome</h2>
+      <p className="lede">Sign in with Google to join a prediction pool with your friends.</p>
+      <button className="btn-google" onClick={handleSignIn}>
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Sign in with Google
+      </button>
+      {err && <p style={{color:'var(--rose)',fontSize:13,marginTop:10}}>{err}</p>}
     </div>
-  );
+  </div>;
+
+  /* Username setup */
+  if (!profile?.username) return <div className="app">
+    <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
+    <div className="card">
+      <h2>Pick a username</h2>
+      <p className="lede">This is the name your poolmates will see on scoreboards.</p>
+      <div className="row" style={{marginTop:14}}>
+        <div className="field"><label className="small">Username</label>
+          <input type="text" value={usernameInput} onChange={e=>setUsernameInput(e.target.value)} maxLength={20} placeholder="e.g. Patrick"/>
+        </div>
+      </div>
+      <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
+    </div>
+  </div>;
+
+  if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
+  if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
+  if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
+
+  const userBar = <div className="user-bar">
+    {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
+    <span className="user-name">{profile.username}</span>
+    <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
+  </div>;
+
+  /* ── LOBBY ── */
+  if (!activePool) return <div className="app">
+    <div className="hdr">
+      <div className="eyebrow">Love Is Blind: UK</div>
+      <h1>Prediction Pool</h1>
+      <span className="seasonpill">Season 3</span>
+      {userBar}
+    </div>
+
+    {invites.length>0 && <div className="card">
+      <h2>Invites</h2>
+      {invites.map(inv=><div className="invite-row" key={inv.id}>
+        <div className="iname">{inv.poolName}</div>
+        <div className="imeta">Invited by {inv.fromUsername}</div>
+        <div className="invite-actions">
+          <button className="btn-small filled" onClick={()=>doAccept(inv)}>Accept</button>
+          <button className="btn-small" onClick={()=>doDecline(inv)}>Decline</button>
+        </div>
+      </div>)}
+    </div>}
+
+    <div className="card">
+      <h2>Your pools</h2>
+      {lobbyLoading && <p className="subtle">Loading...</p>}
+      {!lobbyLoading && pools.length===0 && <p className="lede">You're not in any pools yet. Create one and invite your friends!</p>}
+      {pools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
+        <div><div className="pname">{p.name}</div><div className="pmeta">{p.members.length} member{p.members.length!==1?'s':''}</div></div>
+        <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
+      </div>)}
+
+      {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
+      {creating && <div style={{marginTop:14}}>
+        <hr className="divider"/>
+        <h3>New pool</h3>
+        <div className="row">
+          <div className="field"><label className="small">Pool name</label>
+            <input type="text" value={newPoolName} onChange={e=>setNewPoolName(e.target.value)} maxLength={40} placeholder="e.g. MacQuarrie Family Pool"/>
+          </div>
+        </div>
+        <div className="row">
+          <div className="field"><label className="small">Invite by email</label>
+            <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addInviteEmail()} placeholder="friend@email.com"/>
+          </div>
+          <button className="btn-add" onClick={addInviteEmail}>Add</button>
+        </div>
+        {inviteList.length>0 && <div style={{margin:'8px 0'}}>
+          {inviteList.map(em=><span className="email-chip" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
+        </div>}
+        <button className="btn-primary" disabled={!newPoolName.trim()} onClick={doCreatePool}>Create pool{inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}</button>
+        <button className="btn-secondary" onClick={()=>{setCreating(false);setNewPoolName('');setInviteList([]);}}>Cancel</button>
+      </div>}
+    </div>
+  </div>;
+
+  /* ── IN POOL ── */
+  const {RULES} = eng;
+  const spent = eng.spentBy(picks[phase]);
+  const endEp = PH_SPAN[phase].endEp;
+
+  // Build playersByName for scoreboard
+  const playersByName = {};
+  if (poolPlayers && poolUsers) {
+    activePool.members.forEach(uid => {
+      const uname = poolUsers[uid]?.username || (poolPlayers[uid]?.username) || 'Player';
+      playersByName[uname] = poolPlayers[uid] || {picks:EMPTY_PICKS, completed:{}};
+    });
+    // Ensure my latest local state is reflected
+    if (meName) playersByName[meName] = {picks, completed, username:meName};
+  }
+
+  const saveBadge = saveState && <span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}</span>;
+
+  const RevealSummary = () => reveal && <div className="card">
+    <h2 style={{marginBottom:10}}>{phase==='reunion'?'The Reunion':'Episode '+reveal.ep}</h2>
+    {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved this episode</h3><div className="sub">The board carries forward.</div></div>}
+    {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
+    {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meName={meName}/>)}
+  </div>;
 
   return <div className="app">
     <div className="hdr">
       <div className="eyebrow">Love Is Blind: UK</div>
-      <h1>Prediction Pool {syncBadge}{saveBadge}</h1>
-      <span className="seasonpill">Season 3 · You vs {PLAYER1} &amp; {PLAYER2}</span>
+      <h1>{activePool.name} {saveBadge}</h1>
+      <span className="seasonpill">Season 3</span>
       <div className="user-bar">
+        <button className="backlink" onClick={exitPool}>← All pools</button>
         {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
-        <span className="user-name">{user.displayName || user.email}</span>
+        <span className="user-name">{meName}</span>
         <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
-        <a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'var(--rose)',fontWeight:600}}>Edit sheet ↗</a>
       </div>
     </div>
-    <Stepper phase={phase} RULES={RULES}/>
 
-    {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{PH_INTRO[phase].tagline}</p><Panel title="Rules" defaultOpen>{PH_INTRO[phase].rules}</Panel><Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel><button className="btn-primary" onClick={()=>phase==='pods'?doGate():setScreen('board')}>{phase==='pods'?'I watched Episode 1':'Open the board'}</button></div>}
+    <div className="tabbar">
+      <button className={poolTab==='play'?'active':''} onClick={()=>setPoolTab('play')}>Play</button>
+      <button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>
+    </div>
 
-    {screen==='board'&&<React.Fragment>
-      <RevealSummary/>
-      {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
-      {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
-      {phase==='weddings'&&<WeddingsBoard w={w} picks={picks.weddings} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
-      {phase==='reunion'&&<ReunionBoard picks={picks.reunion} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
-      <button className="btn-primary" onClick={doGate}>{phase==='reunion'?'I watched the Reunion':'I watched Episode '+(w+1)} →</button>
-      <p className="subtle" style={{textAlign:'center'}}>Watching the next episode locks this window's picks.</p>
+    {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersByName={playersByName} meName={meName} myPhase={phase}/>}
+
+    {poolTab==='play' && <React.Fragment>
+      <Stepper phase={phase} RULES={RULES}/>
+
+      {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{PH_INTRO[phase].tagline}</p><Panel title="Rules" defaultOpen>{PH_INTRO[phase].rules}</Panel><Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel><button className="btn-primary" onClick={()=>phase==='pods'?doGate():setScreen('board')}>{phase==='pods'?'I watched Episode 1':'Open the board'}</button></div>}
+
+      {screen==='board'&&<React.Fragment>
+        <RevealSummary/>
+        {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
+        {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
+        {phase==='weddings'&&<WeddingsBoard w={w} picks={picks.weddings} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
+        {phase==='reunion'&&<ReunionBoard picks={picks.reunion} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
+        <button className="btn-primary" onClick={doGate}>{phase==='reunion'?'I watched the Reunion':'I watched Episode '+(w+1)} →</button>
+        <p className="subtle" style={{textAlign:'center'}}>Watching the next episode locks this window's picks.</p>
+      </React.Fragment>}
+
+      {screen==='close'&&closeInfo&&<React.Fragment>
+        <RevealSummary/>
+        <div className="card">
+          <h2>{RULES.phases[phase].label} complete</h2>
+          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>Settled at close</h3>}
+          {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meName={meName}/>)}
+          <div className="notice">Your picks are locked. Scores and everyone's picks are revealed on the Standings tab once the whole pool completes this phase.</div>
+          <button className="btn-primary" onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
+        </div>
+      </React.Fragment>}
+
+      {screen==='final'&&<div className="card gatecard">
+        <div className="crown">👑</div>
+        <div className="winner">Season complete!</div>
+        <p className="lede" style={{marginBottom:12}}>Check the Standings tab to see how everyone did once the whole pool has finished.</p>
+        <button className="btn-primary" onClick={()=>{setPoolTab('standings');refreshPool();}}>View Standings</button>
+      </div>}
     </React.Fragment>}
-
-    {screen==='close'&&closeInfo&&<React.Fragment>
-      <RevealSummary/>
-      <div className="card">
-        <h2>{RULES.phases[phase].label} closed</h2>
-        {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>Settled at close</h3>}
-        {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng}/>)}
-        {closeInfo.unspent.length>0&&<div className="notice">{closeInfo.unspent.map(u=><div key={u.m}><b>{u.m}</b> left {u.left} hearts unspent — gone.</div>)}</div>}
-        <h3 style={{marginTop:14}}>Standings</h3>
-        <Leaderboard log={log} upTo={phase} RULES={RULES} MEMBERS={MEMBERS}/>
-        <button className="btn-primary" onClick={openNextPhase}>{NEXT_PH[phase]?'Commissioner: open '+RULES.phases[NEXT_PH[phase]].label+' →':'See the season result →'}</button>
-      </div>
-    </React.Fragment>}
-
-    {screen==='final'&&<div className="card gatecard">
-      <div className="crown">👑</div>
-      <div className="winner">{winnerName()} takes the season</div>
-      <Leaderboard log={log} upTo="reunion" RULES={RULES} MEMBERS={MEMBERS}/>
-      {log.some(e=>e.pending)&&<div className="notice" style={{textAlign:'left'}}>Soft bets are awaiting the commissioner's ruling — those stakes recompute when the ruling publishes.</div>}
-      <button className="btn-primary" onClick={()=>window.location.reload()}>Run it back</button>
-    </div>}
   </div>;
 }
 
