@@ -41,6 +41,10 @@ body{
 .btn-primary:hover{filter:brightness(1.06)}
 .btn-primary:active{transform:translateY(1px)}
 .btn-primary:disabled{opacity:.4;cursor:default;box-shadow:none}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:14px 18px;margin-top:14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:600;font-size:15px;font-family:Inter,sans-serif;cursor:pointer;transition:box-shadow .15s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.btn-google:hover{box-shadow:0 4px 16px rgba(0,0,0,.13)}
+.btn-google:active{transform:translateY(1px)}
+.btn-google svg{flex-shrink:0}
 .btn-add{padding:11px 16px;border:1.5px solid var(--wine);border-radius:12px;background:none;color:var(--wine);font-weight:700;font-size:14px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-add:disabled{opacity:.35;cursor:default}
 .btn-x{border:none;background:none;color:#b08d95;font-size:16px;cursor:pointer;padding:4px 8px}
@@ -94,6 +98,17 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .errcard h3{color:var(--wine);margin:0 0 8px;font-family:'Playfair Display',serif}
 .syncbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#7a4a58;background:var(--blush-soft);padding:3px 9px;border-radius:999px;cursor:pointer;margin-left:8px;border:none;font-family:Inter,sans-serif;vertical-align:middle}
 .syncbadge:hover{background:var(--blush)}
+.savebadge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.savebadge.saving{color:#7a4a58;background:var(--blush-soft)}
+.savebadge.saved{color:#2e7d4f;background:#e8f5e9}
+.savebadge.error{color:#b71c1c;background:#ffebee}
+.user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
+.user-name{font-size:13px;font-weight:600;color:#7a4a58}
+.btn-signout{font-size:12px;color:#9a6a76;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
+.btn-signout:hover{background:var(--blush-soft)}
+.login-card{text-align:center}
+.login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
 .divider{border:none;border-top:1px solid var(--line);margin:16px 0}
 .mkt-title{display:flex;align-items:baseline;justify-content:space-between}
 .multpill{font-size:11px;font-weight:700;color:var(--wine);background:var(--blush-soft);padding:3px 9px;border-radius:999px;white-space:nowrap}
@@ -102,20 +117,47 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 </head>
 <body>
 <div id="root"></div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc }
+  from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
+  authDomain: "lib-oauth.firebaseapp.com",
+  projectId: "lib-oauth",
+  storageBucket: "lib-oauth.firebasestorage.app",
+  messagingSenderId: "737647208245",
+  appId: "1:737647208245:web:df790bfdf2ca546fa80e7c"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const auth  = getAuth(fbApp);
+const db    = getFirestore(fbApp);
+
+// Expose to React via window
+window._fb = {
+  signIn: () => signInWithPopup(auth, new GoogleAuthProvider()),
+  signOut: () => signOut(auth),
+  onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
+  loadPicks: async (uid) => {
+    const snap = await getDoc(doc(db, 'picks', uid, 'data', 'state'));
+    return snap.exists() ? snap.data() : null;
+  },
+  savePicks: async (uid, state) => {
+    await setDoc(doc(db, 'picks', uid, 'data', 'state'), state);
+  },
+};
+</script>
+
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script type="text/babel" data-presets="react">
-
-/* =====================================================================
-   LOVE IS BLIND: UK -- Prediction Pool  Season 3
-   Sheet-connected edition
-
-   ONLY LINE YOU NEED TO EDIT:
-   Replace the SHEET_ID value below with your Google Sheet ID
-   (the long string in the middle of the sheet URL).
-   The sheet must be shared as "Anyone with the link can view."
-   ===================================================================== */
 
 const SHEET_ID = '10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY';
 
@@ -123,12 +165,11 @@ const SHEET_ID = '10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY';
 /*  SHEET FETCHER                                                      */
 /* ================================================================== */
 
-const csvUrl = (tabName) =>
-  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+const csvUrl = (t) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(t)}`;
 
-async function fetchTab(tabName) {
-  const res = await fetch(csvUrl(tabName));
-  if (!res.ok) throw new Error(`Failed to fetch tab "${tabName}" (${res.status})`);
+async function fetchTab(t) {
+  const res = await fetch(csvUrl(t));
+  if (!res.ok) throw new Error(`Failed to fetch tab "${t}" (${res.status})`);
   return parseCSV(await res.text());
 }
 
@@ -265,7 +306,9 @@ function makeEngine(cfg) {
             placeholder:!!placeholder,pending:!!pending,points:ok?calcPts(stake,mult,owners,tag):0};
   }
 
-  function allP(phase,pp) { return {You:pp[phase]||[],[PLAYER1]:OPPONENTS[PLAYER1][phase],[PLAYER2]:OPPONENTS[PLAYER2][phase]}; }
+  function allP(phase,pp) {
+    return {You:pp[phase]||[],[PLAYER1]:OPPONENTS[PLAYER1][phase],[PLAYER2]:OPPONENTS[PLAYER2][phase]};
+  }
 
   function resolveEpisode(phase,ep,pp) {
     const all=allP(phase,pp), events=[], entries=[];
@@ -308,7 +351,7 @@ function makeEngine(cfg) {
     if(phase==='weddings') {
       COUPLES.filter(c=>c.wedding&&!c.breakupEp&&((c.settledEp||12)===ep)).forEach(c=>{
         const out=c.wedding;
-        events.push({title:nameOf(c.id)+': '+WED_LABEL[out].toLowerCase()+(out==='saysNo'?' — '+whoNm(c.id,c.who):''),sub:c.settledEp===ep&&ep<12?'Settled in Episode '+ep+' — board closes early for this couple.':null});
+        events.push({title:nameOf(c.id)+': '+WED_LABEL[out].toLowerCase()+(out==='saysNo'?' — '+whoNm(c.id,c.who):''),sub:c.settledEp===ep&&ep<12?'Settled in Episode '+ep+' — board closes early.':null});
         MEMBERS.forEach(m=>all[m].filter(p=>p.c===c.id).forEach(p=>{
           if(p.o===out) {
             const owners=MEMBERS.filter(mm=>all[mm].some(q=>q.c===c.id&&q.o===out)).length, tagged=out==='saysNo'&&p.who===c.who;
@@ -377,10 +420,10 @@ function makeEngine(cfg) {
 }
 
 /* ================================================================== */
-/*  UI COMPONENTS                                                      */
+/*  SHARED UI                                                          */
 /* ================================================================== */
 
-const {useState,useEffect,useCallback} = React;
+const {useState,useEffect,useCallback,useRef} = React;
 
 function Panel({title,defaultOpen,children}) {
   const [open,setOpen]=useState(!!defaultOpen);
@@ -425,7 +468,7 @@ function PodsBoard({w,picks,add,remove,spent,eng}) {
   const womA=WOMEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
   const left=RULES.phases.pods.budget-spent, maxS=Math.min(RULES.phases.pods.cap,left);
   const doAdd=()=>{const m=COUPLES.find(c=>c.him===him&&c.her===her);add({c:m?m.id:(him+'|'+her),s:Math.min(stake,maxS),w});setHim('');setHer('');};
-  return <div className="card"><h2>Window {w} after Episode {w}</h2><p className="lede">Who gets engaged? Earlier calls pay more — +0.5x per episode of foresight.</p><Budget phase="pods" spent={spent} RULES={RULES}/><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!him||!her||left<5} onClick={doAdd}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w} · lead x{fmt(leadM(w-p.w))} if they propose next episode</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>x</button>}</div>)}</div>;
+  return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Earlier calls pay more — +0.5x per episode of foresight.</p><Budget phase="pods" spent={spent} RULES={RULES}/><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!him||!her||left<5} onClick={doAdd}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w} · lead x{fmt(leadM(w-p.w))} if they propose next episode</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>✕</button>}</div>)}</div>;
 }
 
 function DatingBoard({w,picks,add,remove,spent,eng}) {
@@ -439,11 +482,11 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   const cO=COUPLES.filter(c=>!(DATING_RESULTS.criticize[c.id]&&DATING_RESULTS.criticize[c.id].ep<=w)&&!picks.some(p=>p.m==='criticize'&&p.c===c.id));
   const opt=l=>l.map(c=>({v:c.id,t:nameOf(c.id)}));
   const ml=p=>p.m==='breakup'?'First to break up':(p.m==='sex'?'Sleep together':'Criticizes the place ('+(p.who?membOf(p.c)[p.who==='him'?0:1]:'?')+')');
-  return <div className="card"><h2>Window {w} after Episode {w}</h2><Budget phase="dating" spent={spent} RULES={RULES}/>
+  return <div className="card"><h2>Window {w} · after Episode {w}</h2><Budget phase="dating" spent={spent} RULES={RULES}/>
     <div className="mkt-title"><h3>First to break up</h3><span className="multpill">race</span></div><div className="row"><Sel label="Couple" value={rC} onChange={setRC} options={opt(rO)}/><StakeSlider value={rS} onChange={setRS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!rC||left<5} onClick={()=>{add({m:'breakup',c:rC,s:Math.min(rS,maxS),w});setRC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>They sleep together</h3><span className="multpill">lead ladder</span></div><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Criticizes their place</h3><span className="multpill">+25% who-tag</span></div><div className="row"><Sel label="Couple" value={cC} onChange={v=>{setCC(v);setCW('');}} options={opt(cO)}/><Sel label="Who says it" value={cW} onChange={setCW} options={cC?[{v:'him',t:membOf(cC)[0]},{v:'her',t:membOf(cC)[1]}]:[]}/></div><div className="row"><StakeSlider value={cS} onChange={setCS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cC||!cW||left<5} onClick={()=>{add({m:'criticize',c:cC,who:cW,s:Math.min(cS,maxS),w});setCC('');setCW('');}}>Add</button></div>
-    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {ml(p)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>x</button>}</div>)}</div>;
+    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {ml(p)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>✕</button>}</div>)}</div>;
 }
 
 function WeddingsBoard({w,picks,add,remove,spent,eng}) {
@@ -451,7 +494,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
   const left=RULES.phases.weddings.budget-spent, maxS=Math.min(RULES.phases.weddings.cap,left), rung=w-9;
   const [cid,setCid]=useState(''),[out,setOut]=useState(''),[whoT,setWhoT]=useState(''),[stake,setStake]=useState(40);
   const alive=COUPLES.filter(c=>c.wedding&&!c.breakupEp&&!(c.settledEp&&c.settledEp<=w)&&!picks.some(p=>p.c===c.id));
-  return <div className="card"><h2>{['Early','Mid','Late'][rung]} window after Episode {w}</h2><p className="lede">One outcome per couple. This window: married x{WED_MULT.married[rung]} · says no x{WED_MULT.saysNo[rung]} · called off x{WED_MULT.calledOff[rung]}.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Outcome" value={out} onChange={v=>{setOut(v);setWhoT('');}} options={[{v:'married',t:'Gets married'},{v:'saysNo',t:'Says no at the altar'},{v:'calledOff',t:'Called off before the altar'}]}/></div>{out==='saysNo'&&cid&&<div className="row"><Sel label="Who says no (+25%)" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]},{v:'both',t:'Both'}]}/></div>}<div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cid||!out||left<5} onClick={()=>{add({c:cid,o:out,who:whoT||undefined,s:Math.min(stake,maxS),r:rung});setCid('');setOut('');setWhoT('');}}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} — {p.s}♥</div><div className="subtle">{['early','mid','late'][p.r]} window</div></div>{p.r===rung&&<button className="btn-x" onClick={()=>remove(i)}>x</button>}</div>)}</div>;
+  return <div className="card"><h2>{['Early','Mid','Late'][rung]} window · after Episode {w}</h2><p className="lede">One outcome per couple. married x{WED_MULT.married[rung]} · says no x{WED_MULT.saysNo[rung]} · called off x{WED_MULT.calledOff[rung]}.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Outcome" value={out} onChange={v=>{setOut(v);setWhoT('');}} options={[{v:'married',t:'Gets married'},{v:'saysNo',t:'Says no at the altar'},{v:'calledOff',t:'Called off before the altar'}]}/></div>{out==='saysNo'&&cid&&<div className="row"><Sel label="Who says no (+25%)" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]},{v:'both',t:'Both'}]}/></div>}<div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cid||!out||left<5} onClick={()=>{add({c:cid,o:out,who:whoT||undefined,s:Math.min(stake,maxS),r:rung});setCid('');setOut('');setWhoT('');}}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} — {p.s}♥</div><div className="subtle">{['early','mid','late'][p.r]} window</div></div>{p.r===rung&&<button className="btn-x" onClick={()=>remove(i)}>✕</button>}</div>)}</div>;
 }
 
 function ReunionBoard({picks,add,remove,spent,eng}) {
@@ -467,14 +510,14 @@ function ReunionBoard({picks,add,remove,spent,eng}) {
   const [aP,setAP]=useState(''),[aS,setAS]=useState(20);
   const [cA,setCA]=useState(''),[cB,setCB]=useState(''),[cS2,setCS2]=useState(20);
   const ml=p=>p.m==='still'?nameOf(p.c)+' still together':p.m==='back'?nameOf(p.c)+' back together':p.m==='newCouple'?'New couple: '+p.pair.split('|').join(' & '):p.m==='lifeUpdate'?'Life update: '+p.person+' — '+(LIFE_UPD[p.update]||p.update):p.m==='absent'?'Absent: '+p.person:'Confrontation: '+p.a+' vs '+p.b;
-  return <div className="card"><h2>One lock before the Reunion</h2><Budget phase="reunion" spent={spent} RULES={RULES}/>
+  return <div className="card"><h2>One lock · before the Reunion</h2><Budget phase="reunion" spent={spent} RULES={RULES}/>
     <div className="mkt-title"><h3>Still together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Married couple" value={stC} onChange={setStC} options={married.filter(id=>!picks.some(p=>p.m==='still'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={stS} onChange={setStS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!stC||left<5} onClick={()=>{add({m:'still',c:stC,s:Math.min(stS,maxS)});setStC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Back together</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Split couple" value={bkC} onChange={setBkC} options={split.filter(id=>!picks.some(p=>p.m==='back'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={bkS} onChange={setBkS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bkC||left<5} onClick={()=>{add({m:'back',c:bkC,s:Math.min(bkS,maxS)});setBkC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>New couple revealed</h3><span className="multpill">x3</span></div><div className="row"><Sel label="Him" value={nH} onChange={setNH} options={MEN}/><Sel label="Her" value={nW} onChange={setNW} options={WOMEN}/></div><div className="row"><StakeSlider value={nS} onChange={setNS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!nH||!nW||left<5} onClick={()=>{add({m:'newCouple',pair:nH+'|'+nW,s:Math.min(nS,maxS)});setNH('');setNW('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Major life update</h3><span className="multpill">x3</span></div><div className="row"><Sel label="Castmate" value={lP} onChange={setLP} options={AC}/><Sel label="Update" value={lU} onChange={setLU} options={Object.entries(LIFE_UPD).map(([v,t])=>({v,t}))}/></div><div className="row"><StakeSlider value={lS} onChange={setLS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!lP||!lU||left<5} onClick={()=>{add({m:'lifeUpdate',person:lP,update:lU,s:Math.min(lS,maxS)});setLP('');setLU('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Absent castmate</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Castmate" value={aP} onChange={setAP} options={AC}/><StakeSlider value={aS} onChange={setAS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!aP||left<5} onClick={()=>{add({m:'absent',person:aP,s:Math.min(aS,maxS)});setAP('');}}>Add</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Direct confrontation</h3><span className="multpill">x2 commissioner-ruled</span></div><div className="row"><Sel label="Castmate A" value={cA} onChange={setCA} options={AC.filter(n=>n!==cB)}/><Sel label="Castmate B" value={cB} onChange={setCB} options={AC.filter(n=>n!==cA)}/></div><div className="row"><StakeSlider value={cS2} onChange={setCS2} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cA||!cB||left<5} onClick={()=>{add({m:'confrontation',a:cA,b:cB,s:Math.min(cS2,maxS)});setCA('');setCB('');}}>Add</button></div>
-    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} — {p.s}♥</div><button className="btn-x" onClick={()=>remove(i)}>x</button></div>)}</div>;
+    <hr className="divider"/><div className="mkt-title"><h3>Direct confrontation</h3><span className="multpill">x2 · commissioner-ruled</span></div><div className="row"><Sel label="Castmate A" value={cA} onChange={setCA} options={AC.filter(n=>n!==cB)}/><Sel label="Castmate B" value={cB} onChange={setCB} options={AC.filter(n=>n!==cA)}/></div><div className="row"><StakeSlider value={cS2} onChange={setCS2} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cA||!cB||left<5} onClick={()=>{add({m:'confrontation',a:cA,b:cB,s:Math.min(cS2,maxS)});setCA('');setCB('');}}>Add</button></div>
+    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} — {p.s}♥</div><button className="btn-x" onClick={()=>remove(i)}>✕</button></div>)}</div>;
 }
 
 /* ================================================================== */
@@ -488,64 +531,228 @@ const PH_INTRO = {
   reunion:{tagline:'The victory lap. One lock before the reunion airs.',rules:<ul><li>New couple x3 · Life update x3 · Back together x2 · Absent castmate x2 · Confrontation x2 · Still together x1.</li><li>Budget 100, max 40 per pick.</li></ul>,scoring:<div><p>points = 2 x stake x difficulty x contrarian</p></div>},
 };
 
+const EMPTY_PICKS = {pods:[],dating:[],weddings:[],reunion:[]};
+
 function App() {
-  const [ls,setLs]=useState('loading');
-  const [err,setErr]=useState('');
-  const [eng,setEng]=useState(null);
-  const [sync,setSync]=useState(null);
-  const [phase,setPhase]=useState('pods');
-  const [screen,setScreen]=useState('intro');
-  const [w,setW]=useState(0);
-  const [picks,setPicks]=useState({pods:[],dating:[],weddings:[],reunion:[]});
-  const [log,setLog]=useState([]);
-  const [reveal,setReveal]=useState(null);
-  const [closeInfo,setCloseInfo]=useState(null);
+  // Auth state
+  const [authState, setAuthState] = useState('checking'); // checking | signedout | signedin
+  const [user,      setUser]      = useState(null);
 
-  const doLoad=useCallback(async()=>{
+  // Config/sheet state
+  const [ls,   setLs]   = useState('loading');
+  const [err,  setErr]  = useState('');
+  const [eng,  setEng]  = useState(null);
+  const [sync, setSync] = useState(null);
+
+  // Game state
+  const [phase,     setPhase]     = useState('pods');
+  const [screen,    setScreen]    = useState('intro');
+  const [w,         setW]         = useState(0);
+  const [picks,     setPicks]     = useState(EMPTY_PICKS);
+  const [log,       setLog]       = useState([]);
+  const [reveal,    setReveal]    = useState(null);
+  const [closeInfo, setCloseInfo] = useState(null);
+
+  // Save badge
+  const [saveState, setSaveState] = useState(null); // null | saving | saved | error
+  const saveTimer = useRef(null);
+
+  // ── Auth listener ─────────────────────────────────────────────────
+  useEffect(() => {
+    const unsub = window._fb.onAuthStateChanged(u => {
+      setUser(u);
+      setAuthState(u ? 'signedin' : 'signedout');
+    });
+    return unsub;
+  }, []);
+
+  // ── Load sheet config ─────────────────────────────────────────────
+  const doLoad = useCallback(async () => {
     setLs('loading');
-    try{const cfg=await loadConfig();setEng(makeEngine(cfg));setSync(new Date());setLs(cfg.MEN.length===0?'nocast':'ready');}
-    catch(e){setErr(e.message);setLs('error');}
-  },[]);
+    try {
+      const cfg = await loadConfig();
+      setEng(makeEngine(cfg));
+      setSync(new Date());
+      setLs(cfg.MEN.length === 0 ? 'nocast' : 'ready');
+    } catch(e) { setErr(e.message); setLs('error'); }
+  }, []);
 
-  useEffect(()=>{doLoad();},[doLoad]);
+  useEffect(() => { doLoad(); }, [doLoad]);
 
-  const sheetUrl=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+  // ── Load saved picks from Firestore when user signs in ────────────
+  useEffect(() => {
+    if (!user) return;
+    window._fb.loadPicks(user.uid).then(saved => {
+      if (!saved) return;
+      if (saved.picks)     setPicks(saved.picks);
+      if (saved.log)       setLog(saved.log);
+      if (saved.phase)     setPhase(saved.phase);
+      if (saved.screen)    setScreen(saved.screen);
+      if (saved.w != null) setW(saved.w);
+      if (saved.reveal)    setReveal(saved.reveal);
+      if (saved.closeInfo) setCloseInfo(saved.closeInfo);
+    }).catch(() => {});
+  }, [user]);
 
-  if(ls==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading from Google Sheets...</div></div>;
+  // ── Auto-save picks to Firestore ──────────────────────────────────
+  const saveToFirestore = useCallback((state) => {
+    if (!user) return;
+    clearTimeout(saveTimer.current);
+    setSaveState('saving');
+    saveTimer.current = setTimeout(() => {
+      window._fb.savePicks(user.uid, state)
+        .then(() => { setSaveState('saved'); setTimeout(() => setSaveState(null), 2000); })
+        .catch(() => setSaveState('error'));
+    }, 800);
+  }, [user]);
 
-  if(ls==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="errcard"><h3>Couldn't read the sheet</h3><p>Make sure the sheet is shared as <b>"Anyone with the link can view"</b>, then refresh.</p><p style={{fontSize:12,color:'#9a6a76'}}>{err}</p><a href={sheetUrl} target="_blank" rel="noopener noreferrer">Open the Google Sheet</a><br/><br/><button className="btn-primary" onClick={doLoad}>Try again</button></div></div>;
-
-  if(ls==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div><div className="card"><h2>Cast not yet entered</h2><p className="lede">Once Netflix announces the pod squad, add their names to the Cast tab and refresh.</p><div className="setup-notice"><strong>Next step</strong>Open the Google Sheet, go to the <b>Cast tab</b>, and add one row per person — M or F in Gender, and their name.<br/><br/><a href={sheetUrl} target="_blank" rel="noopener noreferrer">Open the Google Sheet</a></div><button className="btn-primary" onClick={doLoad}>Reload from sheet</button></div></div>;
-
-  const {RULES,MEMBERS,PLAYER1,PLAYER2,resolveEpisode,resolvePhaseClose,spentBy}=eng;
-  const endEp=PH_SPAN[phase].endEp, spent=spentBy(picks[phase]);
-  const addPick=p=>setPicks({...picks,[phase]:[...picks[phase],p]});
-  const removePick=i=>setPicks({...picks,[phase]:picks[phase].filter((_,idx)=>idx!==i)});
-
-  const doGate=()=>{const ep=w+1,r=resolveEpisode(phase,ep,picks);setLog(prev=>[...prev,...r.entries]);setReveal({ep,...r});setW(ep);setScreen('reveal');};
-  const continueFromReveal=()=>{
-    if(w>=endEp){const closing=resolvePhaseClose(phase,picks);setLog(prev=>[...prev,...closing]);
-      const unspent=MEMBERS.map(m=>{const pk=m==='You'?picks[phase]:eng.OPPONENTS[m][phase];return{m,left:RULES.phases[phase].budget-spentBy(pk)};}).filter(u=>u.left>0);
-      setCloseInfo({closing,unspent});setScreen('close');}
-    else setScreen('board');
+  const updatePicks = (newPicks) => {
+    setPicks(newPicks);
+    saveToFirestore({picks:newPicks, log, phase, screen, w, reveal, closeInfo});
   };
-  const openNextPhase=()=>{const next=NEXT_PH[phase];if(!next){setScreen('final');return;}setPhase(next);setScreen('intro');};
-  const winnerName=()=>{const t={};MEMBERS.forEach(m=>t[m]=0);log.forEach(e=>{if(!e.pending)t[e.member]+=e.points;});return MEMBERS.slice().sort((a,b)=>t[b]-t[a])[0];};
+  const updateLog = (newLog) => {
+    setLog(newLog);
+    saveToFirestore({picks, log:newLog, phase, screen, w, reveal, closeInfo});
+  };
 
-  const syncBadge=<button className="syncbadge" onClick={doLoad}>↻ {sync?sync.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'sync'}</button>;
+  // ── Sign in / out ─────────────────────────────────────────────────
+  const handleSignIn  = () => window._fb.signIn().catch(e => setErr(e.message));
+  const handleSignOut = () => {
+    window._fb.signOut();
+    setPicks(EMPTY_PICKS); setLog([]); setPhase('pods');
+    setScreen('intro'); setW(0); setReveal(null); setCloseInfo(null);
+  };
+
+  const sheetUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`;
+
+  // ── Auth check screen ─────────────────────────────────────────────
+  if (authState === 'checking') return (
+    <div className="app">
+      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
+      <div className="loading"><span className="spinner">♥</span>Signing you in...</div>
+    </div>
+  );
+
+  if (authState === 'signedout') return (
+    <div className="app">
+      <div className="hdr">
+        <div className="eyebrow">Love Is Blind: UK</div>
+        <h1>Prediction Pool</h1>
+        <span className="seasonpill">Season 3</span>
+      </div>
+      <div className="card login-card">
+        <div className="heart-hero">♥</div>
+        <h2>Welcome</h2>
+        <p className="lede">Sign in with your Google account to make predictions and save your picks across sessions.</p>
+        <button className="btn-google" onClick={handleSignIn}>
+          <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+          Sign in with Google
+        </button>
+        {err && <p style={{color:'var(--rose)',fontSize:13,marginTop:10}}>{err}</p>}
+      </div>
+    </div>
+  );
+
+  // ── Sheet loading states ──────────────────────────────────────────
+  if (ls === 'loading') return (
+    <div className="app">
+      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
+      <div className="loading"><span className="spinner">♥</span>Loading from Google Sheets...</div>
+    </div>
+  );
+
+  if (ls === 'error') return (
+    <div className="app">
+      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
+      <div className="errcard"><h3>Couldn't read the sheet</h3><p>Make sure the sheet is shared as <b>"Anyone with the link can view"</b>, then refresh.</p><p style={{fontSize:12,color:'#9a6a76'}}>{err}</p><button className="btn-primary" onClick={doLoad}>Try again</button></div>
+    </div>
+  );
+
+  if (ls === 'nocast') return (
+    <div className="app">
+      <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div>
+      <div className="card"><h2>Cast not yet entered</h2><p className="lede">Add names to the Cast tab in the sheet and refresh.</p><div className="setup-notice"><strong>Next step</strong><a href={sheetUrl} target="_blank" rel="noopener noreferrer">Open the Google Sheet</a> and fill in the Cast tab.</div><button className="btn-primary" onClick={doLoad}>Reload from sheet</button></div>
+    </div>
+  );
+
+  // ── Game ──────────────────────────────────────────────────────────
+  const {RULES,MEMBERS,PLAYER1,PLAYER2,resolveEpisode,resolvePhaseClose,spentBy} = eng;
+  const endEp = PH_SPAN[phase].endEp;
+  const spent = spentBy(picks[phase]);
+
+  const addPick = p => {
+    const np = {...picks,[phase]:[...picks[phase],p]};
+    updatePicks(np);
+  };
+  const removePick = i => {
+    const np = {...picks,[phase]:picks[phase].filter((_,idx)=>idx!==i)};
+    updatePicks(np);
+  };
+
+  const doGate = () => {
+    const ep = w+1, r = resolveEpisode(phase,ep,picks);
+    const newLog = [...log, ...r.entries];
+    const newW = ep;
+    if (ep >= endEp) {
+      const closing = resolvePhaseClose(phase,picks);
+      const finalLog = [...newLog, ...closing];
+      const unspent = MEMBERS.map(m=>{const pk=m==='You'?picks[phase]:eng.OPPONENTS[m][phase];return{m,left:RULES.phases[phase].budget-spentBy(pk)};}).filter(u=>u.left>0);
+      const ci = {closing,unspent};
+      setLog(finalLog); setW(newW); setReveal({ep,...r}); setCloseInfo(ci); setScreen('close');
+      saveToFirestore({picks,log:finalLog,phase,screen:'close',w:newW,reveal:{ep,...r},closeInfo:ci});
+    } else {
+      setLog(newLog); setW(newW); setReveal({ep,...r}); setScreen('board');
+      saveToFirestore({picks,log:newLog,phase,screen:'board',w:newW,reveal:{ep,...r},closeInfo});
+    }
+  };
+
+  const openNextPhase = () => {
+    const next = NEXT_PH[phase];
+    if (!next) { setScreen('final'); saveToFirestore({picks,log,phase,screen:'final',w,reveal,closeInfo}); return; }
+    setPhase(next); setReveal(null); setScreen('intro');
+    saveToFirestore({picks,log,phase:next,screen:'intro',w,reveal:null,closeInfo:null});
+  };
+
+  const winnerName = () => {
+    const t={};MEMBERS.forEach(m=>t[m]=0);log.forEach(e=>{if(!e.pending)t[e.member]+=e.points;});
+    return MEMBERS.slice().sort((a,b)=>t[b]-t[a])[0];
+  };
+
+  const saveBadge = saveState && (
+    <span className={`savebadge ${saveState}`}>
+      {saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}
+    </span>
+  );
+
+  const syncBadge = <button className="syncbadge" onClick={doLoad}>↻ {sync?sync.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'sync'}</button>;
+
+  const RevealSummary = () => reveal && (
+    <div className="card">
+      <h2 style={{marginBottom:10}}>{phase==='reunion'?'The Reunion':'Episode '+reveal.ep}</h2>
+      {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved this episode</h3><div className="sub">The board carries forward.</div></div>}
+      {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
+      {reveal.entries.slice().sort((a,b)=>(a.member==='You'?-1:1)-(b.member==='You'?-1:1)).map((e,i)=><Receipt key={i} e={e} eng={eng}/>)}
+    </div>
+  );
 
   return <div className="app">
     <div className="hdr">
       <div className="eyebrow">Love Is Blind: UK</div>
-      <h1>Prediction Pool {syncBadge}</h1>
+      <h1>Prediction Pool {syncBadge}{saveBadge}</h1>
       <span className="seasonpill">Season 3 · You vs {PLAYER1} &amp; {PLAYER2}</span>
-      <div style={{marginTop:6}}><a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'var(--rose)',fontWeight:600}}>Edit the sheet</a></div>
+      <div className="user-bar">
+        {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
+        <span className="user-name">{user.displayName || user.email}</span>
+        <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
+        <a href={sheetUrl} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'var(--rose)',fontWeight:600}}>Edit sheet ↗</a>
+      </div>
     </div>
     <Stepper phase={phase} RULES={RULES}/>
 
     {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{PH_INTRO[phase].tagline}</p><Panel title="Rules" defaultOpen>{PH_INTRO[phase].rules}</Panel><Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel><button className="btn-primary" onClick={()=>phase==='pods'?doGate():setScreen('board')}>{phase==='pods'?'I watched Episode 1':'Open the board'}</button></div>}
 
     {screen==='board'&&<React.Fragment>
+      <RevealSummary/>
       {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
       {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
       {phase==='weddings'&&<WeddingsBoard w={w} picks={picks.weddings} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
@@ -554,23 +761,18 @@ function App() {
       <p className="subtle" style={{textAlign:'center'}}>Watching the next episode locks this window's picks.</p>
     </React.Fragment>}
 
-    {screen==='reveal'&&reveal&&<div className="card">
-      <h2>{phase==='reunion'?'The Reunion':'Episode '+reveal.ep}</h2>
-      {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved this episode</h3><div className="sub">The board carries forward.</div></div>}
-      {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
-      {reveal.entries.slice().sort((a,b)=>(a.member==='You'?-1:1)-(b.member==='You'?-1:1)).map((e,i)=><Receipt key={i} e={e} eng={eng}/>)}
-      <button className="btn-primary" onClick={continueFromReveal}>{w>=endEp?'Close '+RULES.phases[phase].label+' →':'Back to the board →'}</button>
-    </div>}
-
-    {screen==='close'&&closeInfo&&<div className="card">
-      <h2>{RULES.phases[phase].label} closed</h2>
-      {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>Settled at close</h3>}
-      {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng}/>)}
-      {closeInfo.unspent.length>0&&<div className="notice">{closeInfo.unspent.map(u=><div key={u.m}><b>{u.m}</b> left {u.left} hearts unspent — gone.</div>)}</div>}
-      <h3 style={{marginTop:14}}>Standings</h3>
-      <Leaderboard log={log} upTo={phase} RULES={RULES} MEMBERS={MEMBERS}/>
-      <button className="btn-primary" onClick={openNextPhase}>{NEXT_PH[phase]?'Commissioner: open '+RULES.phases[NEXT_PH[phase]].label+' →':'See the season result →'}</button>
-    </div>}
+    {screen==='close'&&closeInfo&&<React.Fragment>
+      <RevealSummary/>
+      <div className="card">
+        <h2>{RULES.phases[phase].label} closed</h2>
+        {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>Settled at close</h3>}
+        {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng}/>)}
+        {closeInfo.unspent.length>0&&<div className="notice">{closeInfo.unspent.map(u=><div key={u.m}><b>{u.m}</b> left {u.left} hearts unspent — gone.</div>)}</div>}
+        <h3 style={{marginTop:14}}>Standings</h3>
+        <Leaderboard log={log} upTo={phase} RULES={RULES} MEMBERS={MEMBERS}/>
+        <button className="btn-primary" onClick={openNextPhase}>{NEXT_PH[phase]?'Commissioner: open '+RULES.phases[NEXT_PH[phase]].label+' →':'See the season result →'}</button>
+      </div>
+    </React.Fragment>}
 
     {screen==='final'&&<div className="card gatecard">
       <div className="crown">👑</div>
