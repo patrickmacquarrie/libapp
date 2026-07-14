@@ -634,7 +634,6 @@ function ReunionBoard({picks,add,remove,spent,eng}) {
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
 /* ================================================================== */
-function Scoreboard({eng, playersById, memberLabels, meId, myPhase}) {
 function Scoreboard({eng, playersById, memberLabels, meId, myPhase, pendingInvites=[]}) {
   const {RULES, scorePhase} = eng;
   const memberIds = Object.keys(playersById);
@@ -828,13 +827,11 @@ function App() {
       setErr(''); setActivePool(pool); setPoolTab('play');
       const engine = makeEngine(cfg, pool.members.length);
       setEng(engine);
-      const [players, users] = await Promise.all([
       const [players, users, pending] = await Promise.all([
         window._fb.loadAllPlayers(pool.id,user.uid),
         window._fb.getUsers(pool.members),
         window._fb.poolInvites(pool.id),
       ]);
-    setPoolPlayers(players); setPoolUsers(users);
     setPoolPlayers(players); setPoolUsers(users); setPendingPoolInvites(pending);
     // Load my state
     const mine = players[user.uid];
@@ -894,7 +891,6 @@ function App() {
   }, [flushSave]);
   const exitPool = async () => {
     await flushSave().catch(()=>{});
-    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setEng(null);
     setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPendingPoolInvites([]); setEng(null);
     loadLobby();
   };
@@ -976,17 +972,13 @@ function App() {
     try {
       const pool = await window._fb.getPool(activePool.id);
       if (!pool) throw new Error('Pool not found');
-      const [players,users] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members)]);
-      setActivePool(pool); setPoolPlayers(players); setPoolUsers(users); setEng(makeEngine(cfg,pool.members.length));
       const [players,users,pending] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id)]);
       setActivePool(pool); setPoolPlayers(players); setPoolUsers(users); setPendingPoolInvites(pending); setEng(makeEngine(cfg,pool.members.length));
     } catch(e) { console.error(e); setErr('Could not refresh the standings.'); }
   };
   /* ── RENDER ── */
-  if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='signedout') return <div className="app">
-    <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3</span></div>
     <div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
     <div className="card login-card">
       <div className="heart-hero">♥</div>
@@ -1001,7 +993,6 @@ function App() {
   </div>;
   /* Username setup */
   if (!profile?.username) return <div className="app">
-    <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
     <div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
     <div className="card">
       <h2>Pick a username</h2>
@@ -1029,10 +1020,8 @@ function App() {
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
     <div className="hdr">
-      <div className="eyebrow">Love Is Blind: UK</div>
       <div className="eyebrow">Love Is Blind</div>
       <h1>Prediction Pool</h1>
-      <span className="seasonpill">Season 3</span>
       <span className="seasonpill">UK: Season 3</span>
       {userBar}
     </div>
@@ -1124,7 +1113,6 @@ function App() {
       <button className={poolTab==='play'?'active':''} onClick={()=>setPoolTab('play')}>Play</button>
       <button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>
     </div>
-    {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} memberLabels={memberLabels} meId={user.uid} myPhase={phase}/>}
     {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>} 
     {poolTab==='play' && <React.Fragment>
       <Stepper phase={phase} RULES={RULES}/>
