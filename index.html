@@ -106,7 +106,16 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
 .user-name{font-size:13px;font-weight:600;color:#7a4a58}
 .btn-signout{font-size:12px;color:#9a6a76;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
+.btn-signout,.btn-how{font-size:12px;color:#9a6a76;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-signout:hover{background:var(--blush-soft)}
+.btn-how:hover{background:var(--blush-soft)}
+.btn-danger{padding:7px 10px;border:1px solid #d58a99;border-radius:9px;background:#fff;color:#9b334b;font-weight:700;font-size:12px;cursor:pointer;font-family:Inter,sans-serif}
+.btn-danger:hover{background:#fff0f3}
+.modal-backdrop{position:fixed;inset:0;background:rgba(43,18,32,.42);display:flex;align-items:center;justify-content:center;padding:18px;z-index:20}
+.modal{width:min(610px,100%);max-height:88vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(43,18,32,.28)}
+.modal h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:26px;margin:0 0 6px}
+.modal h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:18px 0 6px}
+.modal p,.modal li{color:#4a2a36;font-size:14px;line-height:1.55}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
 .pool-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fff;cursor:pointer;transition:box-shadow .15s}
@@ -137,14 +146,13 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 </head>
 <body>
 <div id="root"></div>
-
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
-
 const firebaseConfig = {
   apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
   authDomain: "lib-oauth.firebaseapp.com",
@@ -153,24 +161,20 @@ const firebaseConfig = {
   messagingSenderId: "737647208245",
   appId: "1:737647208245:web:df790bfdf2ca546fa80e7c"
 };
-
 const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 const GAME_PHASES = ['pods','dating','weddings','reunion'];
 const inviteDocId = (poolId,email) => poolId+'__'+email.toLowerCase();
-
 window._fb = {
   signIn:  () => signInWithPopup(auth, new GoogleAuthProvider()),
   signOut: () => signOut(auth),
   onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
-
   getProfile: async (uid) => {
     const s = await getDoc(doc(db,'users',uid));
     return s.exists() ? s.data() : null;
   },
   setProfile: (uid, data) => setDoc(doc(db,'users',uid), data),
-
   myPools: async (uid) => {
     const q1 = query(collection(db,'pools'), where('members','array-contains',uid));
     const snap = await getDocs(q1);
@@ -184,12 +188,17 @@ window._fb = {
     const s = await getDoc(doc(db,'pools',poolId));
     return s.exists() ? {id:s.id, ...s.data()} : null;
   },
-
   myInvites: async (email) => {
     if (!email) return [];
     const q1 = query(collection(db,'invites'), where('toEmail','==',email.toLowerCase()), where('status','==','pending'));
     const snap = await getDocs(q1);
     return snap.docs.map(d=>({id:d.id, ...d.data()}));
+  },
+  poolInvites: async (poolId) => {
+    try {
+      const snap = await getDocs(query(collection(db,'invites'), where('poolId','==',poolId), where('status','==','pending')));
+      return snap.docs.map(d=>({id:d.id, ...d.data()}));
+    } catch(e) { console.warn('Could not load pending invitations.', e); return []; }
   },
   sendInvite: (poolId, poolName, fromUid, fromUsername, toEmail) =>
     setDoc(doc(db,'invites',inviteDocId(poolId,toEmail)), {poolId, poolName, fromUid, fromUsername, toEmail:toEmail.toLowerCase(), status:'pending', createdAt:Date.now()}),
@@ -204,7 +213,17 @@ window._fb = {
     });
   },
   declineInvite: (inviteId) => updateDoc(doc(db,'invites',inviteId), {status:'declined'}),
-
+  deletePool: async (pool) => {
+    const [players, invites] = await Promise.all([
+      getDocs(collection(db,'pools',pool.id,'players')),
+      getDocs(query(collection(db,'invites'),where('poolId','==',pool.id))),
+    ]);
+    await Promise.all([
+      ...players.docs.map(d=>deleteDoc(d.ref)),
+      ...invites.docs.map(d=>deleteDoc(d.ref)),
+    ]);
+    await deleteDoc(doc(db,'pools',pool.id));
+  },
   savePlayer: async (poolId, uid, data) => {
     const batch = writeBatch(db);
     const {picks={}, ...publicState} = data;
@@ -270,26 +289,20 @@ window._fb = {
 };
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
-
 <script crossorigin="anonymous" integrity="sha512-8Q6Y9XnTbOE+JNvjBQwJ2H8S+UV4uA6hiRykhdtIyDYZ2TprdNmWOUaKdGzOhyr4dCyk287OejbPvwl7lrfqrQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin="anonymous" integrity="sha512-MOCpqoRoisCTwJ8vQQiciZv0qcpROCidek3GTFS6KTk2+y7munJIlKCVkFCYY+p3ErYFXCjmFjnfTTRSC1OHWQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script type="text/babel" data-presets="react">
-
 const SHEET_ID = '10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY';
-
 /* ================================================================== */
 /*  SHEET FETCHER                                                      */
 /* ================================================================== */
-
 const csvUrl = (t) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(t)}`;
-
 async function fetchTab(t) {
   const res = await fetch(csvUrl(t));
   if (!res.ok) throw new Error(`Failed to fetch tab "${t}" (${res.status})`);
   return parseCSV(await res.text());
 }
-
 function parseCSV(text) {
   const rows = []; let row = [], field = '', inQ = false;
   const pushField = () => { row.push(field.trim()); field = ''; };
@@ -308,22 +321,18 @@ function parseCSV(text) {
   if (field || row.length) pushRow();
   return rows;
 }
-
 function toObjects(rows) {
   if (rows.length < 2) return [];
   const headers = rows[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_'));
   return rows.slice(1).filter(r => r.some(c => c !== '')).map(r =>
     Object.fromEntries(headers.map((h, i) => [h, r[i] || ''])));
 }
-
 const pBool = v => String(v).toUpperCase() === 'TRUE';
-
 async function loadConfig() {
   const [castR, couplesR, datingR, reunionR, settR] = await Promise.all([
     fetchTab('Cast'), fetchTab('Couples'), fetchTab('Dating Results'),
     fetchTab('Reunion Results'), fetchTab('Settings'),
   ]);
-
   const S = Object.fromEntries(toObjects(settR).map(r => [r.key, r.value]));
   const numSetting = (key, fallback, integer=false) => {
     const value = integer ? Number.parseInt(S[key],10) : Number.parseFloat(S[key]);
@@ -339,11 +348,9 @@ async function loadConfig() {
       reunion:  {budget:numSetting('REUNION_BUDGET',100,true),  cap:numSetting('REUNION_CAP',40,true),  label:'Reunion'},
     },
   };
-
   const castO = toObjects(castR);
   const MEN   = castO.filter(r=>r.gender?.toUpperCase()==='M').map(r=>r.name).filter(Boolean);
   const WOMEN = castO.filter(r=>r.gender?.toUpperCase()==='F').map(r=>r.name).filter(Boolean);
-
   const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>({
     id:r.id, him:r.him, her:r.her, engagedEp:parseInt(r.engaged_ep)||1,
     wedding:r.wedding||undefined, who:r.who_says_no||undefined,
@@ -351,7 +358,6 @@ async function loadConfig() {
     settledEp:r.settled_ep?parseInt(r.settled_ep):undefined,
     still:r.still_together?pBool(r.still_together):undefined,
   }));
-
   const DATING_RESULTS = {sex:{},criticize:{},breakup:{coupleId:null,ep:null,confirmed:false}};
   toObjects(datingR).forEach(r=>{
     const mkt=r.market?.toLowerCase(), id=r.couple_id, ep=parseInt(r.episode), conf=pBool(r.confirmed);
@@ -360,7 +366,6 @@ async function loadConfig() {
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
     else if(mkt==='criticize') DATING_RESULTS.criticize[id]={ep,who:r.who_criticize_only||undefined,confirmed:conf};
   });
-
   const RR = {still:{},back:{},newCouple:null,lifeUpdate:null,absent:null,confrontation:null,placeholders:true};
   let hasRR = false;
   toObjects(reunionR).forEach(r=>{
@@ -374,14 +379,11 @@ async function loadConfig() {
     else if(mkt==='confrontation') { RR.confrontation=[id,val].filter(Boolean); if(RR.confrontation.length<2) RR.confrontation=null; }
   });
   if(hasRR) RR.placeholders=false;
-
   return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR};
 }
-
 /* ================================================================== */
 /*  ENGINE — pool-aware, picks keyed by stable member UID              */
 /* ================================================================== */
-
 const WED_MULT  = {married:[2.5,2,1.5],saysNo:[3,2.5,2],calledOff:[3,2.5,2]};
 const WED_LABEL = {married:'Gets married',saysNo:'Says no at the altar',calledOff:'Called off before the altar'};
 const REU_MULT  = {still:1,back:2,newCouple:3,lifeUpdate:3,absent:2,confrontation:2};
@@ -393,7 +395,6 @@ const NEXT_PH   = {pods:'dating',dating:'weddings',weddings:'reunion',reunion:nu
 const EMPTY_PICKS = {pods:[],dating:[],weddings:[],reunion:[]};
 const freshPicks = () => ({pods:[],dating:[],weddings:[],reunion:[]});
 const normalizePicks = value => Object.fromEntries(PH_ORDER.map(ph=>[ph,Array.isArray(value?.[ph])?value[ph]:[]]));
-
 function makeEngine(cfg, poolSize) {
   const {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS} = cfg;
   const POOL = Math.max(poolSize, 1);
@@ -407,12 +408,10 @@ function makeEngine(cfg, poolSize) {
   const contraV = o=>1+RULES.K*(1-o/POOL);
   const owTxt   = o=>o===1?'solo call':(o===POOL?'everyone called it':o+' of '+POOL+' called it');
   const calcPts = (s,m,o,t)=>Math.round(RULES.POINTS_PER_HEART*s*m*contraV(o)*(t||1));
-
   function mk({member,phase,ok,label,stake,mult,multLabel,owners,tag,tagLabel,note,placeholder,pending}) {
     return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,tag:tag||1,tagLabel,note,
             placeholder:!!placeholder,pending:!!pending,points:ok&&!pending?calcPts(stake,mult,owners,tag):0};
   }
-
   /* Resolve one episode across a set of members. picksBy = {memberName: picks[]} */
   function resolveEpisode(phase, ep, picksBy) {
     const MEMBERS = Object.keys(picksBy);
@@ -514,7 +513,6 @@ function makeEngine(cfg, poolSize) {
     }
     return {events,entries};
   }
-
   function resolvePhaseClose(phase, picksBy) {
     const MEMBERS = Object.keys(picksBy), all = picksBy, entries=[];
     if(phase==='pods') MEMBERS.forEach(m=>all[m].filter(p=>!isReal(p.c)).forEach(p=>{ entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' never got engaged',stake:p.s})); }));
@@ -526,7 +524,6 @@ function makeEngine(cfg, poolSize) {
     }));
     return entries;
   }
-
   /* Score a full phase for a set of members (used by the scoreboard once everyone completed) */
   function scorePhase(phase, picksBy) {
     const startEp = PH_STARTW[phase], endEp = PH_SPAN[phase].endEp;
@@ -540,19 +537,15 @@ function makeEngine(cfg, poolSize) {
     entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
     return {entries, totals};
   }
-
   const spentBy = picks => picks.reduce((t,p)=>t+p.s,0);
   return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,POOL,
           nameOf,membOf,whoNm,fmt,leadM,contraV,owTxt,calcPts,
           resolveEpisode,resolvePhaseClose,scorePhase,spentBy};
 }
-
 /* ================================================================== */
 /*  SHARED UI                                                          */
 /* ================================================================== */
-
 const {useState,useEffect,useCallback,useRef,useId} = React;
-
 function Panel({title,defaultOpen,children}) {
   const [open,setOpen]=useState(!!defaultOpen);
   const bodyId=useId();
@@ -579,11 +572,9 @@ function StakeSlider({value,onChange,max}) {
   const id=useId();
   return <div className="field" style={{minWidth:170}}><label className="small" htmlFor={id}>Stake (max {max})</label><div className="stakebox"><input id={id} type="range" min={5} max={max} step={5} value={Math.min(value,max)} onChange={ev=>onChange(+ev.target.value)}/><span className="stakeval" aria-live="polite">{Math.min(value,max)}♥</span></div></div>;
 }
-
 /* ================================================================== */
 /*  BOARDS (identical logic, engine passed in)                        */
 /* ================================================================== */
-
 function PodsBoard({w,picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,leadM,fmt}=eng;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
@@ -595,7 +586,6 @@ function PodsBoard({w,picks,add,remove,spent,eng}) {
   const doAdd=()=>{const m=COUPLES.find(c=>c.him===him&&c.her===her);add({c:m?m.id:(him+'|'+her),s:Math.min(stake,maxS),w});setHim('');setHer('');};
   return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Earlier calls pay more — +0.5x per episode of foresight.</p><Budget phase="pods" spent={spent} RULES={RULES}/><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!him||!her||left<5} onClick={doAdd}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w} · lead x{fmt(leadM(w-p.w))} if they propose next episode</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>✕</button>}</div>)}</div>;
 }
-
 function DatingBoard({w,picks,add,remove,spent,eng}) {
   const {COUPLES,RULES,DATING_RESULTS,nameOf,membOf,fmt}=eng;
   const left=RULES.phases.dating.budget-spent, maxS=Math.min(RULES.phases.dating.cap,left);
@@ -613,7 +603,6 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
     <hr className="divider"/><div className="mkt-title"><h3>Criticizes their place</h3><span className="multpill">+{fmt(RULES.WHO_TAG*100)}% who-tag</span></div><div className="row"><Sel label="Couple" value={cC} onChange={v=>{setCC(v);setCW('');}} options={opt(cO)}/><Sel label="Who says it" value={cW} onChange={setCW} options={cC?[{v:'him',t:membOf(cC)[0]},{v:'her',t:membOf(cC)[1]}]:[]}/></div><div className="row"><StakeSlider value={cS} onChange={setCS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cC||!cW||left<5} onClick={()=>{add({m:'criticize',c:cC,who:cW,s:Math.min(cS,maxS),w});setCC('');setCW('');}}>Add</button></div>
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {ml(p)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>✕</button>}</div>)}</div>;
 }
-
 function WeddingsBoard({w,picks,add,remove,spent,eng}) {
   const {COUPLES,RULES,nameOf,membOf,whoNm,fmt}=eng;
   const left=RULES.phases.weddings.budget-spent, maxS=Math.min(RULES.phases.weddings.cap,left), rung=w-9;
@@ -621,7 +610,6 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
   const alive=COUPLES.filter(c=>c.wedding&&!(c.settledEp&&c.settledEp<=w)&&!picks.some(p=>p.c===c.id));
   return <div className="card"><h2>{['Early','Mid','Late'][rung]} window · after Episode {w}</h2><p className="lede">One outcome per couple. married x{WED_MULT.married[rung]} · says no x{WED_MULT.saysNo[rung]} · called off x{WED_MULT.calledOff[rung]}.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Outcome" value={out} onChange={v=>{setOut(v);setWhoT('');}} options={[{v:'married',t:'Gets married'},{v:'saysNo',t:'Says no at the altar'},{v:'calledOff',t:'Called off before the altar'}]}/></div>{out==='saysNo'&&cid&&<div className="row"><Sel label={'Who says no (+'+fmt(RULES.WHO_TAG*100)+'%)'} value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]},{v:'both',t:'Both'}]}/></div>}<div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cid||!out||left<5} onClick={()=>{add({c:cid,o:out,who:whoT||undefined,s:Math.min(stake,maxS),r:rung});setCid('');setOut('');setWhoT('');}}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} — {p.s}♥</div><div className="subtle">{['early','mid','late'][p.r]} window</div></div>{p.r===rung&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
 }
-
 function ReunionBoard({picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf}=eng;
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
@@ -644,23 +632,20 @@ function ReunionBoard({picks,add,remove,spent,eng}) {
     <hr className="divider"/><div className="mkt-title"><h3>Direct confrontation</h3><span className="multpill">x2 · commissioner-ruled</span></div><div className="row"><Sel label="Castmate A" value={cA} onChange={setCA} options={AC.filter(n=>n!==cB)}/><Sel label="Castmate B" value={cB} onChange={setCB} options={AC.filter(n=>n!==cA)}/></div><div className="row"><StakeSlider value={cS2} onChange={setCS2} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cA||!cB||left<5} onClick={()=>{add({m:'confrontation',a:cA,b:cB,s:Math.min(cS2,maxS)});setCA('');setCB('');}}>Add</button></div>
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} — {p.s}♥</div><button className="btn-x" onClick={()=>remove(i)}>✕</button></div>)}</div>;
 }
-
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
 /* ================================================================== */
-
 function Scoreboard({eng, playersById, memberLabels, meId, myPhase}) {
+function Scoreboard({eng, playersById, memberLabels, meId, myPhase, pendingInvites=[]}) {
   const {RULES, scorePhase} = eng;
   const memberIds = Object.keys(playersById);
   const [openPhase, setOpenPhase] = useState(null);
-
   // Per-phase status
   const phaseStatus = {};
   PH_ORDER.forEach(ph => {
     const completedBy = memberIds.filter(id => playersById[id].completed && playersById[id].completed[ph]);
     phaseStatus[ph] = { completedBy, allDone: completedBy.length === memberIds.length };
   });
-
   // Totals across fully-completed phases
   const grandTotals = {};
   memberIds.forEach(id=>grandTotals[id]=0);
@@ -673,10 +658,8 @@ function Scoreboard({eng, playersById, memberLabels, meId, myPhase}) {
     phaseTotals[ph] = totals;
     memberIds.forEach(id => grandTotals[id] += totals[id] || 0);
   });
-
   const ranked = memberIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]);
   const donePhases = PH_ORDER.filter(ph=>phaseStatus[ph].allDone);
-
   return <React.Fragment>
     <div className="card">
       <h2>Standings</h2>
@@ -690,7 +673,14 @@ function Scoreboard({eng, playersById, memberLabels, meId, myPhase}) {
         </tr>)}</tbody>
       </table></div>}
     </div>
-
+    {pendingInvites.length>0 && <div className="card">
+      <h3>Invitations pending</h3>
+      <p className="lede">These people have been invited but have not joined the pool yet.</p>
+      {pendingInvites.map(inv=><div className="member-status" key={inv.id}>
+        <span className="dot waiting"></span><span>{inv.toEmail}</span>
+        <span className="subtle" style={{marginLeft:'auto'}}>Invitation pending</span>
+      </div>)}
+    </div>}
     {PH_ORDER.map(ph => {
       const st = phaseStatus[ph];
       const isCurrent = ph === myPhase;
@@ -726,50 +716,61 @@ function Scoreboard({eng, playersById, memberLabels, meId, myPhase}) {
     })}
   </React.Fragment>;
 }
-
 /* ================================================================== */
 /*  PHASE COPY                                                         */
 /* ================================================================== */
-
 const PH_INTRO = {
   pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>Points if a couple you predict gets engaged.</li><li>Earlier calls earn a larger lead multiplier.</li><li>Picks open after Episode 1.</li><li>Rarer calls earn a contrarian bonus.</li><li>The current budget and per-pick cap are shown on the board.</li></ul>,scoring:<div><p>points = baseline × stake × lead × contrarian</p></div>},
+  pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You win points if you correctly predict an engaged couple.</li><li>The sooner you predict an engagement, the more points you get!</li><li>You can only pick between episodes. Watch Episode 1 before making any picks.</li><li>You lose any hearts you don’t spend.</li><li>You get 200 hearts that have to last you until the pods close.</li><li>The more hearts you wager, the more points you win if you’re right!</li></ul>,scoring:<div><p><b>Points = 2 × hearts wagered × lead bonus × contrarian bonus.</b></p><p><b>Lead bonus:</b> your multiplier starts at ×1 if you make a pick in the window right before a proposal. Every full episode earlier adds +0.5. For example: two episodes of foresight = ×2.</p><p><b>Contrarian bonus:</b> you earn more when fewer people make the same call. If everyone picks a couple, there is no bonus (×1). If you are the only person to pick them, your bonus can approach ×2.</p><p><b>Example:</b> wager 20 hearts, call it two episodes early (×2), and are the only person to call it (roughly ×2): 2 × 20 × 2 × 2 = 160 points.</p></div>},
   dating:{tagline:'Out of the pods, into the real world. Three markets on the dead stretch.',rules:<ul><li><b>First to break up</b> — race. Only the earliest-breaking couple pays.</li><li><b>They sleep together</b> — explicitly referenced on camera.</li><li><b>Criticizes their place</b> — negative on-camera comment. Correctly tagging who says it earns the configured who-tag bonus.</li><li>The current budget and per-pick cap are shown on the board.</li></ul>,scoring:<div><p>points = baseline × stake × lead × contrarian × optional who-tag</p></div>},
   weddings:{tagline:'The heavy gate. One outcome per couple — the earlier you lock it, the more it pays.',rules:<ul><li>One call per couple: gets married, says no (with an optional who-tag), or called off.</li><li>Three windows. Multipliers fall closer to the wedding.</li><li>The current budget and per-pick cap are shown on the board.</li></ul>,scoring:<div><p>points = baseline × stake × window multiplier × contrarian × optional who-tag</p></div>},
   reunion:{tagline:'The victory lap. One lock before the reunion airs.',rules:<ul><li>New couple x3 · Life update x3 · Back together x2 · Absent castmate x2 · Confrontation x2 · Still together x1.</li><li>The current budget and per-pick cap are shown on the board.</li></ul>,scoring:<div><p>points = baseline × stake × difficulty × contrarian</p></div>},
 };
-
+function HowItWorksModal({onClose}) {
+  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget) onClose();}}>
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="how-title">
+      <h2 id="how-title">How It Works</h2>
+      <p>This is a social prediction game for people watching Love Is Blind together or at their own pace. There is no cash prize—just bragging rights.</p>
+      <h3>Join or start a pool</h3>
+      <p>Create a pool, invite friends by email, and they can accept from their own lobby. If someone has not accepted yet, they appear as “Invitation pending” in the standings.</p>
+      <h3>Make predictions between episodes</h3>
+      <p>Each phase gives you hearts to wager. Make your calls after an episode, then use the “I watched Episode…” button when you are ready to move on. That locks the current window.</p>
+      <h3>The four phases</h3>
+      <ul><li><b>Pods:</b> predict who gets engaged. 200 hearts.</li><li><b>Dating:</b> predict the first breakup and key real-world moments. 100 hearts.</li><li><b>Weddings:</b> predict who marries, says no, or calls it off. 200 hearts.</li><li><b>Reunion:</b> make one final set of predictions before the reunion. 100 hearts.</li></ul>
+      <h3>How points work</h3>
+      <p>Correct calls earn points. Earlier calls earn a larger lead bonus, and less-common correct calls earn a contrarian bonus. Incorrect calls never subtract points—you simply lose the hearts you wagered. Hearts do not carry into the next phase.</p>
+      <button className="btn-primary" onClick={onClose}>Got it</button>
+    </div>
+  </div>;
+}
 /* ================================================================== */
 /*  APP                                                                */
 /* ================================================================== */
-
 function App() {
   // Auth + profile
   const [authState, setAuthState] = useState('checking');
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [usernameInput, setUsernameInput] = useState('');
-
   // Config
   const [cfg, setCfg] = useState(null);
   const [cfgState, setCfgState] = useState('loading');
   const [err, setErr] = useState('');
-
   // Lobby
   const [pools, setPools] = useState([]);
   const [invites, setInvites] = useState([]);
+  const [pendingPoolInvites, setPendingPoolInvites] = useState([]);
   const [lobbyLoading, setLobbyLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteList, setInviteList] = useState([]);
-
   // Active pool + game
   const [activePool, setActivePool] = useState(null);
   const [poolPlayers, setPoolPlayers] = useState(null);  // {uid: playerDoc}
   const [poolUsers, setPoolUsers] = useState(null);      // {uid: profile}
   const [poolTab, setPoolTab] = useState('play');        // play | standings
   const [eng, setEng] = useState(null);
-
   const [phase, setPhase] = useState('pods');
   const [screen, setScreen] = useState('intro');
   const [w, setW] = useState(0);
@@ -778,9 +779,9 @@ function App() {
   const [reveal, setReveal] = useState(null);
   const [closeInfo, setCloseInfo] = useState(null);
   const [saveState, setSaveState] = useState(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const saveTimer = useRef(null);
   const pendingSave = useRef(null);
-
   /* ── Auth ── */
   useEffect(() => {
     return window._fb.onAuthStateChanged(async u => {
@@ -796,13 +797,11 @@ function App() {
       }
     });
   }, []);
-
   /* ── Config ── */
   useEffect(() => {
     loadConfig().then(c => { setCfg(c); setCfgState(c.MEN.length===0?'nocast':'ready'); })
       .catch(e => { setErr(e.message); setCfgState('error'); });
   }, []);
-
   /* ── Lobby data ── */
   const loadLobby = useCallback(async () => {
     if (!user) return;
@@ -816,9 +815,14 @@ function App() {
     } catch(e) { console.error(e); setErr('Could not refresh your pools. Please try again.'); }
     finally { setLobbyLoading(false); }
   }, [user]);
-
   useEffect(() => { if (authState==='signedin' && profile?.username) loadLobby(); }, [authState, profile, loadLobby]);
-
+  useEffect(() => {
+    if (authState==='signedin' && profile?.username && !localStorage.getItem('prediction-pool-how-it-works-seen')) setShowHowItWorks(true);
+  }, [authState, profile]);
+  const closeHowItWorks = () => {
+    localStorage.setItem('prediction-pool-how-it-works-seen','true');
+    setShowHowItWorks(false);
+  };
   /* ── Enter a pool ── */
   const enterPool = async (pool) => {
     try {
@@ -826,10 +830,13 @@ function App() {
       const engine = makeEngine(cfg, pool.members.length);
       setEng(engine);
       const [players, users] = await Promise.all([
+      const [players, users, pending] = await Promise.all([
         window._fb.loadAllPlayers(pool.id,user.uid),
         window._fb.getUsers(pool.members),
+        window._fb.poolInvites(pool.id),
       ]);
     setPoolPlayers(players); setPoolUsers(users);
+    setPoolPlayers(players); setPoolUsers(users); setPendingPoolInvites(pending);
     // Load my state
     const mine = players[user.uid];
     if (mine) {
@@ -857,7 +864,6 @@ function App() {
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null);
     }
   };
-
   /* ── Save player state ── */
   const flushSave = useCallback(async () => {
     clearTimeout(saveTimer.current);
@@ -874,7 +880,6 @@ function App() {
       throw e;
     }
   }, []);
-
   const savePlayer = useCallback((state, immediate=false) => {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
@@ -883,36 +888,31 @@ function App() {
     if (immediate) return flushSave();
     saveTimer.current = setTimeout(()=>flushSave().catch(()=>{}),600);
   }, [user, activePool, profile, flushSave]);
-
   useEffect(() => {
     const flushWhenHidden = () => { if (document.visibilityState==='hidden') flushSave().catch(()=>{}); };
     document.addEventListener('visibilitychange',flushWhenHidden);
     return () => document.removeEventListener('visibilitychange',flushWhenHidden);
   }, [flushSave]);
-
   const exitPool = async () => {
     await flushSave().catch(()=>{});
     setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setEng(null);
+    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPendingPoolInvites([]); setEng(null);
     loadLobby();
   };
-
   /* ── Handlers ── */
   const handleSignIn  = () => window._fb.signIn().catch(e=>setErr(e.message));
   const handleSignOut = async () => { await flushSave().catch(()=>{}); await window._fb.signOut(); setActivePool(null); };
-
   const saveUsername = async () => {
     const uname = usernameInput.trim();
     if (!uname) return;
     await window._fb.setProfile(user.uid, {username:uname, createdAt:Date.now()});
     setProfile({username:uname});
   };
-
   const addInviteEmail = () => {
     const e = inviteEmail.trim().toLowerCase();
     if (!e || !e.includes('@') || inviteList.includes(e) || e===(user.email||'').toLowerCase()) return;
     setInviteList([...inviteList, e]); setInviteEmail('');
   };
-
   const doCreatePool = async () => {
     const name = newPoolName.trim();
     if (!name) return;
@@ -924,13 +924,15 @@ function App() {
       loadLobby();
     } catch(e) { console.error(e); setErr('The pool could not be created. Please try again.'); }
   };
-
   const doAccept = async (inv) => { try { await window._fb.acceptInvite(inv, user.uid); loadLobby(); } catch(e) { setErr(e.message||'Could not accept the invitation.'); } };
   const doDecline = async (inv) => { try { await window._fb.declineInvite(inv.id); loadLobby(); } catch(e) { setErr('Could not decline the invitation.'); } };
-
+  const doDeletePool = async pool => {
+    if (pool.ownerUid!==user.uid || !window.confirm(`Delete “${pool.name}”? This cannot be undone.`)) return;
+    try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else loadLobby(); }
+    catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); }
+  };
   /* Game actions */
   const meName = profile?.username;
-
   const addPick = p => {
     setPicks(prev=>{
       const np = {...prev,[phase]:[...prev[phase],p]};
@@ -945,7 +947,6 @@ function App() {
       return np;
     });
   };
-
   const doGate = async () => {
     const ep = w+1;
     const endEp = PH_SPAN[phase].endEp;
@@ -965,14 +966,12 @@ function App() {
       catch(e) { setErr('Your progress could not be saved. Please try again.'); }
     }
   };
-
   const openNextPhase = async () => {
     const next = NEXT_PH[phase];
     if (!next) { setScreen('final'); await savePlayer({picks, phase, screen:'final', w, completed},true).catch(()=>setErr('The final screen could not be saved.')); return; }
     setPhase(next); setReveal(null); setCloseInfo(null); setScreen('intro');
     await savePlayer({picks, phase:next, screen:'intro', w, completed},true).catch(()=>setErr('The next phase could not be saved.'));
   };
-
   const refreshPool = async () => {
     if (!activePool) return;
     try {
@@ -980,15 +979,16 @@ function App() {
       if (!pool) throw new Error('Pool not found');
       const [players,users] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members)]);
       setActivePool(pool); setPoolPlayers(players); setPoolUsers(users); setEng(makeEngine(cfg,pool.members.length));
+      const [players,users,pending] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id)]);
+      setActivePool(pool); setPoolPlayers(players); setPoolUsers(users); setPendingPoolInvites(pending); setEng(makeEngine(cfg,pool.members.length));
     } catch(e) { console.error(e); setErr('Could not refresh the standings.'); }
   };
-
   /* ── RENDER ── */
-
   if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
-
+  if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='signedout') return <div className="app">
     <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3</span></div>
+    <div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
     <div className="card login-card">
       <div className="heart-hero">♥</div>
       <h2>Welcome</h2>
@@ -1000,10 +1000,10 @@ function App() {
       {err && <p style={{color:'var(--rose)',fontSize:13,marginTop:10}}>{err}</p>}
     </div>
   </div>;
-
   /* Username setup */
   if (!profile?.username) return <div className="app">
     <div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div>
+    <div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
     <div className="card">
       <h2>Pick a username</h2>
       <p className="lede">This is the name your poolmates will see on scoreboards.</p>
@@ -1015,28 +1015,29 @@ function App() {
       <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
     </div>
   </div>;
-
   if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
   if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
   if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
-
+  if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
+  if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
+  if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
   const userBar = <div className="user-bar">
     {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
     <span className="user-name">{profile.username}</span>
+    <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
     <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
   </div>;
-
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
     <div className="hdr">
       <div className="eyebrow">Love Is Blind: UK</div>
+      <div className="eyebrow">Love Is Blind</div>
       <h1>Prediction Pool</h1>
       <span className="seasonpill">Season 3</span>
+      <span className="seasonpill">UK: Season 3</span>
       {userBar}
     </div>
-
     {err && <div className="errcard" role="alert"><h3>Something went wrong</h3><p>{err}</p></div>}
-
     {invites.length>0 && <div className="card">
       <h2>Invites</h2>
       {invites.map(inv=><div className="invite-row" key={inv.id}>
@@ -1048,7 +1049,6 @@ function App() {
         </div>
       </div>)}
     </div>}
-
     <div className="card">
       <h2>Your pools</h2>
       {lobbyLoading && <p className="subtle">Loading...</p>}
@@ -1056,8 +1056,8 @@ function App() {
       {pools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
         <div><div className="pname">{p.name}</div><div className="pmeta">{p.members.length} member{p.members.length!==1?'s':''}</div></div>
         <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>{p.ownerUid===user.uid&&<button className="btn-danger" onClick={e=>{e.stopPropagation();doDeletePool(p);}}>Delete</button>}<span style={{color:'var(--rose)',fontWeight:700}}>→</span></div>
       </div>)}
-
       {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
       {creating && <div style={{marginTop:14}}>
         <hr className="divider"/>
@@ -1080,13 +1080,12 @@ function App() {
         <button className="btn-secondary" onClick={()=>{setCreating(false);setNewPoolName('');setInviteList([]);}}>Cancel</button>
       </div>}
     </div>
+    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
   </div>;
-
   /* ── IN POOL ── */
   const {RULES} = eng;
   const spent = eng.spentBy(picks[phase]);
   const endEp = PH_SPAN[phase].endEp;
-
   // Keep stable UIDs as identity; usernames are display labels only.
   const playersById = {};
   const memberLabels = {};
@@ -1099,43 +1098,38 @@ function App() {
     // Ensure my latest local state is reflected
     if (user?.uid) playersById[user.uid] = {picks, completed, username:meName};
   }
-
   const saveBadge = saveState && <span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}</span>;
-
   const RevealSummary = () => reveal && <div className="card">
     <h2 style={{marginBottom:10}}>{phase==='reunion'?'The Reunion':'Episode '+reveal.ep}</h2>
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved this episode</h3><div className="sub">The board carries forward.</div></div>}
     {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
   </div>;
-
   return <div className="app">
     <div className="hdr">
       <div className="eyebrow">Love Is Blind: UK</div>
+      <div className="eyebrow">Love Is Blind</div>
       <h1>{activePool.name} {saveBadge}</h1>
       <span className="seasonpill">Season 3</span>
+      <span className="seasonpill">UK: Season 3</span>
       <div className="user-bar">
         <button className="backlink" onClick={exitPool}>← All pools</button>
         {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
         <span className="user-name">{meName}</span>
+        <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
         <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
       </div>
     </div>
-
     {err && <div className="errcard" role="alert"><h3>Something went wrong</h3><p>{err}</p></div>}
-
     <div className="tabbar">
       <button className={poolTab==='play'?'active':''} onClick={()=>setPoolTab('play')}>Play</button>
       <button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>
     </div>
-
     {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} memberLabels={memberLabels} meId={user.uid} myPhase={phase}/>}
-
+    {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>} 
     {poolTab==='play' && <React.Fragment>
       <Stepper phase={phase} RULES={RULES}/>
-
       {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{PH_INTRO[phase].tagline}</p><Panel title="Rules" defaultOpen>{PH_INTRO[phase].rules}</Panel><Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel><button className="btn-primary" onClick={()=>phase==='pods'?doGate():setScreen('board')}>{phase==='pods'?'I watched Episode 1':'Open the board'}</button></div>}
-
       {screen==='board'&&<React.Fragment>
         <RevealSummary/>
         {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
@@ -1145,7 +1139,6 @@ function App() {
         <button className="btn-primary" onClick={doGate}>{phase==='reunion'?'I watched the Reunion':'I watched Episode '+(w+1)} →</button>
         <p className="subtle" style={{textAlign:'center'}}>Watching the next episode locks this window's picks.</p>
       </React.Fragment>}
-
       {screen==='close'&&closeInfo&&<React.Fragment>
         <RevealSummary/>
         <div className="card">
@@ -1156,7 +1149,6 @@ function App() {
           <button className="btn-primary" onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
         </div>
       </React.Fragment>}
-
       {screen==='final'&&<div className="card gatecard">
         <div className="crown">👑</div>
         <div className="winner">Season complete!</div>
@@ -1164,13 +1156,12 @@ function App() {
         <button className="btn-primary" onClick={()=>{setPoolTab('standings');refreshPool();}}>View Standings</button>
       </div>}
     </React.Fragment>}
+    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
   </div>;
 }
-
 const mountApp = () => ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 if (window._fb) mountApp();
 else window.addEventListener('firebase-ready',mountApp,{once:true});
 </script>
-
 </body>
 </html>
