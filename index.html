@@ -252,17 +252,27 @@ window._fb = {
     tx.set(statusRef,{completedMembers,revealed,updatedAt:Date.now()},{merge:true});
   }),
   loadAllPlayers: async (poolId, currentUid) => {
-    const snap = await getDocs(collection(db,'pools',poolId,'players'));
-    const out = {};
-    snap.docs.forEach(d => {
+    const toPlayer = d => {
       const {picks:legacyPicks={},...publicState}=d.data();
-      out[d.id]={...publicState,picks:{
+      return {...publicState,picks:{
         pods:Array.isArray(legacyPicks.pods)?legacyPicks.pods:[],
         dating:Array.isArray(legacyPicks.dating)?legacyPicks.dating:[],
         weddings:Array.isArray(legacyPicks.weddings)?legacyPicks.weddings:[],
         reunion:Array.isArray(legacyPicks.reunion)?legacyPicks.reunion:[],
       }};
-    });
+    };
+    const out = {};
+    try {
+      const snap = await getDocs(collection(db,'pools',poolId,'players'));
+      snap.docs.forEach(d => { out[d.id]=toPlayer(d); });
+    } catch (e) {
+      // Older rules may permit a player to read only their own record.
+      console.warn('Loading this player’s record only.', e);
+      if (!currentUid) return out;
+      const own = await getDoc(doc(db,'pools',poolId,'players',currentUid));
+      if (own.exists()) out[currentUid]=toPlayer(own);
+      return out;
+    }
     await Promise.all(GAME_PHASES.map(async phase => {
       try {
         const statusSnap = await getDoc(doc(db,'pools',poolId,'phaseStatus',phase));
@@ -280,8 +290,12 @@ window._fb = {
   getUsers: async (uids) => {
     const out = {};
     await Promise.all(uids.map(async u => {
-      const s = await getDoc(doc(db,'users',u));
-      if (s.exists()) out[u] = s.data();
+      try {
+        const s = await getDoc(doc(db,'users',u));
+        if (s.exists()) out[u] = s.data();
+      } catch (e) {
+        console.warn('A player profile could not be loaded.', e);
+      }
     }));
     return out;
   },
