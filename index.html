@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Love Is Blind: UK — Prediction Pool</title>
+<title>Love Is Blind — Prediction Pool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -577,13 +577,18 @@ function StakeSlider({value,onChange,max}) {
 function PodsBoard({w,picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,leadM,fmt}=eng;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
+  const [adding,setAdding]=useState(picks.length===0);
   const engaged=COUPLES.filter(c=>c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
   const used=picks.flatMap(p=>membOf(p.c));
   const menA=MEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
   const womA=WOMEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
   const left=RULES.phases.pods.budget-spent, maxS=Math.min(RULES.phases.pods.cap,left);
-  const doAdd=()=>{const m=COUPLES.find(c=>c.him===him&&c.her===her);add({c:m?m.id:(him+'|'+her),s:Math.min(stake,maxS),w});setHim('');setHer('');};
-  return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Earlier calls pay more — +0.5x per episode of foresight.</p><Budget phase="pods" spent={spent} RULES={RULES}/><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!him||!her||left<5} onClick={doAdd}>Add prediction</button></div>{picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w} · lead x{fmt(leadM(w-p.w))} if they propose next episode</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)}>✕</button>}</div>)}</div>;
+  const doAdd=()=>{const m=COUPLES.find(c=>c.him===him&&c.her===her);add({c:m?m.id:(him+'|'+her),s:Math.min(stake,maxS),w});setHim('');setHer('');setAdding(false);};
+  const startAnother=()=>{setHim('');setHer('');setAdding(true);};
+  return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Earlier calls pay more — +0.5x per episode of foresight.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
+    {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
+    {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {p.s}♥</div><div className="subtle">locked after Ep {p.w} · lead x{fmt(leadM(w-p.w))} if they propose next episode</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
+  </div>;
 }
 function DatingBoard({w,picks,add,remove,spent,eng}) {
   const {COUPLES,RULES,DATING_RESULTS,nameOf,membOf,fmt}=eng;
@@ -1005,9 +1010,9 @@ function App() {
       <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
     </div>
   </div>;
-  if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
-  if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
-  if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind: UK</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
+  if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
+  if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
+  if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
   if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
   if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
   if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
@@ -1095,10 +1100,9 @@ function App() {
   </div>;
   return <div className="app">
     <div className="hdr">
-      <div className="eyebrow">Love Is Blind: UK</div>
       <div className="eyebrow">Love Is Blind</div>
       <h1>{activePool.name} {saveBadge}</h1>
-      <span className="seasonpill">Season 3</span>
+      
       <span className="seasonpill">UK: Season 3</span>
       <div className="user-bar">
         <button className="backlink" onClick={exitPool}>← All pools</button>
