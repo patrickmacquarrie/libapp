@@ -1105,6 +1105,7 @@ function App() {
       
       <span className="seasonpill">UK: Season 3</span>
       <div className="user-bar">
+        <button className="backlink" onClick={()=>{setPoolTab('play');setScreen('intro');}}>Pool Home</button>
         <button className="backlink" onClick={exitPool}>← All pools</button>
         {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
         <span className="user-name">{meName}</span>
@@ -1122,6 +1123,10 @@ function App() {
       <Stepper phase={phase} RULES={RULES}/>
       {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{PH_INTRO[phase].tagline}</p><Panel title="Rules" defaultOpen>{PH_INTRO[phase].rules}</Panel><Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel><button className="btn-primary" onClick={()=>phase==='pods'?doGate():setScreen('board')}>{phase==='pods'?'I watched Episode 1':'Open the board'}</button></div>}
       {screen==='board'&&<React.Fragment>
+        <div className="card">
+          <Panel title="Rules">{PH_INTRO[phase].rules}</Panel>
+          <Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel>
+        </div>
         <RevealSummary/>
         {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
         {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
