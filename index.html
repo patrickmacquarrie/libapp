@@ -356,7 +356,7 @@ async function loadConfig() {
     return Number.isFinite(value) ? value : fallback;
   };
   const RULES = {
-    POINTS_PER_HEART: numSetting('POINTS_PER_HEART',2), K: numSetting('K',1),
+    POINTS_PER_HEART: 1, K: numSetting('K',1),
     LEAD_STEP: numSetting('LEAD_STEP',0.5), WHO_TAG: numSetting('WHO_TAG',0.25),
     phases: {
       pods:     {budget:numSetting('PODS_BUDGET',200,true),     cap:numSetting('PODS_CAP',60,true),     label:'Pods'},
@@ -383,19 +383,33 @@ async function loadConfig() {
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
     else if(mkt==='criticize') DATING_RESULTS.criticize[id]={ep,who:r.who_criticize_only||undefined,confirmed:conf};
   });
-  const RR = {still:{},back:{},newCouple:null,lifeUpdate:null,absent:null,confrontation:null,placeholders:true};
+  const RR = {
+    still:{}, back:{}, newCouples:[], lifeUpdates:[], absent:[], confrontations:[],
+    ready:{still:false,back:false,newCouple:false,lifeUpdate:false,absent:false,confrontation:false},
+    placeholders:true,
+  };
   let hasRR = false;
   toObjects(reunionR).forEach(r=>{
     const mkt=r.market?.toLowerCase(), id=r.couple_person_id_or_name, val=r.value;
-    if(!mkt) return; hasRR=true;
-    if(mkt==='still') RR.still[id]=pBool(val);
-    else if(mkt==='back') RR.back[id]=true;
-    else if(mkt==='newcouple') RR.newCouple=id;
-    else if(mkt==='lifeupdate') RR.lifeUpdate={person:id,update:val};
-    else if(mkt==='absent') RR.absent=id;
-    else if(mkt==='confrontation') { RR.confrontation=[id,val].filter(Boolean); if(RR.confrontation.length<2) RR.confrontation=null; }
+    if(!mkt) return;
+    hasRR=true;
+    // A COMPLETE, FINAL, or NONE marker closes only this market. Until then,
+    // confirmed winners can score but unmatched predictions remain pending.
+    const marker=[id,val].some(v=>['COMPLETE','FINAL','NONE'].includes(String(v||'').trim().toUpperCase()));
+    if(mkt==='still') { if(marker) RR.ready.still=true; else if(id) RR.still[id]=pBool(val); }
+    else if(mkt==='back') { if(marker) RR.ready.back=true; else if(id&&(!val||pBool(val))) RR.back[id]=true; }
+    else if(mkt==='newcouple') { if(marker) RR.ready.newCouple=true; else if(id) RR.newCouples.push(id); }
+    else if(mkt==='lifeupdate') { if(marker) RR.ready.lifeUpdate=true; else if(id&&val) RR.lifeUpdates.push({person:id,update:val}); }
+    else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
+    else if(mkt==='confrontation') {
+      if(marker) RR.ready.confrontation=true;
+      else {
+        const pair=[id,val].filter(Boolean);
+        if(pair.length===2) RR.confrontations.push(pair);
+      }
+    }
   });
-  if(hasRR) RR.placeholders=false;
+  RR.placeholders=!hasRR;
   return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR};
 }
 /* ================================================================== */
@@ -493,40 +507,57 @@ function makeEngine(cfg, poolSize) {
         return {events,entries};
       }
       Object.keys(REUNION_RESULTS.still).forEach(id=>{
-        const truth=REUNION_RESULTS.still[id], owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='still'&&p.c===id)).length;
+        const truth=REUNION_RESULTS.still[id];
         events.push({title:nameOf(id)+': '+(truth?'still together':'no longer together')});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='still'&&p.c===id).forEach(p=>{
-          entries.push(truth?mk({member:m,phase,ok:true,label:nameOf(id)+' still together',stake:p.s,mult:REU_MULT.still,multLabel:'x'+fmt(REU_MULT.still)+' still-together',owners}):mk({member:m,phase,ok:false,label:nameOf(id)+' still together',stake:p.s,note:'They split.'}));
-        }));
       });
+      MEMBERS.forEach(m=>all[m].filter(p=>p.m==='still').forEach(p=>{
+        const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
+        const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='still'&&q.c===p.c)).length;
+        if(!known&&!REUNION_RESULTS.ready.still) entries.push(mk({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' still together',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
+        else entries.push(truth?mk({member:m,phase,ok:true,label:nameOf(p.c)+' still together',stake:p.s,mult:REU_MULT.still,multLabel:'x'+fmt(REU_MULT.still)+' still-together',owners}):mk({member:m,phase,ok:false,label:nameOf(p.c)+' still together',stake:p.s,note:'They split.'}));
+      }));
       const backIds=Object.keys(REUNION_RESULTS.back).filter(id=>REUNION_RESULTS.back[id]);
-      if(!backIds.length) events.push({title:'No exes got back together',placeholder:REUNION_RESULTS.placeholders});
+      if(REUNION_RESULTS.ready.back) events.push({title:backIds.length?'Back together: '+backIds.map(nameOf).join(', '):'No exes got back together'});
+      else events.push({title:'Back-together results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='back').forEach(p=>{
         const truth=!!REUNION_RESULTS.back[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='back'&&q.c===p.c)).length;
-        entries.push(truth?mk({member:m,phase,ok:true,label:nameOf(p.c)+' back together',stake:p.s,mult:REU_MULT.back,multLabel:'x'+fmt(REU_MULT.back)+' back-together',owners,placeholder:REUNION_RESULTS.placeholders}):mk({member:m,phase,ok:false,label:nameOf(p.c)+' back together',stake:p.s,note:'Stayed split.',placeholder:REUNION_RESULTS.placeholders}));
+        if(truth) entries.push(mk({member:m,phase,ok:true,label:nameOf(p.c)+' back together',stake:p.s,mult:REU_MULT.back,multLabel:'x'+fmt(REU_MULT.back)+' back-together',owners}));
+        else if(!REUNION_RESULTS.ready.back) entries.push(mk({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' back together',stake:p.s,note:'Awaiting confirmed results.'}));
+        else entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' back together',stake:p.s,note:'Stayed split.'}));
       }));
-      const nc=REUNION_RESULTS.newCouple;
-      events.push({title:nc?'New couple: '+nc.split('|').join(' & '):'No new couple revealed',placeholder:REUNION_RESULTS.placeholders});
+      const ncs=REUNION_RESULTS.newCouples;
+      if(REUNION_RESULTS.ready.newCouple) events.push({title:ncs.length?'New couple'+(ncs.length>1?'s':'')+': '+ncs.map(v=>v.split('|').join(' & ')).join(', '):'No new couple revealed'});
+      else events.push({title:'New-couple results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='newCouple').forEach(p=>{
-        const hit=nc&&p.pair===nc, owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='newCouple'&&q.pair===p.pair)).length;
-        entries.push(hit?mk({member:m,phase,ok:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,mult:REU_MULT.newCouple,multLabel:'x'+fmt(REU_MULT.newCouple)+' new couple',owners,placeholder:REUNION_RESULTS.placeholders}):mk({member:m,phase,ok:false,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,placeholder:REUNION_RESULTS.placeholders}));
+        const hit=ncs.includes(p.pair), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='newCouple'&&q.pair===p.pair)).length;
+        if(hit) entries.push(mk({member:m,phase,ok:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,mult:REU_MULT.newCouple,multLabel:'x'+fmt(REU_MULT.newCouple)+' new couple',owners}));
+        else if(!REUNION_RESULTS.ready.newCouple) entries.push(mk({member:m,phase,ok:false,pending:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,note:'Awaiting confirmed results.'}));
+        else entries.push(mk({member:m,phase,ok:false,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s}));
       }));
-      const lu=REUNION_RESULTS.lifeUpdate;
-      if(lu) events.push({title:'Life update: '+lu.person+' — '+(LIFE_UPD[lu.update]||lu.update).toLowerCase(),placeholder:REUNION_RESULTS.placeholders});
+      const lus=REUNION_RESULTS.lifeUpdates;
+      if(REUNION_RESULTS.ready.lifeUpdate) events.push({title:lus.length?'Life updates: '+lus.map(lu=>lu.person+' — '+(LIFE_UPD[lu.update]||lu.update).toLowerCase()).join(', '):'No major life updates'});
+      else events.push({title:'Life-update results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='lifeUpdate').forEach(p=>{
-        const hit=lu&&lu.person===p.person&&lu.update===p.update, owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='lifeUpdate'&&q.person===p.person&&q.update===p.update)).length;
-        entries.push(hit?mk({member:m,phase,ok:true,label:'Life update: '+p.person+' — '+LIFE_UPD[p.update],stake:p.s,mult:REU_MULT.lifeUpdate,multLabel:'x'+fmt(REU_MULT.lifeUpdate)+' life update',owners,placeholder:REUNION_RESULTS.placeholders}):mk({member:m,phase,ok:false,label:'Life update: '+p.person+' — '+LIFE_UPD[p.update],stake:p.s,placeholder:REUNION_RESULTS.placeholders}));
+        const hit=lus.some(lu=>lu.person===p.person&&lu.update===p.update), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='lifeUpdate'&&q.person===p.person&&q.update===p.update)).length;
+        if(hit) entries.push(mk({member:m,phase,ok:true,label:'Life update: '+p.person+' — '+LIFE_UPD[p.update],stake:p.s,mult:REU_MULT.lifeUpdate,multLabel:'x'+fmt(REU_MULT.lifeUpdate)+' life update',owners}));
+        else if(!REUNION_RESULTS.ready.lifeUpdate) entries.push(mk({member:m,phase,ok:false,pending:true,label:'Life update: '+p.person+' — '+LIFE_UPD[p.update],stake:p.s,note:'Awaiting confirmed results.'}));
+        else entries.push(mk({member:m,phase,ok:false,label:'Life update: '+p.person+' — '+LIFE_UPD[p.update],stake:p.s}));
       }));
-      const ab=REUNION_RESULTS.absent;
-      events.push({title:ab?'Absent: '+ab:'Everyone showed up',placeholder:REUNION_RESULTS.placeholders});
+      const abs=REUNION_RESULTS.absent;
+      if(REUNION_RESULTS.ready.absent) events.push({title:abs.length?'Absent: '+abs.join(', '):'Everyone showed up'});
+      else events.push({title:'Attendance results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='absent').forEach(p=>{
-        const hit=ab===p.person, owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='absent'&&q.person===p.person)).length;
-        entries.push(hit?mk({member:m,phase,ok:true,label:'Absent: '+p.person,stake:p.s,mult:REU_MULT.absent,multLabel:'x'+fmt(REU_MULT.absent)+' absent castmate',owners,placeholder:REUNION_RESULTS.placeholders}):mk({member:m,phase,ok:false,label:'Absent: '+p.person,stake:p.s,placeholder:REUNION_RESULTS.placeholders}));
+        const hit=abs.includes(p.person), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='absent'&&q.person===p.person)).length;
+        if(hit) entries.push(mk({member:m,phase,ok:true,label:'Absent: '+p.person,stake:p.s,mult:REU_MULT.absent,multLabel:'x'+fmt(REU_MULT.absent)+' absent castmate',owners}));
+        else if(!REUNION_RESULTS.ready.absent) entries.push(mk({member:m,phase,ok:false,pending:true,label:'Absent: '+p.person,stake:p.s,note:'Awaiting confirmed results.'}));
+        else entries.push(mk({member:m,phase,ok:false,label:'Absent: '+p.person,stake:p.s}));
       }));
-      const cf=REUNION_RESULTS.confrontation;
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='confrontation').forEach(p=>{
-        if(cf===null) { entries.push(mk({member:m,phase,ok:false,pending:true,label:'Confrontation: '+p.a+' vs '+p.b,stake:p.s,note:'Awaiting commissioner ruling.'})); }
-        else { const hit=cf.includes(p.a)&&cf.includes(p.b), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='confrontation'&&((q.a===p.a&&q.b===p.b)||(q.a===p.b&&q.b===p.a)))).length; entries.push(hit?mk({member:m,phase,ok:true,label:'Confrontation: '+p.a+' vs '+p.b,stake:p.s,mult:REU_MULT.confrontation,multLabel:'x'+fmt(REU_MULT.confrontation)+' confrontation (ruled)',owners}):mk({member:m,phase,ok:false,label:'Confrontation: '+p.a+' vs '+p.b,stake:p.s})); }
+        const hit=REUNION_RESULTS.confrontations.some(cf=>cf.includes(p.a)&&cf.includes(p.b));
+        const owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='confrontation'&&((q.a===p.a&&q.b===p.b)||(q.a===p.b&&q.b===p.a)))).length;
+        if(hit) entries.push(mk({member:m,phase,ok:true,label:'Confrontation: '+p.a+' vs '+p.b,stake:p.s,mult:REU_MULT.confrontation,multLabel:'x'+fmt(REU_MULT.confrontation)+' confrontation (ruled)',owners}));
+        else if(!REUNION_RESULTS.ready.confrontation) entries.push(mk({member:m,phase,ok:false,pending:true,label:'Confrontation: '+p.a+' vs '+p.b,stake:p.s,note:'Awaiting commissioner ruling.'}));
+        else entries.push(mk({member:m,phase,ok:false,label:'Confrontation: '+p.a+' vs '+p.b,stake:p.s}));
       }));
     }
     return {events,entries};
@@ -576,7 +607,7 @@ function Budget({phase,spent,RULES}) {
 function Receipt({e,eng,meId,memberLabels={}}) {
   const {contraV,owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss');
   const cv=e.owners?contraV(e.owners):null;
-  return <div className={cls}><span className="pts">{e.pending?'⏳':(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel} x {String(+cv.toFixed(2))} {owTxt(e.owners)}{e.tagLabel?' x '+e.tagLabel:''} x {RULES.POINTS_PER_HEART} baseline = {e.points} pts</div>:<div className="math">{e.stake} ♥ staked{e.note?' · '+e.note:''}</div>}</div>;
+  return <div className={cls}><span className="pts">{e.pending?'⏳':(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel} x {String(+cv.toFixed(2))} {owTxt(e.owners)}{e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts</div>:<div className="math">{e.stake} ♥ staked{e.note?' · '+e.note:''}</div>}</div>;
 }
 function Stepper({phase,RULES}) {
   const idx=PH_ORDER.indexOf(phase);
@@ -646,8 +677,9 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} — {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} — {p.s}♥</div><div className="subtle">{open?'editable until you start Episode '+(w+1):'locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
 }
-function ReunionBoard({picks,add,remove,spent,eng}) {
+function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf}=eng;
+  const open=w===PH_STARTW.reunion;
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
   const AC=[...MEN,...WOMEN];
   const married=COUPLES.filter(c=>c.wedding==='married').map(c=>c.id);
@@ -659,14 +691,16 @@ function ReunionBoard({picks,add,remove,spent,eng}) {
   const [aP,setAP]=useState(''),[aS,setAS]=useState(20);
   const [cA,setCA]=useState(''),[cB,setCB]=useState(''),[cS2,setCS2]=useState(20);
   const ml=p=>p.m==='still'?nameOf(p.c)+' still together':p.m==='back'?nameOf(p.c)+' back together':p.m==='newCouple'?'New couple: '+p.pair.split('|').join(' & '):p.m==='lifeUpdate'?'Life update: '+p.person+' — '+(LIFE_UPD[p.update]||p.update):p.m==='absent'?'Absent: '+p.person:'Confrontation: '+p.a+' vs '+p.b;
-  return <div className="card"><h2>One lock · before the Reunion</h2><Budget phase="reunion" spent={spent} RULES={RULES}/>
+  return <div className="card"><h2>{open?'One lock · before the Reunion':'Reunion predictions locked'}</h2><Budget phase="reunion" spent={spent} RULES={RULES}/>
+    {open&&<React.Fragment>
     <div className="mkt-title"><h3>Still together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Married couple" value={stC} onChange={setStC} options={married.filter(id=>!picks.some(p=>p.m==='still'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={stS} onChange={setStS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!stC||left<5} onClick={()=>{add({m:'still',c:stC,s:Math.min(stS,maxS)});setStC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Back together</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Split couple" value={bkC} onChange={setBkC} options={split.filter(id=>!picks.some(p=>p.m==='back'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={bkS} onChange={setBkS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bkC||left<5} onClick={()=>{add({m:'back',c:bkC,s:Math.min(bkS,maxS)});setBkC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>New couple revealed</h3><span className="multpill">x5</span></div><div className="row"><Sel label="Him" value={nH} onChange={setNH} options={MEN}/><Sel label="Her" value={nW} onChange={setNW} options={WOMEN}/></div><div className="row"><StakeSlider value={nS} onChange={setNS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!nH||!nW||left<5} onClick={()=>{add({m:'newCouple',pair:nH+'|'+nW,s:Math.min(nS,maxS)});setNH('');setNW('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Major life update</h3><span className="multpill">x5</span></div><div className="row"><Sel label="Castmate" value={lP} onChange={setLP} options={AC}/><Sel label="Update" value={lU} onChange={setLU} options={Object.entries(LIFE_UPD).map(([v,t])=>({v,t}))}/></div><div className="row"><StakeSlider value={lS} onChange={setLS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!lP||!lU||left<5} onClick={()=>{add({m:'lifeUpdate',person:lP,update:lU,s:Math.min(lS,maxS)});setLP('');setLU('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Absent castmate</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Castmate" value={aP} onChange={setAP} options={AC}/><StakeSlider value={aS} onChange={setAS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!aP||left<5} onClick={()=>{add({m:'absent',person:aP,s:Math.min(aS,maxS)});setAP('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Direct confrontation</h3><span className="multpill">x2 · commissioner-ruled</span></div><div className="row"><Sel label="Castmate A" value={cA} onChange={setCA} options={AC.filter(n=>n!==cB)}/><Sel label="Castmate B" value={cB} onChange={setCB} options={AC.filter(n=>n!==cA)}/></div><div className="row"><StakeSlider value={cS2} onChange={setCS2} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cA||!cB||left<5} onClick={()=>{add({m:'confrontation',a:cA,b:cB,s:Math.min(cS2,maxS)});setCA('');setCB('');}}>Add</button></div>
-    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} — {p.s}♥</div><button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction: '+ml(p)}>✕</button></div>)}</div>;
+    </React.Fragment>}
+    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} — {p.s}♥</div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction: '+ml(p)}>✕</button>}</div>)}</div>;
 }
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
@@ -764,10 +798,10 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
 /*  PHASE COPY                                                         */
 /* ================================================================== */
 const PH_INTRO = {
-  pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You win points if you correctly predict an engaged couple.</li><li>The sooner you predict an engagement, the more points you get!</li><li>You can only pick between episodes. Watch Episode 1 before making any picks.</li><li>You lose any hearts you don’t spend.</li><li>You get 200 hearts that have to last you until the pods close.</li><li>The more hearts you wager, the more points you win if you’re right!</li></ul>,scoring:<div><p><b>Points = 2 × hearts wagered × lead bonus × contrarian bonus.</b></p><p><b>Lead bonus:</b> your multiplier starts at ×1 if you make a pick in the window right before a proposal. Every full episode earlier adds +0.5. For example: two episodes of foresight = ×2.</p><p><b>Contrarian bonus:</b> you earn more when fewer people make the same call. If everyone picks a couple, there is no bonus (×1). If you are the only person to pick them, your bonus can approach ×2.</p><p><b>Example:</b> wager 20 hearts, call it two episodes early (×2), and are the only person to call it (roughly ×2): 2 × 20 × 2 × 2 = 160 points.</p></div>},
-  dating:{tagline:'Out of the pods, into the real world. Lock all your calls before Episode 7.',rules:<ul><li>All dating picks are made now, at the same time as everyone else. The board locks when you start Episode 7.</li><li><b>First to break up</b> — a race: only the earliest-breaking couple pays, at ×1.5.</li><li><b>They sleep together</b> — explicitly referenced on camera. ×1.</li><li><b>Criticizes their place</b> — negative on-camera comment. Correctly tagging who says it adds +25%.</li><li>You get 100 hearts. Unspent hearts are lost when the board locks.</li></ul>,scoring:<div><p><b>Points = 2 × hearts wagered × market multiplier × contrarian bonus.</b></p><p>There is no lead bonus here — everyone locks at the same time. Your edge comes from rarer calls (the contrarian bonus) and the riskier markets.</p></div>},
-  weddings:{tagline:'The heavy gate. One outcome per couple, locked before the first wedding.',rules:<ul><li>One call per couple: gets married (×2), says no at the altar (×3, with an optional who-tag worth +25%), or called off before the altar (×2).</li><li>All picks are made now, at the same time as everyone else. The board locks when you start Episode 10.</li><li>You get 200 hearts. Unspent hearts are lost when the board locks.</li></ul>,scoring:<div><p><b>Points = 2 × hearts wagered × outcome multiplier × contrarian bonus (× who-tag if tagged correctly).</b></p><p>Says-no pays the most because it is the rarest, most dramatic outcome.</p></div>},
-  reunion:{tagline:'The victory lap. One lock before the reunion airs.',rules:<ul><li>New couple ×5 · Life update ×5 · Back together ×2 · Absent castmate ×2 · Confrontation ×2 · Still together ×1.</li><li>You get 100 hearts. Unspent hearts are lost when the reunion starts.</li></ul>,scoring:<div><p><b>Points = 2 × hearts wagered × difficulty multiplier × contrarian bonus.</b></p><p>Long shots pay ×5 — a few hearts on a wild call can swing the whole season.</p></div>},
+  pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You win points if you correctly predict an engaged couple.</li><li>The sooner you predict an engagement, the more points you get!</li><li>You can only pick between episodes. Watch Episode 1 before making any picks.</li><li>You lose any hearts you don’t spend.</li><li>You get 200 hearts that have to last you until the pods close.</li><li>The more hearts you wager, the more points you win if you’re right!</li></ul>,scoring:<div><p><b>Points = hearts wagered × lead bonus × contrarian bonus.</b></p><p><b>Lead bonus:</b> your multiplier starts at ×1 if you make a pick in the window right before a proposal. Every full episode earlier adds +0.5. For example: two episodes of foresight = ×2.</p><p><b>Contrarian bonus:</b> you earn more when fewer people make the same call. If everyone picks a couple, there is no bonus (×1). If you are the only person to pick them, your bonus can approach ×2.</p><p><b>Example:</b> wager 20 hearts, call it two episodes early (×2), and are the only person to call it (roughly ×2): 20 × 2 × 2 = 80 points.</p></div>},
+  dating:{tagline:'Out of the pods, into the real world. Lock all your calls before Episode 7.',rules:<ul><li>All dating picks are made now, at the same time as everyone else. The board locks when you start Episode 7.</li><li><b>First to break up</b> — a race: only the earliest-breaking couple pays, at ×1.5.</li><li><b>They sleep together</b> — explicitly referenced on camera. ×1.</li><li><b>Criticizes their place</b> — negative on-camera comment. Correctly tagging who says it adds +25%.</li><li>You get 100 hearts. Unspent hearts are lost when the board locks.</li></ul>,scoring:<div><p><b>Points = hearts wagered × market multiplier × contrarian bonus.</b></p><p>There is no lead bonus here — everyone locks at the same time. Your edge comes from rarer calls (the contrarian bonus) and the riskier markets.</p></div>},
+  weddings:{tagline:'The heavy gate. One outcome per couple, locked before the first wedding.',rules:<ul><li>One call per couple: gets married (×2), says no at the altar (×3, with an optional who-tag worth +25%), or called off before the altar (×2).</li><li>All picks are made now, at the same time as everyone else. The board locks when you start Episode 10.</li><li>You get 200 hearts. Unspent hearts are lost when the board locks.</li></ul>,scoring:<div><p><b>Points = hearts wagered × outcome multiplier × contrarian bonus (× who-tag if tagged correctly).</b></p><p>Says-no pays the most because it is the rarest, most dramatic outcome.</p></div>},
+  reunion:{tagline:'The victory lap. One lock before the reunion airs.',rules:<ul><li>New couple ×5 · Life update ×5 · Back together ×2 · Absent castmate ×2 · Confrontation ×2 · Still together ×1.</li><li>You get 100 hearts. Unspent hearts are lost when the reunion starts.</li></ul>,scoring:<div><p><b>Points = hearts wagered × difficulty multiplier × contrarian bonus.</b></p><p>Long shots pay ×5 — a few hearts on a wild call can swing the whole season.</p></div>},
 };
 function HowItWorksModal({onClose}) {
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget) onClose();}}>
@@ -901,14 +935,17 @@ function App() {
       } else {
         // New member. Skip past any phases the pool has already revealed so a
         // late joiner can't read everyone's picks and then play those phases.
-        const firstOpen = PH_ORDER.find(ph=>!(status[ph]&&status[ph].revealed)) || 'reunion';
-        const skipped = PH_ORDER.slice(0,PH_ORDER.indexOf(firstOpen));
+        const firstOpen = PH_ORDER.find(ph=>!(status[ph]&&status[ph].revealed));
+        const seasonFinished = !firstOpen;
+        const landingPhase = firstOpen || 'reunion';
+        const skipped = seasonFinished ? [...PH_ORDER] : PH_ORDER.slice(0,PH_ORDER.indexOf(landingPhase));
         const completed0 = Object.fromEntries(skipped.map(ph=>[ph,true]));
-        const w0 = firstOpen==='pods'?0:PH_STARTW[firstOpen];
-        setPicks(freshPicks()); setPhase(firstOpen); setScreen('intro'); setW(w0);
+        const w0 = seasonFinished ? PH_SPAN.reunion.endEp : (landingPhase==='pods'?0:PH_STARTW[landingPhase]);
+        const landingScreen = seasonFinished ? 'final' : 'intro';
+        setPicks(freshPicks()); setPhase(landingPhase); setScreen(landingScreen); setW(w0);
         setCompleted(completed0); setReveal(null); setCloseInfo(null);
         if (skipped.length) {
-          window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:freshPicks(),phase:firstOpen,screen:'intro',w:w0,completed:completed0}).catch(()=>{});
+          window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:freshPicks(),phase:landingPhase,screen:landingScreen,w:w0,completed:completed0}).catch(()=>{});
           skipped.forEach(ph=>window._fb.completePhase(pool.id,ph,user.uid).catch(()=>{}));
         }
       }
@@ -996,7 +1033,7 @@ function App() {
     savePlayer({picks:np, phase, screen, w, completed});
   };
   const doGate = async () => {
-    if (gating) return;
+    if (gating || completed[phase]) return;
     setGating(true);
     try {
       const ep = w+1;
@@ -1151,7 +1188,7 @@ function App() {
       <h1>{activePool.name} {saveBadge}</h1>
       <span className="seasonpill">UK: Season 3</span>
       <div className="user-bar">
-        <button className="backlink" onClick={()=>{setPoolTab('play');setScreen('intro');}}>Pool Home</button>
+        <button className="backlink" onClick={()=>{setPoolTab('play');if(!completed[phase]) setScreen('intro');}}>Pool Home</button>
         <button className="backlink" onClick={exitPool}>← All pools</button>
         {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
         <span className="user-name">{meName}</span>
@@ -1177,7 +1214,7 @@ function App() {
         {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
         {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
         {phase==='weddings'&&<WeddingsBoard w={w} picks={picks.weddings} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
-        {phase==='reunion'&&<ReunionBoard picks={picks.reunion} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
+        {phase==='reunion'&&<ReunionBoard w={w} picks={picks.reunion} add={addPick} remove={removePick} spent={spent} eng={eng}/>} 
         <button className="btn-primary" disabled={gating} onClick={doGate}>{phase==='reunion'?'I watched the Reunion':'I watched Episode '+(w+1)} →</button>
         <p className="subtle" style={{textAlign:'center'}}>{phase==='pods'?"Watching the next episode locks this window's picks.":(w===PH_STARTW[phase]?'Continuing locks all of your picks for this phase.':'Your picks for this phase are locked.')}</p>
       </React.Fragment>}
