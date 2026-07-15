@@ -6,29 +6,38 @@
 <title>Love Is Blind - Prediction Pool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('prediction-pool-theme')||'light';}catch(e){document.documentElement.dataset.theme='light';}</script>
 <style>
 :root{
-  --ink:#2b1220; --wine:#6e1f3b; --wine-deep:#4a1428; --rose:#a83a5c;
-  --gold:#c99a3f; --gold-soft:#e8c377; --blush:#f4cdd3; --blush-soft:#fae7ea;
-  --cream:#fdf7f3; --card:#fffdfc; --line:#ecd9d6; --miss:#9b5b6b;
+  --ink:#351323; --wine:#431127; --wine-deep:#290817; --rose:#ed0c72;
+  --gold:#7b2ee5; --gold-soft:#c8a9ff; --blush:#ffd0e3; --blush-soft:#fce7ef;
+  --cream:#f8f3ef; --card:#fffaf7; --line:#efd7df; --miss:#9b5b6b;
+  --muted:#806b70; --soft-text:#9a8589; --surface:#fff; --surface-soft:#fff5f7;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ink:#f8e9ee; --wine:#f3dbe4; --wine-deep:#fff4f7; --rose:#e78cab;
+  --gold:#f2c85f; --gold-soft:#f7df96; --blush:#71334c; --blush-soft:#3a1b29;
+  --cream:#170a11; --card:#25131c; --line:#5b2d41; --miss:#c898a7;
+  --muted:#c6a8b3; --soft-text:#a98794; --surface:#211019; --surface-soft:#301722;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold-soft);outline-offset:2px}
 body{
   background:
-    radial-gradient(1100px 560px at 85% -8%, #fae7ea 0%, transparent 60%),
-    radial-gradient(900px 520px at -10% 8%, #f8ecdf 0%, transparent 55%),
+    radial-gradient(1100px 560px at 85% -8%, #fce2eb 0%, transparent 60%),
+    radial-gradient(900px 520px at -10% 8%, #f7e9e2 0%, transparent 55%),
     var(--cream);
   color:var(--ink);
   font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
 .app{max-width:680px;margin:0 auto;padding:18px 16px 90px}
-.hdr{text-align:center;padding:24px 0 4px}
+.hdr{text-align:center;padding:24px 0 4px;position:relative}
 .eyebrow{letter-spacing:.35em;font-size:11px;font-weight:600;color:var(--rose);text-transform:uppercase}
 .hdr h1{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;margin:8px 0 6px;color:var(--wine)}
-.seasonpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);background:linear-gradient(135deg,#f3e2c0,#e8c377);padding:4px 14px;border-radius:999px}
+.seasonpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);background:linear-gradient(135deg,var(--blush-soft),#f5d7e4);padding:4px 14px;border-radius:999px}
 .stepper{display:flex;justify-content:center;gap:4px;align-items:center;margin:16px 0 4px;flex-wrap:wrap}
 .step{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#c0a2ab;padding:6px 11px;border-radius:999px;transition:all .2s}
 .step.done{color:var(--wine)}
@@ -37,14 +46,14 @@ body{
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 8px 24px rgba(110,31,59,.05)}
 .card h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:23px;margin:0 0 4px}
 .card h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:0 0 8px}
-.lede{color:#7a4a58;font-size:14px;line-height:1.55;margin:4px 0 0}
-.btn-primary{display:block;width:100%;padding:15px 18px;margin-top:14px;border:none;border-radius:14px;color:#fff;font-weight:700;font-size:16px;font-family:Inter,sans-serif;cursor:pointer;background:linear-gradient(135deg,#7d2344,#a83a5c 55%,#c05a72);box-shadow:0 10px 26px rgba(140,40,70,.32);transition:filter .15s,transform .1s}
+.lede{color:var(--muted);font-size:14px;line-height:1.55;margin:4px 0 0}
+.btn-primary{display:block;width:100%;padding:15px 18px;margin-top:14px;border:none;border-radius:14px;color:#fff;font-weight:700;font-size:16px;font-family:Inter,sans-serif;cursor:pointer;background:linear-gradient(135deg,#d90068,#ed0c72 55%,#f4378f);box-shadow:0 10px 26px rgba(220,0,99,.24);transition:filter .15s,transform .1s}
 .btn-primary:hover{filter:brightness(1.06)}
 .btn-primary:active{transform:translateY(1px)}
 .btn-primary:disabled{opacity:.4;cursor:default;box-shadow:none}
 .btn-secondary{display:block;width:100%;padding:13px 18px;margin-top:10px;border:1.5px solid var(--wine);border-radius:14px;color:var(--wine);font-weight:700;font-size:15px;font-family:Inter,sans-serif;cursor:pointer;background:none}
 .btn-secondary:hover{background:var(--blush-soft)}
-.btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:14px 18px;margin-top:14px;border:1.5px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-weight:600;font-size:15px;font-family:Inter,sans-serif;cursor:pointer;transition:box-shadow .15s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:14px 18px;margin-top:14px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font-weight:600;font-size:15px;font-family:Inter,sans-serif;cursor:pointer;transition:box-shadow .15s,transform .1s;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .btn-google:hover{box-shadow:0 4px 16px rgba(0,0,0,.13)}
 .btn-google:active{transform:translateY(1px)}
 .btn-add{padding:11px 16px;border:1.5px solid var(--wine);border-radius:12px;background:none;color:var(--wine);font-weight:700;font-size:14px;cursor:pointer;font-family:Inter,sans-serif}
@@ -53,39 +62,39 @@ body{
 .btn-small{padding:7px 14px;border:1.5px solid var(--wine);border-radius:10px;background:none;color:var(--wine);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-small.filled{background:var(--wine);color:#fff;border-color:var(--wine)}
 .btn-small:disabled{opacity:.35;cursor:default}
-.budgetrow{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:600;color:#7a4a58;margin-bottom:6px}
+.budgetrow{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
 .budgetrow .n{font-family:'Playfair Display',serif;font-size:22px;color:var(--wine)}
 .budget-bar{height:10px;border-radius:999px;background:var(--blush-soft);overflow:hidden}
 .budget-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-soft));transition:width .25s}
-.panel{border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden;background:#fff}
+.panel{border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden;background:var(--surface)}
 .phead{width:100%;text-align:left;background:var(--blush-soft);border:none;padding:12px 14px;font-weight:700;color:var(--wine);cursor:pointer;font-size:14px;font-family:Inter,sans-serif;display:flex;justify-content:space-between}
-.pbody{padding:12px 14px;font-size:14px;line-height:1.6;color:#4a2a36}
+.pbody{padding:12px 14px;font-size:14px;line-height:1.6;color:var(--ink)}
 .pbody ul{margin:6px 0;padding-left:18px}
 .pbody li{margin:4px 0}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:8px 0}
 .field{flex:1;min-width:130px}
-label.small{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#9a6a76;display:block;margin-bottom:5px}
-select,input[type=text],input[type=email]{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px;color:var(--ink);font-family:Inter,sans-serif}
+label.small{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--soft-text);display:block;margin-bottom:5px}
+select,input[type=text],input[type=email]{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:14px;color:var(--ink);font-family:Inter,sans-serif}
 input[type=range]{width:100%;accent-color:var(--rose)}
 .stakebox{display:flex;align-items:center;gap:10px}
 .stakeval{font-family:'Playfair Display',serif;font-size:24px;color:var(--wine);min-width:58px;text-align:center}
-.pickchip{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin:7px 0;background:#fff}
+.pickchip{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin:7px 0;background:var(--surface)}
 .pickchip .nm{font-weight:600;font-size:14px}
-.subtle{color:#9a6a76;font-size:12px;line-height:1.45}
+.subtle{color:var(--soft-text);font-size:12px;line-height:1.45}
 .receipt{border-left:3px solid var(--gold);background:#fffaf1;padding:10px 13px;border-radius:0 10px 10px 0;margin:8px 0;font-variant-numeric:tabular-nums}
 .receipt.miss{border-left-color:#dcb9c1;background:#fbf1f3}
 .receipt.pending{border-left-color:#b9a7dc;background:#f6f3fb}
 .receipt .who{font-weight:700;font-size:14px}
 .receipt .pts{float:right;font-family:'Playfair Display',serif;font-size:19px;color:var(--wine)}
 .receipt.miss .pts{color:var(--miss);font-size:15px}
-.math{font-size:12.5px;color:#7a4a58;margin-top:3px;clear:both}
+.math{font-size:12.5px;color:var(--muted);margin-top:3px;clear:both}
 .evt{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0;background:linear-gradient(180deg,#fff,#fdf5f6)}
 .evt h3{margin:0}
-.evt .sub{font-size:13px;color:#7a4a58;margin-top:2px}
+.evt .sub{font-size:13px;color:var(--muted);margin-top:2px}
 .warnchip{display:inline-block;vertical-align:middle;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#8a6116;background:#f7e8c8;border:1px solid #e3cd93;padding:2px 8px;border-radius:999px;text-transform:uppercase;margin-left:6px}
 .lb table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .lb th,.lb td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line);font-size:14px}
-.lb th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#9a6a76}
+.lb th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft-text)}
 .lb th:first-child,.lb td:first-child{text-align:left}
 .lb tr.you td{font-weight:700;color:var(--wine)}
 .lb td.tot{font-family:'Playfair Display',serif;font-size:17px;color:var(--wine)}
@@ -93,41 +102,41 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .crown{font-size:44px;line-height:1}
 .winner{font-family:'Playfair Display',serif;font-size:28px;color:var(--wine);margin:4px 0}
 .notice{border:1px dashed #e3cd93;background:#fdf8ec;border-radius:12px;padding:11px 14px;font-size:13px;color:#6d5324;line-height:1.5;margin:10px 0}
-.loading{text-align:center;padding:60px 20px;color:#9a6a76;font-size:15px}
+.loading{text-align:center;padding:60px 20px;color:var(--soft-text);font-size:15px}
 .loading .spinner{font-size:28px;animation:spin 1.2s linear infinite;display:block;margin-bottom:12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .errcard{border:1px solid #f4b8c4;background:#fff5f7;border-radius:16px;padding:20px;margin:14px 0;color:var(--wine-deep)}
 .errcard h3{color:var(--wine);margin:0 0 8px;font-family:'Playfair Display',serif}
 .savebadge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
-.savebadge.saving{color:#7a4a58;background:var(--blush-soft)}
+.savebadge.saving{color:var(--muted);background:var(--blush-soft)}
 .savebadge.saved{color:#2e7d4f;background:#e8f5e9}
 .savebadge.error{color:#b71c1c;background:#ffebee}
 .user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;flex-wrap:wrap}
 .user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
-.user-name{font-size:13px;font-weight:600;color:#7a4a58}
-.btn-signout,.btn-how{font-size:12px;color:#9a6a76;background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
+.user-name{font-size:13px;font-weight:600;color:var(--muted)}
+.btn-signout,.btn-how{font-size:12px;color:var(--soft-text);background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-signout:hover,.btn-how:hover{background:var(--blush-soft)}
-.btn-danger{padding:7px 10px;border:1px solid #d58a99;border-radius:9px;background:#fff;color:#9b334b;font-weight:700;font-size:12px;cursor:pointer;font-family:Inter,sans-serif}
+.btn-danger{padding:7px 10px;border:1px solid #d58a99;border-radius:9px;background:var(--surface);color:#b93356;font-weight:700;font-size:12px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-danger:hover{background:#fff0f3}
 .modal-backdrop{position:fixed;inset:0;background:rgba(43,18,32,.42);display:flex;align-items:center;justify-content:center;padding:18px;z-index:20}
 .modal{width:min(610px,100%);max-height:88vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(43,18,32,.28)}
 .modal h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:26px;margin:0 0 6px}
 .modal h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:18px 0 6px}
-.modal p,.modal li{color:#4a2a36;font-size:14px;line-height:1.55}
+.modal p,.modal li{color:var(--ink);font-size:14px;line-height:1.55}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
-.pool-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fff;cursor:pointer;transition:box-shadow .15s}
+.pool-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);cursor:pointer;transition:box-shadow .15s}
 .pool-row:hover{box-shadow:0 4px 16px rgba(110,31,59,.1)}
 .pool-row .pname{font-family:'Playfair Display',serif;font-size:18px;color:var(--wine);font-weight:700}
-.pool-row .pmeta{font-size:12px;color:#9a6a76;margin-top:2px}
+.pool-row .pmeta{font-size:12px;color:var(--soft-text);margin-top:2px}
 .invite-row{border:1px dashed var(--gold);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fffaf1}
 .invite-row .iname{font-weight:700;color:var(--wine);font-size:15px}
-.invite-row .imeta{font-size:12.5px;color:#8a6116;margin:3px 0 10px}
+.invite-row .imeta{font-size:12.5px;color:var(--gold);margin:3px 0 10px}
 .invite-actions{display:flex;gap:8px}
 .email-chip{display:inline-flex;align-items:center;gap:6px;background:var(--blush-soft);color:var(--wine);font-size:13px;font-weight:600;padding:5px 10px;border-radius:999px;margin:3px 4px 3px 0}
 .email-chip button{border:none;background:none;color:var(--rose);cursor:pointer;font-size:13px;padding:0}
 .tabbar{display:flex;gap:6px;justify-content:center;margin:12px 0 4px}
-.tabbar button{padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:#7a4a58;font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
+.tabbar button{padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
 .tabbar button.active{background:var(--wine);color:#fff;border-color:var(--wine)}
 .member-status{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;border-bottom:1px solid var(--line)}
 .member-status:last-child{border-bottom:none}
@@ -138,6 +147,36 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .divider{border:none;border-top:1px solid var(--line);margin:16px 0}
 .mkt-title{display:flex;align-items:baseline;justify-content:space-between}
 .multpill{font-size:11px;font-weight:700;color:var(--wine);background:var(--blush-soft);padding:3px 9px;border-radius:999px;white-space:nowrap}
+.btn-settings{position:absolute;right:0;top:18px;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--wine);font-size:21px;line-height:1;cursor:pointer;display:grid;place-items:center;box-shadow:0 6px 18px rgba(67,17,39,.08)}
+.btn-settings:hover{background:var(--blush-soft)}
+.theme-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 4px}
+.theme-choice{border:1.5px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);padding:13px 12px;font:600 14px Inter,sans-serif;cursor:pointer;text-align:left}
+.theme-choice.active{border-color:var(--rose);box-shadow:0 0 0 2px color-mix(in srgb,var(--rose) 18%,transparent);color:var(--rose)}
+.theme-choice span{display:block;font-size:20px;margin-bottom:5px}
+.danger-zone{border:1px solid #d58a99;border-radius:14px;padding:14px;margin-top:18px;background:color-mix(in srgb,#d7375f 7%,var(--card))}
+.danger-zone h3{color:#b93356;margin-top:0}
+.danger-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.danger-row:last-child{border-bottom:none}
+.danger-confirm{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.danger-confirm label{font-size:13px;color:var(--ink);display:block;margin-bottom:7px}
+.btn-danger-wide{display:block;width:100%;padding:12px 14px;margin-top:10px;border:1px solid #c52d55;border-radius:12px;background:#b71f49;color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}
+.btn-danger-wide:disabled{opacity:.35;cursor:default}
+:root[data-theme="dark"] body{background:radial-gradient(900px 500px at 82% -10%,#351522 0%,transparent 62%),radial-gradient(800px 460px at -12% 10%,#29121d 0%,transparent 58%),var(--cream)}
+:root[data-theme="dark"] .card{box-shadow:0 10px 28px rgba(0,0,0,.22)}
+:root[data-theme="dark"] .seasonpill{background:#3a1b29;color:#f3dbe4;border:1px solid #5b2d41}
+:root[data-theme="dark"] .step.cur,:root[data-theme="dark"] .tabbar button.active{background:#e78cab;color:#241019;border-color:#e78cab;box-shadow:none}
+:root[data-theme="dark"] .btn-primary{background:linear-gradient(135deg,#c85f83,#e78cab 60%,#f3a4be);color:#241019;box-shadow:0 10px 26px rgba(0,0,0,.3)}
+:root[data-theme="dark"] .btn-secondary,:root[data-theme="dark"] .btn-add,:root[data-theme="dark"] .btn-small{border-color:#8f4965;color:#f0c8d6}
+:root[data-theme="dark"] .btn-small.filled{background:#e78cab;color:#241019;border-color:#e78cab}
+:root[data-theme="dark"] .btn-secondary:hover,:root[data-theme="dark"] .btn-how:hover,:root[data-theme="dark"] .btn-signout:hover{background:#3a1b29}
+:root[data-theme="dark"] .receipt{background:#2b2118}:root[data-theme="dark"] .receipt.miss{background:#301820}:root[data-theme="dark"] .receipt.pending{background:#261d34}
+:root[data-theme="dark"] .evt{background:linear-gradient(180deg,#2b1621,#211019)}
+:root[data-theme="dark"] .notice{background:#2b2416;color:#efdca3;border-color:#796938}
+:root[data-theme="dark"] .errcard{background:#35151f;color:#f3dbe4;border-color:#7e3d54}
+:root[data-theme="dark"] .invite-row{background:#2b2118}
+:root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
+:root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
+:root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
 @media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
@@ -879,10 +918,51 @@ function HowItWorksModal({onClose}) {
     </div>
   </div>;
 }
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDeletePool}) {
+  const [confirmPool,setConfirmPool]=useState(null);
+  const [typedName,setTypedName]=useState('');
+  const [deleting,setDeleting]=useState(false);
+  const [deleteError,setDeleteError]=useState('');
+  const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId);
+  const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
+  const finishDelete=async()=>{
+    if(!deleteConfirmed||deleting)return;
+    setDeleting(true);
+    try{setDeleteError('');await onDeletePool(confirmPool);onClose();}
+    catch(e){setDeleteError('The pool could not be deleted. Please try again.');}
+    finally{setDeleting(false);}
+  };
+  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Settings</h2>
+      <p>Choose how the prediction pool looks on this device.</p>
+      <h3>Appearance</h3>
+      <div className="theme-options" role="group" aria-label="Colour mode">
+        <button className={'theme-choice '+(theme==='light'?'active':'')} aria-pressed={theme==='light'} onClick={()=>onThemeChange('light')}><span aria-hidden="true">☀</span>Light mode</button>
+        <button className={'theme-choice '+(theme==='dark'?'active':'')} aria-pressed={theme==='dark'} onClick={()=>onThemeChange('dark')}><span aria-hidden="true">☾</span>Dark mode</button>
+      </div>
+      {ownedPools.length>0&&<div className="danger-zone">
+        <h3>Pool management</h3>
+        <p>Only pool owners can delete a pool. Deleting removes the pool, invitations, predictions, and standings for everyone.</p>
+        {!confirmPool&&ownedPools.map(pool=><div className="danger-row" key={pool.id}><div><b>{pool.name}</b><div className="subtle">{pool.members.length} member{pool.members.length!==1?'s':''}</div></div><button className="btn-danger" onClick={()=>{setConfirmPool(pool);setTypedName('');}}>Delete pool</button></div>)}
+        {confirmPool&&<div className="danger-confirm">
+          <label htmlFor="delete-pool-name">Type <b>{confirmPool.name}</b> to confirm permanent deletion.</label>
+          <input id="delete-pool-name" type="text" value={typedName} onChange={e=>setTypedName(e.target.value)} autoComplete="off"/>
+          {deleteError&&<p style={{color:'#b71f49',fontWeight:600}}>{deleteError}</p>}
+          <button className="btn-danger-wide" disabled={!deleteConfirmed||deleting} onClick={finishDelete}>{deleting?'Deleting...':'Permanently delete pool'}</button>
+          <button className="btn-secondary" disabled={deleting} onClick={()=>{setConfirmPool(null);setTypedName('');}}>Cancel</button>
+        </div>}
+      </div>}
+      <button className="btn-primary" disabled={deleting} onClick={onClose}>Done</button>
+    </div>
+  </div>;
+}
 /* ================================================================== */
 /*  APP                                                                */
 /* ================================================================== */
 function App() {
+  const [theme,setTheme]=useState(()=>document.documentElement.dataset.theme==='dark'?'dark':'light');
+  const [showSettings,setShowSettings]=useState(false);
   // Auth + profile
   const [authState, setAuthState] = useState('checking');
   const [user, setUser] = useState(null);
@@ -921,6 +1001,11 @@ function App() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const saveTimer = useRef(null);
   const pendingSave = useRef(null);
+  const changeTheme=value=>{
+    const next=value==='dark'?'dark':'light';
+    setTheme(next);document.documentElement.dataset.theme=next;
+    try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
+  };
   /* ── Auth ── */
   useEffect(() => {
     return window._fb.onAuthStateChanged(async u => {
@@ -1055,7 +1140,7 @@ function App() {
   };
   /* ── Handlers ── */
   const handleSignIn  = () => window._fb.signIn().catch(e=>setErr(e.message));
-  const handleSignOut = async () => { await flushSave().catch(()=>{}); await window._fb.signOut(); setActivePool(null); };
+  const handleSignOut = async () => { await flushSave().catch(()=>{}); setShowSettings(false); await window._fb.signOut(); setActivePool(null); };
   const saveUsername = async () => {
     const uname = usernameInput.trim();
     if (!uname) return;
@@ -1081,9 +1166,9 @@ function App() {
   const doAccept = async (inv) => { try { await window._fb.acceptInvite(inv, user.uid); loadLobby(); } catch(e) { setErr(e.message||'Could not accept the invitation.'); } };
   const doDecline = async (inv) => { try { await window._fb.declineInvite(inv.id); loadLobby(); } catch(e) { setErr('Could not decline the invitation.'); } };
   const doDeletePool = async pool => {
-    if (pool.ownerUid!==user.uid || !window.confirm(`Delete “${pool.name}”? This cannot be undone.`)) return;
-    try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else loadLobby(); }
-    catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); }
+    if (pool.ownerUid!==user.uid) return;
+    try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else await loadLobby(); }
+    catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); throw e; }
   };
   /* Game actions - plain updates, side effects kept out of state updaters */
   const meName = profile?.username;
@@ -1219,6 +1304,7 @@ function App() {
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
     <div className="hdr">
+      <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <div className="eyebrow">Love Is Blind</div>
       <h1>Prediction Pool</h1>
       <span className="seasonpill">UK: Season 3</span>
@@ -1242,7 +1328,7 @@ function App() {
       {!lobbyLoading && pools.length===0 && <p className="lede">You're not in any pools yet. Create one and invite your friends!</p>}
       {pools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
         <div><div className="pname">{p.name}</div><div className="pmeta">{p.members.length} member{p.members.length!==1?'s':''}</div></div>
-        <div style={{display:'flex',alignItems:'center',gap:8}}>{p.ownerUid===user.uid&&<button className="btn-danger" onClick={e=>{e.stopPropagation();doDeletePool(p);}}>Delete</button>}<span style={{color:'var(--rose)',fontWeight:700}}>→</span></div>
+        <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
       </div>)}
       {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
       {creating && <div style={{marginTop:14}}>
@@ -1266,7 +1352,8 @@ function App() {
         <button className="btn-secondary" onClick={()=>{setCreating(false);setNewPoolName('');setInviteList([]);}}>Cancel</button>
       </div>}
     </div>
-    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
+    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
   </div>;
   /* ── IN POOL ── */
   const {RULES} = eng;
@@ -1295,6 +1382,7 @@ function App() {
   </div>;
   return <div className="app">
     <div className="hdr">
+      <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <div className="eyebrow">Love Is Blind</div>
       <h1>{activePool.name} {saveBadge}</h1>
       <span className="seasonpill">UK: Season 3</span>
@@ -1359,7 +1447,8 @@ function App() {
         <button className="btn-primary" onClick={()=>{setPoolTab('standings');refreshPool();}}>View Standings</button>
       </div>}
     </React.Fragment>}
-    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
+    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool}/>} 
   </div>;
 }
 const mountApp = () => ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
