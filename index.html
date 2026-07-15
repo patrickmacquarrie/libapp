@@ -722,7 +722,7 @@ function StakeSlider({value,onChange,max}) {
 /*  Dating & Weddings: single lock - picks editable only in the        */
 /*  phase's first window, then read-only while episodes reveal.        */
 /* ================================================================== */
-function PodsBoard({w,picks,add,remove,spent,eng}) {
+function PodsBoard({w,picks,add,remove,spent,eng,onPendingChange,pendingRef}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,leadM,fmt}=eng;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
   const [adding,setAdding]=useState(picks.length===0);
@@ -734,6 +734,9 @@ function PodsBoard({w,picks,add,remove,spent,eng}) {
   const doAdd=()=>{add({c:him+'|'+her,s:Math.min(stake,maxS),w});setHim('');setHer('');setAdding(false);};
   const startAnother=()=>{setHim('');setHer('');setAdding(true);};
   const predictionInProgress=adding&&(him||her);
+  const skipPrediction=useCallback(()=>{setHim('');setHer('');setAdding(false);},[]);
+  pendingRef.current=skipPrediction;
+  useEffect(()=>{onPendingChange(!!predictionInProgress);return()=>onPendingChange(false);},[predictionInProgress,onPendingChange]);
   const predictionStatus=p=>{
     const couple=coupleFor(p.c);
     return couple&&couple.engagedEp<=w
@@ -741,7 +744,7 @@ function PodsBoard({w,picks,add,remove,spent,eng}) {
       : 'Locked after Episode '+p.w+' · Against-the-Clock x'+fmt(leadM(w-p.w))+' if they propose next episode';
   };
   return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Your bonus starts at ×1. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
-    {adding&&<React.Fragment>{predictionInProgress&&<div className="notice" role="status" style={{margin:'12px 0 4px'}}><b>Prediction not confirmed.</b> This prediction is still in progress and will not be added until you confirm it. <button className="btn-secondary" style={{display:'inline-block',width:'auto',padding:'6px 10px',margin:'8px 0 0'}} onClick={()=>{setHim('');setHer('');setAdding(false);}}>Skip this prediction</button></div>}<div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add btn-confirm" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
+    {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add btn-confirm" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
     {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
   </div>;
 }
@@ -1004,6 +1007,8 @@ function App() {
   const [closeInfo, setCloseInfo] = useState(null);
   const [saveState, setSaveState] = useState(null);
   const [gating, setGating] = useState(false);
+  const [pendingPodsPrediction, setPendingPodsPrediction] = useState(false);
+  const pendingPodsSkip = useRef(()=>{});
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const saveTimer = useRef(null);
   const pendingSave = useRef(null);
@@ -1418,12 +1423,13 @@ function App() {
           <Panel title="Scoring">{PH_INTRO[phase].scoring}</Panel>
         </div>
         <RevealSummary/>
-        {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
+        {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng} onPendingChange={setPendingPodsPrediction} pendingRef={pendingPodsSkip}/>} 
         {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
         {phase==='weddings'&&<WeddingsBoard w={w} picks={picks.weddings} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
         {phase==='reunion'&&<ReunionBoard w={w} picks={picks.reunion} add={addPick} remove={removePick} spent={spent} eng={eng}/>} 
         <p className="subtle" style={{textAlign:'center',marginBottom:8}}><b>Important:</b> locking is permanent. You will not be able to edit these predictions afterward.</p>
         <button className="btn-primary" disabled={gating} onClick={lockPredictions}>{lockLabel} →</button>
+        {phase==='pods'&&pendingPodsPrediction&&<div className="notice" role="status" style={{margin:'14px 0 0'}}><b>Prediction not confirmed.</b> This prediction is still in progress and will not be added until you confirm it. <button className="btn-secondary" style={{display:'inline-block',width:'auto',padding:'6px 10px',margin:'8px 0 0'}} onClick={()=>pendingPodsSkip.current()}>Skip this prediction</button></div>}
         <p className="subtle" style={{textAlign:'center'}}>Your predictions are saved and locked before you watch.</p>
       </React.Fragment>}
       {screen==='watch'&&<div className="card gatecard">
