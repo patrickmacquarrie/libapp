@@ -1050,7 +1050,7 @@ function App() {
   /* ── Enter a pool ── */
   const enterPool = async (pool) => {
     try {
-      setErr(''); setActivePool(pool); setPoolTab('play');
+      setErr(''); setLobbyLoading(true); setPoolTab('play');
       const liveCfg=await loadConfig();
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);
@@ -1099,10 +1099,12 @@ function App() {
           skipped.forEach(ph=>window._fb.completePhase(pool.id,ph,user.uid).catch(()=>{}));
         }
       }
+      // Do not leave the lobby until the engine, players, and saved state are ready.
+      setActivePool(pool);
     } catch(e) {
       console.error(e); setErr('Could not open this pool. Please try again.');
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({});
-    }
+    } finally { setLobbyLoading(false); }
   };
   /* ── Save player state ── */
   const flushSave = useCallback(async () => {
