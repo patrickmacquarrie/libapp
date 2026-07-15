@@ -58,6 +58,10 @@ body{
 .btn-google:active{transform:translateY(1px)}
 .btn-add{padding:11px 16px;border:1.5px solid var(--wine);border-radius:12px;background:none;color:var(--wine);font-weight:700;font-size:14px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-add:disabled{opacity:.35;cursor:default}
+.btn-confirm{border:none;color:#fff;background:linear-gradient(135deg,#d90068,#ed0c72 55%,#f4378f);box-shadow:0 7px 18px rgba(220,0,99,.2);transition:filter .15s,transform .1s}
+.btn-confirm:hover{filter:brightness(1.06)}
+.btn-confirm:active{transform:translateY(1px)}
+.btn-confirm:disabled{opacity:.4;cursor:default;box-shadow:none}
 .btn-x{border:none;background:none;color:#b08d95;font-size:16px;cursor:pointer;padding:4px 8px}
 .btn-small{padding:7px 14px;border:1.5px solid var(--wine);border-radius:10px;background:none;color:var(--wine);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-small.filled{background:var(--wine);color:#fff;border-color:var(--wine)}
@@ -166,6 +170,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .seasonpill{background:#3a1b29;color:#f3dbe4;border:1px solid #5b2d41}
 :root[data-theme="dark"] .step.cur,:root[data-theme="dark"] .tabbar button.active{background:#e78cab;color:#241019;border-color:#e78cab;box-shadow:none}
 :root[data-theme="dark"] .btn-primary{background:linear-gradient(135deg,#c85f83,#e78cab 60%,#f3a4be);color:#241019;box-shadow:0 10px 26px rgba(0,0,0,.3)}
+:root[data-theme="dark"] .btn-confirm{background:linear-gradient(135deg,#c85f83,#e78cab 60%,#f3a4be);color:#241019;box-shadow:0 7px 18px rgba(0,0,0,.3)}
 :root[data-theme="dark"] .btn-secondary,:root[data-theme="dark"] .btn-add,:root[data-theme="dark"] .btn-small{border-color:#8f4965;color:#f0c8d6}
 :root[data-theme="dark"] .btn-small.filled{background:#e78cab;color:#241019;border-color:#e78cab}
 :root[data-theme="dark"] .btn-secondary:hover,:root[data-theme="dark"] .btn-how:hover,:root[data-theme="dark"] .btn-signout:hover{background:#3a1b29}
@@ -728,6 +733,7 @@ function PodsBoard({w,picks,add,remove,spent,eng}) {
   const left=RULES.phases.pods.budget-spent, maxS=Math.min(RULES.phases.pods.cap,left);
   const doAdd=()=>{add({c:him+'|'+her,s:Math.min(stake,maxS),w});setHim('');setHer('');setAdding(false);};
   const startAnother=()=>{setHim('');setHer('');setAdding(true);};
+  const predictionInProgress=adding&&(him||her);
   const predictionStatus=p=>{
     const couple=coupleFor(p.c);
     return couple&&couple.engagedEp<=w
@@ -735,7 +741,7 @@ function PodsBoard({w,picks,add,remove,spent,eng}) {
       : 'Locked after Episode '+p.w+' · Against-the-Clock x'+fmt(leadM(w-p.w))+' if they propose next episode';
   };
   return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Your bonus starts at ×1. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
-    {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
+    {adding&&<React.Fragment>{predictionInProgress&&<div className="notice" role="status" style={{margin:'12px 0 4px'}}><b>Prediction not confirmed.</b> This prediction is still in progress and will not be added until you confirm it. <button className="btn-secondary" style={{display:'inline-block',width:'auto',padding:'6px 10px',margin:'8px 0 0'}} onClick={()=>{setHim('');setHer('');setAdding(false);}}>Skip this prediction</button></div>}<div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add btn-confirm" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
     {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
   </div>;
 }
