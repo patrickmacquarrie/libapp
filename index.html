@@ -39,8 +39,8 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 .app{max-width:680px;margin:0 auto;padding:18px 16px 90px}
-.hdr{text-align:center;padding:24px 0 4px;position:relative}
-.brand-logo{display:block;width:min(100%,520px);height:auto;margin:0 auto 8px}
+.hdr{text-align:center;padding:10px 0 0;position:relative}
+.brand-logo{display:block;width:min(100%,500px);height:auto;margin:0 auto -2px}
 .eyebrow{letter-spacing:.35em;font-size:11px;font-weight:600;color:var(--rose);text-transform:uppercase}
 .hdr h1{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;margin:8px 0 6px;color:var(--wine)}
 .seasonpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);background:linear-gradient(135deg,var(--blush-soft),#f5d7e4);padding:4px 14px;border-radius:999px}
@@ -121,7 +121,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .savebadge.saving{color:var(--muted);background:var(--blush-soft)}
 .savebadge.saved{color:#2e7d4f;background:#e8f5e9}
 .savebadge.error{color:#b71c1c;background:#ffebee}
-.user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:5px;flex-wrap:wrap}
 .user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
 .user-name{font-size:13px;font-weight:600;color:var(--muted)}
 .btn-signout,.btn-how{font-size:12px;color:var(--soft-text);background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
@@ -378,6 +378,9 @@ const SEASON_BANK = [
 ];
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical);
+const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
+const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
+const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
 const seasonForPool = pool => seasonById(pool?.season?.id||pool?.seasonId||DEFAULT_SEASON_ID)||seasonById(DEFAULT_SEASON_ID);
 const seasonLabelForPool = pool => pool?.season?.label||seasonForPool(pool)?.label||'Love Is Blind season';
@@ -725,7 +728,7 @@ function Panel({title,defaultOpen,children}) {
 }
 function BrandHeader({season=null,children}) {
   return <div className="hdr">
-    <svg className="brand-logo" viewBox="0 0 920 250" role="img" aria-label="Through the Wall - a social prediction pool for friends">
+    <svg className="brand-logo" viewBox="0 0 920 205" role="img" aria-label="Through the Wall - a social prediction pool for friends">
       <g transform="translate(34 25) scale(3.1)">
         <path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/>
         <path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/>
@@ -1359,7 +1362,7 @@ function App() {
   </div>;
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
-    <BrandHeader>
+    <BrandHeader season={seasonLibrarySummary}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       {userBar}
     </BrandHeader>
