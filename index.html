@@ -8,8 +8,7 @@
 <meta property="og:title" content="Through the Wall | Love Is Blind prediction pool">
 <meta property="og:description" content="A social prediction pool for friends playing Love Is Blind seasons together.">
 <meta name="theme-color" content="#431127">
-<link rel="icon" type="image/svg+xml" href="through-the-wall-icon-light.svg" media="(prefers-color-scheme: light)">
-<link rel="icon" type="image/svg+xml" href="through-the-wall-icon-dark.svg" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cpath%20fill='%23ed0c72'%20d='M30%2056S8%2042%208%2024C8%2012%2020%207%2030%2017v39Z'/%3E%3Cpath%20fill='%237b2ee5'%20d='M34%2056V17C44%207%2056%2012%2056%2024c0%2018-22%2032-22%2032Z'/%3E%3Cpath%20fill='%23fff'%20d='M30%2012h4v44h-4z'/%3E%3Cpath%20fill='%237b2ee5'%20d='m32%205%202%205%205%202-5%202-2%205-2-5-5-2%205-2Z'/%3E%3Cpath%20fill='%23f2c85f'%20d='m10%2035%201.5%204L16%2041l-4.5%202L10%2047l-1.5-4L4%2041l4.5-2Z'/%3E%3Cpath%20fill='%23f2c85f'%20d='m54%2034%201.2%203.2L59%2039l-3.8%201.8L54%2044l-1.2-3.2L49%2039l3.8-1.8Z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('prediction-pool-theme')||'light';}catch(e){document.documentElement.dataset.theme='light';}</script>
@@ -42,9 +41,6 @@ body{
 .app{max-width:680px;margin:0 auto;padding:18px 16px 90px}
 .hdr{text-align:center;padding:24px 0 4px;position:relative}
 .brand-logo{display:block;width:min(100%,520px);height:auto;margin:0 auto 8px}
-.brand-logo-dark{display:none}
-:root[data-theme="dark"] .brand-logo-light{display:none}
-:root[data-theme="dark"] .brand-logo-dark{display:block}
 .eyebrow{letter-spacing:.35em;font-size:11px;font-weight:600;color:var(--rose);text-transform:uppercase}
 .hdr h1{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;margin:8px 0 6px;color:var(--wine)}
 .seasonpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);background:linear-gradient(135deg,var(--blush-soft),#f5d7e4);padding:4px 14px;border-radius:999px}
@@ -729,8 +725,21 @@ function Panel({title,defaultOpen,children}) {
 }
 function BrandHeader({season=null,children}) {
   return <div className="hdr">
-    <img className="brand-logo brand-logo-light" src="through-the-wall-primary-light.svg" alt="Through the Wall - a social prediction pool for friends"/>
-    <img className="brand-logo brand-logo-dark" src="through-the-wall-primary-dark.svg" alt="Through the Wall - a social prediction pool for friends"/>
+    <svg className="brand-logo" viewBox="0 0 920 250" role="img" aria-label="Through the Wall - a social prediction pool for friends">
+      <g transform="translate(34 25) scale(3.1)">
+        <path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/>
+        <path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/>
+        <path fill="var(--cream)" d="M30 12h4v44h-4z"/>
+        <path fill="#7b2ee5" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/>
+        <path fill="#f2c85f" d="m10 35 1.5 4L16 41l-4.5 2L10 47l-1.5-4L4 41l4.5-2Z"/>
+        <path fill="#f2c85f" d="m54 34 1.2 3.2L59 39l-3.8 1.8L54 44l-1.2-3.2L49 39l3.8-1.8Z"/>
+      </g>
+      <g transform="translate(260 66)">
+        <text x="0" y="58" fill="var(--wine)" fontFamily="Georgia, 'Times New Roman', serif" fontSize="68" fontWeight="700" letterSpacing="-1.5">Through the Wall</text>
+        <rect x="2" y="82" width="112" height="5" rx="2.5" fill="var(--rose)"/>
+        <text x="132" y="88" fill="var(--muted)" fontFamily="Inter, Arial, sans-serif" fontSize="22" letterSpacing="1.2">A SOCIAL PREDICTION POOL FOR FRIENDS</text>
+      </g>
+    </svg>
     {season&&<span className="seasonpill">{season}</span>}
     {children}
   </div>;
