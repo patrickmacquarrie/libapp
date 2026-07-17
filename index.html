@@ -230,7 +230,10 @@ window._fb = {
   createPool: async (name, ownerUid, rulesSnapshot, season) => {
     const ref = await addDoc(collection(db,'pools'), {
       name, ownerUid, members:[ownerUid], rulesSnapshot,
-      season:{id:season.id,label:season.label,country:season.country,seasonNumber:season.seasonNumber},
+      season:{
+        id:season.id,label:season.label,country:season.country,countryCode:season.countryCode,
+        seasonNumber:season.seasonNumber,locationLabel:season.locationLabel||null
+      },
       createdAt:Date.now()
     });
     return ref.id;
@@ -370,20 +373,38 @@ const SEASON_BANK = [
     id:DEFAULT_SEASON_ID,
     label:'Love Is Blind UK: Season 3',
     country:'United Kingdom',
+    countryCode:'UK',
     seasonNumber:3,
+    locationLabel:null,
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
     historical:false,
     available:true,
   },
+  {
+    id:'love-is-blind-us-10',
+    label:'Love Is Blind US: Season 10',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:10,
+    locationLabel:'Ohio',
+    sheetId:'', // Add the published Google Sheet ID, then set available to true.
+    historical:true,
+    available:false,
+  },
 ];
 // Historical seasons will be added here as their outcome sheets are completed.
-const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical);
+const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
 const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
 const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
 const seasonForPool = pool => seasonById(pool?.season?.id||pool?.seasonId||DEFAULT_SEASON_ID)||seasonById(DEFAULT_SEASON_ID);
-const seasonLabelForPool = pool => pool?.season?.label||seasonForPool(pool)?.label||'Love Is Blind season';
+const formatSeasonLabel = season => {
+  if(!season) return 'Love Is Blind season';
+  const label=season.label||'Love Is Blind season';
+  return season.countryCode==='US'&&season.locationLabel?`${label} · ${season.locationLabel}`:label;
+};
+const seasonLabelForPool = pool => formatSeasonLabel({...seasonForPool(pool),...(pool?.season||{})});
 /* ================================================================== */
 /*  SHEET FETCHER                                                      */
 /* ================================================================== */
@@ -1398,7 +1419,7 @@ function App() {
         <div className="row">
           <div className="field"><label className="small" htmlFor="new-pool-season">Season</label>
             <select id="new-pool-season" value={selectedSeasonId} onChange={e=>setSelectedSeasonId(e.target.value)}>
-              {SEASON_BANK.filter(season=>season.available).map(season=><option value={season.id} key={season.id}>{season.label}</option>)}
+              {SEASON_BANK.filter(season=>season.available).map(season=><option value={season.id} key={season.id}>{formatSeasonLabel(season)}</option>)}
             </select>
             <div className="subtle" style={{marginTop:6}}>The season is permanent once the pool is created.</div>
           </div>
@@ -1418,7 +1439,7 @@ function App() {
     </div>
     <div className="card">
       <h2>Historical season library</h2>
-      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:HISTORICAL_SEASON_BANK.map(season=><div className="pool-row" key={season.id}><div><div className="pname">{season.label}</div><div className="pmeta">Ready to play</div></div></div>)}
+      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:HISTORICAL_SEASON_BANK.map(season=><div className="pool-row" key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div></div>)}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
