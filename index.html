@@ -369,6 +369,7 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script type="text/babel" data-presets="react">
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const SEASON_BANK = [
+  // ── Live season ──────────────────────────────────────────────
   {
     id:DEFAULT_SEASON_ID,
     label:'Love Is Blind UK: Season 3',
@@ -380,6 +381,107 @@ const SEASON_BANK = [
     historical:false,
     available:true,
   },
+
+  // ── United States ────────────────────────────────────────────
+  {
+    id:'love-is-blind-us-1',
+    label:'Love Is Blind US: Season 1',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:1,
+    locationLabel:'Atlanta',
+    sheetId:'1B-j0sEfCHcN5bPZWQembeB5dKRRQx3b0dFwg79RTTfM',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-2',
+    label:'Love Is Blind US: Season 2',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:2,
+    locationLabel:'Chicago',
+    sheetId:'1-SJO24oReCScG694LG_AttWeuAJcEOUo6jUBkatX3wc',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-3',
+    label:'Love Is Blind US: Season 3',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:3,
+    locationLabel:'Dallas',
+    sheetId:'102HfVLhO9ZEsoweMKMmnxXFg6ngwNWPPXk6rDcUB8v0',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-4',
+    label:'Love Is Blind US: Season 4',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:4,
+    locationLabel:'Seattle',
+    sheetId:'1nsg1bHfGexX711DsZNxqgk6q8fUJvOm6H_tQi1q3npc',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-5',
+    label:'Love Is Blind US: Season 5',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:5,
+    locationLabel:'Houston',
+    sheetId:'1-4G_XPRS-O2N6uieLyflus_SYB4z2exBOEs0A2NKnGA',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-6',
+    label:'Love Is Blind US: Season 6',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:6,
+    locationLabel:'Charlotte',
+    sheetId:'18oiYO547CVOcl7jRwNBAzpvJq1QVCIuaLC1km0E2yQ8',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-7',
+    label:'Love Is Blind US: Season 7',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:7,
+    locationLabel:'Washington, D.C.',
+    sheetId:'1cpGuLPNwWtWbnBMabZgFxxnaKurF6sUfJmgYYiMarPM',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-8',
+    label:'Love Is Blind US: Season 8',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:8,
+    locationLabel:'Minneapolis',
+    sheetId:'1L-_RrG5DDTIWLbEe17VnKy4xDGoYm61DFOw8mIExPQg',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-us-9',
+    label:'Love Is Blind US: Season 9',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:9,
+    locationLabel:'Denver',
+    sheetId:'1sqvyWxJljfZnKceuopjPDlN8PUQXWrWnbzeKqpGamo0',
+    historical:true,
+    available:false,
+  },
   {
     id:'love-is-blind-us-10',
     label:'Love Is Blind US: Season 10',
@@ -387,10 +489,247 @@ const SEASON_BANK = [
     countryCode:'US',
     seasonNumber:10,
     locationLabel:'Ohio',
-    sheetId:'', // Add the published Google Sheet ID, then set available to true.
+    sheetId:'1wkfKzx1Y9vb2ApifZeWcUji59kvsrSRJmrrFoe05kEA',
+    historical:true,
+    available:true,
+  },
+
+  // ── United Kingdom ───────────────────────────────────────────
+  {
+    id:'love-is-blind-uk-1',
+    label:'Love Is Blind UK: Season 1',
+    country:'United Kingdom',
+    countryCode:'UK',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
     historical:true,
     available:false,
   },
+  {
+    id:'love-is-blind-uk-2',
+    label:'Love Is Blind UK: Season 2',
+    country:'United Kingdom',
+    countryCode:'UK',
+    seasonNumber:2,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Brazil ───────────────────────────────────────────────────
+  {
+    id:'love-is-blind-br-1',
+    label:'Love Is Blind Brazil: Season 1',
+    country:'Brazil',
+    countryCode:'BR',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-br-2',
+    label:'Love Is Blind Brazil: Season 2',
+    country:'Brazil',
+    countryCode:'BR',
+    seasonNumber:2,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-br-3',
+    label:'Love Is Blind Brazil: Season 3',
+    country:'Brazil',
+    countryCode:'BR',
+    seasonNumber:3,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-br-4',
+    label:'Love Is Blind Brazil: Season 4',
+    country:'Brazil',
+    countryCode:'BR',
+    seasonNumber:4,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-br-5',
+    label:'Love Is Blind Brazil: Season 5',
+    country:'Brazil',
+    countryCode:'BR',
+    seasonNumber:5,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Sweden ───────────────────────────────────────────────────
+  {
+    id:'love-is-blind-se-1',
+    label:'Love Is Blind Sweden: Season 1',
+    country:'Sweden',
+    countryCode:'SE',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-se-2',
+    label:'Love Is Blind Sweden: Season 2',
+    country:'Sweden',
+    countryCode:'SE',
+    seasonNumber:2,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-se-3',
+    label:'Love Is Blind Sweden: Season 3',
+    country:'Sweden',
+    countryCode:'SE',
+    seasonNumber:3,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Germany ──────────────────────────────────────────────────
+  {
+    id:'love-is-blind-de-1',
+    label:'Love Is Blind Germany: Season 1',
+    country:'Germany',
+    countryCode:'DE',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+  {
+    id:'love-is-blind-de-2',
+    label:'Love Is Blind Germany: Season 2',
+    country:'Germany',
+    countryCode:'DE',
+    seasonNumber:2,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Japan ────────────────────────────────────────────────────
+  {
+    id:'love-is-blind-jp-1',
+    label:'Love Is Blind Japan: Season 1',
+    country:'Japan',
+    countryCode:'JP',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Mexico ───────────────────────────────────────────────────
+  {
+    id:'love-is-blind-mx-1',
+    label:'Love Is Blind Mexico: Season 1',
+    country:'Mexico',
+    countryCode:'MX',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Habibi (UAE / Lebanon) ───────────────────────────────────
+  {
+    id:'love-is-blind-habibi-1',
+    label:'Love Is Blind: Habibi Season 1',
+    country:'United Arab Emirates',
+    countryCode:'AE',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Argentina ────────────────────────────────────────────────
+  {
+    id:'love-is-blind-ar-1',
+    label:'Love Is Blind Argentina: Season 1',
+    country:'Argentina',
+    countryCode:'AR',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Italy ────────────────────────────────────────────────────
+  {
+    id:'love-is-blind-it-1',
+    label:'Love Is Blind Italy: Season 1',
+    country:'Italy',
+    countryCode:'IT',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── France ───────────────────────────────────────────────────
+  {
+    id:'love-is-blind-fr-1',
+    label:'Love Is Blind France: Season 1',
+    country:'France',
+    countryCode:'FR',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // ── Poland ───────────────────────────────────────────────────
+  {
+    id:'love-is-blind-pl-1',
+    label:'Love Is Blind Poland: Season 1',
+    country:'Poland',
+    countryCode:'PL',
+    seasonNumber:1,
+    locationLabel:null,
+    sheetId:'',
+    historical:true,
+    available:false,
+  },
+
+  // Not yet aired — add when they drop:
+  //   Love Is Blind: Netherlands S1
+  //   Love Is Blind: South Africa S1
+  //   Love Is Blind US S11 (autumn 2026)
+  //   Love Is Blind: Habibi S2, Argentina S2
 ];
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
@@ -573,7 +912,8 @@ const DEFAULT_WED_MULT={married:2,saysNo:3,calledOff:2};
 const DEFAULT_REU_MULT={still:1,back:2,newCouple:5,lifeUpdate:5,absent:2};
 const DEFAULT_RACE_MULT=1.5;
 let WED_MULT  = {...DEFAULT_WED_MULT};
-const WED_LABEL = {married:'Gets married',saysNo:'Says no at the altar',calledOff:'Called off before the altar'};
+// Wedding values: married, saysNo, calledOff, notShown (engagement aired, post-Pods arc not shown).
+const WED_LABEL = {married:'Gets married',saysNo:'Says no at the altar',calledOff:'Called off before the altar',notShown:'Never aired past the pods'};
 let REU_MULT  = {...DEFAULT_REU_MULT};
 let RACE_MULT = DEFAULT_RACE_MULT;
 const LIFE_UPD  = {newPartner:'Married or Engaged to Someone New',newBaby:'Pregnant or New Baby'};
@@ -630,6 +970,7 @@ function makeEngine(cfg, poolSize) {
   const fmt     = n=>String(+n.toFixed(2));
   const leadM   = f=>1+RULES.LEAD_STEP*Math.max(0,f);
   const eligibleForWeddings = (c,w) =>
+    c.wedding!=='notShown' &&
     c.engagedEp<=w &&
     !(c.settledEp&&c.settledEp<=w) &&
     !(c.breakupEp&&c.breakupEp<=w);
@@ -684,7 +1025,7 @@ function makeEngine(cfg, poolSize) {
       }
     }
     if(phase==='weddings') {
-      COUPLES.filter(c=>c.wedding&&((c.settledEp||PH_SPAN.weddings.endEp)===ep)).forEach(c=>{
+      COUPLES.filter(c=>c.wedding&&c.wedding!=='notShown'&&((c.settledEp||PH_SPAN.weddings.endEp)===ep)).forEach(c=>{
         const out=c.wedding;
         events.push({title:nameOf(c.id)+': '+WED_LABEL[out]+(out==='saysNo'?' - '+whoNm(c.id,c.who):''),sub:c.settledEp===ep&&ep<PH_SPAN.weddings.endEp?'Settled in Episode '+ep+'.':null});
         MEMBERS.forEach(m=>all[m].filter(p=>p.c===c.id).forEach(p=>{
@@ -925,8 +1266,8 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const ml=p=>p.m==='still'?nameOf(p.c)+' still together':p.m==='back'?nameOf(p.c)+' back together':p.m==='newCouple'?'New couple: '+p.pair.split('|').join(' & '):p.m==='lifeUpdate'?'Life update: '+p.person+' - '+(LIFE_UPD[normalizeLifeUpdate(p.update)]||p.update):p.m==='absent'?'Absent: '+p.person:'Retired reunion category';
   return <div className="card"><h2>{open?'Make your Reunion predictions':'Reunion predictions locked'}</h2><p className="lede">Choose any combination of categories. Each prediction uses hearts separately, and you may leave categories empty.</p><Budget phase="reunion" spent={spent} RULES={RULES}/>
     {open&&<React.Fragment>
-    <div className="mkt-title"><h3>Still together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Married couple" value={stC} onChange={setStC} options={married.filter(id=>!picks.some(p=>p.m==='still'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={stS} onChange={setStS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!stC||left<5} onClick={()=>{add({m:'still',c:stC,s:Math.min(stS,maxS)});setStC('');}}>Add prediction</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Back together</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Split couple" value={bkC} onChange={setBkC} options={split.filter(id=>!picks.some(p=>p.m==='back'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={bkS} onChange={setBkS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bkC||left<5} onClick={()=>{add({m:'back',c:bkC,s:Math.min(bkS,maxS)});setBkC('');}}>Add prediction</button></div>
+    {married.length?<React.Fragment><div className="mkt-title"><h3>Still together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Married couple" value={stC} onChange={setStC} options={married.filter(id=>!picks.some(p=>p.m==='still'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={stS} onChange={setStS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!stC||left<5} onClick={()=>{add({m:'still',c:stC,s:Math.min(stS,maxS)});setStC('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">No couples married this season, so there is no Still together market.</p>}
+    <hr className="divider"/>{split.length?<React.Fragment><div className="mkt-title"><h3>Back together</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Split couple" value={bkC} onChange={setBkC} options={split.filter(id=>!picks.some(p=>p.m==='back'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={bkS} onChange={setBkS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bkC||left<5} onClick={()=>{add({m:'back',c:bkC,s:Math.min(bkS,maxS)});setBkC('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">Every couple married this season, so there is no Back together market.</p>}
     <hr className="divider"/><div className="mkt-title"><h3>New couple revealed</h3><span className="multpill">x5</span></div><div className="row"><Sel label="Him" value={nH} onChange={setNH} options={MEN}/><Sel label="Her" value={nW} onChange={setNW} options={WOMEN}/></div><div className="row"><StakeSlider value={nS} onChange={setNS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!nH||!nW||left<5} onClick={()=>{add({m:'newCouple',pair:nH+'|'+nW,s:Math.min(nS,maxS)});setNH('');setNW('');}}>Add prediction</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Major life update</h3><span className="multpill">x5</span></div><div className="row"><Sel label="Castmate" value={lP} onChange={setLP} options={AC}/><Sel label="Update" value={lU} onChange={setLU} options={Object.entries(LIFE_UPD).map(([v,t])=>({v,t}))}/></div><div className="row"><StakeSlider value={lS} onChange={setLS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!lP||!lU||left<5} onClick={()=>{add({m:'lifeUpdate',person:lP,update:lU,s:Math.min(lS,maxS)});setLP('');setLU('');}}>Add prediction</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Absent castmate</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Castmate" value={aP} onChange={setAP} options={AC}/><StakeSlider value={aS} onChange={setAS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!aP||left<5} onClick={()=>{add({m:'absent',person:aP,s:Math.min(aS,maxS)});setAP('');}}>Add prediction</button></div>
