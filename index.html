@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Love Is Blind - Prediction Pool</title>
+<title>Through the Wall - A social prediction pool for friends</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%23ed0c72' d='M30 56S8 42 8 24C8 12 20 7 30 17v39Z'/%3E%3Cpath fill='%237b2ee5' d='M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z'/%3E%3Cpath fill='white' d='M30 12h4v44h-4z'/%3E%3Cpath fill='%237b2ee5' d='m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z'/%3E%3Cpath fill='%23f2c85f' d='m10 35 1.5 4L16 41l-4.5 2L10 47l-1.5-4L4 41l4.5-2Z'/%3E%3Cpath fill='%23f2c85f' d='m54 34 1.2 3.2L59 39l-3.8 1.8L54 44l-1.2-3.2L49 39l3.8-1.8Z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('prediction-pool-theme')||'light';}catch(e){document.documentElement.dataset.theme='light';}</script>
@@ -1277,9 +1278,9 @@ function App() {
     } catch(e) { console.error(e); setErr('Could not refresh the standings.'); }
   };
   /* ── RENDER ── */
-  if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
+  if (authState==='checking') return <div className="app"><div className="hdr"><div className="eyebrow">Through the Wall</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='signedout') return <div className="app">
-    <div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
+    <div className="hdr"><div className="eyebrow">Through the Wall</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
     <div className="card login-card">
       <div className="heart-hero">♥</div>
       <h2>Welcome</h2>
@@ -1293,7 +1294,7 @@ function App() {
   </div>;
   /* Username setup */
   if (!profile?.username) return <div className="app">
-    <div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
+    <div className="hdr"><div className="eyebrow">Through the Wall</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div>
     <div className="card">
       <h2>Choose a username</h2>
       <p className="lede">This is the name your poolmates will see on scoreboards.</p>
@@ -1305,9 +1306,9 @@ function App() {
       <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
     </div>
   </div>;
-  if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
-  if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
-  if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Love Is Blind</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
+  if (cfgState==='loading') return <div className="app"><div className="hdr"><div className="eyebrow">Through the Wall</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
+  if (cfgState==='error') return <div className="app"><div className="hdr"><div className="eyebrow">Through the Wall</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3</span></div><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
+  if (cfgState==='nocast') return <div className="app"><div className="hdr"><div className="eyebrow">Through the Wall</div><h1>Prediction Pool</h1><span className="seasonpill">UK: Season 3 · Awaiting cast</span></div><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
   const userBar = <div className="user-bar">
     {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
     <span className="user-name">{profile.username}</span>
@@ -1318,7 +1319,7 @@ function App() {
   if (!activePool) return <div className="app">
     <div className="hdr">
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
-      <div className="eyebrow">Love Is Blind</div>
+      <div className="eyebrow">Through the Wall</div>
       <h1>Prediction Pool</h1>
       <span className="seasonpill">UK: Season 3</span>
       {userBar}
@@ -1396,7 +1397,7 @@ function App() {
   return <div className="app">
     <div className="hdr">
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
-      <div className="eyebrow">Love Is Blind</div>
+      <div className="eyebrow">Through the Wall</div>
       <h1>{activePool.name} {saveBadge}</h1>
       <span className="seasonpill">UK: Season 3</span>
       <div className="user-bar">
