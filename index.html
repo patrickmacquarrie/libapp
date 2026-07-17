@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Through the Wall | Love Is Blind UK prediction pool</title>
-<meta name="description" content="Through the Wall is an unofficial social prediction pool for friends watching Love Is Blind UK together or at their own pace.">
-<meta property="og:title" content="Through the Wall | Love Is Blind UK prediction pool">
-<meta property="og:description" content="A social prediction pool for friends watching Love Is Blind UK.">
+<title>Through the Wall | Love Is Blind prediction pool</title>
+<meta name="description" content="Through the Wall is an unofficial social prediction pool for friends playing current and past Love Is Blind seasons together.">
+<meta property="og:title" content="Through the Wall | Love Is Blind prediction pool">
+<meta property="og:description" content="A social prediction pool for friends playing Love Is Blind seasons together.">
 <meta name="theme-color" content="#431127">
 <link rel="icon" type="image/svg+xml" href="through-the-wall-icon-light.svg" media="(prefers-color-scheme: light)">
 <link rel="icon" type="image/svg+xml" href="through-the-wall-icon-dark.svg" media="(prefers-color-scheme: dark)">
@@ -231,8 +231,12 @@ window._fb = {
     const snap = await getDocs(q1);
     return snap.docs.map(d=>({id:d.id, ...d.data()}));
   },
-  createPool: async (name, ownerUid, rulesSnapshot) => {
-    const ref = await addDoc(collection(db,'pools'), {name, ownerUid, members:[ownerUid], rulesSnapshot, createdAt:Date.now()});
+  createPool: async (name, ownerUid, rulesSnapshot, season) => {
+    const ref = await addDoc(collection(db,'pools'), {
+      name, ownerUid, members:[ownerUid], rulesSnapshot,
+      season:{id:season.id,label:season.label,country:season.country,seasonNumber:season.seasonNumber},
+      createdAt:Date.now()
+    });
     return ref.id;
   },
   getPool: async (poolId) => {
@@ -251,8 +255,8 @@ window._fb = {
       return snap.docs.map(d=>({id:d.id, ...d.data()}));
     } catch(e) { console.warn('Could not load pending invitations.', e); return []; }
   },
-  sendInvite: (poolId, poolName, fromUid, fromUsername, toEmail) =>
-    setDoc(doc(db,'invites',inviteDocId(poolId,toEmail)), {poolId, poolName, fromUid, fromUsername, toEmail:toEmail.toLowerCase(), status:'pending', createdAt:Date.now()}),
+  sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
+    setDoc(doc(db,'invites',inviteDocId(poolId,toEmail)), {poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail:toEmail.toLowerCase(), status:'pending', createdAt:Date.now()}),
   acceptInvite: async (invite, uid) => {
     await runTransaction(db, async tx => {
       const inviteRef = doc(db,'invites',invite.id);
@@ -364,13 +368,29 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script crossorigin="anonymous" integrity="sha512-MOCpqoRoisCTwJ8vQQiciZv0qcpROCidek3GTFS6KTk2+y7munJIlKCVkFCYY+p3ErYFXCjmFjnfTTRSC1OHWQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script type="text/babel" data-presets="react">
-const SHEET_ID = '10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY';
+const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
+const SEASON_BANK = [
+  {
+    id:DEFAULT_SEASON_ID,
+    label:'Love Is Blind UK: Season 3',
+    country:'United Kingdom',
+    seasonNumber:3,
+    sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
+    historical:false,
+    available:true,
+  },
+];
+// Historical seasons will be added here as their outcome sheets are completed.
+const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical);
+const seasonById = id => SEASON_BANK.find(season=>season.id===id);
+const seasonForPool = pool => seasonById(pool?.season?.id||pool?.seasonId||DEFAULT_SEASON_ID)||seasonById(DEFAULT_SEASON_ID);
+const seasonLabelForPool = pool => pool?.season?.label||seasonForPool(pool)?.label||'Love Is Blind season';
 /* ================================================================== */
 /*  SHEET FETCHER                                                      */
 /* ================================================================== */
-const csvUrl = (t) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(t)}&_=${Date.now()}`;
-async function fetchTab(t) {
-  const res = await fetch(csvUrl(t),{cache:'no-store'});
+const csvUrl = (t,sheetId) => `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(t)}&_=${Date.now()}`;
+async function fetchTab(t,sheetId) {
+  const res = await fetch(csvUrl(t,sheetId),{cache:'no-store'});
   if (!res.ok) throw new Error(`Failed to fetch tab "${t}" (${res.status})`);
   return parseCSV(await res.text());
 }
@@ -399,10 +419,12 @@ function toObjects(rows) {
     Object.fromEntries(headers.map((h, i) => [h, r[i] || ''])));
 }
 const pBool = v => String(v).toUpperCase() === 'TRUE';
-async function loadConfig() {
+async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
+  const season=seasonById(seasonId);
+  if(!season?.available||!season.sheetId) throw new Error('This season is not available yet.');
   const [castR, couplesR, datingR, reunionR, settR] = await Promise.all([
-    fetchTab('Cast'), fetchTab('Couples'), fetchTab('Dating Results'),
-    fetchTab('Reunion Results'), fetchTab('Settings'),
+    fetchTab('Cast',season.sheetId), fetchTab('Couples',season.sheetId), fetchTab('Dating Results',season.sheetId),
+    fetchTab('Reunion Results',season.sheetId), fetchTab('Settings',season.sheetId),
   ]);
   const S = Object.fromEntries(toObjects(settR).map(r => [r.key, r.value]));
   const numSetting = (key, fallback, integer=false) => {
@@ -477,7 +499,7 @@ async function loadConfig() {
     weddings:boolSetting('WEDDINGS_RESULTS_READY',true),
     reunion:boolSetting('REUNION_RESULTS_READY',true),
   };
-  return {RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,WED_MULT:{...DEFAULT_WED_MULT},REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
+  return {season,RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,WED_MULT:{...DEFAULT_WED_MULT},REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -705,11 +727,11 @@ function Panel({title,defaultOpen,children}) {
   const bodyId=useId();
   return <div className="panel"><button className="phead" aria-expanded={open} aria-controls={bodyId} onClick={()=>setOpen(!open)}><span>{title}</span><span aria-hidden="true">{open?'−':'+'}</span></button>{open&&<div className="pbody" id={bodyId}>{children}</div>}</div>;
 }
-function BrandHeader({season='Love Is Blind UK: Season 3',children}) {
+function BrandHeader({season=null,children}) {
   return <div className="hdr">
     <img className="brand-logo brand-logo-light" src="through-the-wall-primary-light.svg" alt="Through the Wall - a social prediction pool for friends"/>
     <img className="brand-logo brand-logo-dark" src="through-the-wall-primary-dark.svg" alt="Through the Wall - a social prediction pool for friends"/>
-    <span className="seasonpill">{season}</span>
+    {season&&<span className="seasonpill">{season}</span>}
     {children}
   </div>;
 }
@@ -997,7 +1019,6 @@ function App() {
   const [usernameInput, setUsernameInput] = useState('');
   // Config
   const [cfg, setCfg] = useState(null);
-  const [cfgState, setCfgState] = useState('loading');
   const [err, setErr] = useState('');
   // Lobby
   const [pools, setPools] = useState([]);
@@ -1006,6 +1027,7 @@ function App() {
   const [lobbyLoading, setLobbyLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
+  const [selectedSeasonId, setSelectedSeasonId] = useState(DEFAULT_SEASON_ID);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteList, setInviteList] = useState([]);
   // Active pool + game
@@ -1050,11 +1072,6 @@ function App() {
       }
     });
   }, []);
-  /* ── Config ── */
-  useEffect(() => {
-    loadConfig().then(c => { applyRuntimeConfig(c); setCfg(c); setCfgState(c.MEN.length===0?'nocast':'ready'); })
-      .catch(e => { setErr(e.message); setCfgState('error'); });
-  }, []);
   /* ── Lobby data ── */
   const loadLobby = useCallback(async () => {
     if (!user) return;
@@ -1080,7 +1097,7 @@ function App() {
   const enterPool = async (pool) => {
     try {
       setErr(''); setLobbyLoading(true); setPoolTab('play');
-      const liveCfg=await loadConfig();
+      const liveCfg=await loadConfig(seasonForPool(pool).id);
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);
       const engine = makeEngine(poolCfg, pool.members.length);
@@ -1185,12 +1202,14 @@ function App() {
   };
   const doCreatePool = async () => {
     const name = newPoolName.trim();
-    if (!name) return;
+    const season = seasonById(selectedSeasonId);
+    if (!name||!season?.available) return;
     try {
       setErr('');
-      const poolId = await window._fb.createPool(name, user.uid, rulesSnapshotFrom(cfg));
-      await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, user.uid, profile.username, em)));
-      setCreating(false); setNewPoolName(''); setInviteList([]);
+      const seasonCfg = await loadConfig(season.id);
+      const poolId = await window._fb.createPool(name, user.uid, rulesSnapshotFrom(seasonCfg), season);
+      await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
+      setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setInviteList([]);
       loadLobby();
     } catch(e) { console.error(e); setErr('The pool could not be created. Please try again.'); }
   };
@@ -1289,7 +1308,7 @@ function App() {
     try {
       const pool = await window._fb.getPool(activePool.id);
       if (!pool) throw new Error('Pool not found');
-      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig()]);
+      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id)]);
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);setActivePool(pool);setPoolPlayers(players);setPoolUsers(users);setPoolStatus(status);setPendingPoolInvites(pending);setEng(makeEngine(poolCfg,pool.members.length));
     } catch(e) { console.error(e); setErr('Could not refresh the standings.'); }
@@ -1323,9 +1342,6 @@ function App() {
       <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
     </div>
   </div>;
-  if (cfgState==='loading') return <div className="app"><BrandHeader/><div className="loading"><span className="spinner">♥</span>Loading season data...</div></div>;
-  if (cfgState==='error') return <div className="app"><BrandHeader/><div className="errcard"><h3>Couldn't load season data</h3><p style={{fontSize:12}}>{err}</p><button className="btn-primary" onClick={()=>window.location.reload()}>Retry</button></div></div>;
-  if (cfgState==='nocast') return <div className="app"><BrandHeader season="Love Is Blind UK: Season 3 · Awaiting cast"/><div className="card"><h2>Season not ready yet</h2><p className="lede">The cast hasn't been announced. Check back when the season is closer!</p></div></div>;
   const userBar = <div className="user-bar">
     {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
     <span className="user-name">{profile.username}</span>
@@ -1343,7 +1359,7 @@ function App() {
       <h2>Invites</h2>
       {invites.map(inv=><div className="invite-row" key={inv.id}>
         <div className="iname">{inv.poolName}</div>
-        <div className="imeta">Invited by {inv.fromUsername}</div>
+        <div className="imeta">{inv.seasonLabel&&<React.Fragment>{inv.seasonLabel} · </React.Fragment>}Invited by {inv.fromUsername}</div>
         <div className="invite-actions">
           <button className="btn-small filled" onClick={()=>doAccept(inv)}>Accept</button>
           <button className="btn-small" onClick={()=>doDecline(inv)}>Decline</button>
@@ -1355,7 +1371,7 @@ function App() {
       {lobbyLoading && <p className="subtle">Loading...</p>}
       {!lobbyLoading && pools.length===0 && <p className="lede">You're not in any pools yet. Create one and invite your friends!</p>}
       {pools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
-        <div><div className="pname">{p.name}</div><div className="pmeta">{p.members.length} member{p.members.length!==1?'s':''}</div></div>
+        <div><div className="pname">{p.name}</div><div className="pmeta">{seasonLabelForPool(p)} · {p.members.length} member{p.members.length!==1?'s':''}</div></div>
         <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
       </div>)}
       {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
@@ -1368,6 +1384,14 @@ function App() {
           </div>
         </div>
         <div className="row">
+          <div className="field"><label className="small" htmlFor="new-pool-season">Season</label>
+            <select id="new-pool-season" value={selectedSeasonId} onChange={e=>setSelectedSeasonId(e.target.value)}>
+              {SEASON_BANK.filter(season=>season.available).map(season=><option value={season.id} key={season.id}>{season.label}</option>)}
+            </select>
+            <div className="subtle" style={{marginTop:6}}>The season is permanent once the pool is created.</div>
+          </div>
+        </div>
+        <div className="row">
           <div className="field"><label className="small">Invite by email</label>
             <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addInviteEmail()} placeholder="friend@email.com"/>
           </div>
@@ -1376,9 +1400,13 @@ function App() {
         {inviteList.length>0 && <div style={{margin:'8px 0'}}>
           {inviteList.map(em=><span className="email-chip" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
         </div>}
-        <button className="btn-primary" disabled={!newPoolName.trim()} onClick={doCreatePool}>Create pool{inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}</button>
-        <button className="btn-secondary" onClick={()=>{setCreating(false);setNewPoolName('');setInviteList([]);}}>Cancel</button>
+        <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId} onClick={doCreatePool}>Create pool{inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}</button>
+        <button className="btn-secondary" onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setInviteList([]);}}>Cancel</button>
       </div>}
+    </div>
+    <div className="card">
+      <h2>Historical season library</h2>
+      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:HISTORICAL_SEASON_BANK.map(season=><div className="pool-row" key={season.id}><div><div className="pname">{season.label}</div><div className="pmeta">Ready to play</div></div></div>)}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
@@ -1409,7 +1437,7 @@ function App() {
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
   </div>;
   return <div className="app">
-    <BrandHeader>
+    <BrandHeader season={seasonLabelForPool(activePool)}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <h1>{activePool.name} {saveBadge}</h1>
       <div className="user-bar">
