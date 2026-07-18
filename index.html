@@ -1321,7 +1321,7 @@ function ContestantReferenceBoard({eng,w}) {
       <span><strong id={bodyId+'-title'}>Contestant reference</strong><span>{eng.CAST.length} cast members · tap to {open?'hide':'show'} the photo board</span></span>
       <span className="cast-board-toggle" aria-hidden="true">{open?'−':'+'}</span>
     </button>
-    {open&&<div className="cast-board-body" id={bodyId}><div className="cast-grid">{eng.CAST.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)}/>)}</div></div>}
+    {open&&<div className="cast-board-body" id={bodyId}><p className="subtle" style={{margin:'0 0 12px'}}>The contestant list includes only people who are identified by name on screen during a pod date.</p><div className="cast-grid">{eng.CAST.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)}/>)}</div></div>}
   </section>;
 }
 function Sel({label,value,onChange,options,placeholder}) {
