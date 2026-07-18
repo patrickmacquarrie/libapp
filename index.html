@@ -1295,7 +1295,8 @@ function Budget({phase,spent,RULES}) {
 function Receipt({e,eng,meId,memberLabels={}}) {
   const {owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss');
   const cv=e.owners?e.contra:null;
-  return <div className={cls}><span className="pts">{e.pending?'⏳':(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel} x {String(+cv.toFixed(2))} Against-the-Grain (fewer players picked this) ({owTxt(e.owners,e.poolSize)}){e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts</div>:<div className="math">{e.stake} ♥ wagered{e.note?' · '+e.note:''}</div>}</div>;
+  const minimumPoints=e.ok&&e.pending?Math.round(RULES.POINTS_PER_HEART*e.stake*(e.mult||1)*(e.tag||1)):null;
+  return <div className={cls}><span className="pts">{e.pending?(e.ok?'≥'+minimumPoints+' pts':'⏳'):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel} x {String(+cv.toFixed(2))} Against-the-Grain (fewer players picked this) ({owTxt(e.owners,e.poolSize)}){e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
 }
 function Stepper({phase,RULES}) {
   const idx=PH_ORDER.indexOf(phase);
