@@ -852,6 +852,7 @@ function toObjects(rows) {
     Object.fromEntries(headers.map((h, i) => [h, r[i] || ''])));
 }
 const pBool = v => String(v).toUpperCase() === 'TRUE';
+const alphaByName = (a,b) => String(a).localeCompare(String(b),undefined,{sensitivity:'base'});
 async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const season=seasonById(seasonId);
   if(!season?.available||!season.sheetId) throw new Error('This season is not available yet.');
@@ -913,7 +914,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     name:r.name,
     gender:String(r.gender||'').trim().toUpperCase(),
     photoUrl:String(r.photo_url||r.image_url||r.photo||'').trim(),
-  }));
+  })).sort((a,b)=>alphaByName(a.name,b.name));
   const MEN   = CAST.filter(r=>r.gender==='M').map(r=>r.name);
   const WOMEN = CAST.filter(r=>r.gender==='F').map(r=>r.name);
   const castReady = MEN.length>0 && WOMEN.length>0;
@@ -1402,7 +1403,7 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,REU_MULT,nameOf,fmt}=eng;
   const open=w===PH_STARTW.reunion;
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
-  const AC=[...MEN,...WOMEN];
+  const AC=[...MEN,...WOMEN].sort(alphaByName);
   const married=COUPLES.filter(c=>c.wedding==='married').map(c=>c.id);
   const split=COUPLES.filter(c=>c.wedding!=='married').map(c=>c.id);
   const overlap=married.filter(id=>split.includes(id));
@@ -1880,7 +1881,7 @@ function App() {
     const range=target>w?watchRangeLabel(phase,w+1,target):null;
     const left=RULES.phases[phase].budget-spent;
     let message='Your current predictions will be locked and cannot be changed.';
-    if(left>0) message+='\n\n'+(phase==='pods'&&target<end?'These hearts remain available for your next Pods window.':left+' unspent hearts will be lost.');
+    if(left>0) message+='\n\n'+(phase==='pods'&&target<end?left+' unspent hearts remain available for your next Pods window.':left+' unspent hearts will be lost.');
     message+=range?'\n\nAfter locking, you can watch '+range+'.':'\n\nNo new episode is available yet. You can still lock now and return when the next batch drops.';
     if(!window.confirm(message)) return;
     setGating(true);
@@ -2121,7 +2122,6 @@ function App() {
       {cfg.PLAYABLE&&<button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>}
       <button className={poolTab==='members'?'active':''} onClick={()=>{setPoolTab('members');setPoolInviteFeedback('');refreshPool();}}>Members</button>
     </div>
-    {poolTab==='play'&&cfg.BOUNDARIES_LIVE&&<div className="notice">Phase boundaries for this season are live from the season sheet and may shift between refreshes.</div>}
     {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>} 
     {poolTab==='members' && <div className="card">
       <h2>Pool members</h2>
@@ -2154,6 +2154,7 @@ function App() {
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <React.Fragment>
       <Stepper phase={phase} RULES={RULES}/>
+      {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
       {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><Panel title="Rules" defaultOpen>{phaseIntro.rules}</Panel><Panel title="Scoring">{phaseIntro.scoring}</Panel><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
         <div className="card">
