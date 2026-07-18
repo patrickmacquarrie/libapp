@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Through the Wall | Love Is Blind prediction pool</title>
 <meta name="description" content="Through the Wall is an unofficial social prediction pool for friends playing current and past Love Is Blind seasons together.">
-  <!-- Build: 2026-07-17-season-bank -->
 <meta property="og:title" content="Through the Wall | Love Is Blind prediction pool">
 <meta property="og:description" content="A social prediction pool for friends playing Love Is Blind seasons together.">
 <meta name="theme-color" content="#431127">
@@ -199,7 +198,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
 const firebaseConfig = {
   apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
@@ -269,19 +268,29 @@ window._fb = {
   },
   declineInvite: (inviteId) => updateDoc(doc(db,'invites',inviteId), {status:'declined'}),
   deletePool: async (pool) => {
-    const [players, invites, phasePicks, phaseStatus] = await Promise.all([
-      getDocs(collection(db,'pools',pool.id,'players')),
-      getDocs(query(collection(db,'invites'),where('poolId','==',pool.id))),
-      getDocs(collection(db,'pools',pool.id,'phasePicks')),
-      getDocs(collection(db,'pools',pool.id,'phaseStatus')),
-    ]);
-    await Promise.all([
-      ...players.docs.map(d=>deleteDoc(d.ref)),
-      ...invites.docs.map(d=>deleteDoc(d.ref)),
-      ...phasePicks.docs.map(d=>deleteDoc(d.ref)),
-      ...phaseStatus.docs.map(d=>deleteDoc(d.ref)),
-    ]);
-    await deleteDoc(doc(db,'pools',pool.id));
+    // Invite reads are owner-scoped so Firestore can prove this query is allowed.
+    const invites = await getDocs(query(
+      collection(db,'invites'),
+      where('poolId','==',pool.id),
+      where('fromUid','==',pool.ownerUid)
+    ));
+    const batch = writeBatch(db);
+    const members = Array.isArray(pool.members) ? pool.members : [];
+
+    // These document IDs are deterministic. Delete them directly instead of
+    // reading other players' unrevealed predictions into the owner's browser.
+    members.forEach(uid => {
+      batch.delete(doc(db,'pools',pool.id,'players',uid));
+      GAME_PHASES.forEach(phase => {
+        batch.delete(doc(db,'pools',pool.id,'phasePicks',phase+'__'+uid));
+      });
+    });
+    GAME_PHASES.forEach(phase => {
+      batch.delete(doc(db,'pools',pool.id,'phaseStatus',phase));
+    });
+    invites.docs.forEach(invite => batch.delete(invite.ref));
+    batch.delete(doc(db,'pools',pool.id));
+    await batch.commit();
   },
   savePlayer: async (poolId, uid, data) => {
     const batch = writeBatch(db);
