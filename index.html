@@ -299,18 +299,15 @@ window._fb = {
     // Public status never contains picks. Replacing the document also removes legacy embedded picks.
     batch.set(doc(db,'pools',poolId,'players',uid), publicState);
     const activePhase = GAME_PHASES.includes(publicState.phase) ? publicState.phase : 'pods';
-    batch.set(
-      doc(db,'pools',poolId,'phasePicks',activePhase+'__'+uid),
-      {uid,phase:activePhase,picks:Array.isArray(picks[activePhase])?picks[activePhase]:[],updatedAt:Date.now()}
-    );
-    try {
-      await batch.commit();
-    } catch (e) {
-      // Existing pools may still use the original single-document layout.
-      // Keep them working until their Firestore data and rules are migrated.
-      console.warn('Using legacy player storage until this pool is migrated.', e);
-      await setDoc(doc(db,'pools',poolId,'players',uid), data, {merge:true});
+    // A revealed phase is immutable. Its picks were saved when the player locked
+    // them, so close/final-screen saves only need to update the public player doc.
+    if (!publicState.completed?.[activePhase]) {
+      batch.set(
+        doc(db,'pools',poolId,'phasePicks',activePhase+'__'+uid),
+        {uid,phase:activePhase,picks:Array.isArray(picks[activePhase])?picks[activePhase]:[],updatedAt:Date.now()}
+      );
     }
+    await batch.commit();
   },
   completePhase: async (poolId, phase, uid) => runTransaction(db, async tx => {
     const poolRef = doc(db,'pools',poolId);
@@ -766,7 +763,11 @@ const csvUrl = (t,sheetId) => `https://docs.google.com/spreadsheets/d/${sheetId}
 async function fetchTab(t,sheetId) {
   const res = await fetch(csvUrl(t,sheetId),{cache:'no-store'});
   if (!res.ok) throw new Error(`Failed to fetch tab "${t}" (${res.status})`);
-  return parseCSV(await res.text());
+  const body=await res.text();
+  if(body.trimStart().startsWith('<')) {
+    throw new Error("The season sheet isn't shared publicly (Anyone with the link → Viewer).");
+  }
+  return parseCSV(body);
 }
 function parseCSV(text) {
   const rows = []; let row = [], field = '', inQ = false;
@@ -858,6 +859,19 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     ? 'comingSoon'
     : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live'));
   const playable = castReady && seasonStatus!=='comingSoon';
+  const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
+  const resultsReady = {
+    pods:boolSetting('PODS_RESULTS_READY',!!season.historical),
+    dating:boolSetting('DATING_RESULTS_READY',!!season.historical),
+    weddings:boolSetting('WEDDINGS_RESULTS_READY',!!season.historical),
+    reunion:boolSetting('REUNION_RESULTS_READY',!!season.historical),
+  };
+  if(seasonStatus==='live'&&availableThroughEp<phaseStart.pods) {
+    throw new Error(
+      `Season config error: AVAILABLE_THROUGH_EP (${availableThroughEp}) must be at least ` +
+      `PODS_START_EP (${phaseStart.pods}) while SEASON_STATUS is live.`
+    );
+  }
   const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>({
     id:r.id, him:r.him, her:r.her, engagedEp:Number.parseInt(r.engaged_ep,10),
     wedding:r.wedding||undefined, who:r.who_says_no||undefined,
@@ -881,8 +895,37 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
       `Correct the engaged_ep column in the season sheet before setting available:true.`
     );
   }
+  const missingWeddingOutcomes = resultsReady.weddings ? COUPLES.filter(c =>
+    c.wedding!=='notShown' &&
+    c.engagedEp<=phaseStart.weddings &&
+    !(c.settledEp&&c.settledEp<=phaseStart.weddings) &&
+    !(c.breakupEp&&c.breakupEp<=phaseStart.weddings) &&
+    !c.wedding
+  ) : [];
+  if(missingWeddingOutcomes.length) {
+    throw new Error(
+      `Season data incomplete: WEDDINGS_RESULTS_READY is true, but ${missingWeddingOutcomes.length} ` +
+      `Weddings-eligible couple${missingWeddingOutcomes.length===1?' is':'s are'} missing a wedding outcome ` +
+      `(${missingWeddingOutcomes.map(c=>c.id).join(', ')}). Fill the wedding column before marking Weddings results ready.`
+    );
+  }
   const DATING_RESULTS = {sex:{},criticize:{},breakup:{coupleId:null,ep:null,confirmed:false,resolved:false}};
-  toObjects(datingR).forEach(r=>{
+  const datingRows=toObjects(datingR);
+  const invalidDatingRows=datingRows.filter(r=>{
+    const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
+    if(!r.market||marker) return false;
+    const ep=Number.parseInt(r.episode,10);
+    return !Number.isFinite(ep)||ep<=phaseStart.dating||ep>phaseSpan.dating.endEp;
+  });
+  if(invalidDatingRows.length) {
+    throw new Error(
+      `Season data invalid: ${invalidDatingRows.length} Dating Results row${invalidDatingRows.length===1?' has':'s have'} ` +
+      `an episode outside ${phaseStart.dating+1}..${phaseSpan.dating.endEp} ` +
+      `(${invalidDatingRows.map(r=>`${r.market||'unknown'}:${r.couple_id||'unknown'}=${r.episode||'missing'}`).join(', ')}). ` +
+      `Correct the episode column so every result falls within the Dating phase.`
+    );
+  }
+  datingRows.forEach(r=>{
     const mkt=r.market?.toLowerCase(), id=r.couple_id, marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
     if(mkt==='breakup'&&marker) {
       DATING_RESULTS.breakup={coupleId:null,ep:null,confirmed:true,resolved:true};
@@ -914,13 +957,6 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
   });
   RR.placeholders=!hasRR;
-  const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
-  const resultsReady = {
-    pods:boolSetting('PODS_RESULTS_READY',!!season.historical),
-    dating:boolSetting('DATING_RESULTS_READY',!!season.historical),
-    weddings:boolSetting('WEDDINGS_RESULTS_READY',!!season.historical),
-    reunion:boolSetting('REUNION_RESULTS_READY',!!season.historical),
-  };
   return {season,RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:{...DEFAULT_WED_MULT},REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
@@ -1024,9 +1060,9 @@ function makeEngine(cfg, poolSize) {
     if(phase==='dating') {
       Object.entries(DATING_RESULTS.sex).filter(([,r])=>r.ep===ep).forEach(([id,r])=>{
         const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='sex'&&p.c===id)).length;
-        events.push({title:nameOf(id)+' - referenced sleeping together on camera',sub:'Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!r.confirmed});
+        events.push({title:'Sleep together: '+nameOf(id)+' (referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='sex'&&p.c===id).forEach(p=>{
-          entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:nameOf(id)+' - slept together',stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
+          entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
         }));
       });
       Object.entries(DATING_RESULTS.criticize).filter(([,r])=>r.ep===ep).forEach(([id,r])=>{
@@ -1089,7 +1125,8 @@ function makeEngine(cfg, poolSize) {
       if(REUNION_RESULTS.ready.newCouple) events.push({title:ncs.length?'New couple'+(ncs.length>1?'s':'')+': '+ncs.map(v=>v.split('|').join(' & ')).join(', '):'No new couple revealed'});
       else events.push({title:'New-couple results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='newCouple').forEach(p=>{
-        const hit=ncs.includes(p.pair), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='newCouple'&&q.pair===p.pair)).length;
+        const predictionKey=pairKeyFor(p.pair);
+        const hit=ncs.some(value=>pairKeyFor(value)===predictionKey), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='newCouple'&&pairKeyFor(q.pair)===predictionKey)).length;
         if(hit) entries.push(mk({member:m,phase,ok:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,mult:REUNION_MULT.newCouple,multLabel:'x'+fmt(REUNION_MULT.newCouple)+' new couple',owners}));
         else if(!REUNION_RESULTS.ready.newCouple) entries.push(mk({member:m,phase,ok:false,pending:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mk({member:m,phase,ok:false,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s}));
@@ -1099,7 +1136,8 @@ function makeEngine(cfg, poolSize) {
       else events.push({title:'Life-update results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='lifeUpdate').forEach(p=>{
         const normalized=normalizeLifeUpdate(p.update);
-        const hit=lus.some(lu=>lu.person===p.person&&lu.update===normalized), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='lifeUpdate'&&q.person===p.person&&normalizeLifeUpdate(q.update)===normalized)).length;
+        const predictedPerson=personKey(p.person);
+        const hit=lus.some(lu=>personKey(lu.person)===predictedPerson&&lu.update===normalized), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='lifeUpdate'&&personKey(q.person)===predictedPerson&&normalizeLifeUpdate(q.update)===normalized)).length;
         if(hit) entries.push(mk({member:m,phase,ok:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,mult:REUNION_MULT.lifeUpdate,multLabel:'x'+fmt(REUNION_MULT.lifeUpdate)+' life update',owners}));
         else if(!REUNION_RESULTS.ready.lifeUpdate) entries.push(mk({member:m,phase,ok:false,pending:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mk({member:m,phase,ok:false,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s}));
@@ -1108,7 +1146,8 @@ function makeEngine(cfg, poolSize) {
       if(REUNION_RESULTS.ready.absent) events.push({title:abs.length?'Absent: '+abs.join(', '):'Everyone showed up'});
       else events.push({title:'Attendance results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='absent').forEach(p=>{
-        const hit=abs.includes(p.person), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='absent'&&q.person===p.person)).length;
+        const predictedPerson=personKey(p.person);
+        const hit=abs.some(person=>personKey(person)===predictedPerson), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='absent'&&personKey(q.person)===predictedPerson)).length;
         if(hit) entries.push(mk({member:m,phase,ok:true,label:'Absent: '+p.person,stake:p.s,mult:REUNION_MULT.absent,multLabel:'x'+fmt(REUNION_MULT.absent)+' absent castmate',owners}));
         else if(!REUNION_RESULTS.ready.absent) entries.push(mk({member:m,phase,ok:false,pending:true,label:'Absent: '+p.person,stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mk({member:m,phase,ok:false,label:'Absent: '+p.person,stake:p.s}));
@@ -1128,7 +1167,7 @@ function makeEngine(cfg, poolSize) {
       if(p.m==='breakup'&&DATING_RESULTS.breakup.resolved&&!DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No couple broke up this season.'}));
       else if(p.m==='breakup'&&DATING_RESULTS.breakup.confirmed&&DATING_RESULTS.breakup.coupleId&&p.c!==DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Lost the race - '+nameOf(DATING_RESULTS.breakup.coupleId)+' broke first.'}));
       if(p.m==='breakup'&&!DATING_RESULTS.breakup.confirmed&&p.c!==DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,pending:true,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Awaiting a confirmed result.'}));
-      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' - slept together',stake:p.s,note:'Never shown on camera.'}));
+      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:'Never shown on camera.'}));
       if(p.m==='criticize'&&!DATING_RESULTS.criticize[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' - criticized the place',stake:p.s,note:'Never happened on camera.'}));
     }));
     return entries;
@@ -1250,7 +1289,7 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   return <div className="card"><h2>{open?'Make your Dating predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Everyone makes their Dating predictions at the same time{open?' - lock them before watching the next available episode or episode batch.':'.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
     {open&&<React.Fragment>
     <div className="mkt-title"><h3>First to break up</h3><span className="multpill">x{fmt(RACE_MULT)}</span></div><div className="row"><Sel label="Couple" value={rC} onChange={setRC} options={opt(rO)}/><StakeSlider value={rS} onChange={setRS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!rC||left<5} onClick={()=>{add({m:'breakup',c:rC,s:Math.min(rS,maxS),w});setRC('');}}>Add</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>They sleep together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add</button></div>
+    <hr className="divider"/><div className="mkt-title"><h3>Sleep together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Criticizes their partner's living situation</h3><span className="multpill">+{fmt(RULES.WHO_TAG*100)}% bonus</span></div><div className="row"><Sel label="Couple" value={cC} onChange={v=>{setCC(v);setCW('');}} options={opt(cO)}/><Sel label="Who criticizes?" value={cW} onChange={setCW} options={cC?[{v:'him',t:membOf(cC)[0]},{v:'her',t:membOf(cC)[1]}]:[]}/></div><div className="row"><StakeSlider value={cS} onChange={setCS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cC||!cW||left<5} onClick={()=>{add({m:'criticize',c:cC,who:cW,s:Math.min(cS,maxS),w});setCC('');setCW('');}}>Add prediction</button></div>
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {ml(p)} - {p.s}♥</div><div className="subtle">{open?'editable until you start Episode '+(w+1):'locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
@@ -1262,7 +1301,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
   const [cid,setCid]=useState(''),[answer,setAnswer]=useState(''),[when,setWhen]=useState(''),[whoT,setWhoT]=useState(''),[stake,setStake]=useState(40);
   const alive=COUPLES.filter(c=>eligibleForWeddings(c,w)&&!picks.some(p=>p.c===c.id));
   const outcome=answer==='yes'?'married':(answer==='no'&&when==='before'?'calledOff':(answer==='no'&&when==='altar'?'saysNo':''));
-  return <div className="card"><h2>{open?'Make your Wedding predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">For each eligible engaged couple shown below, predict whether they get married. If not, predict who says no and whether it happens before or at the altar.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} of {picks.length+alive.length} eligible couples predicted</p>
+  return <div className="card"><h2>{open?'Make your Wedding predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Predict whether engaged couples get married. If you predict no, choose who says no and whether it happens before or at the altar. The who-says-no bonus applies only at the altar.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} of {picks.length+alive.length} eligible couples predicted — the rest are optional</p>
     {open&&<React.Fragment>
     <div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setAnswer('');setWhen('');setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Do they get married?" value={answer} onChange={v=>{setAnswer(v);setWhen('');setWhoT('');}} options={[{v:'yes',t:'Yes (x'+fmt(WED_MULT.married)+')'},{v:'no',t:'No'}]}/></div>
     {answer==='no'&&cid&&<React.Fragment><div className="row"><Sel label="Who says no?" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]}]}/><Sel label="When?" value={when} onChange={setWhen} options={[{v:'before',t:'Before the altar (x'+fmt(WED_MULT.calledOff)+')'},{v:'altar',t:'At the altar (x'+fmt(WED_MULT.saysNo)+')'}]}/></div></React.Fragment>}
@@ -1271,7 +1310,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} - {p.s}♥</div><div className="subtle">{open?'Editable until you start Episode '+(w+1):'Locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
 }
 function ReunionBoard({w,picks,add,remove,spent,eng}) {
-  const {MEN,WOMEN,COUPLES,RULES,nameOf}=eng;
+  const {MEN,WOMEN,COUPLES,RULES,REU_MULT,nameOf,fmt}=eng;
   const open=w===PH_STARTW.reunion;
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
   const AC=[...MEN,...WOMEN];
@@ -1287,11 +1326,11 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const ml=p=>p.m==='still'?nameOf(p.c)+' still together':p.m==='back'?nameOf(p.c)+' back together':p.m==='newCouple'?'New couple: '+p.pair.split('|').join(' & '):p.m==='lifeUpdate'?'Life update: '+p.person+' - '+(LIFE_UPD[normalizeLifeUpdate(p.update)]||p.update):p.m==='absent'?'Absent: '+p.person:'Retired reunion category';
   return <div className="card"><h2>{open?'Make your Reunion predictions':'Reunion predictions locked'}</h2><p className="lede">Choose any combination of categories. Each prediction uses hearts separately, and you may leave categories empty.</p><Budget phase="reunion" spent={spent} RULES={RULES}/>
     {open&&<React.Fragment>
-    {married.length?<React.Fragment><div className="mkt-title"><h3>Still together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Married couple" value={stC} onChange={setStC} options={married.filter(id=>!picks.some(p=>p.m==='still'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={stS} onChange={setStS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!stC||left<5} onClick={()=>{add({m:'still',c:stC,s:Math.min(stS,maxS)});setStC('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">No couples married this season, so there is no Still together market.</p>}
-    <hr className="divider"/>{split.length?<React.Fragment><div className="mkt-title"><h3>Back together</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Split couple" value={bkC} onChange={setBkC} options={split.filter(id=>!picks.some(p=>p.m==='back'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={bkS} onChange={setBkS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bkC||left<5} onClick={()=>{add({m:'back',c:bkC,s:Math.min(bkS,maxS)});setBkC('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">Every couple married this season, so there is no Back together market.</p>}
-    <hr className="divider"/><div className="mkt-title"><h3>New couple revealed</h3><span className="multpill">x5</span></div><div className="row"><Sel label="Him" value={nH} onChange={setNH} options={MEN}/><Sel label="Her" value={nW} onChange={setNW} options={WOMEN}/></div><div className="row"><StakeSlider value={nS} onChange={setNS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!nH||!nW||left<5} onClick={()=>{add({m:'newCouple',pair:nH+'|'+nW,s:Math.min(nS,maxS)});setNH('');setNW('');}}>Add prediction</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Major life update</h3><span className="multpill">x5</span></div><div className="row"><Sel label="Castmate" value={lP} onChange={setLP} options={AC}/><Sel label="Update" value={lU} onChange={setLU} options={Object.entries(LIFE_UPD).map(([v,t])=>({v,t}))}/></div><div className="row"><StakeSlider value={lS} onChange={setLS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!lP||!lU||left<5} onClick={()=>{add({m:'lifeUpdate',person:lP,update:lU,s:Math.min(lS,maxS)});setLP('');setLU('');}}>Add prediction</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Absent castmate</h3><span className="multpill">x2</span></div><div className="row"><Sel label="Castmate" value={aP} onChange={setAP} options={AC}/><StakeSlider value={aS} onChange={setAS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!aP||left<5} onClick={()=>{add({m:'absent',person:aP,s:Math.min(aS,maxS)});setAP('');}}>Add prediction</button></div>
+    {married.length?<React.Fragment><div className="mkt-title"><h3>Still together</h3><span className="multpill">x{fmt(REU_MULT.still)}</span></div><div className="row"><Sel label="Married couple" value={stC} onChange={setStC} options={married.filter(id=>!picks.some(p=>p.m==='still'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={stS} onChange={setStS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!stC||left<5} onClick={()=>{add({m:'still',c:stC,s:Math.min(stS,maxS)});setStC('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">No couples married this season, so there is no Still together market.</p>}
+    <hr className="divider"/>{split.length?<React.Fragment><div className="mkt-title"><h3>Back together</h3><span className="multpill">x{fmt(REU_MULT.back)}</span></div><div className="row"><Sel label="Split couple" value={bkC} onChange={setBkC} options={split.filter(id=>!picks.some(p=>p.m==='back'&&p.c===id)).map(id=>({v:id,t:nameOf(id)}))}/><StakeSlider value={bkS} onChange={setBkS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bkC||left<5} onClick={()=>{add({m:'back',c:bkC,s:Math.min(bkS,maxS)});setBkC('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">Every couple married this season, so there is no Back together market.</p>}
+    <hr className="divider"/><div className="mkt-title"><h3>New couple revealed</h3><span className="multpill">x{fmt(REU_MULT.newCouple)}</span></div><div className="row"><Sel label="Him" value={nH} onChange={setNH} options={MEN}/><Sel label="Her" value={nW} onChange={setNW} options={WOMEN}/></div><div className="row"><StakeSlider value={nS} onChange={setNS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!nH||!nW||left<5} onClick={()=>{add({m:'newCouple',pair:nH+'|'+nW,s:Math.min(nS,maxS)});setNH('');setNW('');}}>Add prediction</button></div>
+    <hr className="divider"/><div className="mkt-title"><h3>Major life update</h3><span className="multpill">x{fmt(REU_MULT.lifeUpdate)}</span></div><div className="row"><Sel label="Castmate" value={lP} onChange={setLP} options={AC}/><Sel label="Update" value={lU} onChange={setLU} options={Object.entries(LIFE_UPD).map(([v,t])=>({v,t}))}/></div><div className="row"><StakeSlider value={lS} onChange={setLS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!lP||!lU||left<5} onClick={()=>{add({m:'lifeUpdate',person:lP,update:lU,s:Math.min(lS,maxS)});setLP('');setLU('');}}>Add prediction</button></div>
+    <hr className="divider"/><div className="mkt-title"><h3>Absent castmate</h3><span className="multpill">x{fmt(REU_MULT.absent)}</span></div><div className="row"><Sel label="Castmate" value={aP} onChange={setAP} options={AC}/><StakeSlider value={aS} onChange={setAS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!aP||left<5} onClick={()=>{add({m:'absent',person:aP,s:Math.min(aS,maxS)});setAP('');}}>Add prediction</button></div>
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} - {p.s}♥</div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction: '+ml(p)}>✕</button>}</div>)}</div>;
 }
@@ -1397,13 +1436,15 @@ function PH_INTRO(phase,RULES,cfg) {
   const maxClock=cfg.leadM(cfg.PH_SPAN.pods.endEp-cfg.PH_STARTW.pods-1);
   const copy={
     pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You get {RULES.phases.pods.budget} hearts that you can spend during the Pods phase.</li><li>You lose any hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on. This season's maximum is ×{cfg.fmt(maxClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more when fewer active players make the same prediction. Only players who make at least one prediction in the phase are included. The final bonus is calculated automatically after the phase closes.</p><p><b>Example:</b> Wager 20 hearts, predict an engagement two episodes early (×2), and be the only player to predict them (roughly ×2): 20 × 2 × 2 = 80 points.</p></div>},
-    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li>Which couple breaks up first.</li><li>Which couples sleep together.</li><li>Which person criticizes their partner's living situation.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>The event multipliers are shown beside each prediction category. Dating predictions are scored together when the phase ends. There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
-    weddings:{tagline:'For every eligible engaged couple, predict whether they get married. If not, predict who says no and whether it happens before or at the altar.',rules:<ul><li>You get {RULES.phases.weddings.budget} hearts that you can spend during the Weddings phase.</li><li>You lose any hearts you do not spend before the Weddings phase ends. Hearts never carry into another phase.</li><li>Make one prediction for every eligible engaged couple shown on the board before locking.</li><li>You win points if you correctly predict who gets married, who does not, who says no, and when.</li><li>Lock all predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Gets married pays ×{cfg.fmt(cfg.WED_MULT.married)}. Says no at the altar pays ×{cfg.fmt(cfg.WED_MULT.saysNo)}. Before the altar pays ×{cfg.fmt(cfg.WED_MULT.calledOff)}. Correctly predicting who says no adds {cfg.fmt(RULES.WHO_TAG*100)}% when the outcome happens at the altar.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
+    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li>Which couple breaks up first.</li><li><b>Sleep together</b> — which couples are referenced on camera.</li><li>Which person criticizes their partner's living situation.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>The event multipliers are shown beside each prediction category. Dating predictions are scored together when the phase ends. There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
+    weddings:{tagline:'Predict whether engaged couples get married. If you predict no, choose who says no and whether it happens before or at the altar.',rules:<ul><li>You get {RULES.phases.weddings.budget} hearts that you can spend during the Weddings phase.</li><li>You lose any hearts you do not spend before the Weddings phase ends. Hearts never carry into another phase.</li><li>Predictions are optional for each eligible couple. Choose the couples you want and spend hearts as you like.</li><li>You win points if you correctly predict who gets married, who does not, and whether a no happens before or at the altar.</li><li>The who-says-no bonus applies only to at-the-altar outcomes.</li><li>Lock all predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Gets married pays ×{cfg.fmt(cfg.WED_MULT.married)}. Says no at the altar pays ×{cfg.fmt(cfg.WED_MULT.saysNo)}. Before the altar pays ×{cfg.fmt(cfg.WED_MULT.calledOff)}. The {cfg.fmt(RULES.WHO_TAG*100)}% who-says-no bonus applies only when the outcome happens at the altar.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
     reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} hearts that you can spend during the Reunion phase.</li><li>You lose any hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Still together pays ×{cfg.fmt(cfg.REU_MULT.still)}. Back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}. New couple pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}. Major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
   };
   return copy[phase];
 }
-function HowItWorksModal({onClose}) {
+function HowItWorksModal({onClose,rules=null}) {
+  const budgets=rules?.phases||{pods:{budget:200},dating:{budget:150},weddings:{budget:150},reunion:{budget:100}};
+  const budgetLabel=rules?'hearts':'hearts (default budget)';
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget) onClose();}}>
     <div className="modal" role="dialog" aria-modal="true" aria-labelledby="how-title">
       <h2 id="how-title">How It Works</h2>
@@ -1411,9 +1452,9 @@ function HowItWorksModal({onClose}) {
       <h3>Join or start a pool</h3>
       <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Members tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
       <h3>Make your predictions</h3>
-      <p>Each phase gives you hearts to wager, as listed below. In the Pods phase, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. In Dating, Weddings, and the Reunion, you make one set of predictions and lock them before watching the next episode or Reunion. Some episodes release together as a batch - lock your predictions before starting any episode in the batch. The app refers to these grouped releases as an episode batch. Locked predictions cannot be changed.</p>
+      <p>An episode batch is a group of episodes released together. Each phase gives you hearts to wager, as listed below. In the Pods phase, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. In Dating, Weddings, and the Reunion, you make one set of predictions and lock them before watching the next episode, episode batch, or Reunion. Lock your predictions before starting any episode in a batch. Locked predictions cannot be changed.</p>
       <h3>The four phases</h3>
-      <ul><li><b>Pods:</b> Predict who gets engaged. 200 hearts, with predictions between episodes.</li><li><b>Dating:</b> Predict the first breakup and key real-world moments. 150 hearts, with one prediction window.</li><li><b>Weddings:</b> Predict who marries, says no, or calls it off. 150 hearts, with one prediction window.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. 100 hearts, with one prediction window.</li></ul>
+      <ul><li><b>Pods:</b> Predict who gets engaged. {budgets.pods.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Dating:</b> Predict the first breakup and key real-world moments. {budgets.dating.budget} {budgetLabel}, with one prediction window.</li><li><b>Weddings:</b> Predict any engaged couples you want: who marries, says no, or calls it off. {budgets.weddings.budget} {budgetLabel}, with one prediction window.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. {budgets.reunion.budget} {budgetLabel}, with one prediction window.</li></ul>
       <h3>How points work</h3>
       <p>Every correct prediction scores hearts wagered × its event or outcome multiplier × Against-the-Grain Bonus. Pods predictions also receive an Against-the-Clock Bonus for predicting earlier. Less-common correct predictions earn more Against-the-Grain Bonus; only players who make at least one prediction in that phase are included. The final bonus is calculated automatically after the phase closes. Incorrect predictions never subtract points - you simply lose the hearts you wagered. Unspent hearts are lost and never carry into the next phase.</p>
       <button className="btn-primary" onClick={onClose}>Got it</button>
@@ -1507,6 +1548,9 @@ function App() {
   const [pendingPodsPrediction, setPendingPodsPrediction] = useState(false);
   const pendingPodsSkip = useRef(()=>{});
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [phaseCompletionError, setPhaseCompletionError] = useState('');
+  const [retryingPhaseCompletion, setRetryingPhaseCompletion] = useState(false);
+  const phaseCompletionAttempted = useRef('');
   const saveTimer = useRef(null);
   const pendingSave = useRef(null);
   const changeTheme=value=>{
@@ -1554,20 +1598,27 @@ function App() {
   const enterPool = async (pool) => {
     try {
       setErr(''); setLobbyLoading(true); setPoolTab('play');
+      setPhaseCompletionError(''); phaseCompletionAttempted.current='';
       const liveCfg=await loadConfig(seasonForPool(pool).id);
       let enteredPool=pool;
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
         const frozenRules=rulesSnapshotFrom(liveCfg);
-        await window._fb.freezePoolRules(pool.id,frozenRules);
-        enteredPool={...pool,rulesSnapshot:frozenRules};
+        try {
+          await window._fb.freezePoolRules(pool.id,frozenRules);
+          enteredPool={...pool,rulesSnapshot:frozenRules};
+        } catch(freezeError) {
+          const refetched=await window._fb.getPool(pool.id);
+          if(!refetched?.rulesSnapshot) throw freezeError;
+          enteredPool=refetched;
+        }
       }
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,enteredPool));
       setCfg(liveCfg);
-      const engine = makeEngine(poolCfg, pool.members.length);
+      const engine = makeEngine(poolCfg, enteredPool.members.length);
       setEng(engine);
       const [{players, status}, users, pending] = await Promise.all([
         window._fb.loadAllPlayers(pool.id,user.uid),
-        window._fb.getUsers(pool.members),
+        window._fb.getUsers(enteredPool.members),
         window._fb.poolInvites(pool.id),
       ]);
       setPoolPlayers(players); setPoolUsers(users); setPoolStatus(status); setPendingPoolInvites(pending);
@@ -1677,7 +1728,15 @@ function App() {
       loadLobby();
     } catch(e) { console.error(e); setErr(e?.message||'The pool could not be created. Please try again.'); }
   };
-  const doAccept = async (inv) => { try { await window._fb.acceptInvite(inv, user.uid); loadLobby(); } catch(e) { setErr(e.message||'Could not accept the invitation.'); } };
+  const doAccept = async (inv) => {
+    try { await window._fb.acceptInvite(inv, user.uid); loadLobby(); }
+    catch(e) {
+      const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/permission/i.test(e?.message||'');
+      setErr(permissionDenied
+        ? 'This invitation cannot be accepted. Invitations may have closed because a player completed Pods, or you may already be in this pool.'
+        : (e?.message||'Could not accept the invitation.'));
+    }
+  };
   const doDecline = async (inv) => { try { await window._fb.declineInvite(inv.id); loadLobby(); } catch(e) { setErr('Could not decline the invitation.'); } };
   const doDeletePool = async pool => {
     if (pool.ownerUid!==user.uid) return;
@@ -1728,11 +1787,6 @@ function App() {
   };
   const lockPredictions = async () => {
     if (gating || completed[phase]) return;
-    if(phase==='weddings') {
-      const eligible=eng.COUPLES.filter(c=>eng.eligibleForWeddings(c,w));
-      const missing=eligible.filter(c=>!picks.weddings.some(p=>p.c===c.id));
-      if(missing.length) { setErr('Make a Wedding prediction for every eligible couple before locking it in.'); return; }
-    }
     const end=PH_SPAN[phase].endEp, target=Math.max(w,nextAvailableEnd());
     const range=target>w?watchRangeLabel(phase,w+1,target):null;
     const left=RULES.phases[phase].budget-spent;
@@ -1758,6 +1812,23 @@ function App() {
     } catch(e) { setErr('The next watch-through could not be opened. Please try again.'); }
     finally { setGating(false); }
   };
+  const registerPhaseCompletion = useCallback(async (poolId,phaseId,uid) => {
+    const key=poolId+':'+phaseId;
+    const message='Your phase completion did not register. Your predictions are saved, but please retry before continuing.';
+    phaseCompletionAttempted.current=key;
+    setRetryingPhaseCompletion(true);
+    try {
+      await window._fb.completePhase(poolId,phaseId,uid);
+      setPhaseCompletionError('');
+      setErr(current=>current===message?'':current);
+      return true;
+    } catch(e) {
+      console.error('Phase completion did not register.',e);
+      setPhaseCompletionError(message);
+      setErr(message);
+      return false;
+    } finally { setRetryingPhaseCompletion(false); }
+  },[]);
   const finishWatch = async () => {
     if(gating||watchThrough<=w) return;
     setGating(true);
@@ -1773,7 +1844,7 @@ function App() {
       await savePlayer({picks,phase,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:watchRangeLabel(phase,start,target),...pendified});
       setScreen(nextScreen);setCompleted(nc);setCloseInfo(target>=endEp?{closing}:null);
-      if(target>=endEp) await window._fb.completePhase(activePool.id,phase,user.uid).catch(e=>console.warn('Phase reveal will use legacy storage until this pool is migrated.',e));
+      if(target>=endEp) await registerPhaseCompletion(activePool.id,phase,user.uid);
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
     finally { setGating(false); }
   };
@@ -1781,7 +1852,7 @@ function App() {
     const next = NEXT_PH[phase];
     if (!next) { setScreen('final'); await savePlayer({picks, phase, screen:'final', w, watchThrough, completed},true).catch(()=>setErr('The final screen could not be saved.')); return; }
     const nextW=PH_STARTW[next];
-    setPhase(next); setW(nextW); setWatchThrough(nextW); setReveal(null); setCloseInfo(null); setScreen('intro');
+    setPhase(next); setW(nextW); setWatchThrough(nextW); setReveal(null); setCloseInfo(null); setPhaseCompletionError(''); setScreen('intro');
     await savePlayer({picks, phase:next, screen:'intro', w:nextW, watchThrough:nextW, completed},true).catch(()=>setErr('The next phase could not be saved.'));
   };
   const refreshPool = async () => {
@@ -1792,13 +1863,32 @@ function App() {
       const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id)]);
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
         const frozenRules=rulesSnapshotFrom(liveCfg);
-        await window._fb.freezePoolRules(pool.id,frozenRules);
-        pool={...pool,rulesSnapshot:frozenRules};
+        try {
+          await window._fb.freezePoolRules(pool.id,frozenRules);
+          pool={...pool,rulesSnapshot:frozenRules};
+        } catch(freezeError) {
+          const refetched=await window._fb.getPool(pool.id);
+          if(!refetched?.rulesSnapshot) throw freezeError;
+          pool=refetched;
+        }
       }
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);setActivePool(pool);setPoolPlayers(players);setPoolUsers(users);setPoolStatus(status);setPendingPoolInvites(pending);setEng(makeEngine(poolCfg,pool.members.length));
     } catch(e) { console.error(e); setErr(e?.message||'Could not refresh the standings.'); }
   };
+  useEffect(() => {
+    if(!activePool||poolTab!=='play'||screen!=='close'||!completed[phase]||!user?.uid) {
+      phaseCompletionAttempted.current='';
+      return;
+    }
+    if((poolStatus[phase]?.completedMembers||[]).includes(user.uid)) {
+      setPhaseCompletionError('');
+      return;
+    }
+    const key=activePool.id+':'+phase;
+    if(phaseCompletionAttempted.current===key) return;
+    registerPhaseCompletion(activePool.id,phase,user.uid);
+  },[activePool?.id,poolTab,screen,phase,completed[phase],poolStatus,user?.uid,registerPhaseCompletion]);
   /* ── RENDER ── */
   if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='signedout') return <div className="app">
@@ -1892,7 +1982,7 @@ function App() {
     </div>
     <div className="card">
       <h2>Historical season library</h2>
-      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:HISTORICAL_SEASON_BANK.map(season=><div className="pool-row" key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div></div>)}
+      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:HISTORICAL_SEASON_BANK.map(season=><div className="pool-row" key={season.id} onClick={()=>{setSelectedSeasonId(season.id);setCreating(true);}}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div><span style={{color:'var(--rose)',fontWeight:700}}>→</span></div>)}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
@@ -1969,7 +2059,7 @@ function App() {
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
-      <div className="notice"><b>Season has not started.</b> Use the Members tab to invite your friends now. Predictions will open within 72 hours of the first batch of episodes dropping.</div>
+      <div className="notice"><b>Season has not started.</b> Use the Members tab to invite your friends now. Predictions will open shortly after the first episodes drop.</div>
       <button className="btn-secondary" onClick={refreshPool}>Check for season updates</button>
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <React.Fragment>
@@ -2010,7 +2100,8 @@ function App() {
           {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>Scores finalized when the phase closes.</h3>}
           {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
           <div className="notice">{RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
-          <button className="btn-primary" onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
+          {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
+          <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
         </div>
       </React.Fragment>}
       {screen==='final'&&<div className="card gatecard">
@@ -2020,7 +2111,7 @@ function App() {
         <button className="btn-primary" onClick={()=>{setPoolTab('standings');refreshPool();}}>View Standings</button>
       </div>}
     </React.Fragment>}
-    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
+    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool}/>} 
   </div>;
 }
