@@ -178,6 +178,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .cast-board-toggle{font-size:22px;font-weight:500;color:var(--rose);line-height:1}
 .cast-board-body{padding:14px 16px 17px}
 .cast-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:11px}
+.cast-couples-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.cast-couple{min-width:0;border:1px solid color-mix(in srgb,var(--rose) 45%,var(--line));border-radius:15px;padding:9px;background:color-mix(in srgb,var(--blush-soft) 45%,var(--surface))}
+.cast-couple-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.cast-couple-label{text-align:center;color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:14px;font-weight:700;padding:8px 3px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cast-section-title{font-family:'Playfair Display',Georgia,serif;font-size:17px;color:var(--wine);margin:0 0 9px}
+.cast-section-title.other{margin-top:18px}
 .cast-person{min-width:0;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--surface);position:relative}
 .cast-person.engaged{border-color:color-mix(in srgb,var(--rose) 55%,var(--line));box-shadow:0 0 0 2px color-mix(in srgb,var(--rose) 10%,transparent)}
 .cast-photo{aspect-ratio:4/5;background:linear-gradient(145deg,var(--blush-soft),var(--line));display:grid;place-items:center;overflow:hidden}
@@ -203,7 +209,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
+@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -1313,16 +1319,36 @@ function CastPortrait({person,engaged}) {
     <div className="cast-person-name">{person.name}</div>
   </div>;
 }
-function ContestantReferenceBoard({eng,w}) {
+function ContestantReferenceBoard({eng,w,phase}) {
   const [open,setOpen]=useState(()=>!(window.matchMedia&&window.matchMedia('(max-width: 480px)').matches));
   const bodyId=useId();
   const engagedNames=new Set(eng.COUPLES.filter(c=>c.engagedEp<=w).flatMap(c=>[c.him,c.her]));
+  const castByName=Object.fromEntries(eng.CAST.map(person=>[person.name,person]));
+  const visibleCouples=phase==='pods'?[]:eng.COUPLES
+    .filter(c=>c.engagedEp<=w&&castByName[c.him]&&castByName[c.her])
+    .sort((a,b)=>alphaByName(a.him+' & '+a.her,b.him+' & '+b.her));
+  const pairedNames=new Set(visibleCouples.flatMap(c=>[c.him,c.her]));
+  const otherCast=eng.CAST.filter(person=>!pairedNames.has(person.name));
+  const grouped=visibleCouples.length>0;
+  const summary=grouped
+    ? visibleCouples.length+' couple'+(visibleCouples.length===1?'':'s')+(otherCast.length?' · '+otherCast.length+' other cast member'+(otherCast.length===1?'':'s'):'')
+    : eng.CAST.length+' cast members';
   return <section className="card cast-board" aria-labelledby={bodyId+'-title'}>
     <button className="cast-board-head" type="button" aria-expanded={open} aria-controls={bodyId} onClick={()=>setOpen(!open)}>
-      <span><strong id={bodyId+'-title'}>Contestant reference</strong><span>{eng.CAST.length} cast members · tap to {open?'hide':'show'} the photo board</span></span>
+      <span><strong id={bodyId+'-title'}>Contestant reference</strong><span>{summary} · tap to {open?'hide':'show'} the photo board</span></span>
       <span className="cast-board-toggle" aria-hidden="true">{open?'−':'+'}</span>
     </button>
-    {open&&<div className="cast-board-body" id={bodyId}><p className="subtle" style={{margin:'0 0 12px'}}>The contestant list includes only people who are identified by name on screen during a pod date.</p><div className="cast-grid">{eng.CAST.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)}/>)}</div></div>}
+    {open&&<div className="cast-board-body" id={bodyId}>
+      <p className="subtle" style={{margin:'0 0 12px'}}>{grouped?'Engaged couples are grouped together. Other named contestants appear below.':'The contestant list includes only people who are identified by name on screen during a pod date.'}</p>
+      {grouped?<React.Fragment>
+        <h3 className="cast-section-title">Couples</h3>
+        <div className="cast-couples-grid">{visibleCouples.map(c=><div className="cast-couple" key={c.id} role="group" aria-label={c.him+' and '+c.her}>
+          <div className="cast-couple-photos"><CastPortrait person={castByName[c.him]} engaged/><CastPortrait person={castByName[c.her]} engaged/></div>
+          <div className="cast-couple-label">{c.him} &amp; {c.her}</div>
+        </div>)}</div>
+        {otherCast.length>0&&<React.Fragment><h3 className="cast-section-title other">Other cast members</h3><div className="cast-grid">{otherCast.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)}/>)}</div></React.Fragment>}
+      </React.Fragment>:<div className="cast-grid">{eng.CAST.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)}/>)}</div>}
+    </div>}
   </section>;
 }
 function Sel({label,value,onChange,options,placeholder}) {
@@ -1372,16 +1398,17 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   const [rC,setRC]=useState(''),[rS,setRS]=useState(20);
   const [sC,setSC]=useState(''),[sS,setSS]=useState(20);
   const [cC,setCC]=useState(''),[cW,setCW]=useState(''),[cS,setCS]=useState(20);
-  const rO=COUPLES.filter(c=>!(DATING_RESULTS.breakup.coupleId===c.id&&DATING_RESULTS.breakup.ep<=w)&&!picks.some(p=>p.m==='breakup'&&p.c===c.id));
+  const breakupPick=picks.find(p=>p.m==='breakup');
+  const rO=breakupPick?[]:COUPLES.filter(c=>!(DATING_RESULTS.breakup.coupleId===c.id&&DATING_RESULTS.breakup.ep<=w));
   const sO=COUPLES.filter(c=>!(DATING_RESULTS.sex[c.id]&&DATING_RESULTS.sex[c.id].ep<=w)&&!picks.some(p=>p.m==='sex'&&p.c===c.id));
   const cO=COUPLES.filter(c=>!(DATING_RESULTS.criticize[c.id]&&DATING_RESULTS.criticize[c.id].ep<=w)&&!picks.some(p=>p.m==='criticize'&&p.c===c.id));
   const opt=l=>l.map(c=>({v:c.id,t:nameOf(c.id)}));
   const ml=p=>p.m==='breakup'?'First to break up':(p.m==='sex'?'Sleep together':'Criticizes the place ('+(p.who?membOf(p.c)[p.who==='him'?0:1]:'?')+')');
   return <div className="card"><h2>{open?'Make your Dating predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Everyone makes their Dating predictions at the same time{open?' - lock them before watching the next available episode or episode batch.':'.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
     {open&&<React.Fragment>
-    <div className="mkt-title"><h3>First to break up</h3><span className="multpill">x{fmt(RACE_MULT)}</span></div><div className="row"><Sel label="Couple" value={rC} onChange={setRC} options={opt(rO)}/><StakeSlider value={rS} onChange={setRS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!rC||left<5} onClick={()=>{add({m:'breakup',c:rC,s:Math.min(rS,maxS),w});setRC('');}}>Add</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Sleep together</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Criticizes their partner's living situation</h3><span className="multpill">+{fmt(RULES.WHO_TAG*100)}% bonus</span></div><div className="row"><Sel label="Couple" value={cC} onChange={v=>{setCC(v);setCW('');}} options={opt(cO)}/><Sel label="Who criticizes?" value={cW} onChange={setCW} options={cC?[{v:'him',t:membOf(cC)[0]},{v:'her',t:membOf(cC)[1]}]:[]}/></div><div className="row"><StakeSlider value={cS} onChange={setCS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cC||!cW||left<5} onClick={()=>{add({m:'criticize',c:cC,who:cW,s:Math.min(cS,maxS),w});setCC('');setCW('');}}>Add prediction</button></div>
+    <div className="mkt-title"><h3>Who is the first to break up?</h3><span className="multpill">x{fmt(RACE_MULT)}</span></div>{breakupPick?<p className="subtle">You have made this single-choice prediction. Remove it below to choose a different couple.</p>:<div className="row"><Sel label="Couple" value={rC} onChange={setRC} options={opt(rO)}/><StakeSlider value={rS} onChange={setRS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!rC||left<5} onClick={()=>{add({m:'breakup',c:rC,s:Math.min(rS,maxS),w});setRC('');}}>Add prediction</button></div>}
+    <hr className="divider"/><div className="mkt-title"><h3>Who sleeps together?</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add prediction</button></div>
+    <hr className="divider"/><div className="mkt-title"><h3>Who criticizes their partner's living situation?</h3><span className="multpill">+{fmt(RULES.WHO_TAG*100)}% bonus</span></div><div className="row"><Sel label="Couple" value={cC} onChange={v=>{setCC(v);setCW('');}} options={opt(cO)}/><Sel label="Who criticizes?" value={cW} onChange={setCW} options={cC?[{v:'him',t:membOf(cC)[0]},{v:'her',t:membOf(cC)[1]}]:[]}/></div><div className="row"><StakeSlider value={cS} onChange={setCS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cC||!cW||left<5} onClick={()=>{add({m:'criticize',c:cC,who:cW,s:Math.min(cS,maxS),w});setCC('');setCW('');}}>Add prediction</button></div>
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {ml(p)} - {p.s}♥</div><div className="subtle">{open?'editable until you start Episode '+(w+1):'locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
 }
@@ -1527,7 +1554,7 @@ function PH_INTRO(phase,RULES,cfg) {
   const maxClock=cfg.leadM(cfg.PH_SPAN.pods.endEp-cfg.PH_STARTW.pods-1);
   const copy={
     pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You get {RULES.phases.pods.budget} hearts that you can spend during the Pods phase.</li><li>You lose any hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on. This season's maximum is ×{cfg.fmt(maxClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more when fewer active players make the same prediction. Only players who make at least one prediction in the phase are included. The final bonus is calculated automatically after the phase closes.</p><p><b>Example:</b> Wager 20 hearts, predict an engagement two episodes early (×2), and be the only player to predict them (roughly ×2): 20 × 2 × 2 = 80 points.</p></div>},
-    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li>Which couple breaks up first.</li><li><b>Sleep together</b> — which couples are referenced on camera.</li><li>Which person criticizes their partner's living situation.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>The event multipliers are shown beside each prediction category. Dating predictions are scored together when the phase ends. There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
+    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who is the first to break up?</b> Choose one couple.</li><li><b>Who sleeps together?</b> You may choose multiple couples; the moment must be referenced on camera.</li><li><b>Who criticizes their partner's living situation?</b> You may choose multiple couples.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>The event multipliers are shown beside each prediction category. Dating predictions are scored together when the phase ends. There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
     weddings:{tagline:'Predict whether engaged couples get married. If you predict no, choose who says no and whether it happens before or at the altar.',rules:<ul><li>You get {RULES.phases.weddings.budget} hearts that you can spend during the Weddings phase.</li><li>You lose any hearts you do not spend before the Weddings phase ends. Hearts never carry into another phase.</li><li>Predictions are optional for each eligible couple. Choose the couples you want and spend hearts as you like.</li><li>You win points if you correctly predict who gets married, who does not, and whether a no happens before or at the altar.</li><li>The who-says-no bonus applies only to at-the-altar outcomes.</li><li>Lock all predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Gets married pays ×{cfg.fmt(cfg.WED_MULT.married)}. Says no at the altar pays ×{cfg.fmt(cfg.WED_MULT.saysNo)}. Before the altar pays ×{cfg.fmt(cfg.WED_MULT.calledOff)}. The {cfg.fmt(RULES.WHO_TAG*100)}% who-says-no bonus applies only when the outcome happens at the altar.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
     reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} hearts that you can spend during the Reunion phase.</li><li>You lose any hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Still together pays ×{cfg.fmt(cfg.REU_MULT.still)}. Back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}. New couple pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}. Major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
   };
@@ -1854,6 +1881,7 @@ function App() {
   /* Game actions - plain updates, side effects kept out of state updaters */
   const meName = profile?.username;
   const addPick = p => {
+    if(phase==='dating'&&p.m==='breakup'&&picks.dating.some(existing=>existing.m==='breakup')) return;
     const np = {...picks,[phase]:[...picks[phase],p]};
     setPicks(np);
     savePlayer({picks:np, phase, screen, w, watchThrough, completed});
@@ -2202,7 +2230,7 @@ function App() {
         <p className="lede" style={{marginBottom:12}}>Check the Standings tab to see how everyone did once the whole pool has finished.</p>
         <button className="btn-primary" onClick={()=>{setPoolTab('standings');refreshPool();}}>View Standings</button>
       </div>}
-      {['intro','board','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w}/>} 
+      {['intro','board','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
     </React.Fragment>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool}/>} 
