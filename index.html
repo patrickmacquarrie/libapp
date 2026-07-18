@@ -238,6 +238,7 @@ window._fb = {
     });
     return ref.id;
   },
+  freezePoolRules: (poolId, rulesSnapshot) => updateDoc(doc(db,'pools',poolId), {rulesSnapshot}),
   getPool: async (poolId) => {
     const s = await getDoc(doc(db,'pools',poolId));
     return s.exists() ? {id:s.id, ...s.data()} : null;
@@ -387,6 +388,8 @@ const SEASON_BANK = [
     countryCode:'UK',
     seasonNumber:3,
     locationLabel:null,
+    status:'upcoming',
+    releaseLabel:'Coming August 2026',
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
     historical:false,
     available:true,
@@ -753,6 +756,8 @@ const formatSeasonLabel = season => {
   const label=season.label||'Love Is Blind season';
   return season.countryCode==='US'&&season.locationLabel?`${label} · ${season.locationLabel}`:label;
 };
+const seasonPoolStatusLabel = season => season?.status==='upcoming'?(season.releaseLabel||'Coming soon'):null;
+const formatSeasonOption = season => [formatSeasonLabel(season),seasonPoolStatusLabel(season)].filter(Boolean).join(' — ');
 const seasonLabelForPool = pool => formatSeasonLabel({...seasonForPool(pool),...(pool?.season||{})});
 /* ================================================================== */
 /*  SHEET FETCHER                                                      */
@@ -847,6 +852,12 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const castO = toObjects(castR);
   const MEN   = castO.filter(r=>r.gender?.toUpperCase()==='M').map(r=>r.name).filter(Boolean);
   const WOMEN = castO.filter(r=>r.gender?.toUpperCase()==='F').map(r=>r.name).filter(Boolean);
+  const castReady = MEN.length>0 && WOMEN.length>0;
+  const rawSeasonStatus = String(S.SEASON_STATUS||season.status||'').trim().toLowerCase().replace(/[^a-z]/g,'');
+  const seasonStatus = ['comingsoon','upcoming','notstarted'].includes(rawSeasonStatus)
+    ? 'comingSoon'
+    : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live'));
+  const playable = castReady && seasonStatus!=='comingSoon';
   const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>({
     id:r.id, him:r.him, her:r.her, engagedEp:Number.parseInt(r.engaged_ep,10),
     wedding:r.wedding||undefined, who:r.who_says_no||undefined,
@@ -903,14 +914,14 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
   });
   RR.placeholders=!hasRR;
-  const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',Math.max(...Object.values(phaseSpan).map(v=>v.endEp)),true);
+  const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
   const resultsReady = {
-    pods:boolSetting('PODS_RESULTS_READY',true),
-    dating:boolSetting('DATING_RESULTS_READY',true),
-    weddings:boolSetting('WEDDINGS_RESULTS_READY',true),
-    reunion:boolSetting('REUNION_RESULTS_READY',true),
+    pods:boolSetting('PODS_RESULTS_READY',!!season.historical),
+    dating:boolSetting('DATING_RESULTS_READY',!!season.historical),
+    weddings:boolSetting('WEDDINGS_RESULTS_READY',!!season.historical),
+    reunion:boolSetting('REUNION_RESULTS_READY',!!season.historical),
   };
-  return {season,RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,WED_MULT:{...DEFAULT_WED_MULT},REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
+  return {season,RULES,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:{...DEFAULT_WED_MULT},REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -1398,7 +1409,7 @@ function HowItWorksModal({onClose}) {
       <h2 id="how-title">How It Works</h2>
       <p>This is a social prediction game for people watching Love Is Blind together or at their own pace. There is no cash prize - just bragging rights.</p>
       <h3>Join or start a pool</h3>
-      <p>Create a pool, invite friends by email, and they can accept from their own lobby. You can invite more people later from the pool's Members tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
+      <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Members tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
       <h3>Make your predictions</h3>
       <p>Each phase gives you hearts to wager, as listed below. In the Pods phase, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. In Dating, Weddings, and the Reunion, you make one set of predictions and lock them before watching the next episode or Reunion. Some episodes release together as a batch - lock your predictions before starting any episode in the batch. The app refers to these grouped releases as an episode batch. Locked predictions cannot be changed.</p>
       <h3>The four phases</h3>
@@ -1544,7 +1555,13 @@ function App() {
     try {
       setErr(''); setLobbyLoading(true); setPoolTab('play');
       const liveCfg=await loadConfig(seasonForPool(pool).id);
-      const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
+      let enteredPool=pool;
+      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
+        const frozenRules=rulesSnapshotFrom(liveCfg);
+        await window._fb.freezePoolRules(pool.id,frozenRules);
+        enteredPool={...pool,rulesSnapshot:frozenRules};
+      }
+      const poolCfg=applyRuntimeConfig(configForPool(liveCfg,enteredPool));
       setCfg(liveCfg);
       const engine = makeEngine(poolCfg, pool.members.length);
       setEng(engine);
@@ -1592,7 +1609,7 @@ function App() {
         }
       }
       // Do not leave the lobby until the engine, players, and saved state are ready.
-      setActivePool(pool);
+      setActivePool(enteredPool);
     } catch(e) {
       console.error(e); setErr(e?.message||'Could not open this pool. Please try again.');
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({});
@@ -1653,7 +1670,8 @@ function App() {
     try {
       setErr('');
       const seasonCfg = await loadConfig(season.id);
-      const poolId = await window._fb.createPool(name, user.uid, rulesSnapshotFrom(seasonCfg), season);
+      const initialRules = seasonCfg.PLAYABLE ? rulesSnapshotFrom(seasonCfg) : null;
+      const poolId = await window._fb.createPool(name, user.uid, initialRules, season);
       await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setInviteList([]);
       loadLobby();
@@ -1769,9 +1787,14 @@ function App() {
   const refreshPool = async () => {
     if (!activePool) return;
     try {
-      const pool = await window._fb.getPool(activePool.id);
+      let pool = await window._fb.getPool(activePool.id);
       if (!pool) throw new Error('Pool not found');
       const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id)]);
+      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
+        const frozenRules=rulesSnapshotFrom(liveCfg);
+        await window._fb.freezePoolRules(pool.id,frozenRules);
+        pool={...pool,rulesSnapshot:frozenRules};
+      }
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);setActivePool(pool);setPoolPlayers(players);setPoolUsers(users);setPoolStatus(status);setPendingPoolInvites(pending);setEng(makeEngine(poolCfg,pool.members.length));
     } catch(e) { console.error(e); setErr(e?.message||'Could not refresh the standings.'); }
@@ -1834,7 +1857,7 @@ function App() {
       {lobbyLoading && <p className="subtle">Loading...</p>}
       {!lobbyLoading && pools.length===0 && <p className="lede">You're not in any pools yet. Create one and invite your friends!</p>}
       {pools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
-        <div><div className="pname">{p.name}</div><div className="pmeta">{seasonLabelForPool(p)} · {p.members.length} member{p.members.length!==1?'s':''}</div></div>
+        <div><div className="pname">{p.name}</div><div className="pmeta">{seasonLabelForPool(p)} · {seasonPoolStatusLabel(seasonForPool(p))||`${p.members.length} member${p.members.length!==1?'s':''}`}</div></div>
         <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
       </div>)}
       {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
@@ -1849,9 +1872,9 @@ function App() {
         <div className="row">
           <div className="field"><label className="small" htmlFor="new-pool-season">Season</label>
             <select id="new-pool-season" value={selectedSeasonId} onChange={e=>setSelectedSeasonId(e.target.value)}>
-              {SEASON_BANK.filter(season=>season.available).map(season=><option value={season.id} key={season.id}>{formatSeasonLabel(season)}</option>)}
+              {SEASON_BANK.filter(season=>season.available).map(season=><option value={season.id} key={season.id}>{formatSeasonOption(season)}</option>)}
             </select>
-            <div className="subtle" style={{marginTop:6}}>The season is permanent once the pool is created.</div>
+            <div className="subtle" style={{marginTop:6}}>{seasonById(selectedSeasonId)?.status==='upcoming'?'You can create the pool and invite friends now. Predictions open after the cast is announced and the season begins.':'The season is permanent once the pool is created.'}</div>
           </div>
         </div>
         <div className="row">
@@ -1916,7 +1939,7 @@ function App() {
     {err && <div className="errcard" role="alert"><h3>Something went wrong</h3><p>{err}</p></div>}
     <div className="tabbar">
       <button className={poolTab==='play'?'active':''} onClick={()=>setPoolTab('play')}>Play</button>
-      <button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>
+      {cfg.PLAYABLE&&<button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>}
       <button className={poolTab==='members'?'active':''} onClick={()=>{setPoolTab('members');setPoolInviteFeedback('');refreshPool();}}>Members</button>
     </div>
     {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>} 
@@ -1943,7 +1966,13 @@ function App() {
       </React.Fragment>}
       {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
     </div>}
-    {poolTab==='play' && <React.Fragment>
+    {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
+      <h2>Your pool is ready</h2>
+      <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
+      <div className="notice"><b>No cast list is needed yet.</b> Use the Members tab to invite your friends now. Prediction boards will open after the official cast is added and the season is marked live in the season sheet.</div>
+      <button className="btn-secondary" onClick={refreshPool}>Check for season updates</button>
+    </div>}
+    {poolTab==='play' && cfg.PLAYABLE && <React.Fragment>
       <Stepper phase={phase} RULES={RULES}/>
       {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><Panel title="Rules" defaultOpen>{phaseIntro.rules}</Panel><Panel title="Scoring">{phaseIntro.scoring}</Panel><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
