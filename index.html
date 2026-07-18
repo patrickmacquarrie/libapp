@@ -774,7 +774,50 @@ const seasonLabelForPool = pool => formatSeasonLabel({...seasonForPool(pool),...
 /* ================================================================== */
 /*  SHEET FETCHER                                                      */
 /* ================================================================== */
-const csvUrl = (t,sheetId) => `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(t)}&_=${Date.now()}`;
+// Google can serve stale values from the gviz endpoint even with a cache-buster.
+// Known public tabs use the no-cache CSV export endpoint; new sheets safely fall
+// back to gviz until their tab IDs are added here.
+const SHEET_TAB_GIDS = {
+  '10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY': {
+    Cast:'1588359921',Couples:'582740570','Dating Results':'1712234173','Reunion Results':'1228567336',Settings:'1385051193',
+  },
+  '1B-j0sEfCHcN5bPZWQembeB5dKRRQx3b0dFwg79RTTfM': {
+    Cast:'608501404',Couples:'1253833729','Dating Results':'1782711571','Reunion Results':'951224813',Settings:'2058597400',
+  },
+  '1-SJO24oReCScG694LG_AttWeuAJcEOUo6jUBkatX3wc': {
+    Cast:'1936043990',Couples:'1194787332','Dating Results':'1895370375','Reunion Results':'1966931871',Settings:'1372235316',
+  },
+  '102HfVLhO9ZEsoweMKMmnxXFg6ngwNWPPXk6rDcUB8v0': {
+    Cast:'1000040912',Couples:'311005944','Dating Results':'1268314346','Reunion Results':'1307585043',Settings:'261409133',
+  },
+  '1nsg1bHfGexX711DsZNxqgk6q8fUJvOm6H_tQi1q3npc': {
+    Cast:'51608069',Couples:'674064068','Dating Results':'1820245361','Reunion Results':'1060089466',Settings:'549752896',
+  },
+  '1-4G_XPRS-O2N6uieLyflus_SYB4z2exBOEs0A2NKnGA': {
+    Cast:'2005176813',Couples:'973678267','Dating Results':'995314318','Reunion Results':'942211205',Settings:'1085024904',
+  },
+  '18oiYO547CVOcl7jRwNBAzpvJq1QVCIuaLC1km0E2yQ8': {
+    Cast:'439471044',Couples:'1722335285','Dating Results':'2139600290','Reunion Results':'720730965',Settings:'602047797',
+  },
+  '1cpGuLPNwWtWbnBMabZgFxxnaKurF6sUfJmgYYiMarPM': {
+    Cast:'1973174941',Couples:'1397878698','Dating Results':'2061951481','Reunion Results':'515311340',Settings:'1920622147',
+  },
+  '1L-_RrG5DDTIWLbEe17VnKy4xDGoYm61DFOw8mIExPQg': {
+    Cast:'1503475742',Couples:'1619508524','Dating Results':'1596283563','Reunion Results':'581664320',Settings:'1939431787',
+  },
+  '1sqvyWxJljfZnKceuopjPDlN8PUQXWrWnbzeKqpGamo0': {
+    Cast:'1656214157',Couples:'86036250','Dating Results':'1009940750','Reunion Results':'2128705379',Settings:'317166216',
+  },
+  '1wkfKzx1Y9vb2ApifZeWcUji59kvsrSRJmrrFoe05kEA': {
+    Cast:'697730328',Couples:'1800897350','Dating Results':'2106136792','Reunion Results':'1820193206',Settings:'1735744000',
+  },
+};
+const csvUrl = (t,sheetId) => {
+  const gid=SHEET_TAB_GIDS[sheetId]?.[t];
+  return gid
+    ? `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&_=${Date.now()}`
+    : `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(t)}&_=${Date.now()}`;
+};
 async function fetchTab(t,sheetId) {
   const res = await fetch(csvUrl(t,sheetId),{cache:'no-store'});
   if (!res.ok) throw new Error(`Failed to fetch tab "${t}" (${res.status})`);
