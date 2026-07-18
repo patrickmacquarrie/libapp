@@ -1969,7 +1969,7 @@ function App() {
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
-      <div className="notice"><b>No cast list is needed yet.</b> Use the Members tab to invite your friends now. Prediction boards will open after the official cast is added and the season is marked live in the season sheet.</div>
+      <div className="notice"><b>Season has not started.</b> Use the Members tab to invite your friends now. Predictions will open within 72 hours of the first batch of episodes dropping.</div>
       <button className="btn-secondary" onClick={refreshPool}>Check for season updates</button>
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <React.Fragment>
