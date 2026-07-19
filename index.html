@@ -464,7 +464,7 @@ const SEASON_BANK = [
     locationLabel:'Chicago',
     sheetId:'1-SJO24oReCScG694LG_AttWeuAJcEOUo6jUBkatX3wc',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-3',
@@ -2300,7 +2300,7 @@ function App() {
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
   const readyWatchEnd=nextAvailableEnd();
-  const historicalPredictionDeadline=seasonForPool(activePool).historical&&rollingPhase?PH_SPAN[phase].endEp-1:null;
+  const historicalPredictionDeadline=eng.SEASON_STATUS==='completed'&&rollingPhase?PH_SPAN[phase].endEp-1:null;
   const RevealSummary = () => reveal && <div className="card">
     <h2 style={{marginBottom:10}}>{reveal.rangeLabel||(phase==='reunion'?'The Reunion':'Episode '+reveal.ep)}</h2>
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
