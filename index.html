@@ -2321,8 +2321,8 @@ function App() {
     savePlayer({picks:np, phase, screen, w, watchThrough, completed});
   };
   const rollingPhase=phase==='pods'||phase==='weddings';
-  const completedSeason=cfg?.season?.historical===true||eng.SEASON_STATUS==='completed'||eng.HISTORICAL;
-  const finalPredictionWindow=completedSeason&&rollingPhase&&w===PH_SPAN[phase].endEp-1;
+  const completedSeason=cfg?.season?.historical===true||eng?.SEASON_STATUS==='completed'||eng?.HISTORICAL;
+  const finalPredictionWindow=!!eng&&completedSeason&&rollingPhase&&w===PH_SPAN[phase].endEp-1;
   const nextAvailableEnd = () => rollingPhase
     ? Math.min(PH_SPAN[phase].endEp,w+1,AVAILABLE_THROUGH_EP)
     : Math.min(PH_SPAN[phase].endEp,AVAILABLE_THROUGH_EP);
