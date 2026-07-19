@@ -437,9 +437,24 @@ window._fb = {
       try {
         const statusSnap = await getDoc(doc(db,'pools',poolId,'phaseStatus',phase));
         if (statusSnap.exists()) status[phase] = statusSnap.data();
-        if (statusSnap.exists() && statusSnap.data().revealed) {
+        const phaseStatusData = statusSnap.exists() ? statusSnap.data() : null;
+        if (phaseStatusData?.revealed) {
           const pickSnap = await getDocs(query(collection(db,'pools',poolId,'phasePicks'),where('phase','==',phase)));
           pickSnap.docs.forEach(d=>{ const v=d.data(); if(players[v.uid]) players[v.uid].picks[phase]=Array.isArray(v.picks)?v.picks:[]; });
+        } else if (phase==='reunion') {
+          // Reunion scores can be shown as soon as an individual player locks.
+          // Load only locked players' picks; unlocked predictions remain hidden
+          // until the whole phase is revealed.
+          const lockedUids = Object.entries(players)
+            .filter(([uid,p]) => phaseStatusData?.completedMembers?.includes(uid) ||
+              (p.phase==='reunion' && ['watch','close','final'].includes(p.screen)))
+            .map(([uid])=>uid);
+          await Promise.all(lockedUids.map(async uid => {
+            try {
+              const lockedPick = await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
+              if (lockedPick.exists() && players[uid]) players[uid].picks[phase]=Array.isArray(lockedPick.data().picks)?lockedPick.data().picks:[];
+            } catch (e) { console.warn('A locked Reunion prediction could not be loaded yet.', e); }
+          }));
         } else if (currentUid && players[currentUid]) {
           const own = await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+currentUid));
           if (own.exists()) players[currentUid].picks[phase]=Array.isArray(own.data().picks)?own.data().picks:[];
@@ -1866,7 +1881,10 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           </button>
           {openPhase===ph && (()=>{
             const picksBy={};
-            memberIds.forEach(id=>picksBy[id]=(playersById[id].picks&&playersById[id].picks[ph])||[]);
+            memberIds.forEach(id=>{
+              const visible=!(ph==='reunion'&&reunionScoresPartial)||reunionLockedMembers.includes(id);
+              picksBy[id]=visible?((playersById[id].picks&&playersById[id].picks[ph])||[]):[];
+            });
             const {entries}=scorePhase(ph,picksBy);
             return <div style={{marginTop:10}}>
               {(ph==='reunion'&&reunionScoresPartial?reunionLockedMembers:memberIds).map(id=><div key={id}>
@@ -2713,7 +2731,7 @@ function App() {
           <h2>{RULES.phases[phase].label} complete</h2>
           {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Retreats results are still being confirmed.':'Scores finalized when the phase closes.'}</h3>}
           {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
-          <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Retreats, confirmed points appear in Standings while the Retreats results are finalized.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
+          <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Retreats, confirmed points appear in Standings while the Retreats results are finalized.':phase==='reunion'&&RESULTS_READY.reunion?'Your predictions are locked. Your Reunion score is visible in Standings now; final standings update when everyone locks their Reunion predictions.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
           {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
         </div>
