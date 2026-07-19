@@ -495,6 +495,7 @@ const SEASON_BANK = [
     locationLabel:'Chicago',
     sheetId:'1-SJO24oReCScG694LG_AttWeuAJcEOUo6jUBkatX3wc',
     historical:true,
+    // Keep active in every future code update unless Patrick explicitly asks otherwise.
     available:true,
   },
   {
@@ -940,7 +941,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     WEDDINGS_LEAD_CAP: Math.max(1,numSetting('WEDDINGS_LEAD_CAP',1.75)),
     phases: {
       pods:     {budget:numSetting('PODS_BUDGET',200,true),     cap:numSetting('PODS_CAP',60,true),     label:'Pods'},
-      dating:   {budget:numSetting('DATING_BUDGET',150,true),   cap:numSetting('DATING_CAP',40,true),   label:'Dating'},
+      dating:   {budget:numSetting('DATING_BUDGET',150,true),   cap:numSetting('DATING_CAP',40,true),   label:'Retreats'},
       weddings: {budget:numSetting('WEDDINGS_BUDGET',150,true), cap:numSetting('WEDDINGS_CAP',80,true), label:'Weddings'},
       reunion:  {budget:numSetting('REUNION_BUDGET',100,true),  cap:numSetting('REUNION_CAP',40,true),  label:'Reunion'},
     },
@@ -984,10 +985,11 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
       );
     }
   }
-  if (phaseSpan.dating.retreatEndEp <= phaseStart.dating || phaseSpan.dating.retreatEndEp > phaseSpan.dating.endEp) {
+  if (phaseSpan.dating.retreatEndEp <= phaseStart.dating || phaseSpan.dating.retreatEndEp !== phaseSpan.dating.endEp) {
     throw new Error(
       `Season config error: RETREAT_END_EP (${phaseSpan.dating.retreatEndEp}) must be greater than ` +
-      `DATING_START_EP (${phaseStart.dating}) and no later than DATING_END_EP (${phaseSpan.dating.endEp}).`
+      `DATING_START_EP (${phaseStart.dating}) and match DATING_END_EP (${phaseSpan.dating.endEp}). ` +
+      `The player-facing Retreats phase ends when the retreat ends.`
     );
   }
   const castO = toObjects(castR);
@@ -1077,12 +1079,15 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
       `Enter him or her so the who-ends-it bonus can be scored.`
     );
   }
-  const DATING_RESULTS = {sex:{},flirt:{},breakup:{coupleId:null,ep:null,confirmed:false,resolved:false}};
+  const DATING_RESULTS = {sex:{},flirt:{},breakup:{}};
   const datingRows=toObjects(datingR);
   const datingResultMarkets=['sex','flirt','breakup'];
+  const datingMarket = r=>String(r.market||'').trim().toLowerCase();
+  const datingResultKey = r=>datingMarket(r)==='flirt'?String(r.person||'').trim():String(r.couple_id||'').trim();
+  const engagedPeople=new Set(COUPLES.flatMap(c=>[c.him,c.her]));
   const unsupportedDatingRows=datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
-    const market=String(r.market||'').trim().toLowerCase();
+    const market=datingMarket(r);
     return market&&!marker&&!datingResultMarkets.includes(market);
   });
   if(unsupportedDatingRows.length) {
@@ -1093,54 +1098,64 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   }
   const invalidDatingRows=datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
-    if(!r.market||marker) return false;
+    const market=datingMarket(r), key=datingResultKey(r);
+    if(!market||marker) return false;
     const ep=Number.parseInt(r.episode,10);
-    return !Number.isFinite(ep)||ep<=phaseStart.dating||ep>phaseSpan.reunion.endEp;
+    return !key||!Number.isFinite(ep)||ep<=phaseStart.dating||ep>phaseSpan.dating.retreatEndEp;
   });
   if(invalidDatingRows.length) {
     throw new Error(
       `Season data invalid: ${invalidDatingRows.length} Dating Results row${invalidDatingRows.length===1?' has':'s have'} ` +
-      `an episode outside ${phaseStart.dating+1}..${phaseSpan.reunion.endEp} ` +
-      `(${invalidDatingRows.map(r=>`${r.market||'unknown'}:${r.couple_id||'unknown'}=${r.episode||'missing'}`).join(', ')}). ` +
-      `Correct the episode column so every result falls within the Dating phase.`
+      `a missing result target or an episode outside the retreat window ${phaseStart.dating+1}..${phaseSpan.dating.retreatEndEp} ` +
+      `(${invalidDatingRows.map(r=>`${r.market||'unknown'}:${datingResultKey(r)||'missing'}=${r.episode||'missing'}`).join(', ')}). ` +
+      `Use person for flirt and couple_id for sex or breakup.`
+    );
+  }
+  const invalidDatingTargets=datingRows.filter(r=>{
+    const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
+    const market=datingMarket(r), key=datingResultKey(r);
+    if(marker||!datingResultMarkets.includes(market)) return false;
+    return market==='flirt'?!engagedPeople.has(key):!COUPLES.some(c=>c.id===key);
+  });
+  if(invalidDatingTargets.length) {
+    throw new Error(
+      `Season data invalid: ${invalidDatingTargets.length} Retreats Results target${invalidDatingTargets.length===1?' is':'s are'} not valid. ` +
+      `Use an exact engaged Cast name in person for flirt, or an exact Couples id in couple_id for sex or breakup.`
     );
   }
   const outsideRetreatRows=datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
-    if(!['sex','flirt'].includes(String(r.market||'').trim().toLowerCase())||marker) return false;
+    if(!datingResultMarkets.includes(datingMarket(r))||marker) return false;
     const ep=Number.parseInt(r.episode,10);
     return Number.isFinite(ep)&&ep>phaseSpan.dating.retreatEndEp;
   });
   if(outsideRetreatRows.length) {
     throw new Error(
-      `Season data invalid: ${outsideRetreatRows.length} retreat-only Dating result${outsideRetreatRows.length===1?' is':'s are'} ` +
+      `Season data invalid: ${outsideRetreatRows.length} retreat-only Retreats result${outsideRetreatRows.length===1?' is':'s are'} ` +
       `outside the retreat window (Episodes ${phaseStart.dating+1}..${phaseSpan.dating.retreatEndEp}: ` +
       `${outsideRetreatRows.map(r=>`${r.couple_id||'unknown'}=${r.episode}`).join(', ')}). ` +
       `Correct the episode or update RETREAT_END_EP in Settings.`
     );
   }
   datingRows.forEach(r=>{
-    const mkt=r.market?.toLowerCase(), id=r.couple_id, marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
-    if(mkt==='breakup'&&marker) {
-      DATING_RESULTS.breakup={coupleId:null,ep:null,confirmed:true,resolved:true};
-      return;
-    }
+    const mkt=datingMarket(r), id=datingResultKey(r), marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
+    if(mkt==='breakup'&&marker) return;
     const ep=parseInt(r.episode), conf=pBool(r.confirmed);
     if(!mkt||!id||!ep) return;
-    if(mkt==='breakup') DATING_RESULTS.breakup={coupleId:id,ep,confirmed:conf,resolved:conf};
+    if(mkt==='breakup') DATING_RESULTS.breakup[id]={ep,confirmed:conf};
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
     else if(mkt==='flirt') DATING_RESULTS.flirt[id]={ep,confirmed:conf};
   });
   const unconfirmedFinalDatingRows = resultsReady.dating ? datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
-    return r.market&&r.couple_id&&r.episode&&!marker&&!pBool(r.confirmed);
+    return r.market&&datingResultKey(r)&&r.episode&&!marker&&!pBool(r.confirmed);
   }) : [];
   if(unconfirmedFinalDatingRows.length) {
     throw new Error(
       `Season data incomplete: DATING_RESULTS_READY is true, but ${unconfirmedFinalDatingRows.length} ` +
-      `Dating result row${unconfirmedFinalDatingRows.length===1?' is':'s are'} not confirmed ` +
-      `(${unconfirmedFinalDatingRows.map(r=>`${r.market}:${r.couple_id}`).join(', ')}). ` +
-      `Confirm those rows or remove them before finalizing Dating results.`
+      `Retreats result row${unconfirmedFinalDatingRows.length===1?' is':'s are'} not confirmed ` +
+      `(${unconfirmedFinalDatingRows.map(r=>`${r.market}:${datingResultKey(r)}`).join(', ')}). ` +
+      `Confirm those rows or remove them before finalizing Retreats results.`
     );
   }
   const RR = {
@@ -1167,7 +1182,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
 /*  Pods and Weddings use rolling episode windows with lead bonuses.   */
-/*  Dating and Reunion are single-lock phases.                         */
+/*  Retreats and Reunion are single-lock phases.                       */
 /* ================================================================== */
 const DEFAULT_WED_MULT={married:1,saysNo:1.5,calledOff:1.75};
 const DEFAULT_REU_MULT={still:1,back:2,newCouple:5,lifeUpdate:5,absent:2};
@@ -1274,25 +1289,25 @@ function makeEngine(cfg, poolSize) {
     if(phase==='dating') {
       Object.entries(DATING_RESULTS.sex).filter(([,r])=>r.ep===ep&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
         const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='sex'&&p.c===id)).length;
-        events.push({title:'Sleep together: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!r.confirmed});
+        events.push({title:'Sleep together: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Retreats phase.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='sex'&&p.c===id).forEach(p=>{
           entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
         }));
       });
-      Object.entries(DATING_RESULTS.flirt).filter(([,r])=>r.ep===ep&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
-        const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='flirt'&&p.c===id)).length;
-        events.push({title:'Flirts with or expresses interest in someone else: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!r.confirmed});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='flirt'&&p.c===id).forEach(p=>{
-          entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:'Flirts with or expresses interest in someone else: '+nameOf(id),stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
+      Object.entries(DATING_RESULTS.flirt).filter(([,r])=>r.ep===ep&&r.ep<=RETREAT_END_EP).forEach(([person,r])=>{
+        const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='flirt'&&p.p===person)).length;
+        events.push({title:'Flirts with or expresses interest in someone other than their fiancé(e): '+person+' (during the retreat, referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Retreats phase.',placeholder:!r.confirmed});
+        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='flirt'&&p.p===person).forEach(p=>{
+          entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:'Flirts with or expresses interest in someone other than their fiancé(e): '+person,stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
         }));
       });
-      if(DATING_RESULTS.breakup.coupleId&&DATING_RESULTS.breakup.ep===ep) {
-        const wid=DATING_RESULTS.breakup.coupleId, owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='breakup'&&p.c===wid)).length;
-        events.push({title:'First breakup: '+nameOf(wid),sub:'Only the earliest breakup pays. Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!DATING_RESULTS.breakup.confirmed});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='breakup'&&p.c===wid).forEach(p=>{
-          entries.push(mk({member:m,phase,ok:true,pending:!DATING_RESULTS.breakup.confirmed,label:'First to break up: '+nameOf(wid),stake:p.s,mult:BREAKUP_MULT,multLabel:'x'+fmt(BREAKUP_MULT)+' race',owners,placeholder:!DATING_RESULTS.breakup.confirmed,note:!DATING_RESULTS.breakup.confirmed?'Awaiting confirmation.':null}));
+      Object.entries(DATING_RESULTS.breakup).filter(([,r])=>r.ep===ep&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
+        const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='breakup'&&p.c===id)).length;
+        events.push({title:'Breaks up during the retreat: '+nameOf(id),sub:'Both members must clearly understand their relationship is over. Prediction popularity will be revealed when everyone completes the Retreats phase.',placeholder:!r.confirmed});
+        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='breakup'&&p.c===id).forEach(p=>{
+          entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:'Breaks up during the retreat: '+nameOf(id),stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
         }));
-      }
+      });
     }
     if(phase==='weddings') {
       COUPLES.filter(c=>c.wedding&&c.wedding!=='notShown'&&((c.settledEp||PH_SPAN.weddings.endEp)===ep)).forEach(c=>{
@@ -1398,27 +1413,24 @@ function makeEngine(cfg, poolSize) {
       else if(c.engagedEp>PH_SPAN.pods.endEp) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' got engaged after the Pods closed',stake:p.s,note:'Engaged in Episode '+c.engagedEp+', outside the Pods window.'}));
     }));
     if(phase==='dating') MEMBERS.forEach(m=>all[m].forEach(p=>{
-      if(p.m==='breakup') {
-        const r=DATING_RESULTS.breakup;
-        if(r.confirmed&&!r.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No couple broke up this season.'}));
-        else if(r.confirmed&&r.coupleId&&p.c!==r.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Lost the race - '+nameOf(r.coupleId)+' broke first.'}));
-        else if(!r.confirmed&&PHASE_RESULTS_READY.dating) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No confirmed result before Dating results were finalized.'}));
-        else if(!r.confirmed&&p.c!==r.coupleId) entries.push(mk({member:m,phase,ok:false,pending:true,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Awaiting a confirmed result.'}));
+      if(p.m==='breakup'&&!DATING_RESULTS.breakup[p.c]) {
+        const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
+        entries.push(mk({member:m,phase,ok:false,pending,label:'Breaks up during the retreat: '+nameOf(p.c),stake:p.s,note:pending?'Still possible during the retreat.':'They did not both clearly understand the relationship was over during the retreat.'}));
       }
       if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) {
         const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
         entries.push(mk({member:m,phase,ok:false,pending,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:pending?'Still possible during the retreat.':'Not referenced on camera during the retreat.'}));
       }
-      if(p.m==='flirt'&&!DATING_RESULTS.flirt[p.c]) {
+      if(p.m==='flirt'&&!DATING_RESULTS.flirt[p.p]) {
         const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
-        entries.push(mk({member:m,phase,ok:false,pending,label:'Flirts with or expresses interest in someone else: '+nameOf(p.c),stake:p.s,note:pending?'Still possible during the retreat.':'Not referenced on camera during the retreat.'}));
+        entries.push(mk({member:m,phase,ok:false,pending,label:'Flirts with or expresses interest in someone other than their fiancé(e): '+p.p,stake:p.s,note:pending?'Still possible during the retreat.':'Not referenced on camera during the retreat.'}));
       }
     }));
     return entries;
   }
   /* Score a full phase for a set of members (used by the scoreboard once everyone completed) */
   function scorePhase(phase, picksBy) {
-    const startEp = PH_STARTW[phase], endEp = phase==='dating'?PH_SPAN.reunion.endEp:PH_SPAN[phase].endEp;
+    const startEp = PH_STARTW[phase], endEp = phase==='dating'?PH_SPAN.dating.retreatEndEp:PH_SPAN[phase].endEp;
     let entries = [];
     for (let ep = startEp; ep <= endEp; ep++) {
       entries = entries.concat(resolveEpisode(phase, ep, picksBy).entries);
@@ -1575,7 +1587,7 @@ function StakeSlider({value,onChange,max}) {
 /* ================================================================== */
 /*  BOARDS                                                             */
 /*  Pods: rolling episode windows with a lead bonus.                   */
-/*  Pods & Weddings: rolling windows. Dating & Reunion: single lock.   */
+/*  Pods & Weddings: rolling windows. Retreats & Reunion: single lock. */
 /* ================================================================== */
 function PodsBoard({w,picks,add,remove,spent,eng,onPendingChange,pendingRef}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,leadM,fmt}=eng;
@@ -1607,22 +1619,21 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   const {COUPLES,RULES,DATING_RESULTS,nameOf,fmt}=eng;
   const open=w===PH_STARTW.dating;
   const left=RULES.phases.dating.budget-spent, maxS=Math.min(RULES.phases.dating.cap,left);
-  const [rC,setRC]=useState(''),[rS,setRS]=useState(20);
+  const [bC,setBC]=useState(''),[bS,setBS]=useState(20);
   const [sC,setSC]=useState(''),[sS,setSS]=useState(20);
-  const [fC,setFC]=useState(''),[fS,setFS]=useState(20);
-  const breakupPick=picks.find(p=>p.m==='breakup');
-  const rO=breakupPick?[]:COUPLES.filter(c=>!(DATING_RESULTS.breakup.coupleId===c.id&&DATING_RESULTS.breakup.ep<=w));
+  const [fP,setFP]=useState(''),[fS,setFS]=useState(20);
+  const bO=COUPLES.filter(c=>!(DATING_RESULTS.breakup[c.id]&&DATING_RESULTS.breakup[c.id].ep<=w)&&!picks.some(p=>p.m==='breakup'&&p.c===c.id));
   const sO=COUPLES.filter(c=>!(DATING_RESULTS.sex[c.id]&&DATING_RESULTS.sex[c.id].ep<=w)&&!picks.some(p=>p.m==='sex'&&p.c===c.id));
-  const fO=COUPLES.filter(c=>!(DATING_RESULTS.flirt[c.id]&&DATING_RESULTS.flirt[c.id].ep<=w)&&!picks.some(p=>p.m==='flirt'&&p.c===c.id));
+  const fO=COUPLES.flatMap(c=>[c.him,c.her]).filter((person,index,people)=>people.indexOf(person)===index&&!DATING_RESULTS.flirt[person]&&!picks.some(p=>p.m==='flirt'&&p.p===person));
   const opt=l=>l.map(c=>({v:c.id,t:nameOf(c.id)}));
-  const ml=p=>p.m==='breakup'?'First to break up':(p.m==='sex'?'Sleep together':'Flirts with or expresses interest in someone else');
-  return <div className="card"><h2>{open?'Make your Dating predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Everyone makes their Dating predictions at the same time{open?' - lock them before watching the next available episode or episode batch.':'.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
+  const ml=p=>p.m==='breakup'?'Breaks up during the retreat':(p.m==='sex'?'Sleep together':'Flirts with or expresses interest in someone other than their fiancé(e)');
+  return <div className="card"><h2>{open?'Make your Retreats predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Everyone makes their Retreats predictions at the same time{open?' - lock them before watching the next available episode or episode batch.':'.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
     {open&&<React.Fragment>
-    <div className="mkt-title"><h3>Who is the first to break up?</h3><span className="multpill">x{fmt(RACE_MULT)}</span></div>{breakupPick?<p className="subtle">You have made this single-choice prediction. Remove it below to choose a different couple.</p>:<div className="row"><Sel label="Couple" value={rC} onChange={setRC} options={opt(rO)}/><StakeSlider value={rS} onChange={setRS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!rC||left<5} onClick={()=>{add({m:'breakup',c:rC,s:Math.min(rS,maxS),w});setRC('');}}>Add prediction</button></div>}
+    <div className="mkt-title"><h3>Who breaks up during the retreat?</h3><span className="multpill">x1</span></div><p className="subtle">Both members of the couple must clearly understand that their relationship is over.</p><div className="row"><Sel label="Couple" value={bC} onChange={setBC} options={opt(bO)}/><StakeSlider value={bS} onChange={setBS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!bC||left<5} onClick={()=>{add({m:'breakup',c:bC,s:Math.min(bS,maxS),w});setBC('');}}>Add prediction</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Who sleeps together on the retreat?</h3><span className="multpill">x1</span></div><p className="subtle">Must be explicitly stated or very clearly implied.</p><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add prediction</button></div>
-    <hr className="divider"/><div className="mkt-title"><h3>Who flirts with or expresses interest in someone other than their fiancée during the retreat?</h3><span className="multpill">x1</span></div><p className="subtle">Either member of the couple counts. The moment must be shown, clearly implied, or explicitly discussed on camera during the retreat.</p><div className="row"><Sel label="Couple" value={fC} onChange={setFC} options={opt(fO)}/><StakeSlider value={fS} onChange={setFS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!fC||left<5} onClick={()=>{add({m:'flirt',c:fC,s:Math.min(fS,maxS),w});setFC('');}}>Add prediction</button></div>
+    <hr className="divider"/><div className="mkt-title"><h3>Who flirts with or expresses interest in someone other than their fiancé(e) during the retreat?</h3><span className="multpill">x1</span></div><p className="subtle">The moment must be shown, clearly implied, or explicitly discussed on camera during the retreat.</p><div className="row"><Sel label="Person" value={fP} onChange={setFP} options={fO}/><StakeSlider value={fS} onChange={setFS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!fP||left<5} onClick={()=>{add({m:'flirt',p:fP,s:Math.min(fS,maxS),w});setFP('');}}>Add prediction</button></div>
     </React.Fragment>}
-    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {ml(p)} - {p.s}♥</div><div className="subtle">{open?'editable until you start Episode '+(w+1):'locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
+    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{p.m==='flirt'?p.p:nameOf(p.c)} - {ml(p)} - {p.s}♥</div><div className="subtle">{open?'editable until you start Episode '+(w+1):'locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+(p.m==='flirt'?p.p:nameOf(p.c))}>✕</button>}</div>)}</div>;
 }
 function WeddingsBoard({w,picks,add,remove,spent,eng}) {
   const {COUPLES,RULES,nameOf,membOf,whoNm,fmt,weddingLeadM,eligibleForWeddings}=eng;
@@ -1727,8 +1738,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && completedBy.length === memberIds.length };
     }
   });
-  // Dating begins scoring as soon as everyone finishes. Confirmed events count
-  // immediately; unresolved picks remain pending until Dating is finalized.
+  // Retreats begins scoring as soon as everyone finishes. Confirmed events count
+  // immediately; unresolved picks remain pending until Retreats is finalized.
   const grandTotals = {};
   memberIds.forEach(id=>grandTotals[id]=0);
   const phaseTotals = {};
@@ -1754,7 +1765,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       <h2>Standings</h2>
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
-      {datingProvisional&&<div className="notice"><b>Dating scores are provisional.</b> Sleep together and flirt predictions close when the retreat ends. A pending first-breakup prediction can still resolve later in the season, then finalizes when DATING_RESULTS_READY is marked TRUE.</div>}
+      {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions all close when the retreat ends. Confirm the Retreats Results and mark DATING_RESULTS_READY TRUE once those outcomes are final.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
       {seasonFinalized&&podium.length>0&&<section className="champion-ceremony" aria-label={'Final standings. '+playerName(podium[0])+' won the pool.'}>
         <div className="champion-kicker">Final standings</div>
@@ -1795,7 +1806,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       return <div className="card" key={ph}>
         <h3>{RULES.phases[ph].label}</h3>
         {st.allDone&&(resultsReady[ph]||ph==='dating') ? <React.Fragment>
-          {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Pending predictions remain open until Dating results are finalized.</div>}
+          {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Retreats results are being finalized.</div>}
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
@@ -1831,7 +1842,7 @@ function PH_INTRO(phase,RULES,cfg) {
   const maxWeddingClock=cfg.weddingLeadM(cfg.PH_SPAN.weddings.endEp-cfg.PH_STARTW.weddings-1);
   const copy={
     pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You get {RULES.phases.pods.budget} hearts that you can spend during the Pods phase.</li><li>You lose any hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on. This season's maximum is ×{cfg.fmt(maxPodsClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more when fewer active players make the same prediction. Only players who make at least one prediction in the phase are included. The final bonus is calculated automatically after the phase closes.</p><p><b>Example:</b> Wager 20 hearts, predict an engagement two episodes early (×2), and be the only player to predict them (roughly ×2): 20 × 2 × 2 = 80 points.</p></div>},
-    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who is the first to break up?</b> Choose one couple.</li><li><b>Who sleeps together?</b> You may choose multiple couples; only moments referenced on camera during the retreat count.</li><li><b>Who flirts with or expresses interest in someone other than their fiancée?</b> You may choose multiple couples; either member counts, and only moments during the retreat count.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>Sleep together and flirt predictions close at the end of the retreat. An unresolved first-breakup prediction may resolve later in the season.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>Confirmed Dating results score once everyone completes the phase. Sleep together and flirt predictions finalize when the retreat ends. A pending first-breakup prediction can still resolve through Weddings or Reunion, so the provisional Dating total may increase later. Mark DATING_RESULTS_READY true at season close to finalize that remaining prediction.</p><p>There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
+    dating:{tagline:'Out of the pods and into the Retreats. Make all Retreats predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Retreats phase.</li><li>You lose any hearts you do not spend before the Retreats phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who breaks up during the retreat?</b> Choose any couples where both members clearly understand that the relationship is over.</li><li><b>Who sleeps together?</b> You may choose multiple couples; only moments referenced on camera during the retreat count.</li><li><b>Who flirts with or expresses interest in someone other than their fiancé(e)?</b> Choose individual people; only moments during the retreat count.</li></ul></li><li>Lock all Retreats predictions before watching the next available episode or episode batch.</li><li>All Retreats predictions close at the end of the retreat.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>Confirmed Retreats results score once everyone completes the phase. Every Retreats market finalizes at the end of the retreat; mark DATING_RESULTS_READY true after those outcomes are confirmed.</p><p>There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
     weddings:{tagline:'Predict each couple’s outcome between episodes. Earlier predictions earn a larger bonus while the outcome remains unresolved.',rules:<ul><li>You get {RULES.phases.weddings.budget} hearts that you can spend throughout the Weddings phase.</li><li>You may add predictions between episodes. Once you watch the next episode, those predictions are locked.</li><li>Predictions are optional, but each couple can be predicted only once.</li><li>First predict the base result: married or not married.</li><li>If you predict not married, also predict when it ends and who ends it. These are independent bonuses: getting either detail right earns that bonus even when the other detail is wrong.</li><li>The who-ends-it bonus applies to either a pre-altar or altar ending, provided the outcome occurs after your prediction.</li><li>Earlier correct predictions earn a larger Against-the-Clock Bonus.</li><li>Unspent hearts are lost when Weddings closes and never carry into another phase.</li></ul>,scoring:<div><p><b>Points = hearts wagered × base result × Against-the-Clock Bonus × Against-the-Grain Bonus × timing bonus × optional who-ends-it bonus.</b></p><p><b>Base result:</b> Correctly predicting married or not married earns base points. A correct married prediction uses ×{cfg.fmt(cfg.WED_MULT.married)}.</p><p><b>Timing:</b> If you correctly predict not married, matching an at-the-altar ending adds ×{cfg.fmt(cfg.WED_MULT.saysNo)}; matching a pre-altar ending adds ×{cfg.fmt(cfg.WED_MULT.calledOff)}. A timing miss does not erase the base result points.</p><p><b>Who ends it:</b> Correctly naming the person adds {cfg.fmt(RULES.WHO_TAG*100)}% regardless of whether the ending is before or at the altar, provided it happens after the prediction. A person miss does not erase base or timing points.</p><p><b>Against-the-Clock:</b> Starts at ×1 immediately before the outcome, adds {cfg.fmt((Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*100)}% for every full episode of foresight, and is capped at ×{cfg.fmt(maxWeddingClock)} for this season.</p><p><b>Against-the-Grain:</b> Less-common correct base results earn more after the phase closes.</p></div>},
     reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} hearts that you can spend during the Reunion phase.</li><li>You lose any hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Still together pays ×{cfg.fmt(cfg.REU_MULT.still)}. Back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}. New couple pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}. Major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
   };
@@ -1847,12 +1858,12 @@ function HowItWorksModal({onClose,rules=null}) {
       <h3>Join or start a pool</h3>
       <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Standings tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
       <h3>Make your predictions</h3>
-      <p>An episode batch is a group of episodes released together. Each phase gives you hearts to wager, as listed below. In Pods and Weddings, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. Dating and the Reunion each use one set of predictions. Always lock your current predictions before starting the next episode. Locked predictions cannot be changed.</p>
+      <p>An episode batch is a group of episodes released together. Each phase gives you hearts to wager, as listed below. In Pods and Weddings, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. Retreats and the Reunion each use one set of predictions. Always lock your current predictions before starting the next episode. Locked predictions cannot be changed.</p>
       <h3>The four phases</h3>
-      <ul><li><b>Pods:</b> Predict who gets engaged. {budgets.pods.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Dating:</b> Predict the first breakup and key real-world moments. {budgets.dating.budget} {budgetLabel}, with one prediction window.</li><li><b>Weddings:</b> Predict who marries, says no, or calls it off. {budgets.weddings.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. {budgets.reunion.budget} {budgetLabel}, with one prediction window.</li></ul>
+      <ul><li><b>Pods:</b> Predict who gets engaged. {budgets.pods.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Retreats:</b> Predict breakups, sleep-together moments, and flirting or outside interest during the retreat. {budgets.dating.budget} {budgetLabel}, with one prediction window.</li><li><b>Weddings:</b> Predict who marries, says no, or calls it off. {budgets.weddings.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. {budgets.reunion.budget} {budgetLabel}, with one prediction window.</li></ul>
       <h3>How points work</h3>
       <p>Every correct prediction scores hearts wagered × its event or outcome multiplier × Against-the-Grain Bonus. Pods and Wedding predictions also receive an Against-the-Clock Bonus for predicting earlier. Less-common correct predictions earn more Against-the-Grain Bonus; only players who make at least one prediction in that phase are included. The final bonus is calculated automatically after the phase closes. Incorrect predictions never subtract points - you simply lose the hearts you wagered. Unspent hearts are lost and never carry into the next phase.</p>
-      <p>Dating standings may be provisional: confirmed events score after everyone finishes Dating, while unresolved predictions can remain pending through Weddings and Reunion.</p>
+      <p>Retreats standings may be provisional while results are being confirmed. All Retreats markets close at the end of the retreat.</p>
       <button className="btn-primary" onClick={onClose}>Got it</button>
     </div>
   </div>;
@@ -2174,7 +2185,6 @@ function App() {
   /* Game actions - plain updates, side effects kept out of state updaters */
   const meName = profile?.username;
   const addPick = p => {
-    if(phase==='dating'&&p.m==='breakup'&&picks.dating.some(existing=>existing.m==='breakup')) return;
     if(phase==='weddings'&&picks.weddings.some(existing=>existing.c===p.c)) return;
     const np = {...picks,[phase]:[...picks[phase],p]};
     setPicks(np);
@@ -2521,9 +2531,9 @@ function App() {
         <RevealSummary/>
         <div className="card">
           <h2>{RULES.phases[phase].label} complete</h2>
-          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Some predictions are still pending.':'Scores finalized when the phase closes.'}</h3>}
+          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Retreats results are still being confirmed.':'Scores finalized when the phase closes.'}</h3>}
           {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
-          <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Dating, confirmed points and pending predictions appear in Standings. Pending bets can resolve later in the season.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
+          <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Retreats, confirmed points appear in Standings while the Retreats results are finalized.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
           {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
         </div>
