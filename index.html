@@ -49,6 +49,24 @@ body{
 .step.done{color:var(--wine)}
 .step.cur{background:var(--wine);color:#fff;box-shadow:0 4px 14px rgba(110,31,59,.35)}
 .heartsep{color:var(--gold);font-size:10px}
+.prediction-position{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 8px;padding:11px 15px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,var(--blush-soft),var(--surface));color:var(--wine)}
+.prediction-position span{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.prediction-position strong{font-family:'Playfair Display',Georgia,serif;font-size:20px;white-space:nowrap}
+.season-progress-scale,.season-progress-row{display:grid;grid-template-columns:minmax(88px,126px) 1fr;gap:10px;align-items:center}
+.season-progress-scale{margin:13px 0 8px}
+.season-progress-phases,.season-progress-track{display:flex;min-width:0}
+.season-progress-phase{min-width:0;text-align:center;color:var(--soft-text);font-size:8px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;overflow:hidden;text-overflow:ellipsis}
+.season-progress-row{padding:8px 0;border-top:1px solid var(--line)}
+.season-progress-name{font-size:12px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.season-progress-track{position:relative;height:12px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.season-progress-segment{min-width:0;border-right:1px solid color-mix(in srgb,var(--wine) 18%,transparent)}
+.season-progress-segment:last-child{border-right:none}
+.season-progress-segment:nth-child(1){background:color-mix(in srgb,var(--rose) 13%,transparent);border-radius:999px 0 0 999px}
+.season-progress-segment:nth-child(2){background:color-mix(in srgb,var(--gold) 14%,transparent)}
+.season-progress-segment:nth-child(3){background:color-mix(in srgb,var(--wine) 10%,transparent)}
+.season-progress-segment:nth-child(4){background:color-mix(in srgb,var(--muted) 10%,transparent);border-radius:0 999px 999px 0}
+.season-progress-marker{position:absolute;top:50%;width:20px;height:20px;display:grid;place-items:center;transform:translate(-50%,-50%);border-radius:50%;background:var(--wine);color:#fff;border:2px solid var(--card);box-shadow:0 2px 7px rgba(67,17,39,.25);font-size:9px;line-height:1}
+.season-progress-status{grid-column:2;color:var(--muted);font-size:10.5px;line-height:1.25;margin-top:-5px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 8px 24px rgba(110,31,59,.05)}
 .card h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:23px;margin:0 0 4px}
 .card h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:0 0 8px}
@@ -211,7 +229,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
+@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.prediction-position strong{font-size:18px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:7px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -1387,6 +1405,47 @@ function Stepper({phase,RULES}) {
   const idx=PH_ORDER.indexOf(phase);
   return <div className="stepper">{PH_ORDER.map((p,i)=><React.Fragment key={p}>{i>0&&<span className="heartsep">♥</span>}<span className={'step '+(i===idx?'cur':(i<idx?'done':''))}>{RULES.phases[p].label}</span></React.Fragment>)}</div>;
 }
+function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
+  const {RULES,PH_SPAN:spans,PH_STARTW:starts}=eng;
+  const finalEp=spans.reunion.endEp;
+  const phases=PH_ORDER.map((ph,i)=>({
+    id:ph,
+    label:RULES.phases[ph].label,
+    length:Math.max(1,spans[ph].endEp-(i===0?0:starts[ph])),
+  }));
+  const ids=Object.keys(playersById).sort((a,b)=>a===meId?-1:b===meId?1:alphaByName(memberLabels[a]||'',memberLabels[b]||''));
+  const progressFor=player=>{
+    const complete=player?.screen==='final'||player?.completed?.reunion;
+    const savedEp=Number(player?.w);
+    const ep=complete?finalEp:(Number.isFinite(savedEp)?Math.max(0,Math.min(finalEp,savedEp)):0);
+    const watchEnd=Number(player?.watchThrough);
+    const phase=PH_ORDER.includes(player?.phase)?player.phase:'pods';
+    let status;
+    if(complete) status='Season complete';
+    else if(player?.screen==='watch'&&Number.isFinite(watchEnd)&&watchEnd>ep) status='Watching '+episodeRangeLabel(ep+1,watchEnd);
+    else if(player?.screen==='board') status='After Episode '+ep+' · Predicting';
+    else if(player?.screen==='close') status='After Episode '+ep+' · Finishing '+RULES.phases[phase].label;
+    else if(ep>0) status='After Episode '+ep+' · '+RULES.phases[phase].label+' next';
+    else status='Season not started';
+    return {ep,status,pct:finalEp>0?(ep/finalEp)*100:0};
+  };
+  return <div className="card">
+    <h3>Everyone’s season progress</h3>
+    <p className="lede">The heart marks the last episode each player has finished.</p>
+    <div className="season-progress-scale" aria-hidden="true"><span></span><div className="season-progress-phases">{phases.map(ph=><span className="season-progress-phase" style={{flex:ph.length}} key={ph.id}>{ph.label}</span>)}</div></div>
+    {ids.map(id=>{
+      const progress=progressFor(playersById[id]);
+      return <div className="season-progress-row" key={id}>
+        <span className="season-progress-name">{id===meId?'You':memberLabels[id]}</span>
+        <div className="season-progress-track" aria-label={(id===meId?'You':memberLabels[id])+': '+progress.status}>
+          {phases.map(ph=><span className="season-progress-segment" style={{flex:ph.length}} key={ph.id}></span>)}
+          <span className="season-progress-marker" style={{left:progress.pct+'%'}} title={progress.status}>♥</span>
+        </div>
+        <span className="season-progress-status">{progress.status}</span>
+      </div>;
+    })}
+  </div>;
+}
 function CastPortrait({person,engaged,brokenUp}) {
   const [failed,setFailed]=useState(false);
   const initials=person.name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -1578,6 +1637,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&phaseStatus[ph].allDone&&!resultsReady[ph]);
   const datingProvisional=phaseStatus.dating.allDone&&!resultsReady.dating;
   return <React.Fragment>
+    <SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>
     <div className="card">
       <h2>Standings</h2>
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
@@ -2280,6 +2340,7 @@ function App() {
       {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
       {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><Panel title="Rules" defaultOpen>{phaseIntro.rules}</Panel><Panel title="Scoring">{phaseIntro.scoring}</Panel><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
+        <div className="prediction-position" role="status"><span>Making predictions</span><strong>After Episode {w}</strong></div>
         <div className="card">
           <Panel title="Rules">{phaseIntro.rules}</Panel>
           <Panel title="Scoring">{phaseIntro.scoring}</Panel>
