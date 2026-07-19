@@ -1494,8 +1494,7 @@ function BrandHeader({season=null,children}) {
 }
 function Budget({phase,spent,RULES}) {
   const {budget}=RULES.phases[phase],left=budget-spent;
-  const rolling=phase==='pods'||phase==='weddings';
-  return <div style={{margin:'10px 0 4px'}}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div>{rolling&&<p className="subtle" style={{margin:'7px 0 0'}}>You do not have to spend all your hearts this episode. Hearts left over stay available for a later {RULES.phases[phase].label} prediction window while this phase is open.</p>}</div>;
+  return <div style={{margin:'10px 0 4px'}}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div>{phase==='pods'&&<p className="subtle" style={{margin:'7px 0 0'}}>You do not have to spend all your hearts this episode. Hearts left over stay available for a later Pods prediction window while this phase is open.</p>}</div>;
 }
 function Receipt({e,eng,meId,memberLabels={}}) {
   const {owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss');
@@ -1683,7 +1682,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
     if(c?.wedding&&resultEp<=w) return 'Resolved in Episode '+resultEp+' · Against-the-Clock x'+fmt(weddingLeadM(Math.max(0,resultEp-p.w-1)));
     return 'Locked after Episode '+p.w+' · Against-the-Clock is now at least x'+fmt(weddingLeadM(Math.max(0,w-p.w)));
   };
-  return <div className="card"><h2>{open?'Wedding predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Predict any eligible couple between episodes. Once you watch the next episode, that prediction stays locked and its Against-the-Clock Bonus grows while the outcome remains unresolved.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} of {picks.length+alive.length} eligible couples predicted — the rest are optional</p>
+  return <div className="card"><h2>{open?'Wedding predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Make predictions between episodes. YOU DO NOT HAVE TO SPEND ALL YOUR HEARTS THIS EPISODE. Remaining hearts will be usable for predictions between episodes all the way up until the weddings are watched.</p><Budget phase="weddings" spent={spent} RULES={RULES}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} of {picks.length+alive.length} eligible couples predicted</p>
     {open&&<React.Fragment>
     <div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setAnswer('');setWhen('');setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Do they get married?" value={answer} onChange={v=>{setAnswer(v);setWhen('');setWhoT('');}} options={[{v:'yes',t:'Yes (x'+fmt(WED_MULT.married)+')'},{v:'no',t:'No'}]}/></div>
     {answer==='no'&&cid&&<React.Fragment><div className="row"><Sel label="When?" value={when} onChange={setWhen} options={[{v:'before',t:'Before the altar (x'+fmt(WED_MULT.calledOff)+' bonus)'},{v:'altar',t:'At the altar (x'+fmt(WED_MULT.saysNo)+' bonus)'}]}/><Sel label="Who ends it?" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]}]}/></div></React.Fragment>}
