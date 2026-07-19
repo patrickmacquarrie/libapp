@@ -1773,23 +1773,36 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && completedBy.length === memberIds.length };
     }
   });
+  const reunionLockedMembers = memberIds.filter(id => {
+    const player = playersById[id] || {};
+    return player.completed?.reunion === true ||
+      (player.phase === 'reunion' && ['watch','close','final'].includes(player.screen));
+  });
+  const reunionScoresPartial = resultsReady.reunion &&
+    !phaseStatus.reunion.allDone && reunionLockedMembers.length > 0;
   // Retreats begins scoring as soon as everyone finishes. Confirmed events count
   // immediately; unresolved picks remain pending until Retreats is finalized.
   const grandTotals = {};
   memberIds.forEach(id=>grandTotals[id]=0);
   const phaseTotals = {};
+  const phaseMembers = {};
   PH_ORDER.forEach(ph => {
-    if (!phaseStatus[ph].allDone||(!resultsReady[ph]&&ph!=='dating')) return;
+    const partialReunion = ph==='reunion' && reunionScoresPartial;
+    if ((!phaseStatus[ph].allDone&&!partialReunion)||(!resultsReady[ph]&&ph!=='dating')) return;
     const picksBy = {};
-    memberIds.forEach(id => picksBy[id] = (playersById[id].picks && playersById[id].picks[ph]) || []);
+    memberIds.forEach(id => {
+      const visible = !partialReunion || reunionLockedMembers.includes(id);
+      picksBy[id] = visible ? ((playersById[id].picks && playersById[id].picks[ph]) || []) : [];
+    });
     const {totals} = scorePhase(ph, picksBy);
     phaseTotals[ph] = totals;
-    memberIds.forEach(id => grandTotals[id] += totals[id] || 0);
+    phaseMembers[ph] = partialReunion ? reunionLockedMembers : memberIds;
+    phaseMembers[ph].forEach(id => grandTotals[id] += totals[id] || 0);
   });
   const ranked = memberIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
   const rankById={};
   ranked.forEach((id,index)=>{rankById[id]=index>0&&grandTotals[id]===grandTotals[ranked[index-1]]?rankById[ranked[index-1]]:index+1;});
-  const scoredPhases = PH_ORDER.filter(ph=>phaseStatus[ph].allDone&&(resultsReady[ph]||ph==='dating'));
+  const scoredPhases = PH_ORDER.filter(ph=>(phaseStatus[ph].allDone||(ph==='reunion'&&reunionScoresPartial))&&(resultsReady[ph]||ph==='dating'));
   const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&phaseStatus[ph].allDone&&!resultsReady[ph]);
   const datingProvisional=phaseStatus.dating.allDone&&!resultsReady.dating;
   const seasonFinalized = PH_ORDER.every(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
@@ -1805,6 +1818,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
       {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions all close when the retreat ends. Confirm the Retreats Results and mark DATING_RESULTS_READY TRUE once those outcomes are final.</div>}
+      {reunionScoresPartial&&<div className="notice"><b>Reunion scores are provisional.</b> Locked players’ scores are visible now; the final standings update when everyone locks their Reunion predictions.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
       {seasonFinalized&&podium.length>0&&<section className="champion-ceremony" aria-label={tiedChampions?'Final standings. '+championNames+' tied as pool champions.':'Final standings. '+playerName(podium[0])+' won the pool.'}>
         <div className="champion-kicker">Final standings</div>
@@ -1821,10 +1835,10 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       </section>}
       {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName}/>} 
       {scoredPhases.length>0 && <div className="lb"><table>
-        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':''}</th>)}<th>Total</th></tr></thead>
+        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}<th>Total</th></tr></thead>
         <tbody>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
           <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
-          {scoredPhases.map(p=><td key={p}>{phaseTotals[p][id]||0}</td>)}
+          {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
           <td className="tot">{grandTotals[id]}</td>
         </tr>)}</tbody>
       </table></div>}
@@ -1840,12 +1854,13 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     {PH_ORDER.map(ph => {
       const st = phaseStatus[ph];
       const isCurrent = ph === myPhase;
-      const notStarted = st.completedBy.length===0 && !isCurrent && PH_ORDER.indexOf(ph)>PH_ORDER.indexOf(myPhase);
+      const notStarted = st.completedBy.length===0 && !isCurrent && PH_ORDER.indexOf(ph)>PH_ORDER.indexOf(myPhase) && !(ph==='reunion'&&reunionScoresPartial);
       if (notStarted) return null;
       return <div className="card" key={ph}>
         <h3>{RULES.phases[ph].label}</h3>
-        {st.allDone&&(resultsReady[ph]||ph==='dating') ? <React.Fragment>
+        {(st.allDone&&(resultsReady[ph]||ph==='dating')||(ph==='reunion'&&reunionScoresPartial)) ? <React.Fragment>
           {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Retreats results are being finalized.</div>}
+          {ph==='reunion'&&reunionScoresPartial&&<div className="notice">Only players who have locked their Reunion predictions are shown here. These scores are provisional until everyone locks.</div>}
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
@@ -1854,7 +1869,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
             memberIds.forEach(id=>picksBy[id]=(playersById[id].picks&&playersById[id].picks[ph])||[]);
             const {entries}=scorePhase(ph,picksBy);
             return <div style={{marginTop:10}}>
-              {memberIds.map(id=><div key={id}>
+              {(ph==='reunion'&&reunionScoresPartial?reunionLockedMembers:memberIds).map(id=><div key={id}>
                 <h3 style={{marginTop:12}}>{id===meId?'Your predictions':memberLabels[id]}</h3>
                 {entries.filter(e=>e.member===id).length===0&&<p className="subtle">No predictions this phase.</p>}
                 {entries.filter(e=>e.member===id).map((e,i)=><Receipt key={i} e={e} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
