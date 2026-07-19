@@ -122,7 +122,25 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .lb th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft-text)}
 .lb th:first-child,.lb td:first-child{text-align:left}
 .lb tr.you td{font-weight:700;color:var(--wine)}
+.lb tr.champion td{background:color-mix(in srgb,var(--gold) 12%,transparent);border-bottom-color:color-mix(in srgb,var(--gold) 38%,var(--line))}
+.lb tr.champion td:first-child{border-radius:9px 0 0 9px}
+.lb tr.champion td:last-child{border-radius:0 9px 9px 0}
 .lb td.tot{font-family:'Playfair Display',serif;font-size:17px;color:var(--wine)}
+.champion-ceremony{position:relative;overflow:hidden;text-align:center;margin:-2px 0 18px;padding:18px 14px 14px;border:1px solid color-mix(in srgb,var(--gold) 48%,var(--line));border-radius:15px;background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 17%,var(--surface)),var(--surface-soft) 58%,color-mix(in srgb,var(--rose) 12%,var(--surface)));isolation:isolate}
+.champion-ceremony::before,.champion-ceremony::after{content:'✦';position:absolute;color:var(--gold);font-size:21px;opacity:.8;z-index:-1}
+.champion-ceremony::before{left:9%;top:21px}.champion-ceremony::after{right:10%;top:43px;font-size:14px}
+.champion-kicker{color:var(--rose);font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase}
+.award-trophy{font-size:42px;line-height:1;margin:5px 0 2px;filter:drop-shadow(0 5px 5px color-mix(in srgb,var(--gold) 30%,transparent));animation:trophy-bob 2.8s ease-in-out infinite}
+.champion-name{font-family:'Playfair Display',Georgia,serif;font-size:28px;line-height:1.05;color:var(--wine);margin:0}
+.champion-score{margin:4px 0 12px;color:var(--muted);font-size:12px;font-weight:700}
+.podium{display:flex;align-items:flex-end;justify-content:center;gap:6px;max-width:310px;margin:0 auto;text-align:center}
+.podium-place{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.podium-medal{height:20px;font-size:18px;line-height:1;margin-bottom:3px}
+.podium-name{width:100%;min-height:31px;display:flex;align-items:end;justify-content:center;color:var(--ink);font-size:10px;font-weight:800;line-height:1.2;overflow-wrap:anywhere;padding:0 2px 3px}
+.podium-step{width:100%;display:flex;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--gold) 42%,var(--line));border-bottom:none;background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 32%,var(--surface)),color-mix(in srgb,var(--gold) 16%,var(--surface)));color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:700}
+.podium-place.first{order:2}.podium-place.second{order:1}.podium-place.third{order:3}.podium-place.first .podium-step{height:66px;border-radius:11px 11px 0 0;background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 54%,var(--surface)),color-mix(in srgb,var(--gold) 24%,var(--surface)))}
+.podium-place.second .podium-step{height:46px;border-radius:11px 11px 0 0}.podium-place.third .podium-step{height:34px;border-radius:11px 11px 0 0}
+@keyframes trophy-bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}
 .gatecard{text-align:center}
 .crown{font-size:44px;line-height:1}
 .winner{font-family:'Playfair Display',serif;font-size:28px;color:var(--wine);margin:4px 0}
@@ -230,6 +248,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-secondary:hover,:root[data-theme="dark"] .btn-how:hover,:root[data-theme="dark"] .btn-signout:hover{background:#3a1b29}
 :root[data-theme="dark"] .receipt{background:#2b2118}:root[data-theme="dark"] .receipt.miss{background:#301820}:root[data-theme="dark"] .receipt.pending{background:#261d34}
 :root[data-theme="dark"] .evt{background:linear-gradient(180deg,#2b1621,#211019)}
+:root[data-theme="dark"] .champion-ceremony{background:linear-gradient(135deg,#3a2e18,#301722 58%,#3a1b29)}
 :root[data-theme="dark"] .notice{background:#2b2416;color:#efdca3;border-color:#796938}
 :root[data-theme="dark"] .errcard{background:#35151f;color:#f3dbe4;border-color:#7e3d54}
 :root[data-theme="dark"] .invite-row{background:#2b2118}
@@ -1671,6 +1690,10 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const scoredPhases = PH_ORDER.filter(ph=>phaseStatus[ph].allDone&&(resultsReady[ph]||ph==='dating'));
   const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&phaseStatus[ph].allDone&&!resultsReady[ph]);
   const datingProvisional=phaseStatus.dating.allDone&&!resultsReady.dating;
+  const seasonFinalized = PH_ORDER.every(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
+  const podium = ranked.slice(0,3);
+  const playerName = id => id===meId ? 'You' : memberLabels[id];
+  const winnerVerb = podium[0]===meId ? 'win' : 'wins';
   return <React.Fragment>
     <SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>
     <div className="card">
@@ -1679,10 +1702,23 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
       {datingProvisional&&<div className="notice"><b>Dating scores are provisional.</b> Sleep together predictions close when the retreat ends. Pending breakup and living-situation predictions can still resolve during Weddings or Reunion, then finalize when DATING_RESULTS_READY is marked TRUE.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
+      {seasonFinalized&&podium.length>0&&<section className="champion-ceremony" aria-label={'Final standings. '+playerName(podium[0])+' won the pool.'}>
+        <div className="champion-kicker">Final standings</div>
+        <div className="award-trophy" aria-hidden="true">🏆</div>
+        <p className="champion-name">{playerName(podium[0])} {winnerVerb}!</p>
+        <p className="champion-score">{grandTotals[podium[0]]} hearts · Pool champion</p>
+        <div className="podium" aria-label="Top three players">
+          {podium.map((id,index)=>{const place=index+1;return <div className={'podium-place '+(place===1?'first':place===2?'second':'third')} key={id}>
+            <div className="podium-medal" aria-hidden="true">{place===1?'🥇':place===2?'🥈':'🥉'}</div>
+            <div className="podium-name">{playerName(id)}</div>
+            <div className="podium-step" aria-label={'Place '+place}>{place}</div>
+          </div>;})}
+        </div>
+      </section>}
       {scoredPhases.length>0 && <div className="lb"><table>
         <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':''}</th>)}<th>Total</th></tr></thead>
-        <tbody>{ranked.map(id=><tr key={id} className={id===meId?'you':''}>
-          <td>{id===meId?'You':memberLabels[id]}</td>
+        <tbody>{ranked.map((id,index)=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&index===0?'champion':'')}>
+          <td>{seasonFinalized&&index===0&&<span aria-hidden="true">🏆 </span>}{playerName(id)}</td>
           {scoredPhases.map(p=><td key={p}>{phaseTotals[p][id]||0}</td>)}
           <td className="tot">{grandTotals[id]}</td>
         </tr>)}</tbody>
