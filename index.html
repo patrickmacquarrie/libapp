@@ -49,9 +49,6 @@ body{
 .step.done{color:var(--wine)}
 .step.cur{background:var(--wine);color:#fff;box-shadow:0 4px 14px rgba(110,31,59,.35)}
 .heartsep{color:var(--gold);font-size:10px}
-.prediction-position{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 8px;padding:11px 15px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,var(--blush-soft),var(--surface));color:var(--wine)}
-.prediction-position span{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
-.prediction-position strong{font-family:'Playfair Display',Georgia,serif;font-size:20px;white-space:nowrap}
 .season-progress-scale,.season-progress-row{display:grid;grid-template-columns:minmax(88px,126px) 1fr;gap:10px;align-items:center}
 .season-progress-scale{margin:13px 0 8px}
 .season-progress-phases,.season-progress-track{display:flex;min-width:0}
@@ -163,7 +160,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .invite-actions{display:flex;gap:8px}
 .email-chip{display:inline-flex;align-items:center;gap:6px;background:var(--blush-soft);color:var(--wine);font-size:13px;font-weight:600;padding:5px 10px;border-radius:999px;margin:3px 4px 3px 0}
 .email-chip button{border:none;background:none;color:var(--rose);cursor:pointer;font-size:13px;padding:0}
-.tabbar{display:flex;gap:6px;justify-content:center;margin:12px 0 4px}
+.tabbar{display:flex;gap:6px;justify-content:center;margin:12px 0 4px;flex-wrap:wrap}
 .tabbar button{padding:8px 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
 .tabbar button.active{background:var(--wine);color:#fff;border-color:var(--wine)}
 .member-status{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;border-bottom:1px solid var(--line)}
@@ -239,7 +236,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.prediction-position strong{font-size:18px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:7px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
+@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:7px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -464,7 +461,7 @@ const SEASON_BANK = [
     locationLabel:'Chicago',
     sheetId:'1-SJO24oReCScG694LG_AttWeuAJcEOUo6jUBkatX3wc',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-3',
@@ -1544,7 +1541,7 @@ function PodsBoard({w,picks,add,remove,spent,eng,onPendingChange,pendingRef}) {
       ? 'Resolved in Episode '+couple.engagedEp
       : 'Locked after Episode '+p.w+' · Against-the-Clock x'+fmt(leadM(w-p.w))+' if they propose next episode';
   };
-  return <div className="card"><h2>Window {w} · after Episode {w}</h2><p className="lede">Who gets engaged? Your bonus starts at ×1. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
+  return <div className="card"><h2>Making predictions</h2><p className="lede">Who gets engaged? Your bonus starts at ×1. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
     {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add btn-confirm" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
     {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
   </div>;
@@ -1739,7 +1736,7 @@ function HowItWorksModal({onClose,rules=null}) {
       <h2 id="how-title">How It Works</h2>
       <p>This is a social prediction game for people watching Love Is Blind together or at their own pace. There is no cash prize - just bragging rights.</p>
       <h3>Join or start a pool</h3>
-      <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Members tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
+      <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Standings tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
       <h3>Make your predictions</h3>
       <p>An episode batch is a group of episodes released together. Each phase gives you hearts to wager, as listed below. In Pods and Weddings, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. Dating and the Reunion each use one set of predictions. Always lock your current predictions before starting the next episode. Locked predictions cannot be changed.</p>
       <h3>The four phases</h3>
@@ -1823,7 +1820,7 @@ function App() {
   const [poolPlayers, setPoolPlayers] = useState(null);  // {uid: playerDoc}
   const [poolUsers, setPoolUsers] = useState(null);      // {uid: profile}
   const [poolStatus, setPoolStatus] = useState({});      // {phase: phaseStatus doc}
-  const [poolTab, setPoolTab] = useState('play');        // play | standings | members
+  const [poolTab, setPoolTab] = useState('play');        // play | standings | rules | scoring
   const [eng, setEng] = useState(null);
   const [phase, setPhase] = useState('pods');
   const [screen, setScreen] = useState('intro');
@@ -2323,50 +2320,39 @@ function App() {
     {err && <div className="errcard" role="alert"><h3>Something went wrong</h3><p>{err}</p></div>}
     <div className="tabbar">
       <button className={poolTab==='play'?'active':''} onClick={()=>setPoolTab('play')}>Play</button>
-      {cfg.PLAYABLE&&<button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');refreshPool();}}>Standings</button>}
-      <button className={poolTab==='members'?'active':''} onClick={()=>{setPoolTab('members');setPoolInviteFeedback('');refreshPool();}}>Members</button>
+      <button className={poolTab==='standings'?'active':''} onClick={()=>{setPoolTab('standings');setPoolInviteFeedback('');refreshPool();}}>Standings</button>
+      {cfg.PLAYABLE&&<React.Fragment><button className={poolTab==='rules'?'active':''} onClick={()=>setPoolTab('rules')}>Rules</button><button className={poolTab==='scoring'?'active':''} onClick={()=>setPoolTab('scoring')}>Scoring</button></React.Fragment>}
     </div>
-    {poolTab==='standings' && poolPlayers && <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>} 
-    {poolTab==='members' && <div className="card">
-      <h2>Pool members</h2>
-      <p className="lede">Anyone in this pool can invite more friends before the first player completes Pods.</p>
-      {activePool.members.map(uid=><div className="member-status" key={uid}>
-        <span className="dot"></span><span>{uid===user.uid?'You':memberLabels[uid]}</span>
-        {uid===activePool.ownerUid&&<span className="subtle" style={{marginLeft:'auto'}}>Pool owner</span>}
-      </div>)}
-      {pendingPoolInvites.map(inv=><div className="member-status" key={inv.id}>
-        <span className="dot waiting"></span><span>{inv.toEmail}</span>
-        <span className="subtle" style={{marginLeft:'auto'}}>Invitation pending</span>
-      </div>)}
-      <hr className="divider"/>
-      {poolStatus.pods?<p className="subtle">Invitations are closed because a player has completed Pods.</p>:<React.Fragment>
+    {poolTab==='standings' && poolPlayers && <React.Fragment>
+      <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>
+      <div className="card">
         <h3>Invite someone</h3>
-        <div className="row">
-          <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
-            <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
+        <p className="lede">Invite more friends before the first player completes Pods.</p>
+        {poolStatus.pods?<p className="subtle">Invitations are closed because a player has completed Pods.</p>:<React.Fragment>
+          <div className="row">
+            <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
+              <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
+            </div>
+            <button className="btn-add" disabled={sendingPoolInvite||!poolInviteEmail.trim()} onClick={doSendPoolInvite}>{sendingPoolInvite?'Sending...':'Send invitation'}</button>
           </div>
-          <button className="btn-add" disabled={sendingPoolInvite||!poolInviteEmail.trim()} onClick={doSendPoolInvite}>{sendingPoolInvite?'Sending...':'Send invitation'}</button>
-        </div>
-      </React.Fragment>}
-      {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
-    </div>}
+        </React.Fragment>}
+        {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
+      </div>
+    </React.Fragment>}
+    {poolTab==='rules' && cfg.PLAYABLE && <div className="card"><h2>Rules</h2>{phaseIntro.rules}</div>}
+    {poolTab==='scoring' && cfg.PLAYABLE && <div className="card"><h2>Scoring</h2>{phaseIntro.scoring}</div>}
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
-      <div className="notice"><b>Season has not started.</b> Use the Members tab to invite your friends now. Predictions will open shortly after the first episodes drop.</div>
+      <div className="notice"><b>Season has not started.</b> Use the Standings tab to invite your friends now. Predictions will open shortly after the first episodes drop.</div>
       <button className="btn-secondary" onClick={refreshPool}>Check for season updates</button>
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <React.Fragment>
       <Stepper phase={phase} RULES={RULES}/>
       {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
-      {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><Panel title="Rules" defaultOpen>{phaseIntro.rules}</Panel><Panel title="Scoring">{phaseIntro.scoring}</Panel><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
+      {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
-        <div className="prediction-position" role="status"><span>Making predictions</span><strong>After Episode {w}</strong></div>
         {historicalPredictionDeadline!=null&&<div className="notice" style={{margin:'8px 0 14px'}}><b>Your last chance for {phase==='pods'?'Pod':'Wedding'} predictions is after Episode {historicalPredictionDeadline}.</b></div>}
-        <div className="card">
-          <Panel title="Rules">{phaseIntro.rules}</Panel>
-          <Panel title="Scoring">{phaseIntro.scoring}</Panel>
-        </div>
         <RevealSummary/>
         {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng} onPendingChange={setPendingPodsPrediction} pendingRef={pendingPodsSkip}/>} 
         {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
