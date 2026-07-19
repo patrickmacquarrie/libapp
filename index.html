@@ -1494,7 +1494,7 @@ function BrandHeader({season=null,children}) {
 }
 function Budget({phase,spent,RULES}) {
   const {budget}=RULES.phases[phase],left=budget-spent;
-  return <div style={{margin:'10px 0 4px'}}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div>{phase==='pods'&&<p className="subtle" style={{margin:'7px 0 0'}}>You do not have to spend all your hearts this episode. Hearts left over stay available for a later Pods prediction window while this phase is open.</p>}</div>;
+  return <div style={{margin:'10px 0 4px'}}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div></div>;
 }
 function Receipt({e,eng,meId,memberLabels={}}) {
   const {owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss');
@@ -1643,7 +1643,7 @@ function PodsBoard({w,picks,add,remove,spent,eng,onPendingChange,pendingRef}) {
       ? 'Resolved in Episode '+couple.engagedEp
       : 'Locked after Episode '+p.w+' · Against-the-Clock x'+fmt(leadM(w-p.w))+' if they propose next episode';
   };
-  return <div className="card"><h2>Making predictions</h2><p className="lede">Who gets engaged? Your bonus starts at ×1. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
+  return <div className="card"><h2>Making predictions</h2><p className="lede">Make predictions between episodes. YOU DO NOT HAVE TO SPEND ALL YOUR HEARTS THIS EPISODE. Remaining hearts will be usable for predictions between episodes all the way up until the Pods phase is complete.</p><Budget phase="pods" spent={spent} RULES={RULES}/>
     {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add btn-confirm" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
     {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
   </div>;
