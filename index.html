@@ -1696,7 +1696,7 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,PH_STARTW,REU_MULT,nameOf,fmt}=eng;
   const open=w===PH_STARTW.reunion;
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
-  const AC=[...MEN,...WOMEN].sort(alphaByName);
+  const AC=[...new Set(COUPLES.flatMap(c=>[c.him,c.her]))].sort(alphaByName);
   const married=COUPLES.filter(c=>c.wedding==='married').map(c=>c.id);
   const split=COUPLES.filter(c=>c.wedding!=='married').map(c=>c.id);
   const overlap=married.filter(id=>split.includes(id));
@@ -2355,9 +2355,7 @@ function App() {
       } else {
         message+='\n\n'+left+' unspent hearts will remain available for a later '+phaseLabel+' prediction window.';
       }
-    } else if(left===0) {
-      message+='\n\nYOU HAVE 0 HEARTS LEFT. You have used your full '+phaseLabel+' budget. If that was accidental, choose Keep editing and remove a prediction before locking.';
-    } else {
+    } else if(left>0) {
       message+='\n\n'+left+' unspent hearts will be lost.';
     }
     message+=range?'\n\nAfter locking, you can watch '+range+'.':'\n\nNo new episode is available yet. You can still lock now and return when the next batch drops.';
