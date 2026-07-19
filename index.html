@@ -137,10 +137,16 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .podium-place{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
 .podium-medal{height:20px;font-size:18px;line-height:1;margin-bottom:3px}
 .podium-name{width:100%;min-height:31px;display:flex;align-items:end;justify-content:center;color:var(--ink);font-size:10px;font-weight:800;line-height:1.2;overflow-wrap:anywhere;padding:0 2px 3px}
-.podium-step{width:100%;display:flex;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--gold) 42%,var(--line));border-bottom:none;background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 32%,var(--surface)),color-mix(in srgb,var(--gold) 16%,var(--surface)));color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:700}
+.podium-step{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,var(--gold) 42%,var(--line));border-bottom:none;background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 32%,var(--surface)),color-mix(in srgb,var(--gold) 16%,var(--surface)));color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:24px;font-weight:700}
+.podium-score{margin-top:1px;font-family:Inter,system-ui,sans-serif;font-size:10px;font-weight:800;letter-spacing:.03em;color:var(--muted)}
 .podium-place.first{order:2}.podium-place.second{order:1}.podium-place.third{order:3}.podium-place.first .podium-step{height:66px;border-radius:11px 11px 0 0;background:linear-gradient(180deg,color-mix(in srgb,var(--gold) 54%,var(--surface)),color-mix(in srgb,var(--gold) 24%,var(--surface)))}
 .podium-place.second .podium-step{height:46px;border-radius:11px 11px 0 0}.podium-place.third .podium-step{height:34px;border-radius:11px 11px 0 0}
 @keyframes trophy-bob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-3px) rotate(2deg)}}
+.score-trend{margin:20px 0 3px;padding-top:16px;border-top:1px solid var(--line)}
+.score-trend h3{margin-bottom:3px}.score-trend-note{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.4}
+.score-chart{display:block;width:100%;height:auto;overflow:visible}
+.score-chart-grid{stroke:var(--line);stroke-width:1}.score-chart-axis{fill:var(--soft-text);font:10px Inter,system-ui,sans-serif}.score-chart-phase{fill:var(--soft-text);font:700 9px Inter,system-ui,sans-serif;letter-spacing:.03em;text-transform:uppercase}.score-series{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.score-point{stroke:var(--card);stroke-width:2}
+.score-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 12px;margin-top:10px}.score-legend-item{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:11px;font-weight:700}.score-legend-swatch{width:18px;height:3px;border-radius:999px;flex:0 0 auto}.score-legend-total{color:var(--muted);font-weight:600}
 .gatecard{text-align:center}
 .crown{font-size:44px;line-height:1}
 .winner{font-family:'Playfair Display',serif;font-size:28px;color:var(--wine);margin:4px 0}
@@ -1654,6 +1660,40 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
 /* ================================================================== */
+function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName}) {
+  if (!phases.length || !ranked.length) return null;
+  const width=560, height=210, margin={top:18,right:12,bottom:40,left:42};
+  const plotWidth=width-margin.left-margin.right, plotHeight=height-margin.top-margin.bottom;
+  const scoreText=n=>String(+Number(n).toFixed(2));
+  const colourOrder=ranked.slice().sort();
+  const colourFor=id=>{
+    const index=colourOrder.indexOf(id);
+    return `hsl(${Math.round((332+index*137.508)%360)} 66% 53%)`;
+  };
+  const series=ranked.map(id=>{
+    let running=0;
+    const values=phases.map(ph=>{running+=phaseTotals[ph][id]||0;return running;});
+    return {id,name:playerName(id),values,color:colourFor(id)};
+  });
+  const max=Math.max(1,...series.flatMap(s=>s.values));
+  const x=index=>phases.length===1 ? margin.left+plotWidth/2 : margin.left+index*(plotWidth/(phases.length-1));
+  const y=value=>margin.top+plotHeight-(value/max)*plotHeight;
+  const linePath=values=>values.map((value,index)=>(index?'L':'M')+x(index).toFixed(1)+' '+y(value).toFixed(1)).join(' ');
+  const ticks=[0,0.5,1];
+  return <section className="score-trend" aria-labelledby="score-trend-title">
+    <h3 id="score-trend-title">Score by phase</h3>
+    <p className="score-trend-note">Cumulative points after each completed phase.</p>
+    <svg className="score-chart" viewBox={'0 0 '+width+' '+height} role="img" aria-label="Cumulative score by phase for each player">
+      <title>Score progression by phase</title>
+      <desc>{series.map(s=>s.name+' ends with '+scoreText(s.values[s.values.length-1])+' points').join('. ')}</desc>
+      {ticks.map(t=>{const value=max*t,py=y(value);return <g key={t}><line className="score-chart-grid" x1={margin.left} x2={width-margin.right} y1={py} y2={py}/><text className="score-chart-axis" x={margin.left-8} y={py+3} textAnchor="end">{scoreText(value)}</text></g>;})}
+      <text className="score-chart-axis" x="12" y={margin.top+plotHeight/2} transform={'rotate(-90 12 '+(margin.top+plotHeight/2)+')'} textAnchor="middle">Points</text>
+      {phases.map((phase,index)=><text className="score-chart-phase" key={phase} x={x(index)} y={height-12} textAnchor="middle">{RULES.phases[phase].label}</text>)}
+      {series.map(s=><g key={s.id}><path className="score-series" d={linePath(s.values)} style={{stroke:s.color}}/>{s.values.map((value,index)=><circle className="score-point" key={index} cx={x(index)} cy={y(value)} r="4" fill={s.color}><title>{s.name+', '+RULES.phases[phases[index]].label+': '+scoreText(value)+' points'}</title></circle>)}</g>)}
+    </svg>
+    <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
+  </section>;
+}
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[]}) {
   const {RULES,RESULTS_READY:resultsReady,scorePhase} = eng;
   const memberIds = Object.keys(playersById);
@@ -1711,10 +1751,11 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           {podium.map((id,index)=>{const place=index+1;return <div className={'podium-place '+(place===1?'first':place===2?'second':'third')} key={id}>
             <div className="podium-medal" aria-hidden="true">{place===1?'🥇':place===2?'🥈':'🥉'}</div>
             <div className="podium-name">{playerName(id)}</div>
-            <div className="podium-step" aria-label={'Place '+place}>{place}</div>
+            <div className="podium-step" aria-label={'Place '+place+', '+grandTotals[id]+' points'}><span>{place}</span><span className="podium-score">{grandTotals[id]} pts</span></div>
           </div>;})}
         </div>
       </section>}
+      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName}/>} 
       {scoredPhases.length>0 && <div className="lb"><table>
         <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':''}</th>)}<th>Total</th></tr></thead>
         <tbody>{ranked.map((id,index)=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&index===0?'champion':'')}>
