@@ -1909,12 +1909,18 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const phaseStatus = {};
   PH_ORDER.forEach(ph => {
     const sdoc = statusDocs[ph];
+    const solePlayerId=memberIds.length===1?memberIds[0]:null;
+    const solePlayer=solePlayerId?playersById[solePlayerId]:null;
+    // In a one-person pool, the player's completed/final state is conclusive.
+    // This also repairs older test pools whose phaseStatus document was saved
+    // before single-member reveals began setting `revealed` immediately.
+    const solePlayerDone=!!solePlayerId&&(solePlayer?.completed?.[ph]===true||solePlayer?.screen==='final');
     if (sdoc) {
-      const completedBy = memberIds.filter(id => (sdoc.completedMembers||[]).includes(id));
-      phaseStatus[ph] = { completedBy, allDone: !!sdoc.revealed && completedBy.length === memberIds.length };
+      const completedBy = memberIds.filter(id => (sdoc.completedMembers||[]).includes(id)||solePlayerDone);
+      phaseStatus[ph] = { completedBy, allDone: completedBy.length === memberIds.length && (!!sdoc.revealed||solePlayerDone) };
     } else {
       const completedBy = memberIds.filter(id => playersById[id].completed && playersById[id].completed[ph]);
-      phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && completedBy.length === memberIds.length };
+      phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && (completedBy.length === memberIds.length||solePlayerDone) };
     }
   });
   const reunionLockedMembers = memberIds.filter(id => {
@@ -2573,6 +2579,8 @@ function App() {
     setRetryingPhaseCompletion(true);
     try {
       await window._fb.completePhase(poolId,phaseId,uid);
+      const confirmedStatus=await window._fb.getPhaseStatus(poolId,phaseId);
+      if(confirmedStatus)setPoolStatus(current=>({...current,[phaseId]:confirmedStatus}));
       setPhaseCompletionError('');
       setErr(current=>current===message?'':current);
       return true;
