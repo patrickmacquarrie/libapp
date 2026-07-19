@@ -2280,6 +2280,7 @@ function App() {
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
   const readyWatchEnd=nextAvailableEnd();
+  const historicalPredictionDeadline=seasonForPool(activePool).historical&&rollingPhase?PH_SPAN[phase].endEp-1:null;
   const RevealSummary = () => reveal && <div className="card">
     <h2 style={{marginBottom:10}}>{reveal.rangeLabel||(phase==='reunion'?'The Reunion':'Episode '+reveal.ep)}</h2>
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
@@ -2341,6 +2342,7 @@ function App() {
       {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><Panel title="Rules" defaultOpen>{phaseIntro.rules}</Panel><Panel title="Scoring">{phaseIntro.scoring}</Panel><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
         <div className="prediction-position" role="status"><span>Making predictions</span><strong>After Episode {w}</strong></div>
+        {historicalPredictionDeadline!=null&&<div className="notice" style={{margin:'8px 0 14px'}}><b>Your last chance for {phase==='pods'?'Pod':'Wedding'} predictions is after Episode {historicalPredictionDeadline}.</b></div>}
         <div className="card">
           <Panel title="Rules">{phaseIntro.rules}</Panel>
           <Panel title="Scoring">{phaseIntro.scoring}</Panel>
