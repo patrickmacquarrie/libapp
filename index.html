@@ -366,6 +366,15 @@ window._fb = {
     const revealed = poolSnap.data().members.every(member=>completedMembers.includes(member));
     tx.set(statusRef,{completedMembers,revealed,updatedAt:Date.now()},{merge:true});
   }),
+  reopenPhase: async (poolId, phase, uid) => runTransaction(db, async tx => {
+    const poolRef = doc(db,'pools',poolId);
+    const statusRef = doc(db,'pools',poolId,'phaseStatus',phase);
+    const [poolSnap,statusSnap] = await Promise.all([tx.get(poolRef),tx.get(statusRef)]);
+    if (!poolSnap.exists() || !poolSnap.data().members.includes(uid)) throw new Error('You are not a member of this pool.');
+    if (!statusSnap.exists() || statusSnap.data().revealed) throw new Error('This phase has already been revealed and cannot be reopened.');
+    const completedMembers = (statusSnap.data().completedMembers||[]).filter(id=>id!==uid);
+    tx.set(statusRef,{completedMembers,revealed:false,updatedAt:Date.now()},{merge:true});
+  }),
   loadAllPlayers: async (poolId, currentUid) => {
     const toPlayer = d => {
       const {picks:legacyPicks={},...publicState}=d.data();
@@ -461,7 +470,7 @@ const SEASON_BANK = [
     locationLabel:'Chicago',
     sheetId:'1-SJO24oReCScG694LG_AttWeuAJcEOUo6jUBkatX3wc',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-3',
@@ -971,6 +980,13 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live'));
   const playable = castReady && seasonStatus!=='comingSoon';
   const boundariesLive = boolSetting('BOUNDARIES_LIVE',false);
+  const boundariesFinalDefault = seasonStatus==='completed';
+  const boundariesFinal = {
+    pods:boolSetting('PODS_BOUNDARY_FINAL',boundariesFinalDefault),
+    dating:boolSetting('DATING_BOUNDARY_FINAL',boundariesFinalDefault),
+    weddings:boolSetting('WEDDINGS_BOUNDARY_FINAL',boundariesFinalDefault),
+    reunion:boolSetting('REUNION_BOUNDARY_FINAL',boundariesFinalDefault),
+  };
   const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
   const resultsReadyDefault = seasonStatus==='completed';
   const resultsReady = {
@@ -1109,7 +1125,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='lifeupdate') { if(marker) RR.ready.lifeUpdate=true; else if(id&&val) RR.lifeUpdates.push({person:id,update:normalizeLifeUpdate(val)}); }
     else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
   });
-  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
+  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -1130,6 +1146,7 @@ const PH_ORDER  = ['pods','dating','weddings','reunion'];
 let PH_SPAN   = {pods:{endEp:6},dating:{endEp:9},weddings:{endEp:12},reunion:{endEp:13}};
 let PH_STARTW = {pods:1,dating:6,weddings:9,reunion:12};
 let AVAILABLE_THROUGH_EP = 13;
+let BOUNDARIES_FINAL = {pods:true,dating:true,weddings:true,reunion:true};
 let RESULTS_READY = {pods:true,dating:true,weddings:true,reunion:true};
 const NEXT_PH   = {pods:'dating',dating:'weddings',weddings:'reunion',reunion:null};
 const freshPicks = () => ({pods:[],dating:[],weddings:[],reunion:[]});
@@ -1138,6 +1155,7 @@ const applyRuntimeConfig = cfg => {
   PH_SPAN=cfg.PH_SPAN||PH_SPAN;
   PH_STARTW=cfg.PH_STARTW||PH_STARTW;
   AVAILABLE_THROUGH_EP=Number.isFinite(cfg.AVAILABLE_THROUGH_EP)?cfg.AVAILABLE_THROUGH_EP:AVAILABLE_THROUGH_EP;
+  BOUNDARIES_FINAL=cfg.BOUNDARIES_FINAL||BOUNDARIES_FINAL;
   RESULTS_READY=cfg.RESULTS_READY||RESULTS_READY;
   WED_MULT=cfg.WED_MULT||WED_MULT;
   REU_MULT=cfg.REU_MULT||REU_MULT;
@@ -1910,12 +1928,27 @@ function App() {
       ]);
       setPoolPlayers(players); setPoolUsers(users); setPoolStatus(status); setPendingPoolInvites(pending);
       // Load my state
-      const mine = players[user.uid];
+      let mine = players[user.uid];
       if (mine) {
-        setPicks(normalizePicks(mine.picks));
-        setPhase(mine.phase || 'pods');
-        setScreen(mine.screen || 'intro');
         const minePhase=mine.phase||'pods';
+        const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
+          poolCfg.BOUNDARIES_FINAL?.[minePhase]===false &&
+          mine.completed?.[minePhase]===true && mine.screen==='close' &&
+          status[minePhase] && !status[minePhase].revealed;
+        if (wasProvisionalCompletion) {
+          // Repair players who reached an old live-season boundary before it
+          // was finalized. Their picks stay intact, but the phase is reopened.
+          const reopenedCompleted={...(mine.completed||{})};
+          delete reopenedCompleted[minePhase];
+          await window._fb.reopenPhase(pool.id,minePhase,user.uid);
+          await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted});
+          mine={...mine,screen:'watch',completed:reopenedCompleted};
+          players[user.uid]=mine;
+          status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid),revealed:false};
+        }
+        setPicks(normalizePicks(mine.picks));
+        setPhase(minePhase);
+        setScreen(mine.screen || 'intro');
         setW(mine.w != null ? mine.w : (minePhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[minePhase]));
         setWatchThrough(Number.isFinite(mine.watchThrough)?mine.watchThrough:(mine.w||0));
         setCompleted(mine.completed || {});
@@ -2128,14 +2161,28 @@ function App() {
       for(let ep=start;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(phase,ep,{[user.uid]:picks[phase]}));
       const combined={events:rangeResults.flatMap(r=>r.events),entries:rangeResults.flatMap(r=>r.entries)};
       const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
-      const nextScreen=target>=endEp?'close':(rollingPhase?'board':'watch');
-      const nc=target>=endEp?{...completed,[phase]:true}:completed;
-      const closing=target>=endEp?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
+      const canClose=target>=endEp&&BOUNDARIES_FINAL[phase]!==false;
+      const atProvisionalBoundary=target>=endEp&&!canClose;
+      const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(rollingPhase?'board':'watch'));
+      const nc=canClose?{...completed,[phase]:true}:completed;
+      const closing=canClose?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
       await savePlayer({picks,phase,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:watchRangeLabel(phase,start,target),...pendified});
-      setScreen(nextScreen);setCompleted(nc);setCloseInfo(target>=endEp?{closing}:null);
-      if(target>=endEp) await registerPhaseCompletion(activePool.id,phase,user.uid);
+      setScreen(nextScreen);setCompleted(nc);setCloseInfo(canClose?{closing}:null);
+      if(canClose) await registerPhaseCompletion(activePool.id,phase,user.uid);
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
+    finally { setGating(false); }
+  };
+  const finalizeCaughtUpPhase = async () => {
+    if(gating||completed[phase]||BOUNDARIES_FINAL[phase]===false||w<PH_SPAN[phase].endEp) return;
+    setGating(true);
+    try {
+      const nc={...completed,[phase]:true};
+      const closing=eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]});
+      await savePlayer({picks,phase,screen:'close',w,watchThrough:w,completed:nc},true);
+      setCompleted(nc);setScreen('close');setReveal(null);setCloseInfo({closing});
+      await registerPhaseCompletion(activePool.id,phase,user.uid);
+    } catch(e) { setErr('This phase could not be finalized. Please refresh and try again.'); }
     finally { setGating(false); }
   };
   const openNextPhase = async () => {
@@ -2372,8 +2419,11 @@ function App() {
           <p className="lede">A new episode batch is ready. Your predictions remain locked.</p>
           <button className="btn-primary" disabled={gating} onClick={beginNextBatch}>Watch {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
         </React.Fragment>:<React.Fragment>
-          <p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Return after the next episode batch drops.</p>
-          <button className="btn-secondary" onClick={refreshPool}>Refresh season data</button>
+          {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
+            ? <React.Fragment><p className="lede">The {RULES.phases[phase].label} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {RULES.phases[phase].label} →</button></React.Fragment>
+            : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
+              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {RULES.phases[phase].label} boundary is finalized.</p><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>
+              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Return after the next episode batch drops.</p><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>}
         </React.Fragment>}
       </div>}
       {screen==='close'&&closeInfo&&<React.Fragment>
