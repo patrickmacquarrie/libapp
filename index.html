@@ -2344,12 +2344,12 @@ function App() {
     const left=RULES.phases[phase].budget-spent;
     const phaseLabel=RULES.phases[phase].label;
     let message='Your current predictions will be locked and cannot be changed.';
-    if(rollingPhase&&left===0) {
-      message+='\n\nYOU HAVE 0 HEARTS LEFT. You have used your full '+phaseLabel+' budget'+(finalPredictionWindow?'.':', so no hearts will remain for later '+phaseLabel+' prediction windows.')+' If that was accidental, choose Keep editing and remove a prediction before locking.';
-    } else if(rollingPhase&&finalPredictionWindow) {
+    if(rollingPhase&&finalPredictionWindow&&left>0) {
       message+='\n\nTHIS IS YOUR FINAL OPPORTUNITY TO USE THESE HEARTS.';
       message+='\n\n'+left+' unspent hearts will be lost when the '+phaseLabel+' phase closes.';
-    } else if(rollingPhase) {
+    } else if(rollingPhase&&!finalPredictionWindow&&left===0) {
+      message+='\n\nYOU HAVE 0 HEARTS LEFT. You have used your full '+phaseLabel+' budget, so no hearts will remain for later '+phaseLabel+' prediction windows. If that was accidental, choose Keep editing and remove a prediction before locking.';
+    } else if(rollingPhase&&!finalPredictionWindow) {
       message+='\n\n'+left+' unspent hearts will remain available for a later '+phaseLabel+' prediction window.';
     } else if(left===0) {
       message+='\n\nYOU HAVE 0 HEARTS LEFT. You have used your full '+phaseLabel+' budget. If that was accidental, choose Keep editing and remove a prediction before locking.';
