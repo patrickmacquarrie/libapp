@@ -1095,16 +1095,16 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   }
   const RR = {
     still:{}, back:{}, newCouples:[], lifeUpdates:[], absent:[],
-    ready:{still:false,back:false,newCouple:false,lifeUpdate:false,absent:false},
-    placeholders:true,
+    // Reunion results are finalized from the sheet contents: a missing
+    // outcome means the corresponding prediction is incorrect.
+    ready:{still:true,back:true,newCouple:true,lifeUpdate:true,absent:true},
+    placeholders:false,
   };
-  let hasRR = false;
   toObjects(reunionR).forEach(r=>{
     const mkt=r.market?.toLowerCase(), id=r.couple_person_id_or_name, val=r.value;
     if(!mkt) return;
-    hasRR=true;
-    // A COMPLETE, FINAL, or NONE marker closes only this market. Until then,
-    // confirmed winners can score but unmatched predictions remain pending.
+    // COMPLETE, FINAL, and NONE remain accepted for backwards compatibility,
+    // but missing rows are now treated as failed outcomes rather than pending.
     const marker=[id,val].some(v=>['COMPLETE','FINAL','NONE'].includes(String(v||'').trim().toUpperCase()));
     if(mkt==='still') { if(marker) RR.ready.still=true; else if(id) RR.still[id]=pBool(val); }
     else if(mkt==='back') { if(marker) RR.ready.back=true; else if(id&&(!val||pBool(val))) RR.back[id]=true; }
@@ -1112,7 +1112,6 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='lifeupdate') { if(marker) RR.ready.lifeUpdate=true; else if(id&&val) RR.lifeUpdates.push({person:id,update:normalizeLifeUpdate(val)}); }
     else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
   });
-  RR.placeholders=!hasRR;
   return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
