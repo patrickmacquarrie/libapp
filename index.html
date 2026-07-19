@@ -891,9 +891,10 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     saysNo:numSetting('WEDDINGS_SAYS_NO_MULT',DEFAULT_WED_MULT.saysNo),
     calledOff:numSetting('WEDDINGS_CALLED_OFF_MULT',DEFAULT_WED_MULT.calledOff),
   };
+  const datingEndEp = numSetting('DATING_END_EP',9,true);
   const phaseSpan = {
     pods:{endEp:numSetting('PODS_END_EP',6,true)},
-    dating:{endEp:numSetting('DATING_END_EP',9,true)},
+    dating:{endEp:datingEndEp,retreatEndEp:numSetting('RETREAT_END_EP',datingEndEp,true)},
     weddings:{endEp:numSetting('WEDDINGS_END_EP',12,true)},
     reunion:{endEp:numSetting('REUNION_END_EP',13,true)},
   };
@@ -923,6 +924,12 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
         `${ph.toUpperCase()}_START_EP (${phaseStart[ph]}).`
       );
     }
+  }
+  if (phaseSpan.dating.retreatEndEp <= phaseStart.dating || phaseSpan.dating.retreatEndEp > phaseSpan.dating.endEp) {
+    throw new Error(
+      `Season config error: RETREAT_END_EP (${phaseSpan.dating.retreatEndEp}) must be greater than ` +
+      `DATING_START_EP (${phaseStart.dating}) and no later than DATING_END_EP (${phaseSpan.dating.endEp}).`
+    );
   }
   const castO = toObjects(castR);
   const CAST  = castO.filter(r=>r.name).map(r=>({
@@ -1018,6 +1025,20 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
       `an episode outside ${phaseStart.dating+1}..${phaseSpan.reunion.endEp} ` +
       `(${invalidDatingRows.map(r=>`${r.market||'unknown'}:${r.couple_id||'unknown'}=${r.episode||'missing'}`).join(', ')}). ` +
       `Correct the episode column so every result falls within the Dating phase.`
+    );
+  }
+  const outsideRetreatRows=datingRows.filter(r=>{
+    const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
+    if(String(r.market||'').trim().toLowerCase()!=='sex'||marker) return false;
+    const ep=Number.parseInt(r.episode,10);
+    return Number.isFinite(ep)&&ep>phaseSpan.dating.retreatEndEp;
+  });
+  if(outsideRetreatRows.length) {
+    throw new Error(
+      `Season data invalid: ${outsideRetreatRows.length} Sleep together result${outsideRetreatRows.length===1?' is':'s are'} ` +
+      `outside the retreat window (Episodes ${phaseStart.dating+1}..${phaseSpan.dating.retreatEndEp}: ` +
+      `${outsideRetreatRows.map(r=>`${r.couple_id||'unknown'}=${r.episode}`).join(', ')}). ` +
+      `Correct the episode or update RETREAT_END_EP in Settings.`
     );
   }
   datingRows.forEach(r=>{
@@ -1116,6 +1137,8 @@ function makeEngine(cfg, poolSize) {
   const WEDDING_MULT=cfg.WED_MULT||WED_MULT, REUNION_MULT=cfg.REU_MULT||REU_MULT;
   const BREAKUP_MULT=Number.isFinite(cfg.RACE_MULT)?cfg.RACE_MULT:RACE_MULT;
   const PHASE_RESULTS_READY=cfg.RESULTS_READY||RESULTS_READY;
+  const RETREAT_END_EP=Number.isFinite(cfg.PH_SPAN?.dating?.retreatEndEp)?cfg.PH_SPAN.dating.retreatEndEp:PH_SPAN.dating.endEp;
+  const retreatClosed=Number.isFinite(cfg.AVAILABLE_THROUGH_EP)&&cfg.AVAILABLE_THROUGH_EP>=RETREAT_END_EP;
   const POOL = Math.max(poolSize, 1);
   const byId    = Object.fromEntries(COUPLES.map(c=>[c.id,c]));
   const personKey = value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -1170,9 +1193,9 @@ function makeEngine(cfg, poolSize) {
       });
     }
     if(phase==='dating') {
-      Object.entries(DATING_RESULTS.sex).filter(([,r])=>r.ep===ep).forEach(([id,r])=>{
+      Object.entries(DATING_RESULTS.sex).filter(([,r])=>r.ep===ep&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
         const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='sex'&&p.c===id)).length;
-        events.push({title:'Sleep together: '+nameOf(id)+' (referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!r.confirmed});
+        events.push({title:'Sleep together: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Prediction popularity will be revealed when everyone completes the Dating phase.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='sex'&&p.c===id).forEach(p=>{
           entries.push(mk({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:1,multLabel:'x1 base',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
         }));
@@ -1293,7 +1316,10 @@ function makeEngine(cfg, poolSize) {
         else if(!r.confirmed&&PHASE_RESULTS_READY.dating) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No confirmed result before Dating results were finalized.'}));
         else if(!r.confirmed&&p.c!==r.coupleId) entries.push(mk({member:m,phase,ok:false,pending:true,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Awaiting a confirmed result.'}));
       }
-      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,pending:!PHASE_RESULTS_READY.dating,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:PHASE_RESULTS_READY.dating?'Never referenced on camera.':'Still possible later in the season.'}));
+      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) {
+        const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
+        entries.push(mk({member:m,phase,ok:false,pending,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:pending?'Still possible during the retreat.':'Not referenced on camera during the retreat.'}));
+      }
       if(p.m==='criticize'&&!DATING_RESULTS.criticize[p.c]) entries.push(mk({member:m,phase,ok:false,pending:!PHASE_RESULTS_READY.dating,label:nameOf(p.c)+' - criticized the place',stake:p.s,note:PHASE_RESULTS_READY.dating?'Never happened on camera.':'Still possible later in the season.'}));
     }));
     return entries;
@@ -1460,7 +1486,7 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   return <div className="card"><h2>{open?'Make your Dating predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">Everyone makes their Dating predictions at the same time{open?' - lock them before watching the next available episode or episode batch.':'.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
     {open&&<React.Fragment>
     <div className="mkt-title"><h3>Who is the first to break up?</h3><span className="multpill">x{fmt(RACE_MULT)}</span></div>{breakupPick?<p className="subtle">You have made this single-choice prediction. Remove it below to choose a different couple.</p>:<div className="row"><Sel label="Couple" value={rC} onChange={setRC} options={opt(rO)}/><StakeSlider value={rS} onChange={setRS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!rC||left<5} onClick={()=>{add({m:'breakup',c:rC,s:Math.min(rS,maxS),w});setRC('');}}>Add prediction</button></div>}
-    <hr className="divider"/><div className="mkt-title"><h3>Who sleeps together?</h3><span className="multpill">x1</span></div><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add prediction</button></div>
+    <hr className="divider"/><div className="mkt-title"><h3>Who sleeps together?</h3><span className="multpill">x1</span></div><p className="subtle">Only moments referenced on camera during the retreat count.</p><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add prediction</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Who criticizes their partner's living situation?</h3><span className="multpill">+{fmt(RULES.WHO_TAG*100)}% bonus</span></div><div className="row"><Sel label="Couple" value={cC} onChange={v=>{setCC(v);setCW('');}} options={opt(cO)}/><Sel label="Who criticizes?" value={cW} onChange={setCW} options={cC?[{v:'him',t:membOf(cC)[0]},{v:'her',t:membOf(cC)[1]}]:[]}/></div><div className="row"><StakeSlider value={cS} onChange={setCS} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cC||!cW||left<5} onClick={()=>{add({m:'criticize',c:cC,who:cW,s:Math.min(cS,maxS),w});setCC('');setCW('');}}>Add prediction</button></div>
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {ml(p)} - {p.s}♥</div><div className="subtle">{open?'editable until you start Episode '+(w+1):'locked'}</div></div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
@@ -1483,7 +1509,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng}) {
     {open&&<React.Fragment>
     <div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setAnswer('');setWhen('');setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Do they get married?" value={answer} onChange={v=>{setAnswer(v);setWhen('');setWhoT('');}} options={[{v:'yes',t:'Yes (x'+fmt(WED_MULT.married)+')'},{v:'no',t:'No'}]}/></div>
     {answer==='no'&&cid&&<React.Fragment><div className="row"><Sel label="When?" value={when} onChange={setWhen} options={[{v:'before',t:'Before the altar (x'+fmt(WED_MULT.calledOff)+')'},{v:'altar',t:'At the altar (x'+fmt(WED_MULT.saysNo)+')'}]}/><Sel label="Who ends it?" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]}]}/></div></React.Fragment>}
-    <div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cid||!answer||left<5||(answer==='no'&&(!when||!whoT))} onClick={()=>{add({c:cid,o:outcome,who:answer==='no'?whoT:undefined,s:Math.min(stake,maxS),w});setCid('');setAnswer('');setWhen('');setWhoT('');}}>Add prediction</button></div>
+    <div className="row"><StakeSlider value={stake} onChange={setStake} max={Math.max(5,maxS)}/><button className="btn-add" disabled={!cid||!answer||left<5||(answer==='no'&&(!when||!whoT))} onClick={()=>{add({c:cid,o:outcome,...(answer==='no'?{who:whoT}:{}),s:Math.min(stake,maxS),w});setCid('');setAnswer('');setWhen('');setWhoT('');}}>Add prediction</button></div>
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{open&&pickWindow(p)===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
 }
@@ -1556,7 +1582,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       <h2>Standings</h2>
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
-      {datingProvisional&&<div className="notice"><b>Dating scores are provisional.</b> Confirmed results score now; pending predictions can still resolve during Weddings or Reunion. Remaining predictions finalize when DATING_RESULTS_READY is marked TRUE.</div>}
+      {datingProvisional&&<div className="notice"><b>Dating scores are provisional.</b> Sleep together predictions close when the retreat ends. Pending breakup and living-situation predictions can still resolve during Weddings or Reunion, then finalize when DATING_RESULTS_READY is marked TRUE.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
       {scoredPhases.length>0 && <div className="lb"><table>
         <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':''}</th>)}<th>Total</th></tr></thead>
@@ -1619,7 +1645,7 @@ function PH_INTRO(phase,RULES,cfg) {
   const maxWeddingClock=cfg.weddingLeadM(cfg.PH_SPAN.weddings.endEp-cfg.PH_STARTW.weddings-1);
   const copy={
     pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You get {RULES.phases.pods.budget} hearts that you can spend during the Pods phase.</li><li>You lose any hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on. This season's maximum is ×{cfg.fmt(maxPodsClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more when fewer active players make the same prediction. Only players who make at least one prediction in the phase are included. The final bonus is calculated automatically after the phase closes.</p><p><b>Example:</b> Wager 20 hearts, predict an engagement two episodes early (×2), and be the only player to predict them (roughly ×2): 20 × 2 × 2 = 80 points.</p></div>},
-    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who is the first to break up?</b> Choose one couple.</li><li><b>Who sleeps together?</b> You may choose multiple couples; the moment must be referenced on camera.</li><li><b>Who criticizes their partner's living situation?</b> You may choose multiple couples.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>Confirmed results score after everyone finishes Dating. Unresolved predictions stay pending and may resolve during later phases.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>Confirmed Dating results score once everyone completes the phase. Pending predictions remain open through Weddings and Reunion, so the provisional Dating total may increase later. Mark DATING_RESULTS_READY true at season close to finalize all remaining predictions.</p><p>There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
+    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who is the first to break up?</b> Choose one couple.</li><li><b>Who sleeps together?</b> You may choose multiple couples; only moments referenced on camera during the retreat count.</li><li><b>Who criticizes their partner's living situation?</b> You may choose multiple couples.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>Sleep together predictions close at the end of the retreat. Unresolved breakup and living-situation predictions may resolve during later phases.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>Confirmed Dating results score once everyone completes the phase. Sleep together predictions finalize when the retreat ends. Pending breakup and living-situation predictions remain open through Weddings and Reunion, so the provisional Dating total may increase later. Mark DATING_RESULTS_READY true at season close to finalize those remaining predictions.</p><p>There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
     weddings:{tagline:'Predict each couple’s outcome between episodes. Earlier predictions earn a larger bonus while the outcome remains unresolved.',rules:<ul><li>You get {RULES.phases.weddings.budget} hearts that you can spend throughout the Weddings phase.</li><li>You may add predictions between episodes. Once you watch the next episode, those predictions are locked.</li><li>Predictions are optional, but each couple can be predicted only once.</li><li>Predict whether a couple marries, says no at the altar, or calls it off before the altar.</li><li>Whenever you predict no, choose who ends it for an optional bonus. The bonus applies whether it happens before or at the altar, provided the outcome occurs after your prediction.</li><li>Earlier correct predictions earn a larger Against-the-Clock Bonus.</li><li>Unspent hearts are lost when Weddings closes and never carry into another phase.</li></ul>,scoring:<div><p><b>Points = hearts wagered × outcome multiplier × Against-the-Clock Bonus × Against-the-Grain Bonus × optional who-ends-it bonus.</b></p><p><b>Outcome:</b> Gets married pays ×{cfg.fmt(cfg.WED_MULT.married)}. Says no at the altar pays ×{cfg.fmt(cfg.WED_MULT.saysNo)}. Called off before the altar pays ×{cfg.fmt(cfg.WED_MULT.calledOff)}.</p><p><b>Against-the-Clock:</b> Starts at ×1 immediately before the outcome, adds {cfg.fmt((Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*100)}% for every full episode of foresight, and is capped at ×{cfg.fmt(maxWeddingClock)} for this season.</p><p><b>Who ends it:</b> Correctly naming the person adds {cfg.fmt(RULES.WHO_TAG*100)}% for either a pre-altar or altar outcome, provided it happens after the prediction was made. The outcome still scores if the person is wrong.</p><p><b>Against-the-Grain:</b> Less-common correct outcomes earn more after the phase closes.</p></div>},
     reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} hearts that you can spend during the Reunion phase.</li><li>You lose any hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Still together pays ×{cfg.fmt(cfg.REU_MULT.still)}. Back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}. New couple pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}. Major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
   };
