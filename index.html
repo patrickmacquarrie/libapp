@@ -109,6 +109,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .receipt{border-left:3px solid var(--gold);background:#fffaf1;padding:10px 13px;border-radius:0 10px 10px 0;margin:8px 0;font-variant-numeric:tabular-nums}
 .receipt.miss{border-left-color:#dcb9c1;background:#fbf1f3}
 .receipt.pending{border-left-color:#b9a7dc;background:#f6f3fb}
+.receipt.retro{border-left-color:#7b2ee5;background:#f7f1ff}
 .receipt .who{font-weight:700;font-size:14px}
 .receipt .pts{float:right;font-family:'Playfair Display',serif;font-size:19px;color:var(--wine)}
 .receipt.miss .pts{color:var(--miss);font-size:15px}
@@ -259,6 +260,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-small.filled{background:#e78cab;color:#241019;border-color:#e78cab}
 :root[data-theme="dark"] .btn-secondary:hover,:root[data-theme="dark"] .btn-how:hover,:root[data-theme="dark"] .btn-signout:hover{background:#3a1b29}
 :root[data-theme="dark"] .receipt{background:#2b2118}:root[data-theme="dark"] .receipt.miss{background:#301820}:root[data-theme="dark"] .receipt.pending{background:#261d34}
+:root[data-theme="dark"] .receipt.retro{background:#241a32}
 :root[data-theme="dark"] .evt{background:linear-gradient(180deg,#2b1621,#211019)}
 :root[data-theme="dark"] .champion-ceremony{background:linear-gradient(135deg,#3a2e18,#301722 58%,#3a1b29)}
 :root[data-theme="dark"] .notice{background:#2b2416;color:#efdca3;border-color:#796938}
@@ -443,17 +445,20 @@ window._fb = {
           pickSnap.docs.forEach(d=>{ const v=d.data(); if(players[v.uid]) players[v.uid].picks[phase]=Array.isArray(v.picks)?v.picks:[]; });
         } else if (phase==='reunion') {
           // Reunion scores can be shown as soon as an individual player locks.
-          // Load only locked players' picks; unlocked predictions remain hidden
-          // until the whole phase is revealed.
-          const lockedUids = Object.entries(players)
+          // Other locked players' picks are readable only after the viewer has
+          // locked too. Until then, fetch the viewer's own pick document only.
+          const viewer=players[currentUid]||{};
+          const viewerLocked=!!currentUid&&(phaseStatusData?.completedMembers?.includes(currentUid) ||
+            (viewer.phase==='reunion'&&['watch','close','final'].includes(viewer.screen)));
+          const pickUids=viewerLocked?Object.entries(players)
             .filter(([uid,p]) => phaseStatusData?.completedMembers?.includes(uid) ||
               (p.phase==='reunion' && ['watch','close','final'].includes(p.screen)))
-            .map(([uid])=>uid);
-          await Promise.all(lockedUids.map(async uid => {
+            .map(([uid])=>uid):(currentUid?[currentUid]:[]);
+          await Promise.all(pickUids.map(async uid => {
             try {
               const lockedPick = await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
               if (lockedPick.exists() && players[uid]) players[uid].picks[phase]=Array.isArray(lockedPick.data().picks)?lockedPick.data().picks:[];
-            } catch (e) { console.warn('A locked Reunion prediction could not be loaded yet.', e); }
+            } catch (e) { console.warn('A Reunion prediction could not be loaded yet.', e); }
           }));
         } else if (currentUid && players[currentUid]) {
           const own = await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+currentUid));
@@ -492,7 +497,7 @@ const SEASON_BANK = [
     countryCode:'UK',
     seasonNumber:3,
     locationLabel:null,
-    status:'upcoming',
+    status:'live',
     releaseLabel:'Coming August 2026',
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
     historical:false,
@@ -954,9 +959,13 @@ const alphaByName = (a,b) => String(a).localeCompare(String(b),undefined,{sensit
 async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const season=seasonById(seasonId);
   if(!season?.available||!season.sheetId) throw new Error('This season is not available yet.');
-  const [castR, couplesR, datingR, reunionR, settR] = await Promise.all([
+  const retroPromise=fetchTab('Retro Events',season.sheetId).catch(e=>{
+    console.info('No Retro Events tab is available for this season.',e);
+    return [];
+  });
+  const [castR, couplesR, datingR, reunionR, settR, retroR] = await Promise.all([
     fetchTab('Cast',season.sheetId), fetchTab('Couples',season.sheetId), fetchTab('Dating Results',season.sheetId),
-    fetchTab('Reunion Results',season.sheetId), fetchTab('Settings',season.sheetId),
+    fetchTab('Reunion Results',season.sheetId), fetchTab('Settings',season.sheetId), retroPromise,
   ]);
   const S = Object.fromEntries(toObjects(settR).map(r => [r.key, r.value]));
   const numSetting = (key, fallback, integer=false) => {
@@ -1209,7 +1218,57 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='lifeupdate') { if(marker) RR.ready.lifeUpdate=true; else if(id&&val) RR.lifeUpdates.push({person:id,update:normalizeLifeUpdate(val)}); }
     else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
   });
-  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
+  const retroMarkets=['sex','flirt','breakup','still','void'];
+  const voidMarkets=['pods','weddings','sex','flirt','breakup'];
+  const retroPersonKey=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
+  const castNames=new Set(CAST.map(person=>retroPersonKey(person.name)));
+  const coupleIds=new Set(COUPLES.map(c=>c.id));
+  const revealingPhaseForEpisode=ep=>ORDER.find(ph=>ep>phaseStart[ph]&&ep<=(ph==='dating'?phaseSpan.dating.retreatEndEp:phaseSpan[ph].endEp));
+  const RETRO_EVENTS=toObjects(retroR).map((r,index)=>{
+    const market=String(r.market||'').trim().toLowerCase();
+    const target=String(r.target||'').trim();
+    const voidMarket=String(r.void_market||'').trim().toLowerCase();
+    const appliesPhase=String(r.applies_phase||'').trim().toLowerCase();
+    const revealedEp=Number.parseInt(r.revealed_ep,10);
+    const note=String(r.note||'').trim();
+    if(!retroMarkets.includes(market)) {
+      throw new Error(`Season data invalid: Retro Events row ${index+2} has unsupported market "${r.market||'missing'}". Use sex, flirt, breakup, still, or void.`);
+    }
+    if(!PH_ORDER.includes(appliesPhase)) {
+      throw new Error(`Season data invalid: Retro Events row ${index+2} has invalid applies_phase "${r.applies_phase||'missing'}". Use pods, dating, weddings, or reunion.`);
+    }
+    if(['sex','flirt','breakup'].includes(market)&&appliesPhase!=='dating') {
+      throw new Error(`Season data invalid: Retro Events ${market} rows must use dating in applies_phase (row ${index+2}).`);
+    }
+    if(market==='void'&&!voidMarkets.includes(voidMarket)) {
+      throw new Error(`Season data invalid: Retro Events void row ${index+2} requires void_market pods, weddings, sex, flirt, or breakup.`);
+    }
+    const personTarget=market==='flirt'||(market==='void'&&voidMarket==='flirt');
+    if(!target||(personTarget?!castNames.has(retroPersonKey(target)):!coupleIds.has(target))) {
+      throw new Error(`Season data invalid: Retro Events row ${index+2} target "${target||'missing'}" is not valid. Use an exact Cast name for flirt, or an exact Couples id for couple markets.`);
+    }
+    const scoringEnd=appliesPhase==='dating'?phaseSpan.dating.retreatEndEp:phaseSpan[appliesPhase].endEp;
+    if(!Number.isFinite(revealedEp)||revealedEp<=scoringEnd) {
+      throw new Error(`Season data invalid: Retro Events row ${index+2} revealed_ep must be later than the ${RULES.phases[appliesPhase].label} scoring end (Episode ${scoringEnd}).`);
+    }
+    const revealingPhase=revealingPhaseForEpisode(revealedEp);
+    if(!revealingPhase) {
+      throw new Error(`Season data invalid: Retro Events row ${index+2} revealed_ep ${r.revealed_ep||'missing'} falls outside every configured phase.`);
+    }
+    if(!note) {
+      throw new Error(`Season data invalid: Retro Events row ${index+2} is missing its required note.`);
+    }
+    if(['sex','flirt','breakup'].includes(market)) {
+      const duplicate=market==='flirt'
+        ? Object.keys(DATING_RESULTS.flirt).some(person=>retroPersonKey(person)===retroPersonKey(target))
+        : Object.prototype.hasOwnProperty.call(DATING_RESULTS[market],target);
+      if(duplicate) {
+        throw new Error(`Season data invalid: Retro Events row ${index+2} duplicates the existing Dating Results ${market} result for ${target}. Keep the result in only one tab.`);
+      }
+    }
+    return {id:'retro-'+(index+1),market,target,voidMarket,appliesPhase,revealedEp,note,confirmed:pBool(r.confirmed),revealingPhase};
+  });
+  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -1254,12 +1313,12 @@ const configForPool = (liveCfg,pool) => {
   const frozen=pool?.rulesSnapshot;
   if(!frozen) return liveCfg;
   const useLiveBoundaries=liveCfg.BOUNDARIES_LIVE===true;
-  return {...liveCfg,RULES:frozen.RULES||liveCfg.RULES,PH_SPAN:useLiveBoundaries?liveCfg.PH_SPAN:(frozen.PH_SPAN||liveCfg.PH_SPAN),PH_STARTW:useLiveBoundaries?liveCfg.PH_STARTW:(frozen.PH_STARTW||liveCfg.PH_STARTW),WED_MULT:frozen.WED_MULT||WED_MULT,REU_MULT:frozen.REU_MULT||REU_MULT,RACE_MULT:Number.isFinite(frozen.RACE_MULT)?frozen.RACE_MULT:RACE_MULT};
+  return {...liveCfg,RULES:frozen.RULES||liveCfg.RULES,PH_SPAN:useLiveBoundaries?liveCfg.PH_SPAN:(frozen.PH_SPAN||liveCfg.PH_SPAN),PH_STARTW:useLiveBoundaries?liveCfg.PH_STARTW:(frozen.PH_STARTW||liveCfg.PH_STARTW),WED_MULT:frozen.WED_MULT||WED_MULT,REU_MULT:frozen.REU_MULT||REU_MULT,RACE_MULT:Number.isFinite(frozen.RACE_MULT)?frozen.RACE_MULT:RACE_MULT,RETRO_EVENTS:liveCfg.RETRO_EVENTS||[]};
 };
 const episodeRangeLabel = (start,end) => start===end?'Episode '+start:'Episodes '+start+'-'+end;
 const watchRangeLabel = (phase,start,end) => phase==='reunion'?'the Reunion':episodeRangeLabel(start,end);
 function makeEngine(cfg, poolSize) {
-  const {RULES,CAST=[],MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS} = cfg;
+  const {RULES,CAST=[],MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS=[]} = cfg;
   const SPAN=cfg.PH_SPAN, START=cfg.PH_STARTW;
   const WEDDING_MULT=cfg.WED_MULT, REUNION_MULT=cfg.REU_MULT;
   const PHASE_RESULTS_READY=cfg.RESULTS_READY;
@@ -1297,10 +1356,10 @@ function makeEngine(cfg, poolSize) {
   const contraV = (o,p=scoringPool)=>1+RULES.K*(1-o/p);
   const owTxt   = (o,p=scoringPool)=>o===1?'only prediction':(o===p?'everyone who played this phase predicted it':o+' of '+p+' players who played this phase predicted it');
   const calcPts = (s,m,o,t)=>Math.round(RULES.POINTS_PER_HEART*s*m*contraV(o)*(t||1));
-  function mk({member,phase,ok,label,stake,mult,multLabel,owners,tag,tagLabel,note,placeholder,pending}) {
+  function mk({member,phase,ok,label,stake,mult,multLabel,owners,tag,tagLabel,note,placeholder,pending,retro,retroPhase,retroEventId}) {
     const poolSize=scoringPool, contra=Number.isFinite(owners)?contraV(owners,poolSize):1;
     return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,poolSize,contra,tag:tag||1,tagLabel,note,
-            placeholder:!!placeholder,pending:!!pending,points:ok&&!pending?calcPts(stake,mult,owners,tag):0};
+            placeholder:!!placeholder,pending:!!pending,retro:!!retro,retroPhase,retroEventId,points:ok&&!pending?calcPts(stake,mult,owners,tag):0};
   }
   /* Resolve one episode across a set of members. picksBy = {memberUid: picks[]} */
   function resolveEpisode(phase, ep, picksBy) {
@@ -1473,11 +1532,81 @@ function makeEngine(cfg, poolSize) {
     entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
     return {entries, totals};
   }
+  const retroEventsForRange = (startEp,endEp) => RETRO_EVENTS.filter(event=>event.revealedEp>=startEp&&event.revealedEp<=endEp);
+  function scoreRetroAdjustments(picksByPhase, revealedPhaseSet) {
+    const memberSet=new Set();
+    PH_ORDER.forEach(phase=>Object.keys(picksByPhase?.[phase]||{}).forEach(id=>memberSet.add(id)));
+    const MEMBERS=Array.from(memberSet), totals={};
+    MEMBERS.forEach(id=>totals[id]=0);
+    const entries=[], activeEvents=[];
+    const picksFor=(phase,member)=>picksByPhase?.[phase]?.[member]||[];
+    const marketMultiplier=market=>market==='still'?REUNION_MULT.still:1;
+    const matchingPick=(event,pick)=>{
+      if(event.market==='flirt') return pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
+      if(event.market==='still') return pick.m==='still'&&sameCouple(pick.c,coupleFor(event.target));
+      return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
+    };
+    const matchingVoidPick=(event,phase,pick)=>{
+      if(event.voidMarket==='pods') return phase==='pods'&&sameCouple(pick.c,coupleFor(event.target));
+      if(event.voidMarket==='weddings') return phase==='weddings'&&sameCouple(pick.c,coupleFor(event.target));
+      if(event.voidMarket==='flirt') return phase==='dating'&&pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
+      return phase==='dating'&&pick.m===event.voidMarket&&sameCouple(pick.c,coupleFor(event.target));
+    };
+    const normallyScored=(event,pick)=>{
+      if(event.market==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
+      if(event.market==='flirt') return Object.entries(DATING_RESULTS.flirt).some(([person,result])=>personKey(person)===personKey(event.target)&&result.confirmed);
+      if(event.market==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
+      if(event.market==='still') return REUNION_RESULTS.still[event.target]===true;
+      return false;
+    };
+    const voidNormallyScored=(event,phase,pick)=>{
+      if(event.voidMarket==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
+      if(event.voidMarket==='flirt') return Object.entries(DATING_RESULTS.flirt).some(([person,result])=>personKey(person)===personKey(event.target)&&result.confirmed);
+      if(event.voidMarket==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
+      if(event.voidMarket==='pods') {
+        const couple=coupleFor(event.target);
+        return !!couple&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
+      }
+      if(event.voidMarket==='weddings') {
+        const couple=coupleFor(event.target), noOutcomes=['saysNo','calledOff'];
+        return !!couple&&couple.wedding&&couple.wedding!=='notShown'&&(pick.o===couple.wedding||(noOutcomes.includes(pick.o)&&noOutcomes.includes(couple.wedding)));
+      }
+      return false;
+    };
+    RETRO_EVENTS.forEach(event=>{
+      if(!revealedPhaseSet?.has(event.revealingPhase)) return;
+      activeEvents.push(event);
+      if(event.market==='void') {
+        PH_ORDER.forEach(phase=>{
+          MEMBERS.forEach(member=>{
+            picksFor(phase,member)
+              .filter(pick=>matchingVoidPick(event,phase,pick)&&!voidNormallyScored(event,phase,pick))
+              .forEach(pick=>{
+                const pending=!event.confirmed, points=pending?0:Math.round(RULES.POINTS_PER_HEART*pick.s);
+                const entry={member,phase:event.appliesPhase,ok:true,label:'Voided '+event.voidMarket+' prediction: '+(event.voidMarket==='flirt'?event.target:nameOf(event.target)),stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize:POOL,contra:1,tag:1,note:event.note+' Prediction voided — hearts returned as points.'+(pending?' Awaiting confirmation.':''),placeholder:false,pending,retro:true,retroPhase:event.revealingPhase,retroEventId:event.id,points};
+                entries.push(entry);if(!pending)totals[member]+=points;
+              });
+          });
+        });
+        return;
+      }
+      const phasePicks=picksByPhase?.[event.appliesPhase]||{};
+      scoringPool=activePoolSize(phasePicks);
+      const owners=MEMBERS.filter(member=>picksFor(event.appliesPhase,member).some(pick=>matchingPick(event,pick)&&!normallyScored(event,pick))).length;
+      MEMBERS.forEach(member=>picksFor(event.appliesPhase,member).filter(pick=>matchingPick(event,pick)&&!normallyScored(event,pick)).forEach(pick=>{
+        const multiplier=marketMultiplier(event.market), pending=!event.confirmed;
+        const label=event.market==='flirt'?'Inappropriately flirts: '+event.target:event.market==='still'?nameOf(event.target)+' still together':event.market==='sex'?'Sleep together: '+nameOf(event.target):'Breaks up during the retreat: '+nameOf(event.target);
+        const entry=mk({member,phase:event.appliesPhase,ok:true,pending,label,stake:pick.s,mult:multiplier,multLabel:'x'+fmt(multiplier)+' '+(event.market==='still'?'still-together':'base'),owners,note:event.note+(pending?' Awaiting confirmation.':''),retro:true,retroPhase:event.revealingPhase,retroEventId:event.id});
+        entries.push(entry);if(!pending)totals[member]+=entry.points;
+      }));
+    });
+    return {entries,totals,events:activeEvents};
+  }
   const spentBy = picks => picks.reduce((t,p)=>t+p.s,0);
-  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
+  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
           nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,eligibleForWeddings,contraV,owTxt,calcPts,
-          resolveEpisode,resolvePhaseClose,scorePhase,spentBy};
+          resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,spentBy};
 }
 /* ================================================================== */
 /*  SHARED UI                                                          */
@@ -1514,10 +1643,10 @@ function Budget({phase,spent,RULES}) {
   return <div style={{margin:'10px 0 4px'}}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div></div>;
 }
 function Receipt({e,eng,meId,memberLabels={}}) {
-  const {owTxt,RULES}=eng, cls=e.pending?'receipt pending':(e.ok?'receipt':'receipt miss');
+  const {owTxt,RULES}=eng, cls=(e.pending?'receipt pending':(e.ok?'receipt':'receipt miss'))+(e.retro?' retro':'');
   const cv=e.owners?e.contra:null;
   const minimumPoints=e.ok&&e.pending?Math.round(RULES.POINTS_PER_HEART*e.stake*(e.mult||1)*(e.tag||1)):null;
-  return <div className={cls}><span className="pts">{e.pending?(e.ok?'≥'+minimumPoints+' pts':'⏳'):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel} x {String(+cv.toFixed(2))} Against-the-Grain (fewer players picked this) ({owTxt(e.owners,e.poolSize)}){e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
+  return <div className={cls}><span className="pts">{e.pending?(e.ok?'≥'+minimumPoints+' pts':'⏳'):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.retro&&<span className="warnchip">retro</span>}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel}{e.owners!=null?' x '+String(+cv.toFixed(2))+' Against-the-Grain (fewer players picked this) ('+owTxt(e.owners,e.poolSize)+')':''}{e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts{e.note?' · '+e.note:''}</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
 }
 function ErrorCard({message,onDismiss,title='Something went wrong',children=null}) {
   return <div className="errcard" role="alert">
@@ -1735,7 +1864,7 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
 /* ================================================================== */
-function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName}) {
+function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, hasRetro=false}) {
   if (!phases.length || !ranked.length) return null;
   const width=560, height=210, margin={top:18,right:12,bottom:40,left:42};
   const plotWidth=width-margin.left-margin.right, plotHeight=height-margin.top-margin.bottom;
@@ -1757,7 +1886,7 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName}) {
   const ticks=[0,0.5,1];
   return <section className="score-trend" aria-labelledby="score-trend-title">
     <h3 id="score-trend-title">Score by phase</h3>
-    <p className="score-trend-note">Cumulative points after each completed phase.</p>
+    <p className="score-trend-note">Cumulative points after each completed phase.{hasRetro?' Totals include retroactive changes not shown in this chart.':''}</p>
     <svg className="score-chart" viewBox={'0 0 '+width+' '+height} role="img" aria-label="Cumulative score by phase for each player">
       <title>Score progression by phase</title>
       <desc>{series.map(s=>s.name+' ends with '+scoreText(s.values[s.values.length-1])+' points').join('. ')}</desc>
@@ -1770,7 +1899,7 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName}) {
   </section>;
 }
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[]}) {
-  const {RULES,RESULTS_READY:resultsReady,scorePhase} = eng;
+  const {RULES,RESULTS_READY:resultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const memberIds = Object.keys(playersById);
   const [openPhase, setOpenPhase] = useState(null);
   // Per-phase status. The phaseStatus documents are the single source of truth
@@ -1793,7 +1922,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     return player.completed?.reunion === true ||
       (player.phase === 'reunion' && ['watch','close','final'].includes(player.screen));
   });
-  const reunionScoresPartial = resultsReady.reunion &&
+  const viewerReunionLocked=reunionLockedMembers.includes(meId);
+  const reunionScoresPartial = resultsReady.reunion && viewerReunionLocked &&
     !phaseStatus.reunion.allDone && reunionLockedMembers.length > 0;
   // Retreats begins scoring as soon as everyone finishes. Confirmed events count
   // immediately; unresolved picks remain pending until Retreats is finalized.
@@ -1814,6 +1944,18 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     phaseMembers[ph] = partialReunion ? reunionLockedMembers : memberIds;
     phaseMembers[ph].forEach(id => grandTotals[id] += totals[id] || 0);
   });
+  const revealedPhaseSet=new Set(PH_ORDER.filter(ph=>phaseStatus[ph].allDone));
+  const picksByPhase={};
+  PH_ORDER.forEach(ph=>{
+    picksByPhase[ph]={};
+    memberIds.forEach(id=>{picksByPhase[ph][id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
+  });
+  const retro=scoreRetroAdjustments(picksByPhase,revealedPhaseSet);
+  memberIds.forEach(id=>grandTotals[id]+=(retro.totals[id]||0));
+  const activeRetroEvents=retro.events;
+  const hasRetro=activeRetroEvents.length>0;
+  const viewerWatched=Number(playersById[meId]?.w)||0;
+  const retroSpoilerHidden=activeRetroEvents.some(event=>event.revealedEp>viewerWatched);
   const ranked = memberIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
   const rankById={};
   ranked.forEach((id,index)=>{rankById[id]=index>0&&grandTotals[id]===grandTotals[ranked[index-1]]?rankById[ranked[index-1]]:index+1;});
@@ -1848,16 +1990,28 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           </div>;})}
         </div>
       </section>}
-      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName}/>} 
+      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro}/>} 
       {scoredPhases.length>0 && <div className="lb"><table>
-        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}<th>Total</th></tr></thead>
+        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th>Retro</th>}<th>Total</th></tr></thead>
         <tbody>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
           <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
           {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
+          {hasRetro&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
           <td className="tot">{grandTotals[id]}</td>
         </tr>)}</tbody>
       </table></div>}
     </div>
+    {hasRetro&&<div className="card">
+      <h2>Retroactive scoring changes</h2>
+      {retroSpoilerHidden?<div className="notice">A retroactive scoring change is pending — keep watching to see it.</div>:activeRetroEvents.map(event=>{
+        const eventEntries=retro.entries.filter(entry=>entry.retroEventId===event.id);
+        return <section className="evt" key={event.id}>
+          <h3>{event.note}<span className="warnchip">retro</span></h3>
+          <p className="subtle">Revealed in Episode {event.revealedEp} · Applied to {RULES.phases[event.appliesPhase].label} predictions{event.confirmed?'':' · Awaiting confirmation'}</p>
+          {eventEntries.length===0?<p className="subtle">No matching predictions were affected.</p>:eventEntries.map((entry,index)=><Receipt key={index} e={entry} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
+        </section>;
+      })}
+    </div>}
     {pendingInvites.length>0 && <div className="card">
       <h3>Invitations pending</h3>
       <p className="lede">These people have been invited but have not joined the pool yet.</p>
@@ -2181,7 +2335,8 @@ function App() {
           const replayStart=mine.screen==='close'&&replayPhase==='dating'?PH_STARTW[replayPhase]+1:mine.w;
           const replayResults=[];
           for(let ep=replayStart;ep<=mine.w;ep++) replayResults.push(engine.resolveEpisode(replayPhase,ep,{[user.uid]:replayPicks}));
-          const r={events:replayResults.flatMap(result=>result.events),entries:replayResults.flatMap(result=>result.entries)};
+          const retroEvents=engine.retroEventsForRange(replayStart,mine.w).map(event=>({title:event.note,sub:'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.',retro:true,placeholder:!event.confirmed}));
+          const r={events:[...replayResults.flatMap(result=>result.events),...retroEvents],entries:replayResults.flatMap(result=>result.entries)};
           const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
           setReveal({ep:mine.w,rangeLabel:mine.screen==='close'&&replayPhase==='dating'?'Retreats recap':undefined,...pendified});
           if (mine.screen==='close') {
@@ -2437,7 +2592,8 @@ function App() {
       const recapStart=canClose&&phase==='dating'?PH_STARTW[phase]+1:start;
       const rangeResults=[];
       for(let ep=recapStart;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(phase,ep,{[user.uid]:picks[phase]}));
-      const combined={events:rangeResults.flatMap(r=>r.events),entries:rangeResults.flatMap(r=>r.entries)};
+      const retroEvents=eng.retroEventsForRange(start,target).map(event=>({title:event.note,sub:'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.',retro:true,placeholder:!event.confirmed}));
+      const combined={events:[...rangeResults.flatMap(r=>r.events),...retroEvents],entries:rangeResults.flatMap(r=>r.entries)};
       const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
       const atProvisionalBoundary=target>=endEp&&!canClose;
       const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(rollingPhase?'board':'watch'));
@@ -2644,7 +2800,7 @@ function App() {
   const RevealSummary = () => reveal && <div className="card">
     <h2 style={{marginBottom:10}}>{reveal.rangeLabel||(phase==='reunion'?'The Reunion':'Episode '+reveal.ep)}</h2>
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
-    {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
+    {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.retro&&<span className="warnchip">retro</span>}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
   </div>;
   return <div className="app">
