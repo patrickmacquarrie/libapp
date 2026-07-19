@@ -994,12 +994,12 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
     if(!r.market||marker) return false;
     const ep=Number.parseInt(r.episode,10);
-    return !Number.isFinite(ep)||ep<=phaseStart.dating||ep>phaseSpan.dating.endEp;
+    return !Number.isFinite(ep)||ep<=phaseStart.dating||ep>phaseSpan.reunion.endEp;
   });
   if(invalidDatingRows.length) {
     throw new Error(
       `Season data invalid: ${invalidDatingRows.length} Dating Results row${invalidDatingRows.length===1?' has':'s have'} ` +
-      `an episode outside ${phaseStart.dating+1}..${phaseSpan.dating.endEp} ` +
+      `an episode outside ${phaseStart.dating+1}..${phaseSpan.reunion.endEp} ` +
       `(${invalidDatingRows.map(r=>`${r.market||'unknown'}:${r.couple_id||'unknown'}=${r.episode||'missing'}`).join(', ')}). ` +
       `Correct the episode column so every result falls within the Dating phase.`
     );
@@ -1016,6 +1016,18 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
     else if(mkt==='criticize') DATING_RESULTS.criticize[id]={ep,who:r.who_criticize_only||undefined,confirmed:conf};
   });
+  const unconfirmedFinalDatingRows = resultsReady.dating ? datingRows.filter(r=>{
+    const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
+    return r.market&&r.couple_id&&r.episode&&!marker&&!pBool(r.confirmed);
+  }) : [];
+  if(unconfirmedFinalDatingRows.length) {
+    throw new Error(
+      `Season data incomplete: DATING_RESULTS_READY is true, but ${unconfirmedFinalDatingRows.length} ` +
+      `Dating result row${unconfirmedFinalDatingRows.length===1?' is':'s are'} not confirmed ` +
+      `(${unconfirmedFinalDatingRows.map(r=>`${r.market}:${r.couple_id}`).join(', ')}). ` +
+      `Confirm those rows or remove them before finalizing Dating results.`
+    );
+  }
   const RR = {
     still:{}, back:{}, newCouples:[], lifeUpdates:[], absent:[],
     ready:{still:false,back:false,newCouple:false,lifeUpdate:false,absent:false},
@@ -1087,6 +1099,7 @@ function makeEngine(cfg, poolSize) {
   const {RULES,CAST=[],MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS} = cfg;
   const WEDDING_MULT=cfg.WED_MULT||WED_MULT, REUNION_MULT=cfg.REU_MULT||REU_MULT;
   const BREAKUP_MULT=Number.isFinite(cfg.RACE_MULT)?cfg.RACE_MULT:RACE_MULT;
+  const PHASE_RESULTS_READY=cfg.RESULTS_READY||RESULTS_READY;
   const POOL = Math.max(poolSize, 1);
   const byId    = Object.fromEntries(COUPLES.map(c=>[c.id,c]));
   const personKey = value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
@@ -1253,17 +1266,21 @@ function makeEngine(cfg, poolSize) {
       else if(c.engagedEp>PH_SPAN.pods.endEp) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' got engaged after the Pods closed',stake:p.s,note:'Engaged in Episode '+c.engagedEp+', outside the Pods window.'}));
     }));
     if(phase==='dating') MEMBERS.forEach(m=>all[m].forEach(p=>{
-      if(p.m==='breakup'&&DATING_RESULTS.breakup.resolved&&!DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No couple broke up this season.'}));
-      else if(p.m==='breakup'&&DATING_RESULTS.breakup.confirmed&&DATING_RESULTS.breakup.coupleId&&p.c!==DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Lost the race - '+nameOf(DATING_RESULTS.breakup.coupleId)+' broke first.'}));
-      if(p.m==='breakup'&&!DATING_RESULTS.breakup.confirmed&&p.c!==DATING_RESULTS.breakup.coupleId) entries.push(mk({member:m,phase,ok:false,pending:true,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Awaiting a confirmed result.'}));
-      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:'Never shown on camera.'}));
-      if(p.m==='criticize'&&!DATING_RESULTS.criticize[p.c]) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' - criticized the place',stake:p.s,note:'Never happened on camera.'}));
+      if(p.m==='breakup') {
+        const r=DATING_RESULTS.breakup;
+        if(r.confirmed&&!r.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No couple broke up this season.'}));
+        else if(r.confirmed&&r.coupleId&&p.c!==r.coupleId) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Lost the race - '+nameOf(r.coupleId)+' broke first.'}));
+        else if(!r.confirmed&&PHASE_RESULTS_READY.dating) entries.push(mk({member:m,phase,ok:false,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'No confirmed result before Dating results were finalized.'}));
+        else if(!r.confirmed&&p.c!==r.coupleId) entries.push(mk({member:m,phase,ok:false,pending:true,label:'First to break up: '+nameOf(p.c),stake:p.s,note:'Awaiting a confirmed result.'}));
+      }
+      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) entries.push(mk({member:m,phase,ok:false,pending:!PHASE_RESULTS_READY.dating,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:PHASE_RESULTS_READY.dating?'Never referenced on camera.':'Still possible later in the season.'}));
+      if(p.m==='criticize'&&!DATING_RESULTS.criticize[p.c]) entries.push(mk({member:m,phase,ok:false,pending:!PHASE_RESULTS_READY.dating,label:nameOf(p.c)+' - criticized the place',stake:p.s,note:PHASE_RESULTS_READY.dating?'Never happened on camera.':'Still possible later in the season.'}));
     }));
     return entries;
   }
   /* Score a full phase for a set of members (used by the scoreboard once everyone completed) */
   function scorePhase(phase, picksBy) {
-    const startEp = PH_STARTW[phase], endEp = PH_SPAN[phase].endEp;
+    const startEp = PH_STARTW[phase], endEp = phase==='dating'?PH_SPAN.reunion.endEp:PH_SPAN[phase].endEp;
     let entries = [];
     for (let ep = startEp; ep <= endEp; ep++) {
       entries = entries.concat(resolveEpisode(phase, ep, picksBy).entries);
@@ -1275,7 +1292,7 @@ function makeEngine(cfg, poolSize) {
     return {entries, totals};
   }
   const spentBy = picks => picks.reduce((t,p)=>t+p.s,0);
-  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RESULTS_READY:cfg.RESULTS_READY||RESULTS_READY,POOL,
+  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RESULTS_READY:PHASE_RESULTS_READY,POOL,
           PH_SPAN:cfg.PH_SPAN||PH_SPAN,PH_STARTW:cfg.PH_STARTW||PH_STARTW,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
           nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,eligibleForWeddings,contraV,owTxt,calcPts,
           resolveEpisode,resolvePhaseClose,scorePhase,spentBy};
@@ -1496,12 +1513,13 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && completedBy.length === memberIds.length };
     }
   });
-  // Totals appear only after every player finishes and the sheet results are ready.
+  // Dating begins scoring as soon as everyone finishes. Confirmed events count
+  // immediately; unresolved picks remain pending until Dating is finalized.
   const grandTotals = {};
   memberIds.forEach(id=>grandTotals[id]=0);
   const phaseTotals = {};
   PH_ORDER.forEach(ph => {
-    if (!phaseStatus[ph].allDone||!resultsReady[ph]) return;
+    if (!phaseStatus[ph].allDone||(!resultsReady[ph]&&ph!=='dating')) return;
     const picksBy = {};
     memberIds.forEach(id => picksBy[id] = (playersById[id].picks && playersById[id].picks[ph]) || []);
     const {totals} = scorePhase(ph, picksBy);
@@ -1509,19 +1527,21 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     memberIds.forEach(id => grandTotals[id] += totals[id] || 0);
   });
   const ranked = memberIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]);
-  const donePhases = PH_ORDER.filter(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
-  const awaitingResults = PH_ORDER.filter(ph=>phaseStatus[ph].allDone&&!resultsReady[ph]);
+  const scoredPhases = PH_ORDER.filter(ph=>phaseStatus[ph].allDone&&(resultsReady[ph]||ph==='dating'));
+  const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&phaseStatus[ph].allDone&&!resultsReady[ph]);
+  const datingProvisional=phaseStatus.dating.allDone&&!resultsReady.dating;
   return <React.Fragment>
     <div className="card">
       <h2>Standings</h2>
-      {donePhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
-      {donePhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
+      {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
+      {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
+      {datingProvisional&&<div className="notice"><b>Dating scores are provisional.</b> Confirmed results score now; pending predictions can still resolve during Weddings or Reunion. Remaining predictions finalize when DATING_RESULTS_READY is marked TRUE.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
-      {donePhases.length>0 && <div className="lb"><table>
-        <thead><tr><th>Player</th>{donePhases.map(p=><th key={p}>{RULES.phases[p].label}</th>)}<th>Total</th></tr></thead>
+      {scoredPhases.length>0 && <div className="lb"><table>
+        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':''}</th>)}<th>Total</th></tr></thead>
         <tbody>{ranked.map(id=><tr key={id} className={id===meId?'you':''}>
           <td>{id===meId?'You':memberLabels[id]}</td>
-          {donePhases.map(p=><td key={p}>{phaseTotals[p][id]||0}</td>)}
+          {scoredPhases.map(p=><td key={p}>{phaseTotals[p][id]||0}</td>)}
           <td className="tot">{grandTotals[id]}</td>
         </tr>)}</tbody>
       </table></div>}
@@ -1541,7 +1561,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       if (notStarted) return null;
       return <div className="card" key={ph}>
         <h3>{RULES.phases[ph].label}</h3>
-        {st.allDone&&resultsReady[ph] ? <React.Fragment>
+        {st.allDone&&(resultsReady[ph]||ph==='dating') ? <React.Fragment>
+          {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Pending predictions remain open until Dating results are finalized.</div>}
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
@@ -1577,7 +1598,7 @@ function PH_INTRO(phase,RULES,cfg) {
   const maxWeddingClock=cfg.weddingLeadM(cfg.PH_SPAN.weddings.endEp-cfg.PH_STARTW.weddings-1);
   const copy={
     pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen.',rules:<ul><li>You get {RULES.phases.pods.budget} hearts that you can spend during the Pods phase.</li><li>You lose any hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×1.5, two episodes earlier for ×2, and so on. This season's maximum is ×{cfg.fmt(maxPodsClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more when fewer active players make the same prediction. Only players who make at least one prediction in the phase are included. The final bonus is calculated automatically after the phase closes.</p><p><b>Example:</b> Wager 20 hearts, predict an engagement two episodes early (×2), and be the only player to predict them (roughly ×2): 20 × 2 × 2 = 80 points.</p></div>},
-    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who is the first to break up?</b> Choose one couple.</li><li><b>Who sleeps together?</b> You may choose multiple couples; the moment must be referenced on camera.</li><li><b>Who criticizes their partner's living situation?</b> You may choose multiple couples.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>The event multipliers are shown beside each prediction category. Dating predictions are scored together when the phase ends. There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
+    dating:{tagline:'Out of the pods, into the real world. Make all Dating predictions before watching the next available episode or episode batch.',rules:<ul><li>You get {RULES.phases.dating.budget} hearts that you can spend during the Dating phase.</li><li>You lose any hearts you do not spend before the Dating phase ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who is the first to break up?</b> Choose one couple.</li><li><b>Who sleeps together?</b> You may choose multiple couples; the moment must be referenced on camera.</li><li><b>Who criticizes their partner's living situation?</b> You may choose multiple couples.</li></ul></li><li>Lock all Dating predictions before watching the next available episode or episode batch.</li><li>Confirmed results score after everyone finishes Dating. Unresolved predictions stay pending and may resolve during later phases.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × event multiplier × Against-the-Grain Bonus.</b></p><p>Confirmed Dating results score once everyone completes the phase. Pending predictions remain open through Weddings and Reunion, so the provisional Dating total may increase later. Mark DATING_RESULTS_READY true at season close to finalize all remaining predictions.</p><p>There is no Against-the-Clock Bonus because everyone locks their predictions at the same time.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
     weddings:{tagline:'Predict each couple’s outcome between episodes. Earlier predictions earn a larger bonus while the outcome remains unresolved.',rules:<ul><li>You get {RULES.phases.weddings.budget} hearts that you can spend throughout the Weddings phase.</li><li>You may add predictions between episodes. Once you watch the next episode, those predictions are locked.</li><li>Predictions are optional, but each couple can be predicted only once.</li><li>Predict whether a couple marries, says no at the altar, or calls it off before the altar.</li><li>For an altar prediction, choose who says no for an optional bonus. Pre-altar predictions do not ask who ends it.</li><li>Earlier correct predictions earn a larger Against-the-Clock Bonus.</li><li>Unspent hearts are lost when Weddings closes and never carry into another phase.</li></ul>,scoring:<div><p><b>Points = hearts wagered × outcome multiplier × Against-the-Clock Bonus × Against-the-Grain Bonus × optional who-says-no bonus.</b></p><p><b>Outcome:</b> Gets married pays ×{cfg.fmt(cfg.WED_MULT.married)}. Says no at the altar pays ×{cfg.fmt(cfg.WED_MULT.saysNo)}. Called off before the altar pays ×{cfg.fmt(cfg.WED_MULT.calledOff)}.</p><p><b>Against-the-Clock:</b> Starts at ×1 immediately before the outcome, adds {cfg.fmt((Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*100)}% for every full episode of foresight, and is capped at ×{cfg.fmt(maxWeddingClock)} for this season.</p><p><b>Who says no:</b> Correctly naming the person adds {cfg.fmt(RULES.WHO_TAG*100)}%, only when the no happens at the altar. The outcome still scores if the person is wrong.</p><p><b>Against-the-Grain:</b> Less-common correct outcomes earn more after the phase closes.</p></div>},
     reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} hearts that you can spend during the Reunion phase.</li><li>You lose any hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Every correct prediction scores hearts wagered × outcome multiplier × Against-the-Grain Bonus.</b></p><p>Still together pays ×{cfg.fmt(cfg.REU_MULT.still)}. Back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}. New couple pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}. Major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> Less-common correct predictions earn more. It is calculated automatically after the phase closes.</p></div>},
   };
@@ -1598,6 +1619,7 @@ function HowItWorksModal({onClose,rules=null}) {
       <ul><li><b>Pods:</b> Predict who gets engaged. {budgets.pods.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Dating:</b> Predict the first breakup and key real-world moments. {budgets.dating.budget} {budgetLabel}, with one prediction window.</li><li><b>Weddings:</b> Predict who marries, says no, or calls it off. {budgets.weddings.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. {budgets.reunion.budget} {budgetLabel}, with one prediction window.</li></ul>
       <h3>How points work</h3>
       <p>Every correct prediction scores hearts wagered × its event or outcome multiplier × Against-the-Grain Bonus. Pods and Wedding predictions also receive an Against-the-Clock Bonus for predicting earlier. Less-common correct predictions earn more Against-the-Grain Bonus; only players who make at least one prediction in that phase are included. The final bonus is calculated automatically after the phase closes. Incorrect predictions never subtract points - you simply lose the hearts you wagered. Unspent hearts are lost and never carry into the next phase.</p>
+      <p>Dating standings may be provisional: confirmed events score after everyone finishes Dating, while unresolved predictions can remain pending through Weddings and Reunion.</p>
       <button className="btn-primary" onClick={onClose}>Got it</button>
     </div>
   </div>;
@@ -2242,9 +2264,9 @@ function App() {
         <RevealSummary/>
         <div className="card">
           <h2>{RULES.phases[phase].label} complete</h2>
-          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>Scores finalized when the phase closes.</h3>}
+          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Some predictions are still pending.':'Scores finalized when the phase closes.'}</h3>}
           {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
-          <div className="notice">{RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
+          <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Dating, confirmed points and pending predictions appear in Standings. Pending bets can resolve later in the season.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
           {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
         </div>
