@@ -2056,11 +2056,18 @@ function App() {
         setCompleted(mine.completed || {});
         // Recompute reveal/closeInfo from state
         if ((mine.screen==='board'||mine.screen==='close') && mine.w > 0) {
-          const r = engine.resolveEpisode(mine.phase||'pods', mine.w, {[user.uid]: normalizePicks(mine.picks)[mine.phase||'pods']});
+          const replayPhase=mine.phase||'pods';
+          const replayPicks=normalizePicks(mine.picks)[replayPhase];
+          // A completed Retreats phase can span several watch batches. Rebuild
+          // its whole recap, rather than only the final episode, after reload.
+          const replayStart=mine.screen==='close'&&replayPhase==='dating'?PH_STARTW[replayPhase]+1:mine.w;
+          const replayResults=[];
+          for(let ep=replayStart;ep<=mine.w;ep++) replayResults.push(engine.resolveEpisode(replayPhase,ep,{[user.uid]:replayPicks}));
+          const r={events:replayResults.flatMap(result=>result.events),entries:replayResults.flatMap(result=>result.entries)};
           const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
-          setReveal({ep:mine.w, ...pendified});
+          setReveal({ep:mine.w,rangeLabel:mine.screen==='close'&&replayPhase==='dating'?'Retreats recap':undefined,...pendified});
           if (mine.screen==='close') {
-            const closing = engine.resolvePhaseClose(mine.phase||'pods', {[user.uid]:normalizePicks(mine.picks)[mine.phase||'pods']});
+            const closing = engine.resolvePhaseClose(replayPhase, {[user.uid]:replayPicks});
             setCloseInfo({closing});
           } else setCloseInfo(null);
         } else { setReveal(null); setCloseInfo(null); }
@@ -2258,17 +2265,18 @@ function App() {
     setGating(true);
     try {
       const start=w+1,target=watchThrough,endEp=PH_SPAN[phase].endEp;
+      const canClose=target>=endEp&&BOUNDARIES_FINAL[phase]!==false;
+      const recapStart=canClose&&phase==='dating'?PH_STARTW[phase]+1:start;
       const rangeResults=[];
-      for(let ep=start;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(phase,ep,{[user.uid]:picks[phase]}));
+      for(let ep=recapStart;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(phase,ep,{[user.uid]:picks[phase]}));
       const combined={events:rangeResults.flatMap(r=>r.events),entries:rangeResults.flatMap(r=>r.entries)};
       const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
-      const canClose=target>=endEp&&BOUNDARIES_FINAL[phase]!==false;
       const atProvisionalBoundary=target>=endEp&&!canClose;
       const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(rollingPhase?'board':'watch'));
       const nc=canClose?{...completed,[phase]:true}:completed;
       const closing=canClose?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
       await savePlayer({picks,phase,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
-      setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:watchRangeLabel(phase,start,target),...pendified});
+      setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
       setScreen(nextScreen);setCompleted(nc);setCloseInfo(canClose?{closing}:null);
       if(canClose) await registerPhaseCompletion(activePool.id,phase,user.uid);
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
