@@ -1019,7 +1019,9 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const rawSeasonStatus = String(S.SEASON_STATUS||season.status||'').trim().toLowerCase().replace(/[^a-z]/g,'');
   const seasonStatus = ['comingsoon','upcoming','notstarted'].includes(rawSeasonStatus)
     ? 'comingSoon'
-    : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live'));
+    : (['complete','completed','finished','historical','closed','done'].includes(rawSeasonStatus)
+      ? 'completed'
+      : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live')));
   const playable = castReady && seasonStatus!=='comingSoon';
   const boundariesLive = boolSetting('BOUNDARIES_LIVE',false);
   const boundariesFinalDefault = seasonStatus==='completed';
@@ -1457,7 +1459,7 @@ function makeEngine(cfg, poolSize) {
     return {entries, totals};
   }
   const spentBy = picks => picks.reduce((t,p)=>t+p.s,0);
-  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,POOL,
+  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
           nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,eligibleForWeddings,contraV,owTxt,calcPts,
           resolveEpisode,resolvePhaseClose,scorePhase,spentBy};
@@ -1624,7 +1626,7 @@ function StakeSlider({value,onChange,max}) {
 /* ================================================================== */
 function PodsBoard({w,picks,add,remove,spent,eng,onPendingChange,pendingRef}) {
   const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,leadM,fmt}=eng;
-  const finalWindow=eng.SEASON_STATUS==='completed'&&w===eng.PH_SPAN.pods.endEp-1;
+  const finalWindow=(eng.SEASON_STATUS==='completed'||eng.HISTORICAL)&&w===eng.PH_SPAN.pods.endEp-1;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
   const [adding,setAdding]=useState(picks.length===0);
   const engaged=COUPLES.filter(c=>c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
@@ -1671,7 +1673,7 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
 }
 function WeddingsBoard({w,picks,add,remove,spent,eng}) {
   const {COUPLES,RULES,PH_SPAN,PH_STARTW,WED_MULT,nameOf,membOf,whoNm,fmt,weddingLeadM,eligibleForWeddings}=eng;
-  const finalWindow=eng.SEASON_STATUS==='completed'&&w===PH_SPAN.weddings.endEp-1;
+  const finalWindow=(eng.SEASON_STATUS==='completed'||eng.HISTORICAL)&&w===PH_SPAN.weddings.endEp-1;
   const open=w<PH_SPAN.weddings.endEp;
   const left=RULES.phases.weddings.budget-spent, maxS=Math.min(RULES.phases.weddings.cap,left);
   const [cid,setCid]=useState(''),[answer,setAnswer]=useState(''),[when,setWhen]=useState(''),[whoT,setWhoT]=useState(''),[stake,setStake]=useState(40);
@@ -2339,7 +2341,7 @@ function App() {
     const end=PH_SPAN[phase].endEp, target=Math.max(w,nextAvailableEnd());
     const range=target>w?watchRangeLabel(phase,w+1,target):null;
     const left=RULES.phases[phase].budget-spent;
-    const finalPredictionWindow=eng.SEASON_STATUS==='completed'&&rollingPhase&&w===PH_SPAN[phase].endEp-1;
+    const finalPredictionWindow=(eng.SEASON_STATUS==='completed'||eng.HISTORICAL)&&rollingPhase&&w===PH_SPAN[phase].endEp-1;
     let message='Your current predictions will be locked and cannot be changed.';
     if(left===0) message+='\n\nYOU HAVE 0 HEARTS LEFT. YOU DO NOT HAVE TO SPEND ALL YOUR HEARTS THIS EPISODE — '+(finalPredictionWindow?'this is the final prediction window, so any hearts left unspent will be lost when the phase closes.':'if this was accidental, cancel and review your predictions before locking.');
     if(left>0) message+='\n\n'+(rollingPhase&&target<end?left+' unspent hearts remain available for your next '+RULES.phases[phase].label+' window.':left+' unspent hearts will be lost.');
@@ -2592,7 +2594,7 @@ function App() {
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
   const readyWatchEnd=nextAvailableEnd();
-  const historicalPredictionDeadline=eng.SEASON_STATUS==='completed'&&rollingPhase?PH_SPAN[phase].endEp-1:null;
+  const historicalPredictionDeadline=(eng.SEASON_STATUS==='completed'||eng.HISTORICAL)&&rollingPhase?PH_SPAN[phase].endEp-1:null;
   const RevealSummary = () => reveal && <div className="card">
     <h2 style={{marginBottom:10}}>{reveal.rangeLabel||(phase==='reunion'?'The Reunion':'Episode '+reveal.ep)}</h2>
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
