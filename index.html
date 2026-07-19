@@ -117,6 +117,10 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .evt{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0;background:linear-gradient(180deg,#fff,#fdf5f6)}
 .evt h3{margin:0}
 .evt .sub{font-size:13px;color:var(--muted);margin-top:2px}
+.evt.retro-event{position:relative;overflow:hidden;border:1px solid color-mix(in srgb,#ed0c72 48%,#7b2ee5);border-left:7px solid #ed0c72;padding:16px 18px;background:linear-gradient(125deg,color-mix(in srgb,#ed0c72 13%,var(--surface)) 0%,color-mix(in srgb,#7b2ee5 12%,var(--surface)) 100%);box-shadow:0 10px 24px color-mix(in srgb,#7b2ee5 14%,transparent)}
+.evt.retro-event::after{content:'✦';position:absolute;right:15px;top:9px;color:#7b2ee5;font-size:20px;opacity:.48;pointer-events:none}
+.evt.retro-event h3{position:relative;z-index:1;padding-right:22px}
+.evt.retro-event .warnchip{color:#fff;background:linear-gradient(135deg,#ed0c72,#7b2ee5);border-color:transparent;box-shadow:0 3px 10px color-mix(in srgb,#7b2ee5 28%,transparent)}
 .warnchip{display:inline-block;vertical-align:middle;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#8a6116;background:#f7e8c8;border:1px solid #e3cd93;padding:2px 8px;border-radius:999px;text-transform:uppercase;margin-left:6px}
 .lb table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .lb th,.lb td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line);font-size:14px}
@@ -262,6 +266,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .receipt{background:#2b2118}:root[data-theme="dark"] .receipt.miss{background:#301820}:root[data-theme="dark"] .receipt.pending{background:#261d34}
 :root[data-theme="dark"] .receipt.retro{background:#241a32}
 :root[data-theme="dark"] .evt{background:linear-gradient(180deg,#2b1621,#211019)}
+:root[data-theme="dark"] .evt.retro-event{border-color:#a96cf0;border-left-color:#ed5a9e;background:linear-gradient(125deg,#3b1830 0%,#291b43 100%);box-shadow:0 10px 26px rgba(0,0,0,.32)}
+:root[data-theme="dark"] .evt.retro-event::after{color:#f2c85f;opacity:.68}
 :root[data-theme="dark"] .champion-ceremony{background:linear-gradient(135deg,#3a2e18,#301722 58%,#3a1b29)}
 :root[data-theme="dark"] .notice{background:#2b2416;color:#efdca3;border-color:#796938}
 :root[data-theme="dark"] .errcard{background:#35151f;color:#f3dbe4;border-color:#7e3d54}
@@ -2011,7 +2017,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       <h2>Retroactive scoring changes</h2>
       {retroSpoilerHidden?<div className="notice">A retroactive scoring change is pending — keep watching to see it.</div>:activeRetroEvents.map(event=>{
         const eventEntries=retro.entries.filter(entry=>entry.retroEventId===event.id);
-        return <section className="evt" key={event.id}>
+        return <section className="evt retro-event" key={event.id}>
           <h3>{event.note}<span className="warnchip">retro</span></h3>
           <p className="subtle">Revealed in Episode {event.revealedEp} · Applied to {RULES.phases[event.appliesPhase].label} predictions{event.confirmed?'':' · Awaiting confirmation'}</p>
           {eventEntries.length===0?<p className="subtle">No matching predictions were affected.</p>:eventEntries.map((entry,index)=><Receipt key={index} e={entry} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
@@ -2808,7 +2814,7 @@ function App() {
   const RevealSummary = () => reveal && <div className="card">
     <h2 style={{marginBottom:10}}>{reveal.rangeLabel||(phase==='reunion'?'The Reunion':'Episode '+reveal.ep)}</h2>
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
-    {reveal.events.map((ev,i)=><div className="evt" key={i}><h3>{ev.title}{ev.retro&&<span className="warnchip">retro</span>}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
+    {reveal.events.map((ev,i)=><div className={'evt'+(ev.retro?' retro-event':'')} key={i}><h3>{ev.title}{ev.retro&&<span className="warnchip">retro</span>}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
   </div>;
   return <div className="app">
