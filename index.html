@@ -407,7 +407,9 @@ window._fb = {
     if (!poolSnap.exists() || !poolSnap.data().members.includes(uid)) throw new Error('You are not a member of this pool.');
     const completedMembers = [...new Set([...(statusSnap.exists()?statusSnap.data().completedMembers||[]:[]),uid])];
     const revealed = poolSnap.data().members.every(member=>completedMembers.includes(member));
-    tx.set(statusRef,{completedMembers,revealed,updatedAt:Date.now()},{merge:true});
+    const nextStatus={completedMembers,revealed,updatedAt:Date.now()};
+    tx.set(statusRef,nextStatus,{merge:true});
+    return nextStatus;
   }),
   reopenPhase: async (poolId, phase, uid) => runTransaction(db, async tx => {
     const poolRef = doc(db,'pools',poolId);
@@ -503,7 +505,7 @@ const SEASON_BANK = [
     countryCode:'UK',
     seasonNumber:3,
     locationLabel:null,
-    status:'live',
+    status:'upcoming',
     releaseLabel:'Coming August 2026',
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
     historical:false,
@@ -962,6 +964,7 @@ function toObjects(rows) {
 }
 const pBool = v => String(v).toUpperCase() === 'TRUE';
 const alphaByName = (a,b) => String(a).localeCompare(String(b),undefined,{sensitivity:'base'});
+const phaseHasCompletion = status => status?.revealed===true||(status?.completedMembers||[]).length>0;
 async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const season=seasonById(seasonId);
   if(!season?.available||!season.sheetId) throw new Error('This season is not available yet.');
@@ -1583,13 +1586,15 @@ function makeEngine(cfg, poolSize) {
       if(!revealedPhaseSet?.has(event.revealingPhase)) return;
       activeEvents.push(event);
       if(event.market==='void') {
+        const phasePicks=picksByPhase?.[event.appliesPhase]||{};
+        scoringPool=activePoolSize(phasePicks);
         PH_ORDER.forEach(phase=>{
           MEMBERS.forEach(member=>{
             picksFor(phase,member)
               .filter(pick=>matchingVoidPick(event,phase,pick)&&!voidNormallyScored(event,phase,pick))
               .forEach(pick=>{
                 const pending=!event.confirmed, points=pending?0:Math.round(RULES.POINTS_PER_HEART*pick.s);
-                const entry={member,phase:event.appliesPhase,ok:true,label:'Voided '+event.voidMarket+' prediction: '+(event.voidMarket==='flirt'?event.target:nameOf(event.target)),stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize:POOL,contra:1,tag:1,note:event.note+' Prediction voided — hearts returned as points.'+(pending?' Awaiting confirmation.':''),placeholder:false,pending,retro:true,retroPhase:event.revealingPhase,retroEventId:event.id,points};
+                const entry={member,phase:event.appliesPhase,ok:true,label:'Voided '+event.voidMarket+' prediction: '+(event.voidMarket==='flirt'?event.target:nameOf(event.target)),stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize:scoringPool,contra:1,tag:1,note:event.note+' Prediction voided — hearts returned as points.'+(pending?' Awaiting confirmation.':''),placeholder:false,pending,retro:true,retroPhase:event.revealingPhase,retroEventId:event.id,points};
                 entries.push(entry);if(!pending)totals[member]+=points;
               });
           });
@@ -1614,6 +1619,7 @@ function makeEngine(cfg, poolSize) {
           nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,eligibleForWeddings,contraV,owTxt,calcPts,
           resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,spentBy};
 }
+const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.';
 /* ================================================================== */
 /*  SHARED UI                                                          */
 /* ================================================================== */
@@ -1651,8 +1657,9 @@ function Budget({phase,spent,RULES}) {
 function Receipt({e,eng,meId,memberLabels={}}) {
   const {owTxt,RULES}=eng, cls=(e.pending?'receipt pending':(e.ok?'receipt':'receipt miss'))+(e.retro?' retro':'');
   const cv=e.owners?e.contra:null;
-  const minimumPoints=e.ok&&e.pending?Math.round(RULES.POINTS_PER_HEART*e.stake*(e.mult||1)*(e.tag||1)):null;
-  return <div className={cls}><span className="pts">{e.pending?(e.ok?'≥'+minimumPoints+' pts':'⏳'):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.retro&&<span className="warnchip">retro</span>}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel}{e.owners!=null?' x '+String(+cv.toFixed(2))+' Against-the-Grain (fewer players picked this) ('+owTxt(e.owners,e.poolSize)+')':''}{e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts{e.note?' · '+e.note:''}</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
+  const retroPending=e.retro&&e.pending;
+  const minimumPoints=e.ok&&e.pending&&!retroPending?Math.round(RULES.POINTS_PER_HEART*e.stake*(e.mult||1)*(e.tag||1)):null;
+  return <div className={cls}><span className="pts">{e.pending?(retroPending?'⏳':(e.ok?'≥'+minimumPoints+' pts':'⏳')):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.retro&&<span className="warnchip">retro</span>}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel}{e.owners!=null?' x '+String(+cv.toFixed(2))+' Against-the-Grain (fewer players picked this) ('+owTxt(e.owners,e.poolSize)+')':''}{e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts{e.note?' · '+e.note:''}</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
 }
 function ErrorCard({message,onDismiss,title='Something went wrong',children=null}) {
   return <div className="errcard" role="alert">
@@ -1917,16 +1924,16 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     const sdoc = statusDocs[ph];
     const solePlayerId=memberIds.length===1?memberIds[0]:null;
     const solePlayer=solePlayerId?playersById[solePlayerId]:null;
-    // In a one-person pool, the player's completed/final state is conclusive.
-    // This also repairs older test pools whose phaseStatus document was saved
-    // before single-member reveals began setting `revealed` immediately.
-    const solePlayerDone=!!solePlayerId&&(solePlayer?.completed?.[ph]===true||solePlayer?.screen==='final');
     if (sdoc) {
-      const completedBy = memberIds.filter(id => (sdoc.completedMembers||[]).includes(id)||solePlayerDone);
-      phaseStatus[ph] = { completedBy, allDone: completedBy.length === memberIds.length && (!!sdoc.revealed||solePlayerDone) };
+      const completedBy = memberIds.filter(id => (sdoc.completedMembers||[]).includes(id));
+      // Repair only the legacy single-player desync where completion was
+      // recorded correctly but the old status document left revealed false.
+      const solePlayerLegacyReveal=!!solePlayerId&&completedBy.includes(solePlayerId)&&sdoc.revealed===false;
+      phaseStatus[ph] = { completedBy, allDone: completedBy.length === memberIds.length && (!!sdoc.revealed||solePlayerLegacyReveal) };
     } else {
       const completedBy = memberIds.filter(id => playersById[id].completed && playersById[id].completed[ph]);
-      phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && (completedBy.length === memberIds.length||solePlayerDone) };
+      const solePlayerCompleted=!!solePlayerId&&solePlayer?.completed?.[ph]===true;
+      phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && (completedBy.length === memberIds.length||solePlayerCompleted) };
     }
   });
   const reunionLockedMembers = memberIds.filter(id => {
@@ -1963,18 +1970,18 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     memberIds.forEach(id=>{picksByPhase[ph][id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
   });
   const retro=scoreRetroAdjustments(picksByPhase,revealedPhaseSet);
-  memberIds.forEach(id=>grandTotals[id]+=(retro.totals[id]||0));
-  const activeRetroEvents=retro.events;
+  const activeRetroEvents=retro.events.slice().sort((a,b)=>a.revealedEp-b.revealedEp||String(a.id).localeCompare(String(b.id)));
   const hasRetro=activeRetroEvents.length>0;
   const viewerWatched=Number(playersById[meId]?.w)||0;
   const retroSpoilerHidden=activeRetroEvents.some(event=>event.revealedEp>viewerWatched);
+  if(!retroSpoilerHidden)memberIds.forEach(id=>grandTotals[id]+=(retro.totals[id]||0));
   const ranked = memberIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
   const rankById={};
   ranked.forEach((id,index)=>{rankById[id]=index>0&&grandTotals[id]===grandTotals[ranked[index-1]]?rankById[ranked[index-1]]:index+1;});
   const scoredPhases = PH_ORDER.filter(ph=>(phaseStatus[ph].allDone||(ph==='reunion'&&reunionScoresPartial))&&(resultsReady[ph]||ph==='dating'));
   const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&phaseStatus[ph].allDone&&!resultsReady[ph]);
   const datingProvisional=phaseStatus.dating.allDone&&!resultsReady.dating;
-  const seasonFinalized = PH_ORDER.every(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
+  const seasonFinalized = !retroSpoilerHidden&&PH_ORDER.every(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
   const podium = ranked.filter(id=>rankById[id]<=3);
   const playerName = id => id===meId ? 'You' : memberLabels[id];
   const champions=ranked.filter(id=>rankById[id]===1);
@@ -2002,9 +2009,9 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           </div>;})}
         </div>
       </section>}
-      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro}/>} 
+      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>} 
       {scoredPhases.length>0 && <div className="lb"><table>
-        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th>Retro</th>}<th>Total</th></tr></thead>
+        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>Total</th></tr></thead>
         <tbody>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
           <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
           {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
@@ -2016,7 +2023,11 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     {hasRetro&&<div className="card">
       <h2>Retroactive scoring changes</h2>
       {retroSpoilerHidden?<div className="notice">A retroactive scoring change is pending — keep watching to see it.</div>:activeRetroEvents.map(event=>{
-        const eventEntries=retro.entries.filter(entry=>entry.retroEventId===event.id);
+        const eventEntries=retro.entries.filter(entry=>entry.retroEventId===event.id).slice().sort((a,b)=>{
+          if(a.member===meId&&b.member!==meId)return -1;
+          if(b.member===meId&&a.member!==meId)return 1;
+          return alphaByName(memberLabels[a.member]||a.member,memberLabels[b.member]||b.member)||String(a.label||'').localeCompare(String(b.label||''));
+        });
         return <section className="evt retro-event" key={event.id}>
           <h3>{event.note}<span className="warnchip">retro</span></h3>
           <p className="subtle">Revealed in Episode {event.revealedEp} · Applied to {RULES.phases[event.appliesPhase].label} predictions{event.confirmed?'':' · Awaiting confirmation'}</p>
@@ -2035,6 +2046,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     {PH_ORDER.map(ph => {
       const st = phaseStatus[ph];
       const isCurrent = ph === myPhase;
+      const scoringEnd=ph==='dating'&&Number.isFinite(eng.PH_SPAN.dating.retreatEndEp)?eng.PH_SPAN.dating.retreatEndEp:eng.PH_SPAN[ph].endEp;
+      const breakdownHidden=scoringEnd>viewerWatched;
       const notStarted = st.completedBy.length===0 && !isCurrent && PH_ORDER.indexOf(ph)>PH_ORDER.indexOf(myPhase) && !(ph==='reunion'&&reunionScoresPartial);
       if (notStarted) return null;
       return <div className="card" key={ph}>
@@ -2042,6 +2055,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
         {(st.allDone&&(resultsReady[ph]||ph==='dating')||(ph==='reunion'&&reunionScoresPartial)) ? <React.Fragment>
           {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Retreats results are being finalized.</div>}
           {ph==='reunion'&&reunionScoresPartial&&<div className="notice">Only players who have locked their Reunion predictions are shown here. These scores are provisional until everyone locks.</div>}
+          {breakdownHidden?<div className="notice">Finish watching this phase to see the breakdown.</div>:<React.Fragment>
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
@@ -2060,6 +2074,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
               </div>)}
             </div>;
           })()}
+          </React.Fragment>}
         </React.Fragment> : st.allDone ? <div className="notice">Everyone has finished. Results are being confirmed.</div> : <React.Fragment>
           {memberIds.map(id=><div className="member-status" key={id}>
             <span className={'dot '+(st.completedBy.includes(id)?'done':'waiting')}></span>
@@ -2119,6 +2134,7 @@ function HowItWorksModal({onClose,rules=null}) {
       <ul><li><b>Pods:</b> Predict who gets engaged. {budgets.pods.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Retreats:</b> Predict breakups, sleep-together moments, and flirting or outside interest during the retreat. {budgets.dating.budget} {budgetLabel}, with one prediction window.</li><li><b>Weddings:</b> Predict who marries, says no, or calls it off. {budgets.weddings.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. {budgets.reunion.budget} {budgetLabel}, with one prediction window.</li></ul>
       <h3>How points work</h3>
       <p>Every correct prediction scores hearts wagered × its event or outcome multiplier × Against-the-Grain Bonus. Pods and Wedding predictions also receive an Against-the-Clock Bonus for predicting earlier. Less-common correct predictions earn more Against-the-Grain Bonus; only players who make at least one prediction in that phase are included. The final bonus is calculated automatically after the phase closes. Incorrect predictions never subtract points - you simply lose the hearts you wagered. Unspent hearts are lost and never carry into the next phase.</p>
+      <p><b>Retroactive scoring changes:</b> Occasionally an outcome is revealed later than the phase it belongs to, or a rule-breaking situation voids a prediction. These score as separate retro adjustments once the reveal airs, so each phase score always matches what had aired at the time.</p>
       <p>Retreats standings may be provisional while results are being confirmed. All Retreats markets close at the end of the retreat.</p>
       <button className="btn-primary" onClick={onClose}>Got it</button>
     </div>
@@ -2347,7 +2363,7 @@ function App() {
           const replayStart=mine.screen==='close'&&replayPhase==='dating'?PH_STARTW[replayPhase]+1:mine.w;
           const replayResults=[];
           for(let ep=replayStart;ep<=mine.w;ep++) replayResults.push(engine.resolveEpisode(replayPhase,ep,{[user.uid]:replayPicks}));
-          const retroEvents=engine.retroEventsForRange(replayStart,mine.w).map(event=>({title:event.note,sub:'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.',retro:true,placeholder:!event.confirmed}));
+          const retroEvents=engine.retroEventsForRange(replayStart,mine.w).map(event=>({title:event.note,sub:retroRevealSub(event),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
           const r={events:[...replayResults.flatMap(result=>result.events),...retroEvents],entries:replayResults.flatMap(result=>result.entries)};
           const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
           setReveal({ep:mine.w,rangeLabel:mine.screen==='close'&&replayPhase==='dating'?'Retreats recap':undefined,...pendified});
@@ -2457,8 +2473,7 @@ function App() {
     try {
       setErr('');
       const podsStatus=await window._fb.getPhaseStatus(inv.poolId,'pods');
-      const podsHasCompletion=podsStatus?.revealed===true||(podsStatus?.completedMembers||[]).length>0;
-      if(podsHasCompletion) throw new Error('Invitations are closed because a player has completed Pods.');
+      if(phaseHasCompletion(podsStatus)) throw new Error('Invitations are closed because a player has completed Pods.');
       await window._fb.acceptInvite(inv, user.uid);
       setEnteringPool(true);
       const joinedPool=await window._fb.getPool(inv.poolId);
@@ -2498,7 +2513,7 @@ function App() {
     if (!email || !email.includes('@')) { setPoolInviteFeedback('Enter a valid email address.');setPoolInviteError(true);return; }
     if (email===(user.email||'').toLowerCase()) { setPoolInviteFeedback('You are already in this pool.');setPoolInviteError(true);return; }
     if (pendingPoolInvites.some(inv=>inv.toEmail===email)) { setPoolInviteFeedback('That person already has a pending invitation.');setPoolInviteError(true);return; }
-    if (poolStatus.pods) { setPoolInviteFeedback('Invitations closed when the first player completed Pods.');setPoolInviteError(true);return; }
+    if (phaseHasCompletion(poolStatus.pods)) { setPoolInviteFeedback('Invitations closed when the first player completed Pods.');setPoolInviteError(true);return; }
     setSendingPoolInvite(true);
     try {
       await window._fb.sendInvite(activePool.id,activePool.name,seasonLabelForPool(activePool),user.uid,profile.username,email);
@@ -2585,8 +2600,7 @@ function App() {
     phaseCompletionAttempted.current=key;
     setRetryingPhaseCompletion(true);
     try {
-      await window._fb.completePhase(poolId,phaseId,uid);
-      const confirmedStatus=await window._fb.getPhaseStatus(poolId,phaseId);
+      const confirmedStatus=await window._fb.completePhase(poolId,phaseId,uid);
       if(confirmedStatus)setPoolStatus(current=>({...current,[phaseId]:confirmedStatus}));
       setPhaseCompletionError('');
       setErr(current=>current===message?'':current);
@@ -2607,7 +2621,7 @@ function App() {
       const recapStart=canClose&&phase==='dating'?PH_STARTW[phase]+1:start;
       const rangeResults=[];
       for(let ep=recapStart;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(phase,ep,{[user.uid]:picks[phase]}));
-      const retroEvents=eng.retroEventsForRange(start,target).map(event=>({title:event.note,sub:'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.',retro:true,placeholder:!event.confirmed}));
+      const retroEvents=eng.retroEventsForRange(start,target).map(event=>({title:event.note,sub:retroRevealSub(event),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
       const combined={events:[...rangeResults.flatMap(r=>r.events),...retroEvents],entries:rangeResults.flatMap(r=>r.entries)};
       const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
       const atProvisionalBoundary=target>=endEp&&!canClose;
@@ -2818,6 +2832,14 @@ function App() {
     {reveal.events.map((ev,i)=><div className={'evt'+(ev.retro?' retro-event':'')} key={i}><h3>{ev.title}{ev.retro&&<span className="warnchip">retro</span>}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
   </div>;
+  const currentRevealRetroIds=new Set(screen==='board'?(reveal?.events||[]).filter(event=>event.retro&&event.retroEventId).map(event=>event.retroEventId):[]);
+  const persistentRetroEvents=(screen==='watch'||screen==='board')?(eng.RETRO_EVENTS||[]).filter(event=>event.revealedEp<=w&&!currentRevealRetroIds.has(event.id)):[];
+  const PersistentRetroReveals = () => persistentRetroEvents.length>0 && <div className="persistent-retro-events">
+    {persistentRetroEvents.map(event=><div className="evt retro-event" key={event.id}>
+      <h3>{event.note}<span className="warnchip">retro</span>{!event.confirmed&&<span className="warnchip">placeholder</span>}</h3>
+      <div className="sub">{retroRevealSub(event)}</div>
+    </div>)}
+  </div>;
   return <div className="app">
     <BrandHeader season={seasonLabelForPool(activePool)}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
@@ -2838,12 +2860,12 @@ function App() {
       {cfg.PLAYABLE&&<React.Fragment><button className={poolTab==='rules'?'active':''} onClick={()=>switchPoolTab('rules')}>Rules</button><button className={poolTab==='scoring'?'active':''} onClick={()=>switchPoolTab('scoring')}>Scoring</button></React.Fragment>}
     </div>
     {poolTab==='standings' && poolPlayers && <React.Fragment>
-      <button className="btn-secondary" onClick={refreshStandings}>Refresh standings</button>
+      <div style={{textAlign:'center',margin:'0 0 10px'}}><button className="btn-small" style={{width:'auto'}} onClick={refreshStandings}>Refresh standings</button></div>
       <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>
       <div className="card">
         <h3>Invite someone</h3>
         <p className="lede">Invite more friends before the first player completes Pods.</p>
-        {poolStatus.pods?<p className="subtle">Invitations are closed because a player has completed Pods.</p>:<React.Fragment>
+        {phaseHasCompletion(poolStatus.pods)?<p className="subtle">Invitations are closed because a player has completed Pods.</p>:<React.Fragment>
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
               <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
@@ -2869,6 +2891,7 @@ function App() {
       {screen==='board'&&<React.Fragment>
         {historicalPredictionDeadline!=null&&<div className="notice" style={{margin:'8px 0 14px'}}><b>Your last chance for {phase==='pods'?'Pod':'Wedding'} predictions is after Episode {historicalPredictionDeadline}.</b></div>}
         <RevealSummary/>
+        <PersistentRetroReveals/>
         {phase==='pods'&&<PodsBoard w={w} picks={picks.pods} add={addPick} remove={removePick} spent={spent} eng={eng} finalWindow={finalPredictionWindow} onPendingChange={setPendingPodsPrediction} pendingRef={pendingPodsSkip}/>} 
         {phase==='dating'&&<DatingBoard w={w} picks={picks.dating} add={addPick} remove={removePick} spent={spent} eng={eng}/>}
         {phase==='weddings'&&<WeddingsBoard w={w} picks={picks.weddings} add={addPick} remove={removePick} spent={spent} eng={eng} finalWindow={finalPredictionWindow}/>} 
@@ -2883,17 +2906,19 @@ function App() {
         {watchThrough>w?<React.Fragment>
           <p className="lede">You can now watch {watchRangeLabel(phase,w+1,watchThrough)}. Return here when you finish.</p>
           <LockedPicks phase={phase} picks={picks[phase]} eng={eng}/>
+          <PersistentRetroReveals/>
           <button className="btn-primary" disabled={gating} onClick={finishWatch}>I've finished {watchRangeLabel(phase,w+1,watchThrough)} →</button>
         </React.Fragment>:readyWatchEnd>w?<React.Fragment>
           <p className="lede">A new episode batch is ready. Your predictions remain locked.</p>
           <LockedPicks phase={phase} picks={picks[phase]} eng={eng}/>
+          <PersistentRetroReveals/>
           <button className="btn-primary" disabled={gating} onClick={beginNextBatch}>Watch {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
         </React.Fragment>:<React.Fragment>
           {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
-            ? <React.Fragment><p className="lede">The {RULES.phases[phase].label} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {RULES.phases[phase].label} →</button></React.Fragment>
+            ? <React.Fragment><p className="lede">The {RULES.phases[phase].label} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {RULES.phases[phase].label} →</button></React.Fragment>
             : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
-              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {RULES.phases[phase].label} boundary is finalized.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>
-              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Return after the next episode batch drops.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>}
+              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {RULES.phases[phase].label} boundary is finalized.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>
+              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Return after the next episode batch drops.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>}
         </React.Fragment>}
       </div>}
       {screen==='close'&&closeInfo&&<React.Fragment>
