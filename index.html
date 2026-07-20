@@ -545,7 +545,7 @@ const SEASON_BANK = [
     locationLabel:'Dallas',
     sheetId:'102HfVLhO9ZEsoweMKMmnxXFg6ngwNWPPXk6rDcUB8v0',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-4',
@@ -2472,7 +2472,17 @@ function App() {
   const doAccept = async (inv) => {
     try {
       setErr('');
-      const podsStatus=await window._fb.getPhaseStatus(inv.poolId,'pods');
+      let podsStatus=null;
+      try {
+        podsStatus=await window._fb.getPhaseStatus(inv.poolId,'pods');
+      } catch(preflightError) {
+        const preflightPermissionDenied=['permission-denied','firestore/permission-denied'].includes(preflightError?.code)||/permission/i.test(preflightError?.message||'');
+        if(!preflightPermissionDenied) throw preflightError;
+        // Older deployed rules only let existing members read phaseStatus. The
+        // acceptance transaction still enforces the Pods gate securely, so a
+        // denied preflight must not prevent a legitimate invitee from joining.
+        console.warn('Invite preflight was unavailable; relying on the secure acceptance transaction.',preflightError);
+      }
       if(phaseHasCompletion(podsStatus)) throw new Error('Invitations are closed because a player has completed Pods.');
       await window._fb.acceptInvite(inv, user.uid);
       setEnteringPool(true);
@@ -2493,10 +2503,11 @@ function App() {
       await enterPool(joinedPool);
     }
     catch(e) {
+      console.error('Pool invitation acceptance failed.',e);
       setEnteringPool(false);
       const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/permission/i.test(e?.message||'');
       setErr(permissionDenied
-        ? 'This invitation cannot be accepted. Invitations may have closed because a player completed Pods, or you may already be in this pool.'
+        ? 'Firebase rejected this invitation. If no one has completed Pods and you are not already in the pool, publish the latest Firestore rules and try again.'
         : (e?.message||'Could not accept the invitation.'));
     }
   };
