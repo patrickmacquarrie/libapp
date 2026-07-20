@@ -1687,16 +1687,17 @@ function LockedPicks({phase,picks,eng}) {
     {picks.length===0?<p className="subtle">You did not make any predictions for this phase.</p>:picks.map((pick,index)=><div className="pickchip" key={index}><div><div className="nm">{labelFor(pick)} - {pick.s}♥</div><div className="subtle">locked</div></div></div>)}
   </div>;
 }
+const navigationPhaseLabel = (phase,RULES) => phase==='weddings'?'Wedding Predictions':RULES.phases[phase].label;
 function Stepper({phase,RULES}) {
   const idx=PH_ORDER.indexOf(phase);
-  return <div className="stepper">{PH_ORDER.map((p,i)=><React.Fragment key={p}>{i>0&&<span className="heartsep">♥</span>}<span className={'step '+(i===idx?'cur':(i<idx?'done':''))}>{RULES.phases[p].label}</span></React.Fragment>)}</div>;
+  return <div className="stepper">{PH_ORDER.map((p,i)=><React.Fragment key={p}>{i>0&&<span className="heartsep">♥</span>}<span className={'step '+(i===idx?'cur':(i<idx?'done':''))}>{navigationPhaseLabel(p,RULES)}</span></React.Fragment>)}</div>;
 }
 function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
   const {RULES,PH_SPAN:spans,PH_STARTW:starts}=eng;
   const finalEp=spans.reunion.endEp;
   const phases=PH_ORDER.map((ph,i)=>({
     id:ph,
-    label:RULES.phases[ph].label,
+    label:navigationPhaseLabel(ph,RULES),
     length:Math.max(1,spans[ph].endEp-(i===0?0:starts[ph])),
   }));
   const ids=Object.keys(playersById).sort((a,b)=>a===meId?-1:b===meId?1:alphaByName(memberLabels[a]||'',memberLabels[b]||''));
@@ -1710,8 +1711,8 @@ function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
     if(complete) status='Season complete';
     else if(player?.screen==='watch'&&Number.isFinite(watchEnd)&&watchEnd>ep) status='Watching '+episodeRangeLabel(ep+1,watchEnd);
     else if(player?.screen==='board') status='After Episode '+ep+' · Predicting';
-    else if(player?.screen==='close') status='After Episode '+ep+' · Finishing '+RULES.phases[phase].label;
-    else if(ep>0) status='After Episode '+ep+' · '+RULES.phases[phase].label+' next';
+    else if(player?.screen==='close') status='After Episode '+ep+' · Finishing '+navigationPhaseLabel(phase,RULES);
+    else if(ep>0) status='After Episode '+ep+' · '+navigationPhaseLabel(phase,RULES)+' next';
     else status='Season not started';
     return {ep,status,pct:Math.max(3,Math.min(97,finalEp>0?(ep/finalEp)*100:0))};
   };
@@ -2907,7 +2908,7 @@ function App() {
     {poolTab==='play' && cfg.PLAYABLE && <React.Fragment>
       <Stepper phase={phase} RULES={RULES}/>
       {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
-      {screen==='intro'&&<div className="card"><h2>{RULES.phases[phase].label}</h2><p className="lede">{phaseIntro.tagline}</p><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
+      {screen==='intro'&&<div className="card"><h2>{navigationPhaseLabel(phase,RULES)}</h2><p className="lede">{phaseIntro.tagline}</p><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
         {historicalPredictionDeadline!=null&&<div className="notice" style={{margin:'8px 0 14px'}}><b>Your last chance for {phase==='pods'?'Pod':'Wedding'} predictions is after Episode {historicalPredictionDeadline}.</b></div>}
         <RevealSummary/>
@@ -2935,21 +2936,21 @@ function App() {
           <button className="btn-primary" disabled={gating} onClick={beginNextBatch}>Watch {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
         </React.Fragment>:<React.Fragment>
           {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
-            ? <React.Fragment><p className="lede">The {RULES.phases[phase].label} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {RULES.phases[phase].label} →</button></React.Fragment>
+            ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
             : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
-              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {RULES.phases[phase].label} boundary is finalized.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>
+              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>
               : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>}
         </React.Fragment>}
       </div>}
       {screen==='close'&&closeInfo&&<React.Fragment>
         <RevealSummary/>
         <div className="card">
-          <h2>{RULES.phases[phase].label} complete</h2>
+          <h2>{navigationPhaseLabel(phase,RULES)} complete</h2>
           {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Retreats results are still being confirmed.':'Scores finalized when the phase closes.'}</h3>}
           {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
           <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Retreats, confirmed points appear in Standings while the Retreats results are finalized.':phase==='reunion'&&RESULTS_READY.reunion?'Your predictions are locked. Your Reunion score is visible in Standings now; final standings update when everyone locks their Reunion predictions.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
           {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
-          <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+RULES.phases[NEXT_PH[phase]].label+' →':'Finish the season →'}</button>
+          <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+navigationPhaseLabel(NEXT_PH[phase],RULES)+' →':'Finish the season →'}</button>
         </div>
       </React.Fragment>}
       {screen==='final'&&<div className="card gatecard">
