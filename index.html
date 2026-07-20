@@ -545,7 +545,7 @@ const SEASON_BANK = [
     locationLabel:'Dallas',
     sheetId:'102HfVLhO9ZEsoweMKMmnxXFg6ngwNWPPXk6rDcUB8v0',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-4',
@@ -1157,12 +1157,12 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     const market=datingMarket(r), key=datingResultKey(r);
     if(!market||marker) return false;
     const ep=Number.parseInt(r.episode,10);
-    return !key||!Number.isFinite(ep)||ep<=phaseStart.dating||ep>phaseSpan.dating.retreatEndEp;
+  return !key||!Number.isFinite(ep)||ep<phaseStart.dating||ep>phaseSpan.dating.retreatEndEp;
   });
   if(invalidDatingRows.length) {
     throw new Error(
       `Season data invalid: ${invalidDatingRows.length} Dating Results row${invalidDatingRows.length===1?' has':'s have'} ` +
-      `a missing result target or an episode outside the retreat window ${phaseStart.dating+1}..${phaseSpan.dating.retreatEndEp} ` +
+      `a missing result target or an episode outside the retreat window ${phaseStart.dating}..${phaseSpan.dating.retreatEndEp} ` +
       `(${invalidDatingRows.map(r=>`${r.market||'unknown'}:${datingResultKey(r)||'missing'}=${r.episode||'missing'}`).join(', ')}). ` +
       `Use person for flirt and couple_id for sex or breakup.`
     );
@@ -1188,7 +1188,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   if(outsideRetreatRows.length) {
     throw new Error(
       `Season data invalid: ${outsideRetreatRows.length} retreat-only Retreats result${outsideRetreatRows.length===1?' is':'s are'} ` +
-      `outside the retreat window (Episodes ${phaseStart.dating+1}..${phaseSpan.dating.retreatEndEp}: ` +
+      `outside the retreat window (Episodes ${phaseStart.dating}..${phaseSpan.dating.retreatEndEp}: ` +
       `${outsideRetreatRows.map(r=>`${r.couple_id||'unknown'}=${r.episode}`).join(', ')}). ` +
       `Correct the episode or update RETREAT_END_EP in Settings.`
     );
@@ -1824,7 +1824,7 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   const [fP,setFP]=useState(''),[fS,setFS]=useState(20);
   const bO=COUPLES.filter(c=>!(DATING_RESULTS.breakup[c.id]&&DATING_RESULTS.breakup[c.id].ep<=w)&&!picks.some(p=>p.m==='breakup'&&p.c===c.id));
   const sO=COUPLES.filter(c=>!(DATING_RESULTS.sex[c.id]&&DATING_RESULTS.sex[c.id].ep<=w)&&!picks.some(p=>p.m==='sex'&&p.c===c.id));
-  const fO=COUPLES.flatMap(c=>[c.him,c.her]).filter((person,index,people)=>people.indexOf(person)===index&&!DATING_RESULTS.flirt[person]&&!picks.some(p=>p.m==='flirt'&&p.p===person));
+  const fO=COUPLES.flatMap(c=>[c.him,c.her]).filter((person,index,people)=>people.indexOf(person)===index&&!(DATING_RESULTS.flirt[person]&&DATING_RESULTS.flirt[person].ep<=w)&&!picks.some(p=>p.m==='flirt'&&p.p===person));
   const opt=l=>l.map(c=>({v:c.id,t:nameOf(c.id)}));
   const ml=p=>p.m==='breakup'?'Breaks up during the retreat':(p.m==='sex'?'Sleep together':FLIRT_SHORT);
   return <div className="card"><h2>{open?'Make your Retreats predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">{open?'One prediction window for the whole retreat. Lock your picks before watching the next episodes — unspent hearts are lost when you lock.':'Your Retreats predictions are locked.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
