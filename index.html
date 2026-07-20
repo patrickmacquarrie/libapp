@@ -543,7 +543,7 @@ const SEASON_BANK = [
     locationLabel:'Dallas',
     sheetId:'102HfVLhO9ZEsoweMKMmnxXFg6ngwNWPPXk6rDcUB8v0',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-4',
@@ -2457,7 +2457,8 @@ function App() {
     try {
       setErr('');
       const podsStatus=await window._fb.getPhaseStatus(inv.poolId,'pods');
-      if(podsStatus) throw new Error('Invitations are closed because a player has completed Pods.');
+      const podsHasCompletion=podsStatus?.revealed===true||(podsStatus?.completedMembers||[]).length>0;
+      if(podsHasCompletion) throw new Error('Invitations are closed because a player has completed Pods.');
       await window._fb.acceptInvite(inv, user.uid);
       setEnteringPool(true);
       const joinedPool=await window._fb.getPool(inv.poolId);
