@@ -974,7 +974,16 @@ const playerSeasonError = (error,fallback) => {
 async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const season=seasonById(seasonId);
   if(!season?.available||!season.sheetId) throw new Error('This season is not available yet.');
-  const retroPromise=fetchTab('Retro Events',season.sheetId).catch(e=>{
+  const retroPromise=fetchTab('Retro Events',season.sheetId).then(rows=>{
+    const headers=(rows[0]||[]).map(h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_'));
+    // The gviz fallback can return the sheet's first tab when an optional tab
+    // does not exist. Only accept this response when it is actually Retro Events.
+    if(!headers.includes('market')) {
+      console.info('No Retro Events tab is available for this season.');
+      return [];
+    }
+    return rows;
+  }).catch(e=>{
     console.info('No Retro Events tab is available for this season.',e);
     return [];
   });
