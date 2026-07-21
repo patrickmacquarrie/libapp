@@ -189,6 +189,11 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .pool-row:hover{box-shadow:0 4px 16px rgba(110,31,59,.1)}
 .pool-row .pname{font-family:'Playfair Display',serif;font-size:18px;color:var(--wine);font-weight:700}
 .pool-row .pmeta{font-size:12px;color:var(--soft-text);margin-top:2px}
+.library-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.library-head h2{margin-bottom:2px}
+.library-head .btn-small{flex:0 0 auto;white-space:nowrap}
+.season-library-row{cursor:default}
+.season-library-row .btn-small{flex:0 0 auto;white-space:nowrap}
 .invite-row{border:1px dashed var(--gold);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fffaf1}
 .invite-row .iname{font-weight:700;color:var(--wine);font-size:15px}
 .invite-row .imeta{font-size:12.5px;color:var(--gold);margin:3px 0 10px}
@@ -277,7 +282,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:7px}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
+@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:7px}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -2245,6 +2250,7 @@ function App() {
   const [lobbyLoading, setLobbyLoading] = useState(false);
   const [enteringPool, setEnteringPool] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [historicalLibraryOpen,setHistoricalLibraryOpen] = useState(()=>HISTORICAL_SEASON_BANK.length<=1);
   const [newPoolName, setNewPoolName] = useState('');
   const [selectedSeasonId, setSelectedSeasonId] = useState(DEFAULT_SEASON_ID);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -2272,6 +2278,7 @@ function App() {
   const [gating, setGating] = useState(false);
   const [pendingPodsPrediction, setPendingPodsPrediction] = useState(false);
   const pendingPodsSkip = useRef(()=>{});
+  const newPoolFormRef = useRef(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [confirmDialog,setConfirmDialog]=useState(null);
   const [phaseCompletionError, setPhaseCompletionError] = useState('');
@@ -2777,6 +2784,10 @@ function App() {
     <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
     <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
   </div>;
+  const startPoolFromLibrary=seasonId=>{
+    setSelectedSeasonId(seasonId);setCreating(true);
+    setTimeout(()=>newPoolFormRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),0);
+  };
   if (!activePool&&enteringPool) return <div className="app">
     <BrandHeader season={seasonLibrarySummary}>{userBar}</BrandHeader>
     <div className="loading"><span className="spinner">♥</span>Opening your pool...</div>
@@ -2809,7 +2820,7 @@ function App() {
         <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
       </div>)}
       {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
-      {creating && <div style={{marginTop:14}}>
+      {creating && <div ref={newPoolFormRef} style={{marginTop:14}}>
         <hr className="divider"/>
         <h3>New pool</h3>
         <div className="row">
@@ -2839,8 +2850,11 @@ function App() {
       </div>}
     </div>
     <div className="card">
-      <h2>Historical season library</h2>
-      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:HISTORICAL_SEASON_BANK.map(season=><div className="pool-row" key={season.id} onClick={()=>{setSelectedSeasonId(season.id);setCreating(true);}}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div><span style={{color:'var(--rose)',fontWeight:700}}>→</span></div>)}
+      <div className="library-head">
+        <div><h2>Historical season library</h2>{HISTORICAL_SEASON_BANK.length>1&&<p className="subtle">{HISTORICAL_SEASON_BANK.length} seasons ready to play</p>}</div>
+        {HISTORICAL_SEASON_BANK.length>1&&<button type="button" className="btn-small" aria-expanded={historicalLibraryOpen} aria-controls="historical-season-list" onClick={()=>setHistoricalLibraryOpen(open=>!open)}>{historicalLibraryOpen?'Hide seasons':'Show seasons'}</button>}
+      </div>
+      {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={HISTORICAL_SEASON_BANK.length>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_BANK.map(season=><div className="pool-row season-library-row" key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div><button type="button" className="btn-small filled" onClick={()=>startPoolFromLibrary(season.id)}>Start a new pool</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
