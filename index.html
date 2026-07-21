@@ -246,12 +246,14 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .cast-section-title.other{margin-top:18px}
 .cast-person{min-width:0;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--surface);position:relative}
 .cast-person.engaged{border-color:color-mix(in srgb,var(--rose) 55%,var(--line));box-shadow:0 0 0 2px color-mix(in srgb,var(--rose) 10%,transparent)}
+.cast-person.married{border-color:color-mix(in srgb,var(--gold) 72%,var(--line));box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 18%,transparent)}
 .cast-person.broken-up{border-color:#c9344f;box-shadow:0 0 0 2px color-mix(in srgb,#c9344f 14%,transparent)}
 .cast-photo{aspect-ratio:4/5;background:linear-gradient(145deg,var(--blush-soft),var(--line));display:grid;place-items:center;overflow:hidden}
 .cast-photo img{display:block;width:100%;height:100%;object-fit:cover}
 .cast-initials{font-family:'Playfair Display',Georgia,serif;font-size:30px;font-weight:700;color:var(--wine);letter-spacing:.02em}
 .cast-person-name{font-size:12px;font-weight:700;color:var(--ink);padding:8px 7px 9px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cast-status{position:absolute;top:7px;right:7px;background:rgba(67,17,39,.88);color:#fff;font-size:8px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 6px;border-radius:999px}
+.cast-status.married{background:#a67518;color:#fff}
 .cast-status.broken-up{background:#b3263e;color:#fff}
 :root[data-theme="dark"] .cast-board-head{background:linear-gradient(135deg,#3a1b29,var(--surface))}
 :root[data-theme="dark"] body{background:radial-gradient(900px 500px at 82% -10%,#351522 0%,transparent 62%),radial-gradient(800px 460px at -12% 10%,#29121d 0%,transparent 58%),var(--cream)}
@@ -1742,14 +1744,14 @@ function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
     })}
   </div>;
 }
-function CastPortrait({person,engaged,brokenUp}) {
+function CastPortrait({person,engaged,married,brokenUp}) {
   const [failed,setFailed]=useState(false);
   const initials=person.name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();
-  return <div className={'cast-person '+(brokenUp?'broken-up':(engaged?'engaged':''))} title={person.name}>
+  return <div className={'cast-person '+(brokenUp?'broken-up':(married?'married':(engaged?'engaged':'')))} title={person.name}>
     <div className="cast-photo">
       {person.photoUrl&&!failed?<img src={person.photoUrl} alt={person.name} loading="lazy" decoding="async" onError={()=>setFailed(true)}/>:<span className="cast-initials" aria-hidden="true">{initials}</span>}
     </div>
-    {brokenUp?<span className="cast-status broken-up">Broken up</span>:engaged&&<span className="cast-status">Engaged</span>}
+    {brokenUp?<span className="cast-status broken-up">Broken up</span>:married?<span className="cast-status married">Married</span>:engaged&&<span className="cast-status">Engaged</span>}
     <div className="cast-person-name">{person.name}</div>
   </div>;
 }
@@ -1757,6 +1759,7 @@ function ContestantReferenceBoard({eng,w,phase}) {
   const [open,setOpen]=useState(()=>!(window.matchMedia&&window.matchMedia('(max-width: 480px)').matches));
   const bodyId=useId();
   const engagedNames=new Set(eng.COUPLES.filter(c=>c.engagedEp<=w).flatMap(c=>[c.him,c.her]));
+  const marriedNames=new Set(eng.COUPLES.filter(c=>c.wedding==='married'&&Number.isFinite(c.settledEp)&&c.settledEp<=w).flatMap(c=>[c.him,c.her]));
   const brokenUpNames=new Set(eng.COUPLES.filter(c=>c.breakupEp&&c.breakupEp<=w).flatMap(c=>[c.him,c.her]));
   const castByName=Object.fromEntries(eng.CAST.map(person=>[person.name,person]));
   const visibleCouples=phase==='pods'?[]:eng.COUPLES
@@ -1778,11 +1781,11 @@ function ContestantReferenceBoard({eng,w,phase}) {
       {grouped?<React.Fragment>
         <h3 className="cast-section-title">Couples</h3>
         <div className="cast-couples-grid">{visibleCouples.map(c=><div className="cast-couple" key={c.id} role="group" aria-label={c.him+' and '+c.her}>
-          <div className="cast-couple-photos"><CastPortrait person={castByName[c.him]} engaged brokenUp={brokenUpNames.has(c.him)}/><CastPortrait person={castByName[c.her]} engaged brokenUp={brokenUpNames.has(c.her)}/></div>
+          <div className="cast-couple-photos"><CastPortrait person={castByName[c.him]} engaged married={marriedNames.has(c.him)} brokenUp={brokenUpNames.has(c.him)}/><CastPortrait person={castByName[c.her]} engaged married={marriedNames.has(c.her)} brokenUp={brokenUpNames.has(c.her)}/></div>
           <div className="cast-couple-label">{c.him} &amp; {c.her}</div>
         </div>)}</div>
-        {otherCast.length>0&&<React.Fragment><h3 className="cast-section-title other">Other cast members</h3><div className="cast-grid">{otherCast.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)} brokenUp={brokenUpNames.has(person.name)}/>)}</div></React.Fragment>}
-      </React.Fragment>:<div className="cast-grid">{eng.CAST.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)} brokenUp={brokenUpNames.has(person.name)}/>)}</div>}
+        {otherCast.length>0&&<React.Fragment><h3 className="cast-section-title other">Other cast members</h3><div className="cast-grid">{otherCast.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)} married={marriedNames.has(person.name)} brokenUp={brokenUpNames.has(person.name)}/>)}</div></React.Fragment>}
+      </React.Fragment>:<div className="cast-grid">{eng.CAST.map(person=><CastPortrait key={person.name} person={person} engaged={engagedNames.has(person.name)} married={marriedNames.has(person.name)} brokenUp={brokenUpNames.has(person.name)}/>)}</div>}
     </div>}
   </section>;
 }
