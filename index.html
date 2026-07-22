@@ -1142,6 +1142,12 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   }
   const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>({
     id:r.id, him:r.him, her:r.her, engagedEp:Number.parseInt(r.engaged_ep,10),
+    // A later off-cycle engagement remains a real relationship for Weddings
+    // and Reunion, but is not offered in the Pods or Retreats markets.
+    // These are opt-out controls: blank means eligible, which fits ordinary
+    // Pods-to-Retreats relationships. Later relationship entries opt out.
+    podsEligible:r.pods_eligible==null||r.pods_eligible===''?true:pBool(r.pods_eligible),
+    datingEligible:r.dating_eligible==null||r.dating_eligible===''?true:pBool(r.dating_eligible),
     wedding:r.wedding||undefined, who:r.who_says_no||undefined,
     breakupEp:r.breakup_ep?parseInt(r.breakup_ep):undefined,
     settledEp:r.settled_ep?parseInt(r.settled_ep):undefined,
@@ -1196,7 +1202,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   const datingResultMarkets=['sex','flirt','breakup'];
   const datingMarket = r=>String(r.market||'').trim().toLowerCase();
   const datingResultKey = r=>datingMarket(r)==='flirt'?String(r.person||'').trim():String(r.couple_id||'').trim();
-  const engagedPeople=new Set(COUPLES.flatMap(c=>[c.him,c.her]));
+  const engagedPeople=new Set(COUPLES.filter(c=>c.datingEligible).flatMap(c=>[c.him,c.her]));
   const unsupportedDatingRows=datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
     const market=datingMarket(r);
@@ -1227,7 +1233,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
     const market=datingMarket(r), key=datingResultKey(r);
     if(marker||!datingResultMarkets.includes(market)) return false;
-    return market==='flirt'?!engagedPeople.has(key):!COUPLES.some(c=>c.id===key);
+    return market==='flirt'?!engagedPeople.has(key):!COUPLES.some(c=>c.id===key&&c.datingEligible);
   });
   if(invalidDatingTargets.length) {
     throw new Error(
@@ -1258,13 +1264,13 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
     else if(mkt==='flirt') DATING_RESULTS.flirt[id]={ep,confirmed:conf};
   });
+
   const unconfirmedFinalDatingRows = resultsReady.dating ? datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
     return r.market&&datingResultKey(r)&&r.episode&&!marker&&!pBool(r.confirmed);
   }) : [];
   if(unconfirmedFinalDatingRows.length) {
     throw new Error(
-
       `Season data incomplete: DATING_RESULTS_READY is true, but ${unconfirmedFinalDatingRows.length} ` +
       `Retreats result row${unconfirmedFinalDatingRows.length===1?' is':'s are'} not confirmed ` +
       `(${unconfirmedFinalDatingRows.map(r=>`${r.market}:${datingResultKey(r)}`).join(', ')}). ` +
@@ -1290,7 +1296,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     else if(mkt==='lifeupdate') { if(marker) RR.ready.lifeUpdate=true; else if(id&&val) RR.lifeUpdates.push({person:id,update:normalizeLifeUpdate(val)}); }
     else if(mkt==='absent') { if(marker) RR.ready.absent=true; else if(id) RR.absent.push(id); }
   });
-  const retroMarkets=['sex','flirt','breakup','still','void'];
+  const retroMarkets=['pods','sex','flirt','breakup','still','void'];
   const voidMarkets=['pods','weddings','sex','flirt','breakup'];
   const retroPersonKey=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
   const castNames=new Set(CAST.map(person=>retroPersonKey(person.name)));
@@ -1304,13 +1310,16 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     const revealedEp=Number.parseInt(r.revealed_ep,10);
     const note=String(r.note||'').trim();
     if(!retroMarkets.includes(market)) {
-      throw new Error(`Season data invalid: Retro Events row ${index+2} has unsupported market "${r.market||'missing'}". Use sex, flirt, breakup, still, or void.`);
+      throw new Error(`Season data invalid: Retro Events row ${index+2} has unsupported market "${r.market||'missing'}". Use pods, sex, flirt, breakup, still, or void.`);
     }
     if(!PH_ORDER.includes(appliesPhase)) {
       throw new Error(`Season data invalid: Retro Events row ${index+2} has invalid applies_phase "${r.applies_phase||'missing'}". Use pods, dating, weddings, or reunion.`);
     }
     if(['sex','flirt','breakup'].includes(market)&&appliesPhase!=='dating') {
       throw new Error(`Season data invalid: Retro Events ${market} rows must use dating in applies_phase (row ${index+2}).`);
+    }
+    if(market==='pods'&&appliesPhase!=='pods') {
+      throw new Error(`Season data invalid: Retro Events pods rows must use pods in applies_phase (row ${index+2}).`);
     }
     if(market==='void'&&!voidMarkets.includes(voidMarket)) {
       throw new Error(`Season data invalid: Retro Events void row ${index+2} requires void_market pods, weddings, sex, flirt, or breakup.`);
@@ -1436,16 +1445,16 @@ function makeEngine(cfg, poolSize) {
   }
   /* Resolve one episode across a set of members. picksBy = {memberUid: picks[]} */
   function resolveEpisode(phase, ep, picksBy) {
+
     const MEMBERS = Object.keys(picksBy);
     const all = picksBy;
     scoringPool = activePoolSize(picksBy);
     const events=[], entries=[];
     if(phase==='pods') {
-      COUPLES.filter(c=>c.engagedEp===ep).forEach(c=>{
+      COUPLES.filter(c=>c.podsEligible&&c.engagedEp===ep).forEach(c=>{
         const owners=MEMBERS.filter(m=>all[m].some(p=>sameCouple(p.c,c))).length;
         events.push({title:nameOf(c.id)+' got engaged',sub:ep===START.pods?'Episode '+START.pods+' - unavailable for predictions by design; no one scores it.':'Against-the-Grain bonus calculated once everyone finishes Pods.'});
         MEMBERS.forEach(m=>all[m].filter(p=>sameCouple(p.c,c)).forEach(p=>{
-
           const fore=ep-p.w-1;
           entries.push(mk({member:m,phase,ok:true,label:nameOf(c.id)+' engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners}));
         }));
@@ -1581,6 +1590,7 @@ function makeEngine(cfg, poolSize) {
     if(phase==='pods') MEMBERS.forEach(m=>all[m].forEach(p=>{
       const c=coupleFor(p.c);
       if(!c) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' never got engaged',stake:p.s}));
+      else if(!c.podsEligible) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' did not become a Pods engagement',stake:p.s,note:'This relationship began after the Pods. It may be credited later only through a confirmed retro Pods event.'}));
       else if(c.engagedEp>SPAN.pods.endEp) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' got engaged after the Pods closed',stake:p.s,note:'Engaged in Episode '+c.engagedEp+', outside the Pods window.'}));
     }));
     if(phase==='dating') MEMBERS.forEach(m=>all[m].forEach(p=>{
@@ -1616,17 +1626,24 @@ function makeEngine(cfg, poolSize) {
   function scoreRetroAdjustments(picksByPhase, revealedPhaseSet) {
     const memberSet=new Set();
     PH_ORDER.forEach(phase=>Object.keys(picksByPhase?.[phase]||{}).forEach(id=>memberSet.add(id)));
+
     const MEMBERS=Array.from(memberSet), totals={};
     MEMBERS.forEach(id=>totals[id]=0);
     const entries=[], activeEvents=[];
     const picksFor=(phase,member)=>picksByPhase?.[phase]?.[member]||[];
-    const marketMultiplier=market=>market==='still'?REUNION_MULT.still:1;
+    const marketMultiplier=(event,pick)=>{
+      if(event.market==='still') return REUNION_MULT.still;
+      // A post-Pods engagement earns the lead bonus the player had accrued
+      // when the Pods closed, never extra foresight from later episodes.
+      if(event.market==='pods') return leadM(Math.max(0,SPAN.pods.endEp-(Number.isFinite(pick.w)?pick.w:SPAN.pods.endEp)-1));
+      return 1;
+    };
     const matchingPick=(event,pick)=>{
+      if(event.market==='pods') return sameCouple(pick.c,coupleFor(event.target));
       if(event.market==='flirt') return pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
       if(event.market==='still') return pick.m==='still'&&sameCouple(pick.c,coupleFor(event.target));
       return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
     };
-
     const matchingVoidPick=(event,phase,pick)=>{
       if(event.voidMarket==='pods') return phase==='pods'&&sameCouple(pick.c,coupleFor(event.target));
       if(event.voidMarket==='weddings') return phase==='weddings'&&sameCouple(pick.c,coupleFor(event.target));
@@ -1634,6 +1651,10 @@ function makeEngine(cfg, poolSize) {
       return phase==='dating'&&pick.m===event.voidMarket&&sameCouple(pick.c,coupleFor(event.target));
     };
     const normallyScored=(event,pick)=>{
+      if(event.market==='pods') {
+        const couple=coupleFor(event.target);
+        return !!couple&&couple.podsEligible&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
+      }
       if(event.market==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
       if(event.market==='flirt') return Object.entries(DATING_RESULTS.flirt).some(([person,result])=>personKey(person)===personKey(event.target)&&result.confirmed);
       if(event.market==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
@@ -1678,9 +1699,13 @@ function makeEngine(cfg, poolSize) {
       scoringPool=activePoolSize(phasePicks);
       const owners=MEMBERS.filter(member=>picksFor(event.appliesPhase,member).some(pick=>matchingPick(event,pick)&&!normallyScored(event,pick))).length;
       MEMBERS.forEach(member=>picksFor(event.appliesPhase,member).filter(pick=>matchingPick(event,pick)&&!normallyScored(event,pick)).forEach(pick=>{
-        const multiplier=marketMultiplier(event.market), pending=!event.confirmed;
-        const label=event.market==='flirt'?FLIRT_SHORT+': '+event.target:event.market==='still'?nameOf(event.target)+' still together':event.market==='sex'?'Sleep together: '+nameOf(event.target):'Breaks up during the retreat: '+nameOf(event.target);
-        const entry=mk({member,phase:event.appliesPhase,ok:true,pending,label,stake:pick.s,mult:multiplier,multLabel:'x'+fmt(multiplier)+' '+(event.market==='still'?'still-together':'base'),owners,note:event.note+(pending?' Awaiting confirmation.':''),retro:true,retroPhase:event.revealingPhase,retroEventId:event.id});
+        const multiplier=marketMultiplier(event,pick), pending=!event.confirmed;
+        const podForesight=event.market==='pods'?Math.max(0,SPAN.pods.endEp-(Number.isFinite(pick.w)?pick.w:SPAN.pods.endEp)-1):0;
+        const label=event.market==='pods'?nameOf(event.target)+' got engaged after the Pods':event.market==='flirt'?FLIRT_SHORT+': '+event.target:event.market==='still'?nameOf(event.target)+' still together':event.market==='sex'?'Sleep together: '+nameOf(event.target):'Breaks up during the retreat: '+nameOf(event.target);
+        const multLabel=event.market==='pods'
+          ? 'x'+fmt(multiplier)+' Pods Against-the-Clock ('+podForesight+' episodes of foresight at Pods close)'
+          : 'x'+fmt(multiplier)+' '+(event.market==='still'?'still-together':'base');
+        const entry=mk({member,phase:event.appliesPhase,ok:true,pending,label,stake:pick.s,mult:multiplier,multLabel,owners,note:event.note+(pending?' Awaiting confirmation.':''),retro:true,retroPhase:event.revealingPhase,retroEventId:event.id});
         entries.push(entry);if(!pending)totals[member]+=entry.points;
       }));
     });
@@ -1782,6 +1807,7 @@ function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
     return {ep,status,pct:Math.max(3,Math.min(97,finalEp>0?(ep/finalEp)*100:0))};
   };
   return <div className="card">
+
     <h3>Everyone’s season progress</h3>
     <p className="lede">The heart marks the last episode each player has finished.</p>
     <div className="season-progress-scale" aria-hidden="true"><span></span><div className="season-progress-phases">{phases.map(ph=><span className="season-progress-phase" style={{flex:ph.length}} key={ph.id}>{ph.label}</span>)}</div></div>
@@ -1807,18 +1833,21 @@ function CastPortrait({person,engaged,married,brokenUp}) {
     </div>
     {brokenUp?<span className="cast-status broken-up">Broken up</span>:married?<span className="cast-status married">Married</span>:engaged&&<span className="cast-status">Engaged</span>}
     <div className="cast-person-name">{person.name}</div>
-
   </div>;
 }
 function ContestantReferenceBoard({eng,w,phase}) {
   const [open,setOpen]=useState(()=>!(window.matchMedia&&window.matchMedia('(max-width: 480px)').matches));
   const bodyId=useId();
-  const engagedNames=new Set(eng.COUPLES.filter(c=>c.engagedEp<=w).flatMap(c=>[c.him,c.her]));
+  // Relationships are historical records. A person can appear in more than
+  // one, so display only the relationship that is active in this episode.
+  const activeCouples=eng.COUPLES.filter(c=>c.engagedEp<=w&&(!c.breakupEp||c.breakupEp>w));
+  const activeNames=new Set(activeCouples.flatMap(c=>[c.him,c.her]));
+  const engagedNames=new Set(activeCouples.flatMap(c=>[c.him,c.her]));
   const marriedNames=new Set(eng.COUPLES.filter(c=>c.wedding==='married'&&Number.isFinite(c.settledEp)&&c.settledEp<=w).flatMap(c=>[c.him,c.her]));
-  const brokenUpNames=new Set(eng.COUPLES.filter(c=>c.breakupEp&&c.breakupEp<=w).flatMap(c=>[c.him,c.her]));
+  const brokenUpNames=new Set(eng.COUPLES.filter(c=>c.breakupEp&&c.breakupEp<=w).flatMap(c=>[c.him,c.her]).filter(name=>!activeNames.has(name)));
   const castByName=Object.fromEntries(eng.CAST.map(person=>[person.name,person]));
-  const visibleCouples=phase==='pods'?[]:eng.COUPLES
-    .filter(c=>c.engagedEp<=w&&castByName[c.him]&&castByName[c.her])
+  const visibleCouples=phase==='pods'?[]:activeCouples
+    .filter(c=>castByName[c.him]&&castByName[c.her])
     .sort((a,b)=>alphaByName(a.him+' & '+a.her,b.him+' & '+b.her));
   const pairedNames=new Set(visibleCouples.flatMap(c=>[c.him,c.her]));
   const otherCast=eng.CAST.filter(person=>!pairedNames.has(person.name));
@@ -1861,7 +1890,7 @@ function PodsBoard({w,picks,add,remove,spent,eng,finalWindow,onPendingChange,pen
   const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,leadM,fmt}=eng;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
   const [adding,setAdding]=useState(picks.length===0);
-  const engaged=COUPLES.filter(c=>c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
+  const engaged=COUPLES.filter(c=>c.podsEligible&&c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
   const used=picks.flatMap(p=>membOf(p.c));
   const menA=MEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
   const womA=WOMEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
@@ -1890,9 +1919,10 @@ function DatingBoard({w,picks,add,remove,spent,eng}) {
   const [bC,setBC]=useState(''),[bS,setBS]=useState(20);
   const [sC,setSC]=useState(''),[sS,setSS]=useState(20);
   const [fP,setFP]=useState(''),[fS,setFS]=useState(20);
-  const bO=COUPLES.filter(c=>!(DATING_RESULTS.breakup[c.id]&&DATING_RESULTS.breakup[c.id].ep<=w)&&!picks.some(p=>p.m==='breakup'&&p.c===c.id));
-  const sO=COUPLES.filter(c=>!(DATING_RESULTS.sex[c.id]&&DATING_RESULTS.sex[c.id].ep<=w)&&!picks.some(p=>p.m==='sex'&&p.c===c.id));
-  const fO=COUPLES.flatMap(c=>[c.him,c.her]).filter((person,index,people)=>people.indexOf(person)===index&&!(DATING_RESULTS.flirt[person]&&DATING_RESULTS.flirt[person].ep<=w)&&!picks.some(p=>p.m==='flirt'&&p.p===person));
+  const retreatCouples=COUPLES.filter(c=>c.datingEligible&&c.engagedEp<=w);
+  const bO=retreatCouples.filter(c=>!(DATING_RESULTS.breakup[c.id]&&DATING_RESULTS.breakup[c.id].ep<=w)&&!picks.some(p=>p.m==='breakup'&&p.c===c.id));
+  const sO=retreatCouples.filter(c=>!(DATING_RESULTS.sex[c.id]&&DATING_RESULTS.sex[c.id].ep<=w)&&!picks.some(p=>p.m==='sex'&&p.c===c.id));
+  const fO=retreatCouples.flatMap(c=>[c.him,c.her]).filter((person,index,people)=>people.indexOf(person)===index&&!(DATING_RESULTS.flirt[person]&&DATING_RESULTS.flirt[person].ep<=w)&&!picks.some(p=>p.m==='flirt'&&p.p===person));
   const opt=l=>l.map(c=>({v:c.id,t:nameOf(c.id)}));
   const ml=p=>p.m==='breakup'?'Breaks up during the retreat':(p.m==='sex'?'Sleep together':FLIRT_SHORT);
   return <div className="card"><h2>{open?'Make your Retreats predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">{open?'One prediction window for the whole retreat. Lock your picks before watching the next episodes — unspent hearts are lost when you lock.':'Your Retreats predictions are locked.'}</p><Budget phase="dating" spent={spent} RULES={RULES}/>
@@ -1958,6 +1988,7 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
 /* ================================================================== */
 function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, hasRetro=false}) {
   if (!phases.length || !ranked.length) return null;
+
   const width=560, height=210, margin={top:18,right:12,bottom:40,left:42};
   const plotWidth=width-margin.left-margin.right, plotHeight=height-margin.top-margin.bottom;
   const scoreText=n=>String(+Number(n).toFixed(2));
@@ -1988,7 +2019,6 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
       {series.map(s=><g key={s.id}><path className="score-series" d={linePath(s.values)} style={{stroke:s.color}}/>{s.values.map((value,index)=><circle className="score-point" key={index} cx={x(index)} cy={y(value)} r="4" fill={s.color}><title>{s.name+', '+RULES.phases[phases[index]].label+': '+scoreText(value)+' points'}</title></circle>)}</g>)}
     </svg>
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
-
   </section>;
 }
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[]}) {
@@ -2139,6 +2169,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
+
           {openPhase===ph && (()=>{
             const picksBy={};
             memberIds.forEach(id=>{
@@ -2169,7 +2200,6 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
 }
 /* ================================================================== */
 /*  PHASE COPY                                                         */
-
 /* ================================================================== */
 function PH_INTRO(phase,RULES,cfg) {
   const maxPodsClock=cfg.leadM(cfg.PH_SPAN.pods.endEp-cfg.PH_STARTW.pods-1);
@@ -2320,6 +2350,7 @@ function App() {
   const [w, setW] = useState(0);
   const [watchThrough, setWatchThrough] = useState(0);
   const [picks, setPicks] = useState(freshPicks);
+
   const [completed, setCompleted] = useState({});
   const [duplicateFromPoolId, setDuplicateFromPoolId] = useState('');
   const [reveal, setReveal] = useState(null);
@@ -2350,7 +2381,6 @@ function App() {
     setTheme(next);document.documentElement.dataset.theme=next;
     try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
   };
-
   /* ── Auth ── */
   useEffect(() => {
     return window._fb.onAuthStateChanged(async u => {
@@ -2501,6 +2531,7 @@ function App() {
           const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid);
           initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
         }
+
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
         setDuplicateFromPoolId(duplicateFrom);
         setCompleted(completed0); setReveal(null); setCloseInfo(null);
@@ -2531,7 +2562,6 @@ function App() {
       await window._fb.savePlayer(pending.poolId, pending.uid, pending.data);
       // A linked global pool keeps a separate copy of the player's picks. The
       // global pool scores them against its own full player population.
-
       const linkedTargets=globalLinks.current.filter(link=>link.sourcePoolId===pending.poolId);
       const phase=pending.data.phase;
       if(linkedTargets.length&&PH_ORDER.includes(phase)) {
@@ -2682,6 +2712,7 @@ function App() {
     setPoolInviteFeedback('');setPoolInviteError(false);
     if (!email || !email.includes('@')) { setPoolInviteFeedback('Enter a valid email address.');setPoolInviteError(true);return; }
     if (email===(user.email||'').toLowerCase()) { setPoolInviteFeedback('You are already in this pool.');setPoolInviteError(true);return; }
+
     if (pendingPoolInvites.some(inv=>inv.toEmail===email)) { setPoolInviteFeedback('That person already has a pending invitation.');setPoolInviteError(true);return; }
     if (phaseHasCompletion(poolStatus.pods)) { setPoolInviteFeedback('Invitations closed when the first player completed Pods.');setPoolInviteError(true);return; }
     setSendingPoolInvite(true);
@@ -2712,7 +2743,6 @@ function App() {
     (completedSeason||(BOUNDARIES_FINAL[phase]!==false&&AVAILABLE_THROUGH_EP>=PH_SPAN[phase].endEp));
   const nextAvailableEnd = () => rollingPhase
     ? Math.min(PH_SPAN[phase].endEp,w+1,AVAILABLE_THROUGH_EP)
-
     : Math.min(PH_SPAN[phase].endEp,AVAILABLE_THROUGH_EP);
   const startPods = async () => {
     if(gating) return;
@@ -2863,6 +2893,7 @@ function App() {
     if(!activePool||poolTab!=='play'||screen!=='close'||!completed[phase]||!user?.uid) {
       phaseCompletionAttempted.current='';
       return;
+
     }
     if((poolStatus[phase]?.completedMembers||[]).includes(user.uid)) {
       setPhaseCompletionError('');
@@ -2893,7 +2924,6 @@ function App() {
     <div className="card">
       <h2>Choose a username</h2>
       <p className="lede">This is the name your poolmates will see on scoreboards.</p>
-
       <div className="row" style={{marginTop:14}}>
         <div className="field"><label className="small">Username</label>
           <input type="text" value={usernameInput} onChange={e=>setUsernameInput(e.target.value)} maxLength={20} placeholder="e.g. Patrick"/>
@@ -3044,6 +3074,7 @@ function App() {
       <h3>{event.note}<span className="warnchip">retro</span>{!event.confirmed&&<span className="warnchip">placeholder</span>}</h3>
       <div className="sub">{retroRevealSub(event)}</div>
     </div>)}
+
   </div>;
   return <div className="app">
     <BrandHeader season={seasonLabelForPool(activePool)}>
@@ -3074,7 +3105,6 @@ function App() {
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
               <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
-
             </div>
             <button className="btn-add" disabled={sendingPoolInvite||!poolInviteEmail.trim()} onClick={doSendPoolInvite}>{sendingPoolInvite?'Sending...':'Send invitation'}</button>
           </div>
