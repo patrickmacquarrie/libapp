@@ -2371,18 +2371,25 @@ function App() {
     if (!user) return;
     setLobbyLoading(true);
     try {
-      const [ps, is, publicGlobalPools] = await Promise.all([
+      // Friend pools must remain usable while the global-pool rules are being
+      // rolled out. A denied public-global lookup must never blank this list.
+      const [ps, is] = await Promise.all([
         window._fb.myPools(user.uid),
         window._fb.myInvites(user.email),
-        Promise.all(GLOBAL_POOL_SEASONS.map(async season=>[season.id,await window._fb.getGlobalPool(season.id)])),
       ]);
-      const bySeason=Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool]));
       const links=(await Promise.all(ps.filter(pool=>pool.global===true).map(async pool=>{
-        const player=await window._fb.getPlayer(pool.id,user.uid);
-        return player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
+        try {
+          const player=await window._fb.getPlayer(pool.id,user.uid);
+          return player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
+        } catch(e) { console.info('A global-pool link could not be loaded.',e); return null; }
       }))).filter(Boolean);
       globalLinks.current=links;
-      setPools(ps); setGlobalPools(bySeason); setInvites(is);
+      setPools(ps); setInvites(is);
+      const publicGlobalPools=await Promise.all(GLOBAL_POOL_SEASONS.map(async season=>{
+        try { return [season.id,await window._fb.getGlobalPool(season.id)]; }
+        catch(e) { console.info('Global pools are unavailable until their Firestore rules are published.',e); return [season.id,null]; }
+      }));
+      setGlobalPools(Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool])));
     } catch(e) { console.error(e); setErr('Could not refresh your pools. Please try again.'); }
     finally { setLobbyLoading(false); }
   }, [user]);
@@ -2524,6 +2531,7 @@ function App() {
       await window._fb.savePlayer(pending.poolId, pending.uid, pending.data);
       // A linked global pool keeps a separate copy of the player's picks. The
       // global pool scores them against its own full player population.
+
       const linkedTargets=globalLinks.current.filter(link=>link.sourcePoolId===pending.poolId);
       const phase=pending.data.phase;
       if(linkedTargets.length&&PH_ORDER.includes(phase)) {
@@ -2531,7 +2539,6 @@ function App() {
         await Promise.all(linkedTargets.map(async link=>{
           try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,phasePicks); }
           // A locked or revealed global phase is deliberately immutable. It
-
           // must not prevent the source-pool prediction from saving.
           catch(e) { console.info('Global-pool pick sync skipped.',e); }
         }));
@@ -2705,6 +2712,7 @@ function App() {
     (completedSeason||(BOUNDARIES_FINAL[phase]!==false&&AVAILABLE_THROUGH_EP>=PH_SPAN[phase].endEp));
   const nextAvailableEnd = () => rollingPhase
     ? Math.min(PH_SPAN[phase].endEp,w+1,AVAILABLE_THROUGH_EP)
+
     : Math.min(PH_SPAN[phase].endEp,AVAILABLE_THROUGH_EP);
   const startPods = async () => {
     if(gating) return;
@@ -2712,7 +2720,6 @@ function App() {
     const start=PH_STARTW.pods;
     try {
       await savePlayer({picks,phase:'pods',screen:'board',w:start,watchThrough:start,completed},true);
-
       setW(start);setWatchThrough(start);setScreen('board');setReveal(null);
     } catch(e) { setErr('Your progress could not be saved. Please try again.'); }
     finally { setGating(false); }
@@ -2886,6 +2893,7 @@ function App() {
     <div className="card">
       <h2>Choose a username</h2>
       <p className="lede">This is the name your poolmates will see on scoreboards.</p>
+
       <div className="row" style={{marginTop:14}}>
         <div className="field"><label className="small">Username</label>
           <input type="text" value={usernameInput} onChange={e=>setUsernameInput(e.target.value)} maxLength={20} placeholder="e.g. Patrick"/>
@@ -2893,7 +2901,6 @@ function App() {
       </div>
       <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
     </div>
-
   </div>;
   const userBar = <div className="user-bar">
     {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
@@ -3067,6 +3074,7 @@ function App() {
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
               <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
+
             </div>
             <button className="btn-add" disabled={sendingPoolInvite||!poolInviteEmail.trim()} onClick={doSendPoolInvite}>{sendingPoolInvite?'Sending...':'Send invitation'}</button>
           </div>
@@ -3074,7 +3082,6 @@ function App() {
         {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
       </div>}
     </React.Fragment>}
-
     {poolTab==='rules' && cfg.PLAYABLE && <div className="card"><h2>Rules</h2>{phaseIntro.rules}</div>}
     {poolTab==='scoring' && cfg.PLAYABLE && <div className="card"><h2>Scoring</h2>{phaseIntro.scoring}</div>}
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
