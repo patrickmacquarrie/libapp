@@ -1589,9 +1589,12 @@ function makeEngine(cfg, poolSize) {
     scoringPool = activePoolSize(picksBy);
     if(phase==='pods') MEMBERS.forEach(m=>all[m].forEach(p=>{
       const c=coupleFor(p.c);
-      if(!c) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' never got engaged',stake:p.s}));
-      else if(!c.podsEligible) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' did not become a Pods engagement',stake:p.s,note:'This relationship began after the Pods. It may be credited later only through a confirmed retro Pods event.'}));
-      else if(c.engagedEp>SPAN.pods.endEp) entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' got engaged after the Pods closed',stake:p.s,note:'Engaged in Episode '+c.engagedEp+', outside the Pods window.'}));
+      // Keep future relationship developments hidden at the Pods boundary.
+      // A later engagement, if applicable, is revealed only by its own retro
+      // event once the player has watched that episode.
+      if(!c||!c.podsEligible||c.engagedEp>SPAN.pods.endEp) {
+        entries.push(mk({member:m,phase,ok:false,label:nameOf(p.c)+' did not get engaged',stake:p.s}));
+      }
     }));
     if(phase==='dating') MEMBERS.forEach(m=>all[m].forEach(p=>{
       if(p.m==='breakup'&&!DATING_RESULTS.breakup[p.c]) {
@@ -1623,10 +1626,10 @@ function makeEngine(cfg, poolSize) {
     return {entries, totals};
   }
   const retroEventsForRange = (startEp,endEp) => RETRO_EVENTS.filter(event=>event.revealedEp>=startEp&&event.revealedEp<=endEp);
+
   function scoreRetroAdjustments(picksByPhase, revealedPhaseSet) {
     const memberSet=new Set();
     PH_ORDER.forEach(phase=>Object.keys(picksByPhase?.[phase]||{}).forEach(id=>memberSet.add(id)));
-
     const MEMBERS=Array.from(memberSet), totals={};
     MEMBERS.forEach(id=>totals[id]=0);
     const entries=[], activeEvents=[];
@@ -1804,10 +1807,10 @@ function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
     else if(player?.screen==='close') status='After Episode '+ep+' · Finishing '+navigationPhaseLabel(phase,RULES);
     else if(ep>0) status='After Episode '+ep+' · '+navigationPhaseLabel(phase,RULES)+' next';
     else status='Season not started';
+
     return {ep,status,pct:Math.max(3,Math.min(97,finalEp>0?(ep/finalEp)*100:0))};
   };
   return <div className="card">
-
     <h3>Everyone’s season progress</h3>
     <p className="lede">The heart marks the last episode each player has finished.</p>
     <div className="season-progress-scale" aria-hidden="true"><span></span><div className="season-progress-phases">{phases.map(ph=><span className="season-progress-phase" style={{flex:ph.length}} key={ph.id}>{ph.label}</span>)}</div></div>
@@ -1985,10 +1988,10 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
 }
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
+
 /* ================================================================== */
 function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, hasRetro=false}) {
   if (!phases.length || !ranked.length) return null;
-
   const width=560, height=210, margin={top:18,right:12,bottom:40,left:42};
   const plotWidth=width-margin.left-margin.right, plotHeight=height-margin.top-margin.bottom;
   const scoreText=n=>String(+Number(n).toFixed(2));
@@ -2166,10 +2169,10 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Retreats results are being finalized.</div>}
           {ph==='reunion'&&reunionScoresPartial&&<div className="notice">Only players who have locked their Reunion predictions are shown here. These scores are provisional until everyone locks.</div>}
           {breakdownHidden?<div className="notice">Finish watching this phase to see the breakdown.</div>:<React.Fragment>
+
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
-
           {openPhase===ph && (()=>{
             const picksBy={};
             memberIds.forEach(id=>{
@@ -2347,10 +2350,10 @@ function App() {
   const [eng, setEng] = useState(null);
   const [phase, setPhase] = useState('pods');
   const [screen, setScreen] = useState('intro');
+
   const [w, setW] = useState(0);
   const [watchThrough, setWatchThrough] = useState(0);
   const [picks, setPicks] = useState(freshPicks);
-
   const [completed, setCompleted] = useState({});
   const [duplicateFromPoolId, setDuplicateFromPoolId] = useState('');
   const [reveal, setReveal] = useState(null);
@@ -2528,10 +2531,10 @@ function App() {
         let initialPicks=freshPicks();
         const duplicateFrom=pool.global===true&&duplicateFromPoolId?duplicateFromPoolId:'';
         if(duplicateFrom) {
+
           const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid);
           initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
         }
-
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
         setDuplicateFromPoolId(duplicateFrom);
         setCompleted(completed0); setReveal(null); setCloseInfo(null);
@@ -2633,7 +2636,12 @@ function App() {
       const seasonCfg = await loadConfig(season.id);
       const initialRules = seasonCfg.PLAYABLE ? rulesSnapshotFrom(seasonCfg) : null;
       const poolId = await window._fb.createPool(name, user.uid, initialRules, season);
-      await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
+      try {
+        await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
+      } catch(inviteError) {
+        console.error('The pool was created, but one or more invitations failed.',inviteError);
+        setErr('Your pool was created, but an invitation could not be sent. Publish the latest Firestore rules, then invite your friend from the Standings tab.');
+      }
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setInviteList([]);
       loadLobby();
     } catch(e) { console.error(e); setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
@@ -2704,6 +2712,7 @@ function App() {
   const doDeletePool = async pool => {
     if (pool.ownerUid!==user.uid) return;
     try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else await loadLobby(); }
+
     catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); throw e; }
   };
   const doSendPoolInvite = async () => {
@@ -2712,7 +2721,6 @@ function App() {
     setPoolInviteFeedback('');setPoolInviteError(false);
     if (!email || !email.includes('@')) { setPoolInviteFeedback('Enter a valid email address.');setPoolInviteError(true);return; }
     if (email===(user.email||'').toLowerCase()) { setPoolInviteFeedback('You are already in this pool.');setPoolInviteError(true);return; }
-
     if (pendingPoolInvites.some(inv=>inv.toEmail===email)) { setPoolInviteFeedback('That person already has a pending invitation.');setPoolInviteError(true);return; }
     if (phaseHasCompletion(poolStatus.pods)) { setPoolInviteFeedback('Invitations closed when the first player completed Pods.');setPoolInviteError(true);return; }
     setSendingPoolInvite(true);
@@ -2885,6 +2893,7 @@ function App() {
   useEffect(()=>{
     const refreshOnFocus=()=>{
       if(poolTab==='standings'&&activePool&&Date.now()-lastStandingsRefresh.current>=30000)refreshStandings();
+
     };
     window.addEventListener('focus',refreshOnFocus);
     return()=>window.removeEventListener('focus',refreshOnFocus);
@@ -2893,7 +2902,6 @@ function App() {
     if(!activePool||poolTab!=='play'||screen!=='close'||!completed[phase]||!user?.uid) {
       phaseCompletionAttempted.current='';
       return;
-
     }
     if((poolStatus[phase]?.completedMembers||[]).includes(user.uid)) {
       setPhaseCompletionError('');
@@ -3066,6 +3074,7 @@ function App() {
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
     {reveal.events.map((ev,i)=><div className={'evt'+(ev.retro?' retro-event':'')} key={i}><h3>{ev.title}{ev.retro&&<span className="warnchip">retro</span>}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
+
   </div>;
   const currentRevealRetroIds=new Set(screen==='board'?(reveal?.events||[]).filter(event=>event.retro&&event.retroEventId).map(event=>event.retroEventId):[]);
   const persistentRetroEvents=(screen==='watch'||screen==='board')?(eng.RETRO_EVENTS||[]).filter(event=>event.revealedEp<=w&&!currentRevealRetroIds.has(event.id)):[];
@@ -3074,7 +3083,6 @@ function App() {
       <h3>{event.note}<span className="warnchip">retro</span>{!event.confirmed&&<span className="warnchip">placeholder</span>}</h3>
       <div className="sub">{retroRevealSub(event)}</div>
     </div>)}
-
   </div>;
   return <div className="app">
     <BrandHeader season={seasonLabelForPool(activePool)}>
