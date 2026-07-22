@@ -549,7 +549,7 @@ const SEASON_BANK = [
     seasonNumber:3,
     locationLabel:null,
     status:'upcoming',
-    releaseLabel:'Coming August 2026',
+    releaseLabel:'First episodes drop August 13, 2026',
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
     historical:false,
     available:true,
@@ -910,7 +910,9 @@ const SEASON_BANK = [
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
-const GLOBAL_POOL_SEASONS = SEASON_BANK.filter(season=>season.available&&['upcoming','live'].includes(season.status));
+// There is one universal pool at a time: prioritize the current live season,
+// then show the next upcoming one until it begins.
+const GLOBAL_POOL_SEASON = SEASON_BANK.find(season=>season.available&&season.status==='live')||SEASON_BANK.find(season=>season.available&&season.status==='upcoming')||null;
 const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
 const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
@@ -1081,9 +1083,9 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
         `Season config error: ${cur.toUpperCase()}_START_EP is ` +
         `${phaseStart[cur]} but ${prev.toUpperCase()}_END_EP is ` +
         `${phaseSpan[prev].endEp}. Each phase must start on the episode ` +
+
         `the previous phase ended on.`
       );
-
     }
   }
   for (const ph of ORDER) {
@@ -1262,9 +1264,9 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     if(!mkt||!id||!ep) return;
     if(mkt==='breakup') DATING_RESULTS.breakup[id]={ep,confirmed:conf};
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
+
     else if(mkt==='flirt') DATING_RESULTS.flirt[id]={ep,confirmed:conf};
   });
-
   const unconfirmedFinalDatingRows = resultsReady.dating ? datingRows.filter(r=>{
     const marker=['COMPLETE','FINAL','NONE'].includes(String(r.couple_id||'').trim().toUpperCase());
     return r.market&&datingResultKey(r)&&r.episode&&!marker&&!pBool(r.confirmed);
@@ -1443,9 +1445,9 @@ function makeEngine(cfg, poolSize) {
     return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,poolSize,contra,tag:tag||1,tagLabel,note,
             placeholder:!!placeholder,pending:!!pending,retro:!!retro,retroPhase,retroEventId,points:ok&&!pending?calcPts(stake,mult,owners,tag):0};
   }
+
   /* Resolve one episode across a set of members. picksBy = {memberUid: picks[]} */
   function resolveEpisode(phase, ep, picksBy) {
-
     const MEMBERS = Object.keys(picksBy);
     const all = picksBy;
     scoringPool = activePoolSize(picksBy);
@@ -1624,9 +1626,9 @@ function makeEngine(cfg, poolSize) {
     Object.keys(picksBy).forEach(m=>totals[m]=0);
     entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
     return {entries, totals};
+
   }
   const retroEventsForRange = (startEp,endEp) => RETRO_EVENTS.filter(event=>event.revealedEp>=startEp&&event.revealedEp<=endEp);
-
   function scoreRetroAdjustments(picksByPhase, revealedPhaseSet) {
     const memberSet=new Set();
     PH_ORDER.forEach(phase=>Object.keys(picksByPhase?.[phase]||{}).forEach(id=>memberSet.add(id)));
@@ -1805,9 +1807,9 @@ function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
     else if(player?.screen==='watch'&&Number.isFinite(watchEnd)&&watchEnd>ep) status='Watching '+episodeRangeLabel(ep+1,watchEnd);
     else if(player?.screen==='board') status='After Episode '+ep+' · Predicting';
     else if(player?.screen==='close') status='After Episode '+ep+' · Finishing '+navigationPhaseLabel(phase,RULES);
+
     else if(ep>0) status='After Episode '+ep+' · '+navigationPhaseLabel(phase,RULES)+' next';
     else status='Season not started';
-
     return {ep,status,pct:Math.max(3,Math.min(97,finalEp>0?(ep/finalEp)*100:0))};
   };
   return <div className="card">
@@ -1986,9 +1988,9 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} - {p.s}♥</div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction: '+ml(p)}>✕</button>}</div>)}</div>;
 }
+
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
-
 /* ================================================================== */
 function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, hasRetro=false}) {
   if (!phases.length || !ranked.length) return null;
@@ -2167,9 +2169,9 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
         <h3>{RULES.phases[ph].label}</h3>
         {(st.allDone&&(resultsReady[ph]||ph==='dating')||(ph==='reunion'&&reunionScoresPartial)) ? <React.Fragment>
           {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Retreats results are being finalized.</div>}
+
           {ph==='reunion'&&reunionScoresPartial&&<div className="notice">Only players who have locked their Reunion predictions are shown here. These scores are provisional until everyone locks.</div>}
           {breakdownHidden?<div className="notice">Finish watching this phase to see the breakdown.</div>:<React.Fragment>
-
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
             {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
           </button>
@@ -2348,9 +2350,9 @@ function App() {
   const [poolStatus, setPoolStatus] = useState({});      // {phase: phaseStatus doc}
   const [poolTab, setPoolTab] = useState('play');        // play | standings | rules | scoring
   const [eng, setEng] = useState(null);
+
   const [phase, setPhase] = useState('pods');
   const [screen, setScreen] = useState('intro');
-
   const [w, setW] = useState(0);
   const [watchThrough, setWatchThrough] = useState(0);
   const [picks, setPicks] = useState(freshPicks);
@@ -2418,10 +2420,10 @@ function App() {
       }))).filter(Boolean);
       globalLinks.current=links;
       setPools(ps); setInvites(is);
-      const publicGlobalPools=await Promise.all(GLOBAL_POOL_SEASONS.map(async season=>{
-        try { return [season.id,await window._fb.getGlobalPool(season.id)]; }
-        catch(e) { console.info('Global pools are unavailable until their Firestore rules are published.',e); return [season.id,null]; }
-      }));
+      const publicGlobalPools=GLOBAL_POOL_SEASON?[await (async()=>{
+        try { return [GLOBAL_POOL_SEASON.id,await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id)]; }
+        catch(e) { console.info('The global pool is unavailable until its Firestore rules are published.',e); return [GLOBAL_POOL_SEASON.id,null]; }
+      })()]:[];
       setGlobalPools(Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool])));
     } catch(e) { console.error(e); setErr('Could not refresh your pools. Please try again.'); }
     finally { setLobbyLoading(false); }
@@ -2529,9 +2531,9 @@ function App() {
         const w0 = seasonFinished ? PH_SPAN.reunion.endEp : (landingPhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[landingPhase]);
         const landingScreen = seasonFinished ? 'final' : 'intro';
         let initialPicks=freshPicks();
+
         const duplicateFrom=pool.global===true&&duplicateFromPoolId?duplicateFromPoolId:'';
         if(duplicateFrom) {
-
           const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid);
           initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
         }
@@ -2710,9 +2712,9 @@ function App() {
   };
   const doDecline = async (inv) => { try { await window._fb.declineInvite(inv.id); loadLobby(); } catch(e) { setErr('Could not decline the invitation.'); } };
   const doDeletePool = async pool => {
+
     if (pool.ownerUid!==user.uid) return;
     try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else await loadLobby(); }
-
     catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); throw e; }
   };
   const doSendPoolInvite = async () => {
@@ -2891,9 +2893,9 @@ function App() {
     if(next==='standings'){setPoolInviteFeedback('');refreshStandings();}
   };
   useEffect(()=>{
+
     const refreshOnFocus=()=>{
       if(poolTab==='standings'&&activePool&&Date.now()-lastStandingsRefresh.current>=30000)refreshStandings();
-
     };
     window.addEventListener('focus',refreshOnFocus);
     return()=>window.removeEventListener('focus',refreshOnFocus);
@@ -2952,6 +2954,8 @@ function App() {
   };
   const globalSourcePools=globalJoin?pools.filter(pool=>pool.global!==true&&seasonForPool(pool).id===globalJoin.season.id):[];
   const friendPools=pools.filter(pool=>pool.global!==true);
+  const globalPool=GLOBAL_POOL_SEASON?globalPools[GLOBAL_POOL_SEASON.id]:null;
+  const joinedGlobalPool=!!globalPool?.members?.includes(user.uid);
   if (!activePool&&enteringPool) return <div className="app">
     <BrandHeader season={seasonLibrarySummary}>{userBar}</BrandHeader>
     <div className="loading"><span className="spinner">♥</span>Opening your pool...</div>
@@ -2975,16 +2979,12 @@ function App() {
         </div>
       </div>)}
     </div>}
-    {GLOBAL_POOL_SEASONS.length>0&&<section className="card global-pool-card">
-      <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pools</h2><p className="lede">Universal season pools with their own predictions, scoring, and leaderboard.</p></div></div>
-      {GLOBAL_POOL_SEASONS.map(season=>{
-        const globalPool=globalPools[season.id];
-        const joined=globalPool?.members?.includes(user.uid);
-        return <div className="pool-row" key={season.id} onClick={()=>openGlobalPool(season)}>
-          <div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{joined?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(season)||'Live season'}</div></div>
-          <button className="btn-small filled" onClick={e=>{e.stopPropagation();openGlobalPool(season);}}>{joined?'Open':'Join'}</button>
-        </div>;
-      })}
+    {GLOBAL_POOL_SEASON&&<section className="card global-pool-card">
+      <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pool</h2><p className="lede">One universal season pool with its own predictions, scoring, and leaderboard.</p></div></div>
+      <div className="pool-row" onClick={()=>openGlobalPool(GLOBAL_POOL_SEASON)}>
+        <div><div className="pname">{formatSeasonLabel(GLOBAL_POOL_SEASON)}</div><div className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(GLOBAL_POOL_SEASON)||'Live season'}</div></div>
+        <button className="btn-small filled" onClick={e=>{e.stopPropagation();openGlobalPool(GLOBAL_POOL_SEASON);}}>{joinedGlobalPool?'Open':'Join'}</button>
+      </div>
       <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are separate from your friend pools and are scored only against global-pool players.</p>
     </section>}
     <div className="card">
