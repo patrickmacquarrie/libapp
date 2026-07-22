@@ -298,7 +298,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit, getDocs, arrayUnion, runTransaction, writeBatch }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
 const firebaseConfig = {
   apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
@@ -502,21 +502,34 @@ window._fb = {
     }));
     return out;
   },
-  globalLeaderboard: async (seasonId) => {
-    const snap = await getDocs(query(
-      collection(db,'globalLeaderboards',seasonId,'entries'), orderBy('score','desc'), limit(100)
-    ));
-    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  getGlobalPool: async (seasonId) => {
+    const ref=doc(db,'pools','global__'+seasonId);
+    const s=await getDoc(ref);
+    return s.exists()?{id:s.id,...s.data()}:null;
   },
-  publishGlobalScore: async (seasonId, uid, username, score) => {
-    const entryRef=doc(db,'globalLeaderboards',seasonId,'entries',uid);
+  joinGlobalPool: async (season,uid,rulesSnapshot) => {
+    const ref=doc(db,'pools','global__'+season.id);
     await runTransaction(db,async tx=>{
-      const current=await tx.get(entryRef);
-      const best=Math.max(Number(current.data()?.score)||0,Math.round(score));
-      tx.set(entryRef,{uid,username:String(username||'Player').slice(0,40),seasonId,score:best,updatedAt:Date.now()},{merge:true});
+      const existing=await tx.get(ref);
+      if(!existing.exists()) {
+        tx.set(ref,{name:'Global pool · '+season.label,ownerUid:uid,members:[uid],rulesSnapshot,
+          season:{id:season.id,label:season.label,country:season.country,countryCode:season.countryCode,seasonNumber:season.seasonNumber,locationLabel:season.locationLabel||null},
+          global:true,globalSeasonId:season.id,createdAt:Date.now()});
+      } else {
+        if(existing.data().global!==true||existing.data().globalSeasonId!==season.id) throw new Error('The global pool is configured incorrectly.');
+        tx.update(ref,{members:arrayUnion(uid)});
+      }
     });
+    const s=await getDoc(ref);
+    return {id:s.id,...s.data()};
   },
-  leaveGlobalLeaderboard: (seasonId,uid) => deleteDoc(doc(db,'globalLeaderboards',seasonId,'entries',uid)),
+  getPlayer: async (poolId,uid) => {
+    const s=await getDoc(doc(db,'pools',poolId,'players',uid));
+    return s.exists()?s.data():null;
+  },
+  savePhasePicks: (poolId,phase,uid,picks) => setDoc(
+    doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),{uid,phase,picks:Array.isArray(picks)?picks:[],updatedAt:Date.now()}
+  ),
 };
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -527,6 +540,7 @@ window.dispatchEvent(new Event('firebase-ready'));
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const SEASON_BANK = [
   // ── Live season ──────────────────────────────────────────────
+
   {
     id:DEFAULT_SEASON_ID,
     label:'Love Is Blind UK: Season 3',
@@ -540,7 +554,6 @@ const SEASON_BANK = [
     historical:false,
     available:true,
   },
-
 
   // ── United States ────────────────────────────────────────────
   {
@@ -708,6 +721,7 @@ const SEASON_BANK = [
     country:'Brazil',
     countryCode:'BR',
     seasonNumber:3,
+
     locationLabel:null,
     sheetId:'',
     historical:true,
@@ -721,7 +735,6 @@ const SEASON_BANK = [
     seasonNumber:4,
     locationLabel:null,
     sheetId:'',
-
     historical:true,
     available:false,
   },
@@ -889,6 +902,7 @@ const SEASON_BANK = [
 
   // Not yet aired — add when they drop:
   //   Love Is Blind: Netherlands S1
+
   //   Love Is Blind: South Africa S1
   //   Love Is Blind US S11 (autumn 2026)
   //   Love Is Blind: Habibi S2, Argentina S2
@@ -896,13 +910,13 @@ const SEASON_BANK = [
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
+const GLOBAL_POOL_SEASONS = SEASON_BANK.filter(season=>season.available&&['upcoming','live'].includes(season.status));
 const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
 const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
 const seasonForPool = pool => seasonById(pool?.season?.id||pool?.seasonId||DEFAULT_SEASON_ID)||seasonById(DEFAULT_SEASON_ID);
 const formatSeasonLabel = season => {
   if(!season) return 'Love Is Blind season';
-
   const label=season.label||'Love Is Blind season';
   return season.countryCode==='US'&&season.locationLabel?`${label} · ${season.locationLabel}`:label;
 };
@@ -1069,6 +1083,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
         `${phaseSpan[prev].endEp}. Each phase must start on the episode ` +
         `the previous phase ended on.`
       );
+
     }
   }
   for (const ph of ORDER) {
@@ -1083,7 +1098,6 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   if (phaseSpan.dating.retreatEndEp <= phaseStart.dating || phaseSpan.dating.retreatEndEp !== phaseSpan.dating.endEp) {
     throw new Error(
       `Season config error: RETREAT_END_EP (${phaseSpan.dating.retreatEndEp}) must be greater than ` +
-
       `DATING_START_EP (${phaseStart.dating}) and match DATING_END_EP (${phaseSpan.dating.endEp}). ` +
       `The player-facing Retreats phase ends when the retreat ends.`
     );
@@ -1250,6 +1264,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
   }) : [];
   if(unconfirmedFinalDatingRows.length) {
     throw new Error(
+
       `Season data incomplete: DATING_RESULTS_READY is true, but ${unconfirmedFinalDatingRows.length} ` +
       `Retreats result row${unconfirmedFinalDatingRows.length===1?' is':'s are'} not confirmed ` +
       `(${unconfirmedFinalDatingRows.map(r=>`${r.market}:${datingResultKey(r)}`).join(', ')}). ` +
@@ -1264,7 +1279,6 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     placeholders:false,
   };
   toObjects(reunionR).forEach(r=>{
-
     const mkt=r.market?.toLowerCase(), id=r.couple_person_id_or_name, val=r.value;
     if(!mkt) return;
     // COMPLETE, FINAL, and NONE remain accepted for backwards compatibility,
@@ -1431,6 +1445,7 @@ function makeEngine(cfg, poolSize) {
         const owners=MEMBERS.filter(m=>all[m].some(p=>sameCouple(p.c,c))).length;
         events.push({title:nameOf(c.id)+' got engaged',sub:ep===START.pods?'Episode '+START.pods+' - unavailable for predictions by design; no one scores it.':'Against-the-Grain bonus calculated once everyone finishes Pods.'});
         MEMBERS.forEach(m=>all[m].filter(p=>sameCouple(p.c,c)).forEach(p=>{
+
           const fore=ep-p.w-1;
           entries.push(mk({member:m,phase,ok:true,label:nameOf(c.id)+' engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners}));
         }));
@@ -1445,7 +1460,6 @@ function makeEngine(cfg, poolSize) {
         }));
       });
       Object.entries(DATING_RESULTS.flirt).filter(([,r])=>r.ep===ep&&r.ep<=RETREAT_END_EP).forEach(([person,r])=>{
-
         const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='flirt'&&p.p===person)).length;
         events.push({title:FLIRT_SHORT+': '+person+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus calculated once everyone finishes Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='flirt'&&p.p===person).forEach(p=>{
@@ -1612,6 +1626,7 @@ function makeEngine(cfg, poolSize) {
       if(event.market==='still') return pick.m==='still'&&sameCouple(pick.c,coupleFor(event.target));
       return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
     };
+
     const matchingVoidPick=(event,phase,pick)=>{
       if(event.voidMarket==='pods') return phase==='pods'&&sameCouple(pick.c,coupleFor(event.target));
       if(event.voidMarket==='weddings') return phase==='weddings'&&sameCouple(pick.c,coupleFor(event.target));
@@ -1626,7 +1641,6 @@ function makeEngine(cfg, poolSize) {
       return false;
     };
     const voidNormallyScored=(event,phase,pick)=>{
-
       if(event.voidMarket==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
       if(event.voidMarket==='flirt') return Object.entries(DATING_RESULTS.flirt).some(([person,result])=>personKey(person)===personKey(event.target)&&result.confirmed);
       if(event.voidMarket==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
@@ -1793,6 +1807,7 @@ function CastPortrait({person,engaged,married,brokenUp}) {
     </div>
     {brokenUp?<span className="cast-status broken-up">Broken up</span>:married?<span className="cast-status married">Married</span>:engaged&&<span className="cast-status">Engaged</span>}
     <div className="cast-person-name">{person.name}</div>
+
   </div>;
 }
 function ContestantReferenceBoard({eng,w,phase}) {
@@ -1807,7 +1822,6 @@ function ContestantReferenceBoard({eng,w,phase}) {
     .sort((a,b)=>alphaByName(a.him+' & '+a.her,b.him+' & '+b.her));
   const pairedNames=new Set(visibleCouples.flatMap(c=>[c.him,c.her]));
   const otherCast=eng.CAST.filter(person=>!pairedNames.has(person.name));
-
   const grouped=visibleCouples.length>0;
   const summary=grouped
     ? visibleCouples.length+' couple'+(visibleCouples.length===1?'':'s')+(otherCast.length?' · '+otherCast.length+' other cast member'+(otherCast.length===1?'':'s'):'')
@@ -1974,70 +1988,7 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
       {series.map(s=><g key={s.id}><path className="score-series" d={linePath(s.values)} style={{stroke:s.color}}/>{s.values.map((value,index)=><circle className="score-point" key={index} cx={x(index)} cy={y(value)} r="4" fill={s.color}><title>{s.name+', '+RULES.phases[phases[index]].label+': '+scoreText(value)+' points'}</title></circle>)}</g>)}
     </svg>
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
-  </section>;
-}
-function finalGlobalPoolScore(eng,playersById,statusDocs,uid) {
-  if(!eng||!uid) return null;
-  const memberIds=Object.keys(playersById);
-  if(!memberIds.includes(uid)||memberIds.length===0) return null;
-  const allFinal=PH_ORDER.every(ph=>{
-    const status=statusDocs[ph];
-    return eng.RESULTS_READY[ph] && !!status?.revealed && memberIds.every(id=>(status.completedMembers||[]).includes(id));
-  });
-  if(!allFinal) return null;
-  const totals=Object.fromEntries(memberIds.map(id=>[id,0]));
-  const picksByPhase={};
-  PH_ORDER.forEach(ph=>{
 
-    const picksBy={};
-    memberIds.forEach(id=>{picksBy[id]=playersById[id]?.picks?.[ph]||[];});
-    const scored=eng.scorePhase(ph,picksBy);
-    memberIds.forEach(id=>{totals[id]+=scored.totals[id]||0;});
-    picksByPhase[ph]=picksBy;
-  });
-  const retro=eng.scoreRetroAdjustments(picksByPhase,new Set(PH_ORDER));
-  return Math.round(totals[uid]+(retro.totals[uid]||0));
-}
-function GlobalPoolLeaderboard({season,eng,playersById,statusDocs,meId,username}) {
-  const [entries,setEntries]=useState([]);
-  const [loading,setLoading]=useState(true);
-  const [working,setWorking]=useState(false);
-  const [error,setError]=useState('');
-  const seasonId=season?.id;
-  const eligibleScore=finalGlobalPoolScore(eng,playersById,statusDocs,meId);
-  const refresh=useCallback(async()=>{
-    if(!seasonId)return;
-    setLoading(true);setError('');
-    try{setEntries(await window._fb.globalLeaderboard(seasonId));}
-    catch(e){console.error(e);setError('The global pool is unavailable right now.');}
-    finally{setLoading(false);}
-  },[seasonId]);
-  useEffect(()=>{refresh();},[refresh]);
-  const joined=entries.find(entry=>entry.uid===meId);
-  const ranked=entries.slice().sort((a,b)=>Number(b.score)-Number(a.score)||alphaByName(a.username,b.username)||String(a.uid).localeCompare(String(b.uid)));
-  const join=async()=>{
-    if(eligibleScore==null)return;
-    setWorking(true);setError('');
-    try{await window._fb.publishGlobalScore(seasonId,meId,username,eligibleScore);await refresh();}
-    catch(e){console.error(e);setError('Your global-pool score could not be saved. Check that the new Firestore rules are published.');}
-    finally{setWorking(false);}
-  };
-  const leave=async()=>{
-    setWorking(true);setError('');
-    try{await window._fb.leaveGlobalLeaderboard(seasonId,meId);await refresh();}
-    catch(e){console.error(e);setError('Your global-pool entry could not be removed.');}
-    finally{setWorking(false);}
-  };
-  return <section className="card global-pool-card">
-    <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pool</h2><p className="lede">{formatSeasonLabel(season)} · opt in to compare your final score with everyone playing this season.</p></div></div>
-    {eligibleScore==null?<div className="notice"><b>Global pool opens at the final standings.</b> Finish the season in this pool first, then you can choose to publish your final score. Your predictions and friend-pool membership stay private.</div>:<React.Fragment>
-      <div className="global-pool-meta"><span>Your final score</span><strong>{eligibleScore} pts</strong></div>
-      {!joined?<button className="btn-primary" disabled={working} onClick={join}>{working?'Joining global pool...':'Join the global pool'}</button>:<div className="notice"><b>You’re in the global pool.</b> Your best published final score is {joined.score} points.</div>}
-    </React.Fragment>}
-    {error&&<p className="subtle" style={{color:'#b71f49',fontWeight:700}}>{error}</p>}
-    <div className="mkt-title" style={{marginTop:18}}><h3>Global leaderboard</h3>{!loading&&<button className="btn-small" onClick={refresh}>Refresh</button>}</div>
-    {loading?<p className="subtle">Loading global standings...</p>:ranked.length===0?<p className="subtle">Be the first player on this season’s global leaderboard.</p>:<div className="lb"><table><thead><tr><th>Player</th><th>Score</th></tr></thead><tbody>{ranked.map((entry,index)=><tr key={entry.uid} className={entry.uid===meId?'you':''}><td><span className="subtle">#{index+1} </span>{entry.username||'Player'}</td><td className="tot">{entry.score}</td></tr>)}</tbody></table></div>}
-    {joined&&<button className="global-optout" disabled={working} onClick={leave}>Leave the global pool</button>}
   </section>;
 }
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[]}) {
@@ -2169,7 +2120,6 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       <p className="lede">These people have been invited but have not joined the pool yet.</p>
       {pendingInvites.map(inv=><div className="member-status" key={inv.id}>
         <span className="dot waiting"></span><span>{inv.toEmail}</span>
-
         <span className="subtle" style={{marginLeft:'auto'}}>Invitation pending</span>
       </div>)}
     </div>}
@@ -2219,6 +2169,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
 }
 /* ================================================================== */
 /*  PHASE COPY                                                         */
+
 /* ================================================================== */
 function PH_INTRO(phase,RULES,cfg) {
   const maxPodsClock=cfg.leadM(cfg.PH_SPAN.pods.endEp-cfg.PH_STARTW.pods-1);
@@ -2276,7 +2227,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDe
   const [deleting,setDeleting]=useState(false);
   const [deleteError,setDeleteError]=useState('');
   const modalRef=useModalLifecycle(onClose);
-  const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId);
+  const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
   const finishDelete=async()=>{
     if(!deleteConfirmed||deleting)return;
@@ -2340,6 +2291,9 @@ function App() {
   const [err, setErr] = useState('');
   // Lobby
   const [pools, setPools] = useState([]);
+  const [globalPools, setGlobalPools] = useState({});
+  const [globalJoin, setGlobalJoin] = useState(null);
+  const [joiningGlobal, setJoiningGlobal] = useState(false);
   const [invites, setInvites] = useState([]);
   const [pendingPoolInvites, setPendingPoolInvites] = useState([]);
   const [lobbyLoading, setLobbyLoading] = useState(false);
@@ -2350,7 +2304,6 @@ function App() {
   const [selectedSeasonId, setSelectedSeasonId] = useState(DEFAULT_SEASON_ID);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteList, setInviteList] = useState([]);
-
   const [poolInviteEmail, setPoolInviteEmail] = useState('');
   const [poolInviteFeedback, setPoolInviteFeedback] = useState('');
   const [poolInviteError, setPoolInviteError] = useState(false);
@@ -2368,6 +2321,7 @@ function App() {
   const [watchThrough, setWatchThrough] = useState(0);
   const [picks, setPicks] = useState(freshPicks);
   const [completed, setCompleted] = useState({});
+  const [duplicateFromPoolId, setDuplicateFromPoolId] = useState('');
   const [reveal, setReveal] = useState(null);
   const [closeInfo, setCloseInfo] = useState(null);
   const [saveState, setSaveState] = useState(null);
@@ -2382,6 +2336,7 @@ function App() {
   const phaseCompletionAttempted = useRef('');
   const saveTimer = useRef(null);
   const pendingSave = useRef(null);
+  const globalLinks = useRef([]);
   const confirmResolver=useRef(null);
   const lastStandingsRefresh=useRef(0);
   const requestConfirmation=useCallback(options=>new Promise(resolve=>{
@@ -2395,6 +2350,7 @@ function App() {
     setTheme(next);document.documentElement.dataset.theme=next;
     try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
   };
+
   /* ── Auth ── */
   useEffect(() => {
     return window._fb.onAuthStateChanged(async u => {
@@ -2415,11 +2371,18 @@ function App() {
     if (!user) return;
     setLobbyLoading(true);
     try {
-      const [ps, is] = await Promise.all([
+      const [ps, is, publicGlobalPools] = await Promise.all([
         window._fb.myPools(user.uid),
         window._fb.myInvites(user.email),
+        Promise.all(GLOBAL_POOL_SEASONS.map(async season=>[season.id,await window._fb.getGlobalPool(season.id)])),
       ]);
-      setPools(ps); setInvites(is);
+      const bySeason=Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool]));
+      const links=(await Promise.all(ps.filter(pool=>pool.global===true).map(async pool=>{
+        const player=await window._fb.getPlayer(pool.id,user.uid);
+        return player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
+      }))).filter(Boolean);
+      globalLinks.current=links;
+      setPools(ps); setGlobalPools(bySeason); setInvites(is);
     } catch(e) { console.error(e); setErr('Could not refresh your pools. Please try again.'); }
     finally { setLobbyLoading(false); }
   }, [user]);
@@ -2433,7 +2396,7 @@ function App() {
     setShowHowItWorks(false);
   };
   /* ── Enter a pool ── */
-  const enterPool = async (pool) => {
+  const enterPool = async (pool, duplicateFromPoolId='') => {
     try {
       setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab('play');
       setPhaseCompletionError(''); phaseCompletionAttempted.current='';
@@ -2463,6 +2426,16 @@ function App() {
       // Load my state
       let mine = players[user.uid];
       if (mine) {
+        setDuplicateFromPoolId(enteredPool.global===true?(mine.duplicateFromPoolId||''):'');
+        if(enteredPool.global===true&&mine.duplicateFromPoolId) {
+          const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid);
+          const sourcePicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
+          await Promise.all(PH_ORDER.filter(ph=>!(status[ph]&&status[ph].revealed)).map(ph=>
+            window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph])
+          ));
+          mine={...mine,picks:sourcePicks};
+          players[user.uid]=mine;
+        }
         const minePhase=mine.phase||'pods';
         const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
           poolCfg.BOUNDARIES_FINAL?.[minePhase]===false &&
@@ -2515,11 +2488,23 @@ function App() {
         const completed0 = Object.fromEntries(skipped.map(ph=>[ph,true]));
         const w0 = seasonFinished ? PH_SPAN.reunion.endEp : (landingPhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[landingPhase]);
         const landingScreen = seasonFinished ? 'final' : 'intro';
-        setPicks(freshPicks()); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
+        let initialPicks=freshPicks();
+        const duplicateFrom=pool.global===true&&duplicateFromPoolId?duplicateFromPoolId:'';
+        if(duplicateFrom) {
+          const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid);
+          initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
+        }
+        setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
+        setDuplicateFromPoolId(duplicateFrom);
         setCompleted(completed0); setReveal(null); setCloseInfo(null);
-        if (skipped.length) {
-          await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:freshPicks(),phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0});
+        if (skipped.length||duplicateFrom) {
+          await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
           for(const skippedPhase of skipped) await window._fb.completePhase(pool.id,skippedPhase,user.uid);
+          if(duplicateFrom) {
+            await Promise.all(PH_ORDER.filter(ph=>!(status[ph]&&status[ph].revealed)).map(ph=>
+              window._fb.savePhasePicks(pool.id,ph,user.uid,initialPicks[ph])
+            ));
+          }
         }
       }
       // Do not leave the lobby until the engine, players, and saved state are ready.
@@ -2531,13 +2516,26 @@ function App() {
   };
   /* ── Save player state ── */
   const flushSave = useCallback(async () => {
-
     clearTimeout(saveTimer.current);
     const pending = pendingSave.current;
     if (!pending) return;
     pendingSave.current = null;
     try {
       await window._fb.savePlayer(pending.poolId, pending.uid, pending.data);
+      // A linked global pool keeps a separate copy of the player's picks. The
+      // global pool scores them against its own full player population.
+      const linkedTargets=globalLinks.current.filter(link=>link.sourcePoolId===pending.poolId);
+      const phase=pending.data.phase;
+      if(linkedTargets.length&&PH_ORDER.includes(phase)) {
+        const phasePicks=pending.data.picks?.[phase]||[];
+        await Promise.all(linkedTargets.map(async link=>{
+          try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,phasePicks); }
+          // A locked or revealed global phase is deliberately immutable. It
+
+          // must not prevent the source-pool prediction from saving.
+          catch(e) { console.info('Global-pool pick sync skipped.',e); }
+        }));
+      }
       setSaveState('saved');
       setTimeout(()=>setSaveState(null),2000);
     } catch(e) {
@@ -2550,10 +2548,10 @@ function App() {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
-    pendingSave.current = {poolId:activePool.id,uid:user.uid,data:{username:profile.username,...state}};
+    pendingSave.current = {poolId:activePool.id,uid:user.uid,data:{username:profile.username,...state,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     if (immediate) return flushSave();
     saveTimer.current = setTimeout(()=>flushSave().catch(()=>{}),600);
-  }, [user, activePool, profile, flushSave]);
+  }, [user, activePool, profile, duplicateFromPoolId, flushSave]);
   useEffect(() => {
     const flushWhenHidden = () => { if (document.visibilityState==='hidden') flushSave().catch(()=>{}); };
     const flushOnPageHide = () => { flushSave().catch(()=>{}); };
@@ -2572,7 +2570,7 @@ function App() {
   const exitPool = async () => {
     if(!await confirmExitWithUnsavedChanges())return;
     setErr('');
-    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setEng(null);
+    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setDuplicateFromPoolId(''); setEng(null);
     loadLobby();
   };
   /* ── Handlers ── */
@@ -2602,6 +2600,26 @@ function App() {
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setInviteList([]);
       loadLobby();
     } catch(e) { console.error(e); setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
+  };
+  const openGlobalPool = season => {
+    const existing=globalPools[season.id];
+    if(existing?.members?.includes(user.uid)) { enterPool(existing); return; }
+    setGlobalJoin({season,sourcePoolId:''});
+  };
+  const doJoinGlobalPool = async () => {
+    if(!globalJoin||joiningGlobal) return;
+    const {season,sourcePoolId}=globalJoin;
+    try {
+      setJoiningGlobal(true);setErr('');
+      const seasonCfg=await loadConfig(season.id);
+      const rulesSnapshot=seasonCfg.PLAYABLE?rulesSnapshotFrom(seasonCfg):null;
+      const globalPool=await window._fb.joinGlobalPool(season,user.uid,rulesSnapshot);
+      setGlobalPools(current=>({...current,[season.id]:globalPool}));
+      if(sourcePoolId) globalLinks.current=[...globalLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
+      setGlobalJoin(null);
+      await enterPool(globalPool,sourcePoolId);
+    } catch(e) { console.error(e);setErr(playerSeasonError(e,'Could not join the global pool. Please try again.')); }
+    finally { setJoiningGlobal(false); }
   };
   const doAccept = async (inv) => {
     try {
@@ -2694,6 +2712,7 @@ function App() {
     const start=PH_STARTW.pods;
     try {
       await savePlayer({picks,phase:'pods',screen:'board',w:start,watchThrough:start,completed},true);
+
       setW(start);setWatchThrough(start);setScreen('board');setReveal(null);
     } catch(e) { setErr('Your progress could not be saved. Please try again.'); }
     finally { setGating(false); }
@@ -2712,7 +2731,6 @@ function App() {
       }
     } else if(rollingPhase) {
       if(left===0) {
-
         message+='\n\nYOU HAVE 0 HEARTS LEFT. You have used your full '+phaseLabel+' budget, so no hearts will remain for later '+phaseLabel+' prediction windows. If that was accidental, choose Keep editing and remove a prediction before locking.';
       } else {
         message+='\n\n'+left+' unspent hearts will remain available for a later '+phaseLabel+' prediction window.';
@@ -2875,6 +2893,7 @@ function App() {
       </div>
       <button className="btn-primary" disabled={!usernameInput.trim()} onClick={saveUsername}>Continue</button>
     </div>
+
   </div>;
   const userBar = <div className="user-bar">
     {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
@@ -2886,6 +2905,8 @@ function App() {
     setSelectedSeasonId(seasonId);setCreating(true);
     setTimeout(()=>newPoolFormRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),0);
   };
+  const globalSourcePools=globalJoin?pools.filter(pool=>pool.global!==true&&seasonForPool(pool).id===globalJoin.season.id):[];
+  const friendPools=pools.filter(pool=>pool.global!==true);
   if (!activePool&&enteringPool) return <div className="app">
     <BrandHeader season={seasonLibrarySummary}>{userBar}</BrandHeader>
     <div className="loading"><span className="spinner">♥</span>Opening your pool...</div>
@@ -2893,7 +2914,6 @@ function App() {
   </div>;
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
-
     <BrandHeader season={seasonLibrarySummary}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       {userBar}
@@ -2910,11 +2930,23 @@ function App() {
         </div>
       </div>)}
     </div>}
+    {GLOBAL_POOL_SEASONS.length>0&&<section className="card global-pool-card">
+      <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pools</h2><p className="lede">Universal season pools with their own predictions, scoring, and leaderboard.</p></div></div>
+      {GLOBAL_POOL_SEASONS.map(season=>{
+        const globalPool=globalPools[season.id];
+        const joined=globalPool?.members?.includes(user.uid);
+        return <div className="pool-row" key={season.id} onClick={()=>openGlobalPool(season)}>
+          <div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{joined?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(season)||'Live season'}</div></div>
+          <button className="btn-small filled" onClick={e=>{e.stopPropagation();openGlobalPool(season);}}>{joined?'Open':'Join'}</button>
+        </div>;
+      })}
+      <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are separate from your friend pools and are scored only against global-pool players.</p>
+    </section>}
     <div className="card">
       <h2>Your pools</h2>
       {lobbyLoading && <p className="subtle">Loading...</p>}
-      {!lobbyLoading && pools.length===0 && <p className="lede">You're not in any pools yet. Create one and invite your friends!</p>}
-      {pools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
+      {!lobbyLoading && friendPools.length===0 && <p className="lede">You're not in any friend pools yet. Create one and invite your friends!</p>}
+      {friendPools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
         <div><div className="pname">{p.name}</div><div className="pmeta">{seasonLabelForPool(p)} · {seasonPoolStatusLabel(seasonForPool(p))||`${p.members.length} member${p.members.length!==1?'s':''}`}</div></div>
         <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
       </div>)}
@@ -2957,6 +2989,17 @@ function App() {
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
+    {globalJoin&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-pool-join-title"><div className="modal">
+      <h2 id="global-pool-join-title">Join the global pool</h2>
+      <p>Play {formatSeasonLabel(globalJoin.season)} with everyone who joins this public pool. Its against-the-grain bonus and leaderboard are calculated independently from your friend pools.</p>
+      <label className="small" htmlFor="global-pool-copy-source">Copy picks from one of your pools</label>
+      <select id="global-pool-copy-source" value={globalJoin.sourcePoolId} onChange={e=>setGlobalJoin(current=>({...current,sourcePoolId:e.target.value}))}>
+        <option value="">No thanks — I’ll make separate global picks</option>
+        {globalSourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
+      </select>
+      {globalSourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks are copied to the global pool and future changes in that pool will keep its matching global picks updated until the global phase is revealed.</p>}
+      <div className="modal-actions"><button className="btn-primary" disabled={joiningGlobal} onClick={doJoinGlobalPool}>{joiningGlobal?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joiningGlobal} onClick={()=>setGlobalJoin(null)}>Cancel</button></div>
+    </div></div>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
   /* ── IN POOL ── */
@@ -3017,8 +3060,7 @@ function App() {
     {poolTab==='standings' && poolPlayers && <React.Fragment>
       <div style={{textAlign:'center',margin:'0 0 10px'}}><button className="btn-small" style={{width:'auto'}} onClick={refreshStandings}>Refresh standings</button></div>
       <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>
-      <GlobalPoolLeaderboard season={seasonForPool(activePool)} eng={eng} playersById={playersById} statusDocs={poolStatus} meId={user.uid} username={profile.username}/>
-      <div className="card">
+      {!activePool.global&&<div className="card">
         <h3>Invite someone</h3>
         <p className="lede">Invite more friends before the first player completes Pods.</p>
         {phaseHasCompletion(poolStatus.pods)?<p className="subtle">Invitations are closed because a player has completed Pods.</p>:<React.Fragment>
@@ -3030,8 +3072,9 @@ function App() {
           </div>
         </React.Fragment>}
         {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
-      </div>
+      </div>}
     </React.Fragment>}
+
     {poolTab==='rules' && cfg.PLAYABLE && <div className="card"><h2>Rules</h2>{phaseIntro.rules}</div>}
     {poolTab==='scoring' && cfg.PLAYABLE && <div className="card"><h2>Scoring</h2>{phaseIntro.scoring}</div>}
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
@@ -3074,7 +3117,6 @@ function App() {
             ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
             : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
               ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>
-
               : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</p><LockedPicks phase={phase} picks={picks[phase]} eng={eng}/><PersistentRetroReveals/><button className="btn-secondary" onClick={refreshPool}>Refresh season data</button></React.Fragment>}
         </React.Fragment>}
       </div>}
