@@ -2146,7 +2146,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const tiedChampions=champions.length>1;
   const championNames=champions.map(playerName).join(' & ');
   return <React.Fragment>
-    <SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>
+    {!globalPool&&<SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>}
     <div className="card">
       <h2>{globalPool?'Live global standings':'Standings'}</h2>
       {globalPool&&<div className="notice"><b>Live scores.</b> Each checkpoint opens as players individually finish it. Against-the-Grain bonuses recalculate whenever another player locks that checkpoint, so these totals can move.</div>}
