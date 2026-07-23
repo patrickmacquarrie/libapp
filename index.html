@@ -131,6 +131,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .lb tr.champion td:first-child{border-radius:9px 0 0 9px}
 .lb tr.champion td:last-child{border-radius:0 9px 9px 0}
 .lb td.tot{font-family:'Playfair Display',serif;font-size:17px;color:var(--wine)}
+.checkpoint-tabs{display:flex;gap:7px;overflow-x:auto;margin:14px 0 12px;padding:2px 0 5px;scrollbar-width:thin}
+.checkpoint-tabs button{flex:0 0 auto;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:700 12px Inter,sans-serif;padding:8px 12px;cursor:pointer}
+.checkpoint-tabs button.active{border-color:var(--wine);background:var(--wine);color:#fff}
+.global-your-rank{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--rose) 45%,var(--line));border-radius:12px;background:var(--blush-soft)}
+.global-your-rank strong{color:var(--wine)}.global-your-rank-score{font-family:'Playfair Display',serif;font-size:21px;font-weight:700;color:var(--wine);white-space:nowrap}
+.global-leaderboard-note{margin:10px 0 0;text-align:center;color:var(--soft-text);font-size:12px}
 .global-pool-card{position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--gold) 52%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 10%,var(--card)),var(--card) 58%,color-mix(in srgb,var(--rose) 8%,var(--card)))}
 .global-pool-card::after{content:'✦';position:absolute;right:14px;top:8px;color:var(--gold);font-size:24px;opacity:.6;pointer-events:none}
 .global-pool-head{display:flex;align-items:center;gap:10px}.global-pool-icon{width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:var(--wine);color:#fff;font-size:20px;box-shadow:0 5px 12px rgba(67,17,39,.18)}
@@ -2039,6 +2045,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const {RULES,RESULTS_READY:resultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const memberIds = Object.keys(playersById);
   const [openPhase, setOpenPhase] = useState(null);
+  const [globalView,setGlobalView]=useState('overall');
   // Per-phase status. The phaseStatus documents are the single source of truth
   // for completion + reveal; per-player completed flags are only a fallback for
   // legacy pools that predate phaseStatus. This prevents the desync where player
@@ -2140,6 +2147,17 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     const phases=PH_ORDER.filter(ph=>(phaseMembers[ph]||[]).includes(id));
     return phases.length?RULES.phases[phases[phases.length-1]].label:'Not scored yet';
   };
+  useEffect(()=>{
+    if(globalPool&&globalView!=='overall'&&!scoredPhases.includes(globalView))setGlobalView('overall');
+  },[globalPool,globalView,scoredPhases.join('|')]);
+  const globalViewScore=id=>globalView==='overall'?(grandTotals[id]||0):(checkpointTotals[globalView]?.[id]||0);
+  const globalEligibleIds=globalView==='overall'?rankedIds:(phaseMembers[globalView]||[]);
+  const globalRanked=globalEligibleIds.slice().sort((a,b)=>globalViewScore(b)-globalViewScore(a)||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
+  const globalRankById={};
+  globalRanked.forEach((id,index)=>{globalRankById[id]=index>0&&globalViewScore(id)===globalViewScore(globalRanked[index-1])?globalRankById[globalRanked[index-1]]:index+1;});
+  const globalTop=globalRanked.slice(0,50);
+  const globalMeOutsideTop=globalRanked.includes(meId)&&!globalTop.includes(meId);
+  const globalViewLabel=globalView==='overall'?'Overall':'After '+RULES.phases[globalView].label;
   const podium = ranked.filter(id=>rankById[id]<=3);
   const playerName = id => id===meId ? 'You' : memberLabels[id];
   const champions=ranked.filter(id=>rankById[id]===1);
@@ -2168,21 +2186,38 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           </div>;})}
         </div>
       </section>}
-      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={globalPool?checkpointTotals:phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden} valuesAreCumulative={globalPool}/>} 
-      {scoredPhases.length>0 && <div className="lb"><table>
-        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{globalPool?'After ':''}{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&!globalPool&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>{globalPool?'Live total':'Total'}</th></tr></thead>
+      {scoredPhases.length>0&&!globalPool&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>} 
+      {scoredPhases.length>0&&(globalPool?<React.Fragment>
+        <div className="checkpoint-tabs" role="group" aria-label="Global leaderboard checkpoint">
+          <button className={globalView==='overall'?'active':''} aria-pressed={globalView==='overall'} onClick={()=>setGlobalView('overall')}>Overall</button>
+          {scoredPhases.map(ph=><button key={ph} className={globalView===ph?'active':''} aria-pressed={globalView===ph} onClick={()=>setGlobalView(ph)}>After {RULES.phases[ph].label}</button>)}
+        </div>
+        {globalMeOutsideTop&&<div className="global-your-rank">
+          <div><strong>Your position · #{globalRankById[meId]}</strong><div className="subtle">{globalViewLabel} · Scored through {scoredThrough(meId)}</div></div>
+          <div className="global-your-rank-score">{globalViewScore(meId)} pts</div>
+        </div>}
+        <div className="lb"><table>
+          <thead><tr><th>Player</th><th>{globalViewLabel}</th></tr></thead>
+          <tbody>{globalTop.map(id=><tr key={id} className={id===meId?'you':''}>
+            <td><span className="subtle">#{globalRankById[id]} </span>{playerName(id)}<div className="subtle">Scored through {scoredThrough(id)}</div></td>
+            <td className="tot">{globalViewScore(id)}</td>
+          </tr>)}</tbody>
+        </table></div>
+        {globalRanked.length>50&&<p className="global-leaderboard-note">Showing the top 50 of {globalRanked.length} scored players.{globalMeOutsideTop?' Your position is pinned above.':''}</p>}
+      </React.Fragment>:<div className="lb"><table>
+        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>Total</th></tr></thead>
         <tbody>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
-          <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}{globalPool&&<div className="subtle">Scored through {scoredThrough(id)}</div>}</td>
-          {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(globalPool?(checkpointTotals[p]?.[id]||0):(phaseTotals[p][id]||0)):'—'}</td>)}
-          {hasRetro&&!globalPool&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
+          <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
+          {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
+          {hasRetro&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
           <td className="tot">{grandTotals[id]}</td>
         </tr>)}</tbody>
-      </table></div>}
+      </table></div>)}
     </div>
     {hasRetro&&<div className="card">
       <h2>Retroactive scoring changes</h2>
       {retroSpoilerHidden?<div className="notice">A retroactive scoring change is pending — keep watching to see it.</div>:activeRetroEvents.map(event=>{
-        const eventEntries=retro.entries.filter(entry=>entry.retroEventId===event.id).slice().sort((a,b)=>{
+        const eventEntries=retro.entries.filter(entry=>entry.retroEventId===event.id&&(!globalPool||entry.member===meId)).slice().sort((a,b)=>{
           if(a.member===meId&&b.member!==meId)return -1;
           if(b.member===meId&&a.member!==meId)return 1;
           return alphaByName(memberLabels[a.member]||a.member,memberLabels[b.member]||b.member)||String(a.label||'').localeCompare(String(b.label||''));
@@ -2190,7 +2225,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
         return <section className="evt retro-event" key={event.id}>
           <h3>{event.note}<span className="warnchip">retro</span></h3>
           <p className="subtle">Revealed in Episode {event.revealedEp} · Applied to {RULES.phases[event.appliesPhase].label} predictions{event.confirmed?'':' · Awaiting confirmation'}</p>
-          {eventEntries.length===0?<p className="subtle">No matching predictions were affected.</p>:eventEntries.map((entry,index)=><Receipt key={index} e={entry} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
+          {eventEntries.length===0?<p className="subtle">{globalPool?'None of your predictions were affected.':'No matching predictions were affected.'}</p>:eventEntries.map((entry,index)=><Receipt key={index} e={entry} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
         </section>;
       })}
     </div>}
@@ -2219,19 +2254,24 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
               : <React.Fragment>
                 <div className="notice"><b>Live checkpoint · {st.completedBy.length} {st.completedBy.length===1?'player':'players'} scored.</b> Scores and Against-the-Grain bonuses update as more players finish.</div>
                 {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed Retreats points are included while the remaining results are finalized.</div>}
-                {breakdownHidden?<div className="notice">Finish watching this phase to see its prediction breakdown.</div>:<React.Fragment>
+                {breakdownHidden
+                  ? <div className="notice">Finish watching this phase to see your prediction breakdown.</div>
+                  : !st.completedBy.includes(meId)
+                    ? <p className="subtle">Your personal breakdown will appear after you complete this checkpoint.</p>
+                    : <React.Fragment>
                   <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
-                    {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
+                    {openPhase===ph ? 'Hide my prediction breakdown' : 'Show my prediction breakdown'}
                   </button>
                   {openPhase===ph&&(()=>{
                     const picksBy={};
                     st.completedBy.forEach(id=>{picksBy[id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
                     const {entries}=scorePhase(ph,picksBy);
-                    return <div style={{marginTop:10}}>{st.completedBy.map(id=><div key={id}>
-                      <h3 style={{marginTop:12}}>{id===meId?'Your predictions':memberLabels[id]}</h3>
-                      {entries.filter(e=>e.member===id).length===0&&<p className="subtle">No predictions this phase.</p>}
-                      {entries.filter(e=>e.member===id).map((e,i)=><Receipt key={i} e={e} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
-                    </div>)}</div>;
+                    const mine=entries.filter(entry=>entry.member===meId);
+                    return <div style={{marginTop:10}}>
+                      <h3 style={{marginTop:12}}>Your predictions</h3>
+                      {mine.length===0&&<p className="subtle">No predictions this phase.</p>}
+                      {mine.map((entry,index)=><Receipt key={index} e={entry} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
+                    </div>;
                   })()}
                 </React.Fragment>}
               </React.Fragment>}
