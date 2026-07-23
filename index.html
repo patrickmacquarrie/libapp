@@ -928,6 +928,9 @@ const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
 // There is one universal pool at a time: prioritize the current live season,
 // then show the next upcoming one until it begins.
 const GLOBAL_POOL_SEASON = SEASON_BANK.find(season=>season.available&&season.status==='live')||SEASON_BANK.find(season=>season.available&&season.status==='upcoming')||null;
+// Safe visual preview: append ?globalDemo=1 to the app URL. Sample players
+// exist only in memory and are never written to Firebase.
+const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('globalDemo')==='1';
 const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
 const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
@@ -1391,6 +1394,36 @@ let RESULTS_READY = {pods:true,dating:true,weddings:true,reunion:true};
 const NEXT_PH   = {pods:'dating',dating:'weddings',weddings:'reunion',reunion:null};
 const freshPicks = () => ({pods:[],dating:[],weddings:[],reunion:[]});
 const normalizePicks = value => Object.fromEntries(PH_ORDER.map(ph=>[ph,Array.isArray(value?.[ph])?value[ph]:[]]));
+function buildGlobalDemoData(meId,meName) {
+  const firstNames=['Aaliyah','Alex','Amara','Ben','Bianca','Cam','Carmen','Chris','Dani','Dev','Elena','Eli','Farah','Finn','Gabby','Grace','Hana','Harper','Imani','Ivy','Jalen','Jamie','Kai','Keira','Leo','Lina','Mara','Mateo','Nadia','Noah','Omar','Priya','Quinn','Rae','Remy','Sage','Sam','Talia','Theo','Zara'];
+  const phaseEnds={pods:6,dating:9,weddings:12,reunion:13};
+  const players={},labels={},statusDocs={},phaseScores={};
+  PH_ORDER.forEach(ph=>{phaseScores[ph]={};statusDocs[ph]={completedMembers:[],revealed:false,updatedAt:Date.now()};});
+  const addPlayer=(id,name,throughIndex,index,isMe=false)=>{
+    const completed={};
+    PH_ORDER.forEach((ph,phaseIndex)=>{
+      if(phaseIndex>throughIndex)return;
+      completed[ph]=true;
+      statusDocs[ph].completedMembers.push(id);
+      const ranges={pods:[80,420],dating:[60,330],weddings:[95,470],reunion:[70,360]};
+      const [minimum,spread]=ranges[ph];
+      phaseScores[ph][id]=isMe
+        ? ({pods:96,dating:88,weddings:112,reunion:74}[ph])
+        : minimum+((index*83+phaseIndex*127+index*index*7)%spread);
+    });
+    const currentPhase=PH_ORDER[throughIndex];
+    players[id]={username:name,picks:freshPicks(),completed,phase:currentPhase,screen:'close',w:phaseEnds[currentPhase],watchThrough:phaseEnds[currentPhase]};
+    labels[id]=name;
+  };
+  for(let index=0;index<125;index++) {
+    const percentile=index%100;
+    const throughIndex=percentile<28?3:percentile<55?2:percentile<80?1:0;
+    const name=firstNames[index%firstNames.length]+' '+String.fromCharCode(65+((index*11)%26))+'.';
+    addPlayer('global-demo-'+String(index+1).padStart(3,'0'),name,throughIndex,index);
+  }
+  addPlayer(meId,meName||'You',3,131,true);
+  return {players,labels,statusDocs,phaseScores};
+}
 const applyRuntimeConfig = cfg => {
   PH_SPAN=cfg.PH_SPAN||PH_SPAN;
   PH_STARTW=cfg.PH_STARTW||PH_STARTW;
@@ -2041,8 +2074,9 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
   </section>;
 }
-function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false}) {
-  const {RULES,RESULTS_READY:resultsReady,scorePhase,scoreRetroAdjustments} = eng;
+function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, demoMode=false, presetPhaseScores={}}) {
+  const {RULES,RESULTS_READY:configuredResultsReady,scorePhase,scoreRetroAdjustments} = eng;
+  const resultsReady=demoMode?Object.fromEntries(PH_ORDER.map(ph=>[ph,true])):configuredResultsReady;
   const memberIds = Object.keys(playersById);
   const [openPhase, setOpenPhase] = useState(null);
   const [globalView,setGlobalView]=useState('overall');
@@ -2099,7 +2133,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       const visible = !partialReunion || reunionLockedMembers.includes(id);
       picksBy[id] = visible ? ((playersById[id].picks && playersById[id].picks[ph]) || []) : [];
     });
-    const {totals} = scorePhase(ph, picksBy);
+    const {totals:calculatedTotals} = scorePhase(ph, picksBy);
+    const totals={...calculatedTotals,...(presetPhaseScores[ph]||{})};
     phaseTotals[ph] = totals;
     phaseMembers[ph] = eligibleMembers;
     phaseMembers[ph].forEach(id => grandTotals[id] += totals[id] || 0);
@@ -2167,6 +2202,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     {!globalPool&&<SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>}
     <div className="card">
       <h2>{globalPool?'Live global standings':'Standings'}</h2>
+      {demoMode&&<div className="notice"><b>Demo preview · 126 sample players.</b> This data exists only in your browser and is never saved to the real global pool.</div>}
       {globalPool&&<div className="notice"><b>Live scores.</b> Each checkpoint opens as players individually finish it. Against-the-Grain bonuses recalculate whenever another player locks that checkpoint, so these totals can move.</div>}
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No checkpoint scores yet. The leaderboard begins when the first player completes a phase.':'No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.'}</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
@@ -2254,7 +2290,9 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
               : <React.Fragment>
                 <div className="notice"><b>Live checkpoint · {st.completedBy.length} {st.completedBy.length===1?'player':'players'} scored.</b> Scores and Against-the-Grain bonuses update as more players finish.</div>
                 {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed Retreats points are included while the remaining results are finalized.</div>}
-                {breakdownHidden
+                {demoMode
+                  ? <p className="subtle">Prediction receipts are hidden in demo mode; the preview uses sample checkpoint totals.</p>
+                  : breakdownHidden
                   ? <div className="notice">Finish watching this phase to see your prediction breakdown.</div>
                   : !st.completedBy.includes(meId)
                     ? <p className="subtle">Your personal breakdown will appear after you complete this checkpoint.</p>
@@ -3168,6 +3206,15 @@ function App() {
     // Ensure my latest local state is reflected
     if (user?.uid) playersById[user.uid] = {picks,completed,username:meName,phase,screen,w,watchThrough};
   }
+  const globalDemoData=activePool.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user.uid,meName):null;
+  const standingsPlayers=globalDemoData?.players||playersById;
+  const standingsLabels=globalDemoData?.labels||memberLabels;
+  const standingsStatus=globalDemoData?.statusDocs||poolStatus;
+  const exitGlobalDemo=()=>{
+    const url=new URL(window.location.href);
+    url.searchParams.delete('globalDemo');
+    window.location.assign(url.toString());
+  };
   const saveBadge = saveState && <React.Fragment><span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}</span>{saveState==='error'&&<button className="save-retry" onClick={()=>flushSave().catch(()=>{})}>Retry save</button>}</React.Fragment>;
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
@@ -3208,8 +3255,10 @@ function App() {
       {cfg.PLAYABLE&&<React.Fragment><button className={poolTab==='rules'?'active':''} onClick={()=>switchPoolTab('rules')}>Rules</button><button className={poolTab==='scoring'?'active':''} onClick={()=>switchPoolTab('scoring')}>Scoring</button></React.Fragment>}
     </div>
     {poolTab==='standings' && poolPlayers && <React.Fragment>
-      <div style={{textAlign:'center',margin:'0 0 10px'}}><button className="btn-small" style={{width:'auto'}} onClick={refreshStandings}>Refresh standings</button></div>
-      <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites} globalPool={activePool.global===true}/>
+      <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
+        ? <button className="btn-small" style={{width:'auto'}} onClick={exitGlobalDemo}>Exit demo preview</button>
+        : <button className="btn-small" style={{width:'auto'}} onClick={refreshStandings}>Refresh standings</button>}</div>
+      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData?[]:pendingPoolInvites} globalPool={activePool.global===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||{}}/>
       {!activePool.global&&<div className="card">
         <h3>Invite someone</h3>
         <p className="lede">Invite more friends before the first player completes Pods.</p>
