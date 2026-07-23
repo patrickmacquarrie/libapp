@@ -178,7 +178,6 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:5px;flex-wrap:wrap}
 .user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
 .user-name{font-size:13px;font-weight:600;color:var(--muted)}
-
 .btn-signout,.btn-how{font-size:12px;color:var(--soft-text);background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-signout:hover,.btn-how:hover{background:var(--blush-soft)}
 .btn-danger{padding:7px 10px;border:1px solid #d58a99;border-radius:9px;background:var(--surface);color:#b93356;font-weight:700;font-size:12px;cursor:pointer;font-family:Inter,sans-serif}
@@ -359,7 +358,6 @@ window._fb = {
       return snap.docs.map(d=>({id:d.id, ...d.data()}));
     } catch(e) { console.warn('Could not load pending invitations.', e); return []; }
   },
-
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
     setDoc(doc(db,'invites',inviteDocId(poolId,toEmail)), {poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail:toEmail.toLowerCase(), status:'pending', createdAt:Date.now()}),
   acceptInvite: async (invite, uid) => {
@@ -420,7 +418,11 @@ window._fb = {
     const [poolSnap,statusSnap] = await Promise.all([tx.get(poolRef),tx.get(statusRef)]);
     if (!poolSnap.exists() || !poolSnap.data().members.includes(uid)) throw new Error('You are not a member of this pool.');
     const completedMembers = [...new Set([...(statusSnap.exists()?statusSnap.data().completedMembers||[]:[]),uid])];
-    const revealed = poolSnap.data().members.every(member=>completedMembers.includes(member));
+    // Friend pools reveal together. A global pool never closes merely because
+    // every current member happens to be caught up; each player locks alone.
+    const revealed = poolSnap.data().global===true
+      ? false
+      : poolSnap.data().members.every(member=>completedMembers.includes(member));
     const nextStatus={completedMembers,revealed,updatedAt:Date.now()};
     tx.set(statusRef,nextStatus,{merge:true});
     return nextStatus;
@@ -434,7 +436,7 @@ window._fb = {
     const completedMembers = (statusSnap.data().completedMembers||[]).filter(id=>id!==uid);
     tx.set(statusRef,{completedMembers,revealed:false,updatedAt:Date.now()},{merge:true});
   }),
-  loadAllPlayers: async (poolId, currentUid) => {
+  loadAllPlayers: async (poolId, currentUid, globalPool=false) => {
     const toPlayer = d => {
       const {picks:legacyPicks={},...publicState}=d.data();
       return {...publicState,picks:{
@@ -465,6 +467,16 @@ window._fb = {
         if (phaseStatusData?.revealed) {
           const pickSnap = await getDocs(query(collection(db,'pools',poolId,'phasePicks'),where('phase','==',phase)));
           pickSnap.docs.forEach(d=>{ const v=d.data(); if(players[v.uid]) players[v.uid].picks[phase]=Array.isArray(v.picks)?v.picks:[]; });
+        } else if (globalPool && (phaseStatusData?.completedMembers||[]).length) {
+          // Global checkpoints are live. Read only immutable picks belonging to
+          // players who have individually locked this checkpoint.
+          await Promise.all((phaseStatusData.completedMembers||[]).map(async uid => {
+            if(!players[uid]) return;
+            try {
+              const lockedPick=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
+              if(lockedPick.exists())players[uid].picks[phase]=Array.isArray(lockedPick.data().picks)?lockedPick.data().picks:[];
+            } catch(e) { console.warn('A locked global-pool prediction could not be loaded.',e); }
+          }));
         } else if (phase==='reunion') {
           // Reunion scores can be shown as soon as an individual player locks.
           // Other locked players' picks are readable only after the viewer has
@@ -540,7 +552,6 @@ window.dispatchEvent(new Event('firebase-ready'));
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const SEASON_BANK = [
   // ── Live season ──────────────────────────────────────────────
-
   {
     id:DEFAULT_SEASON_ID,
     label:'Love Is Blind UK: Season 3',
@@ -721,7 +732,6 @@ const SEASON_BANK = [
     country:'Brazil',
     countryCode:'BR',
     seasonNumber:3,
-
     locationLabel:null,
     sheetId:'',
     historical:true,
@@ -902,7 +912,6 @@ const SEASON_BANK = [
 
   // Not yet aired — add when they drop:
   //   Love Is Blind: Netherlands S1
-
   //   Love Is Blind: South Africa S1
   //   Love Is Blind US S11 (autumn 2026)
   //   Love Is Blind: Habibi S2, Argentina S2
@@ -1083,7 +1092,6 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
         `Season config error: ${cur.toUpperCase()}_START_EP is ` +
         `${phaseStart[cur]} but ${prev.toUpperCase()}_END_EP is ` +
         `${phaseSpan[prev].endEp}. Each phase must start on the episode ` +
-
         `the previous phase ended on.`
       );
     }
@@ -1264,7 +1272,6 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID) {
     if(!mkt||!id||!ep) return;
     if(mkt==='breakup') DATING_RESULTS.breakup[id]={ep,confirmed:conf};
     else if(mkt==='sex') DATING_RESULTS.sex[id]={ep,confirmed:conf};
-
     else if(mkt==='flirt') DATING_RESULTS.flirt[id]={ep,confirmed:conf};
   });
   const unconfirmedFinalDatingRows = resultsReady.dating ? datingRows.filter(r=>{
@@ -1445,7 +1452,6 @@ function makeEngine(cfg, poolSize) {
     return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,poolSize,contra,tag:tag||1,tagLabel,note,
             placeholder:!!placeholder,pending:!!pending,retro:!!retro,retroPhase,retroEventId,points:ok&&!pending?calcPts(stake,mult,owners,tag):0};
   }
-
   /* Resolve one episode across a set of members. picksBy = {memberUid: picks[]} */
   function resolveEpisode(phase, ep, picksBy) {
     const MEMBERS = Object.keys(picksBy);
@@ -1626,7 +1632,6 @@ function makeEngine(cfg, poolSize) {
     Object.keys(picksBy).forEach(m=>totals[m]=0);
     entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
     return {entries, totals};
-
   }
   const retroEventsForRange = (startEp,endEp) => RETRO_EVENTS.filter(event=>event.revealedEp>=startEp&&event.revealedEp<=endEp);
   function scoreRetroAdjustments(picksByPhase, revealedPhaseSet) {
@@ -1722,7 +1727,9 @@ function makeEngine(cfg, poolSize) {
           nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,eligibleForWeddings,contraV,owTxt,calcPts,
           resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,spentBy};
 }
-const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.';
+const retroRevealSub = (event,globalPool=false) => (event.confirmed?'':'Awaiting confirmation — ')+(globalPool
+  ? 'Retroactive scoring change — confirmed points are included in the live global standings.'
+  : 'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.');
 /* ================================================================== */
 /*  SHARED UI                                                          */
 /* ================================================================== */
@@ -1807,7 +1814,6 @@ function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
     else if(player?.screen==='watch'&&Number.isFinite(watchEnd)&&watchEnd>ep) status='Watching '+episodeRangeLabel(ep+1,watchEnd);
     else if(player?.screen==='board') status='After Episode '+ep+' · Predicting';
     else if(player?.screen==='close') status='After Episode '+ep+' · Finishing '+navigationPhaseLabel(phase,RULES);
-
     else if(ep>0) status='After Episode '+ep+' · '+navigationPhaseLabel(phase,RULES)+' next';
     else status='Season not started';
     return {ep,status,pct:Math.max(3,Math.min(97,finalEp>0?(ep/finalEp)*100:0))};
@@ -1988,11 +1994,10 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
     </React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div className="nm">{ml(p)} - {p.s}♥</div>{open&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction: '+ml(p)}>✕</button>}</div>)}</div>;
 }
-
 /* ================================================================== */
 /*  SCOREBOARD                                                         */
 /* ================================================================== */
-function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, hasRetro=false}) {
+function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, hasRetro=false, valuesAreCumulative=false}) {
   if (!phases.length || !ranked.length) return null;
   const width=560, height=210, margin={top:18,right:12,bottom:40,left:42};
   const plotWidth=width-margin.left-margin.right, plotHeight=height-margin.top-margin.bottom;
@@ -2004,7 +2009,11 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
   };
   const series=ranked.map(id=>{
     let running=0;
-    const values=phases.map(ph=>{running+=phaseTotals[ph][id]||0;return running;});
+    const values=phases.map(ph=>{
+      if(valuesAreCumulative)return phaseTotals[ph][id]||0;
+      running+=phaseTotals[ph][id]||0;
+      return running;
+    });
     return {id,name:playerName(id),values,color:colourFor(id)};
   });
   const max=Math.max(1,...series.flatMap(s=>s.values));
@@ -2026,7 +2035,7 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
   </section>;
 }
-function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[]}) {
+function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false}) {
   const {RULES,RESULTS_READY:resultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const memberIds = Object.keys(playersById);
   const [openPhase, setOpenPhase] = useState(null);
@@ -2044,11 +2053,19 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       // Repair only the legacy single-player desync where completion was
       // recorded correctly but the old status document left revealed false.
       const solePlayerLegacyReveal=!!solePlayerId&&completedBy.includes(solePlayerId)&&sdoc.revealed===false;
-      phaseStatus[ph] = { completedBy, allDone: completedBy.length === memberIds.length && (!!sdoc.revealed||solePlayerLegacyReveal) };
+      phaseStatus[ph] = {
+        completedBy,
+        allDone: globalPool ? false : completedBy.length === memberIds.length && (!!sdoc.revealed||solePlayerLegacyReveal),
+        live: globalPool && completedBy.length>0
+      };
     } else {
       const completedBy = memberIds.filter(id => playersById[id].completed && playersById[id].completed[ph]);
       const solePlayerCompleted=!!solePlayerId&&solePlayer?.completed?.[ph]===true;
-      phaseStatus[ph] = { completedBy, allDone: memberIds.length > 0 && (completedBy.length === memberIds.length||solePlayerCompleted) };
+      phaseStatus[ph] = {
+        completedBy,
+        allDone: globalPool ? false : memberIds.length > 0 && (completedBy.length === memberIds.length||solePlayerCompleted),
+        live: globalPool && completedBy.length>0
+      };
     }
   });
   const reunionLockedMembers = memberIds.filter(id => {
@@ -2057,7 +2074,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       (player.phase === 'reunion' && ['watch','close','final'].includes(player.screen));
   });
   const viewerReunionLocked=reunionLockedMembers.includes(meId);
-  const reunionScoresPartial = resultsReady.reunion && viewerReunionLocked &&
+  const reunionScoresPartial = !globalPool && resultsReady.reunion && viewerReunionLocked &&
     !phaseStatus.reunion.allDone && reunionLockedMembers.length > 0;
   // Retreats begins scoring as soon as everyone finishes. Confirmed events count
   // immediately; unresolved picks remain pending until Retreats is finalized.
@@ -2067,22 +2084,27 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const phaseMembers = {};
   PH_ORDER.forEach(ph => {
     const partialReunion = ph==='reunion' && reunionScoresPartial;
-    if ((!phaseStatus[ph].allDone&&!partialReunion)||(!resultsReady[ph]&&ph!=='dating')) return;
+    const globalLive=globalPool&&phaseStatus[ph].completedBy.length>0;
+    if ((!phaseStatus[ph].allDone&&!partialReunion&&!globalLive)||(!resultsReady[ph]&&ph!=='dating')) return;
     const picksBy = {};
-    memberIds.forEach(id => {
+    const eligibleMembers=globalLive?phaseStatus[ph].completedBy:(partialReunion?reunionLockedMembers:memberIds);
+    eligibleMembers.forEach(id => {
       const visible = !partialReunion || reunionLockedMembers.includes(id);
       picksBy[id] = visible ? ((playersById[id].picks && playersById[id].picks[ph]) || []) : [];
     });
     const {totals} = scorePhase(ph, picksBy);
     phaseTotals[ph] = totals;
-    phaseMembers[ph] = partialReunion ? reunionLockedMembers : memberIds;
+    phaseMembers[ph] = eligibleMembers;
     phaseMembers[ph].forEach(id => grandTotals[id] += totals[id] || 0);
   });
-  const revealedPhaseSet=new Set(PH_ORDER.filter(ph=>phaseStatus[ph].allDone));
+  const revealedPhaseSet=new Set(globalPool
+    ? eng.RETRO_EVENTS.filter(event=>event.confirmed).map(event=>event.revealingPhase)
+    : PH_ORDER.filter(ph=>phaseStatus[ph].allDone));
   const picksByPhase={};
   PH_ORDER.forEach(ph=>{
     picksByPhase[ph]={};
-    memberIds.forEach(id=>{picksByPhase[ph][id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
+    const eligible=globalPool?(phaseMembers[ph]||[]):memberIds;
+    eligible.forEach(id=>{picksByPhase[ph][id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
   });
   const retro=scoreRetroAdjustments(picksByPhase,revealedPhaseSet);
   const activeRetroEvents=retro.events.slice().sort((a,b)=>a.revealedEp-b.revealedEp||String(a.id).localeCompare(String(b.id)));
@@ -2090,13 +2112,34 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const viewerWatched=Number(playersById[meId]?.w)||0;
   const retroSpoilerHidden=activeRetroEvents.some(event=>event.revealedEp>viewerWatched);
   if(!retroSpoilerHidden)memberIds.forEach(id=>grandTotals[id]+=(retro.totals[id]||0));
-  const ranked = memberIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
+  const rankedIds=globalPool
+    ? memberIds.filter(id=>PH_ORDER.some(ph=>(phaseMembers[ph]||[]).includes(id)))
+    : memberIds;
+  const ranked = rankedIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
   const rankById={};
   ranked.forEach((id,index)=>{rankById[id]=index>0&&grandTotals[id]===grandTotals[ranked[index-1]]?rankById[ranked[index-1]]:index+1;});
-  const scoredPhases = PH_ORDER.filter(ph=>(phaseStatus[ph].allDone||(ph==='reunion'&&reunionScoresPartial))&&(resultsReady[ph]||ph==='dating'));
-  const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&phaseStatus[ph].allDone&&!resultsReady[ph]);
-  const datingProvisional=phaseStatus.dating.allDone&&!resultsReady.dating;
-  const seasonFinalized = !retroSpoilerHidden&&PH_ORDER.every(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
+  const scoredPhases = PH_ORDER.filter(ph=>(phaseStatus[ph].allDone||(ph==='reunion'&&reunionScoresPartial)||(globalPool&&phaseStatus[ph].live))&&(resultsReady[ph]||ph==='dating'));
+  const awaitingResults = PH_ORDER.filter(ph=>ph!=='dating'&&(phaseStatus[ph].allDone||(globalPool&&phaseStatus[ph].live))&&!resultsReady[ph]);
+  const datingProvisional=(phaseStatus.dating.allDone||(globalPool&&phaseStatus.dating.live))&&!resultsReady.dating;
+  const seasonFinalized = !globalPool&&!retroSpoilerHidden&&PH_ORDER.every(ph=>phaseStatus[ph].allDone&&resultsReady[ph]);
+  const checkpointTotals={};
+  const runningById=Object.fromEntries(memberIds.map(id=>[id,0]));
+  scoredPhases.forEach(ph=>{
+    (phaseMembers[ph]||[]).forEach(id=>{runningById[id]+=(phaseTotals[ph]?.[id]||0);});
+    checkpointTotals[ph]={...runningById};
+  });
+  if(globalPool&&!retroSpoilerHidden) {
+    retro.entries.filter(entry=>!entry.pending).forEach(entry=>{
+      const revealIndex=PH_ORDER.indexOf(entry.retroPhase);
+      scoredPhases.forEach(ph=>{
+        if(PH_ORDER.indexOf(ph)>=revealIndex&&checkpointTotals[ph])checkpointTotals[ph][entry.member]=(checkpointTotals[ph][entry.member]||0)+entry.points;
+      });
+    });
+  }
+  const scoredThrough=id=>{
+    const phases=PH_ORDER.filter(ph=>(phaseMembers[ph]||[]).includes(id));
+    return phases.length?RULES.phases[phases[phases.length-1]].label:'Not scored yet';
+  };
   const podium = ranked.filter(id=>rankById[id]<=3);
   const playerName = id => id===meId ? 'You' : memberLabels[id];
   const champions=ranked.filter(id=>rankById[id]===1);
@@ -2105,10 +2148,11 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   return <React.Fragment>
     <SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>
     <div className="card">
-      <h2>Standings</h2>
-      {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.</p>}
+      <h2>{globalPool?'Live global standings':'Standings'}</h2>
+      {globalPool&&<div className="notice"><b>Live scores.</b> Each checkpoint opens as players individually finish it. Against-the-Grain bonuses recalculate whenever another player locks that checkpoint, so these totals can move.</div>}
+      {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No checkpoint scores yet. The leaderboard begins when the first player completes a phase.':'No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.'}</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
-      {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions all settle when the retreat ends.</div>}
+      {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions all settle when the retreat ends.{globalPool?' Against-the-Grain bonuses will also keep adjusting as more players finish.':''}</div>}
       {reunionScoresPartial&&<div className="notice">{reunionLockedMembers.length===1&&reunionLockedMembers[0]===meId?'Your Reunion score is in — final standings update when everyone else locks.':'Scores for players who have locked are shown now; the final standings update when everyone locks their Reunion predictions.'}</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
       {seasonFinalized&&podium.length>0&&<section className="champion-ceremony" aria-label={tiedChampions?'Final standings. '+championNames+' tied as pool champions.':'Final standings. '+playerName(podium[0])+' won the pool.'}>
@@ -2124,13 +2168,13 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
           </div>;})}
         </div>
       </section>}
-      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>} 
+      {scoredPhases.length>0&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={globalPool?checkpointTotals:phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden} valuesAreCumulative={globalPool}/>} 
       {scoredPhases.length>0 && <div className="lb"><table>
-        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>Total</th></tr></thead>
+        <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{globalPool?'After ':''}{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&!globalPool&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>{globalPool?'Live total':'Total'}</th></tr></thead>
         <tbody>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
-          <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
-          {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
-          {hasRetro&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
+          <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}{globalPool&&<div className="subtle">Scored through {scoredThrough(id)}</div>}</td>
+          {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(globalPool?(checkpointTotals[p]?.[id]||0):(phaseTotals[p][id]||0)):'—'}</td>)}
+          {hasRetro&&!globalPool&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
           <td className="tot">{grandTotals[id]}</td>
         </tr>)}</tbody>
       </table></div>}
@@ -2167,9 +2211,32 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       if (notStarted) return null;
       return <div className="card" key={ph}>
         <h3>{RULES.phases[ph].label}</h3>
-        {(st.allDone&&(resultsReady[ph]||ph==='dating')||(ph==='reunion'&&reunionScoresPartial)) ? <React.Fragment>
+        {globalPool?<React.Fragment>
+          {st.completedBy.length===0
+            ? <div className="notice"><b>Open.</b> No players have completed this checkpoint yet.</div>
+            : !(resultsReady[ph]||ph==='dating')
+              ? <div className="notice"><b>{st.completedBy.length} {st.completedBy.length===1?'player has':'players have'} locked.</b> Results are being confirmed before this checkpoint goes live.</div>
+              : <React.Fragment>
+                <div className="notice"><b>Live checkpoint · {st.completedBy.length} {st.completedBy.length===1?'player':'players'} scored.</b> Scores and Against-the-Grain bonuses update as more players finish.</div>
+                {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed Retreats points are included while the remaining results are finalized.</div>}
+                {breakdownHidden?<div className="notice">Finish watching this phase to see its prediction breakdown.</div>:<React.Fragment>
+                  <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
+                    {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
+                  </button>
+                  {openPhase===ph&&(()=>{
+                    const picksBy={};
+                    st.completedBy.forEach(id=>{picksBy[id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
+                    const {entries}=scorePhase(ph,picksBy);
+                    return <div style={{marginTop:10}}>{st.completedBy.map(id=><div key={id}>
+                      <h3 style={{marginTop:12}}>{id===meId?'Your predictions':memberLabels[id]}</h3>
+                      {entries.filter(e=>e.member===id).length===0&&<p className="subtle">No predictions this phase.</p>}
+                      {entries.filter(e=>e.member===id).map((e,i)=><Receipt key={i} e={e} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
+                    </div>)}</div>;
+                  })()}
+                </React.Fragment>}
+              </React.Fragment>}
+        </React.Fragment>:(st.allDone&&(resultsReady[ph]||ph==='dating')||(ph==='reunion'&&reunionScoresPartial)) ? <React.Fragment>
           {ph==='dating'&&!resultsReady.dating&&<div className="notice">Confirmed points are included in the standings. Retreats results are being finalized.</div>}
-
           {ph==='reunion'&&reunionScoresPartial&&<div className="notice">Only players who have locked their Reunion predictions are shown here. These scores are provisional until everyone locks.</div>}
           {breakdownHidden?<div className="notice">Finish watching this phase to see the breakdown.</div>:<React.Fragment>
           <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
@@ -2234,7 +2301,7 @@ function useModalLifecycle(onClose,canClose=true) {
   },[]);
   return modalRef;
 }
-function HowItWorksModal({onClose,rules=null}) {
+function HowItWorksModal({onClose,rules=null,globalPool=false}) {
   const budgets=rules?.phases||{pods:{budget:200},dating:{budget:150},weddings:{budget:150},reunion:{budget:100}};
   const budgetLabel=rules?'hearts':'hearts (default budget)';
   const modalRef=useModalLifecycle(onClose);
@@ -2243,13 +2310,15 @@ function HowItWorksModal({onClose,rules=null}) {
       <h2 id="how-title">How It Works</h2>
       <p>This is a social prediction game for people watching Love Is Blind together or at their own pace. There is no cash prize - just bragging rights.</p>
       <h3>Join or start a pool</h3>
-      <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Standings tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>
+      {globalPool
+        ? <p>Joining the global pool is optional. Everyone locks and advances at their own pace, so another player completing a phase never closes it for you.</p>
+        : <p>Create a pool, invite friends by email, and they can accept from their own lobby. Upcoming seasons can have pools before the cast is announced; prediction boards open when the season setup is ready. You can invite more people later from the pool's Standings tab, until someone completes the Pods phase. If someone has not accepted yet, they appear as “Invitation pending.”</p>}
       <h3>Make your predictions</h3>
       <p>An episode batch is a group of episodes released together. Each phase gives you hearts to wager, as listed below. In Pods and Weddings, you make predictions between episodes and earlier predictions earn a larger Against-the-Clock Bonus. Retreats and the Reunion each use one set of predictions. Always lock your current predictions before starting the next episode. Locked predictions cannot be changed.</p>
       <h3>The four phases</h3>
       <ul><li><b>Pods:</b> Predict who gets engaged. {budgets.pods.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Retreats:</b> Predict breakups, sleep-together moments, and flirting or outside interest during the retreat. {budgets.dating.budget} {budgetLabel}, with one prediction window.</li><li><b>Weddings:</b> Predict who marries, says no, or calls it off. {budgets.weddings.budget} {budgetLabel}, with predictions between episodes.</li><li><b>Reunion:</b> Make one final set of predictions before the Reunion. {budgets.reunion.budget} {budgetLabel}, with one prediction window.</li></ul>
       <h3>How points work</h3>
-      <p>Every correct prediction scores hearts wagered × its event or outcome multiplier × Against-the-Grain Bonus. Pods and Wedding predictions also receive an Against-the-Clock Bonus for predicting earlier. Less-common correct predictions earn more Against-the-Grain Bonus; only players who make at least one prediction in that phase are included. The final bonus is calculated automatically after the phase closes. Incorrect predictions never subtract points - you simply lose the hearts you wagered. Unspent hearts are lost and never carry into the next phase.</p>
+      <p>Every correct prediction scores hearts wagered × its event or outcome multiplier × Against-the-Grain Bonus. Pods and Wedding predictions also receive an Against-the-Clock Bonus for predicting earlier. Less-common correct predictions earn more Against-the-Grain Bonus; only players who make at least one prediction in that phase are included. {globalPool?'In the global pool, checkpoint scores go live as soon as players individually finish, then the bonus recalculates as more players reach that checkpoint.':'The final bonus is calculated automatically after the phase closes.'} Incorrect predictions never subtract points - you simply lose the hearts you wagered. Unspent hearts are lost and never carry into the next phase.</p>
       <p><b>Retroactive scoring changes:</b> Occasionally an outcome is revealed later than the phase it belongs to, or a rule-breaking situation voids a prediction. These score as separate retro adjustments once the reveal airs, so each phase score always matches what had aired at the time.</p>
       <p>Retreats standings may be provisional while results are being confirmed. All Retreats markets close at the end of the retreat.</p>
       <button className="btn-primary" onClick={onClose}>Got it</button>
@@ -2350,7 +2419,6 @@ function App() {
   const [poolStatus, setPoolStatus] = useState({});      // {phase: phaseStatus doc}
   const [poolTab, setPoolTab] = useState('play');        // play | standings | rules | scoring
   const [eng, setEng] = useState(null);
-
   const [phase, setPhase] = useState('pods');
   const [screen, setScreen] = useState('intro');
   const [w, setW] = useState(0);
@@ -2460,7 +2528,7 @@ function App() {
       const engine = makeEngine(poolCfg, enteredPool.members.length);
       setEng(engine);
       const [{players, status}, users, pending] = await Promise.all([
-        window._fb.loadAllPlayers(pool.id,user.uid),
+        window._fb.loadAllPlayers(pool.id,user.uid,enteredPool.global===true),
         window._fb.getUsers(enteredPool.members),
         window._fb.poolInvites(pool.id),
       ]);
@@ -2470,9 +2538,9 @@ function App() {
       if (mine) {
         setDuplicateFromPoolId(enteredPool.global===true?(mine.duplicateFromPoolId||''):'');
         if(enteredPool.global===true&&mine.duplicateFromPoolId) {
-          const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid);
+          const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid,false);
           const sourcePicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
-          await Promise.all(PH_ORDER.filter(ph=>!(status[ph]&&status[ph].revealed)).map(ph=>
+          await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
             window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph])
           ));
           mine={...mine,picks:sourcePicks};
@@ -2511,9 +2579,9 @@ function App() {
           const replayStart=mine.screen==='close'&&replayPhase==='dating'?PH_STARTW[replayPhase]+1:mine.w;
           const replayResults=[];
           for(let ep=replayStart;ep<=mine.w;ep++) replayResults.push(engine.resolveEpisode(replayPhase,ep,{[user.uid]:replayPicks}));
-          const retroEvents=engine.retroEventsForRange(replayStart,mine.w).map(event=>({title:event.note,sub:retroRevealSub(event),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
+          const retroEvents=engine.retroEventsForRange(replayStart,mine.w).map(event=>({title:event.note,sub:retroRevealSub(event,enteredPool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
           const r={events:[...replayResults.flatMap(result=>result.events),...retroEvents],entries:replayResults.flatMap(result=>result.entries)};
-          const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
+          const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:enteredPool.global===true?'Live points appear after you complete this checkpoint.':'Points finalize when the pool completes this phase'}:e)};
           setReveal({ep:mine.w,rangeLabel:mine.screen==='close'&&replayPhase==='dating'?'Retreats recap':undefined,...pendified});
           if (mine.screen==='close') {
             const closing = engine.resolvePhaseClose(replayPhase, {[user.uid]:replayPicks});
@@ -2531,10 +2599,9 @@ function App() {
         const w0 = seasonFinished ? PH_SPAN.reunion.endEp : (landingPhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[landingPhase]);
         const landingScreen = seasonFinished ? 'final' : 'intro';
         let initialPicks=freshPicks();
-
         const duplicateFrom=pool.global===true&&duplicateFromPoolId?duplicateFromPoolId:'';
         if(duplicateFrom) {
-          const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid);
+          const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid,false);
           initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
         }
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
@@ -2544,7 +2611,7 @@ function App() {
           await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
           for(const skippedPhase of skipped) await window._fb.completePhase(pool.id,skippedPhase,user.uid);
           if(duplicateFrom) {
-            await Promise.all(PH_ORDER.filter(ph=>!(status[ph]&&status[ph].revealed)).map(ph=>
+            await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
               window._fb.savePhasePicks(pool.id,ph,user.uid,initialPicks[ph])
             ));
           }
@@ -2573,7 +2640,7 @@ function App() {
         const phasePicks=pending.data.picks?.[phase]||[];
         await Promise.all(linkedTargets.map(async link=>{
           try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,phasePicks); }
-          // A locked or revealed global phase is deliberately immutable. It
+          // A completed global checkpoint is deliberately immutable. It
           // must not prevent the source-pool prediction from saving.
           catch(e) { console.info('Global-pool pick sync skipped.',e); }
         }));
@@ -2712,7 +2779,6 @@ function App() {
   };
   const doDecline = async (inv) => { try { await window._fb.declineInvite(inv.id); loadLobby(); } catch(e) { setErr('Could not decline the invitation.'); } };
   const doDeletePool = async pool => {
-
     if (pool.ownerUid!==user.uid) return;
     try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else await loadLobby(); }
     catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); throw e; }
@@ -2832,9 +2898,9 @@ function App() {
       const recapStart=canClose&&phase==='dating'?PH_STARTW[phase]+1:start;
       const rangeResults=[];
       for(let ep=recapStart;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(phase,ep,{[user.uid]:picks[phase]}));
-      const retroEvents=eng.retroEventsForRange(start,target).map(event=>({title:event.note,sub:retroRevealSub(event),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
+      const retroEvents=eng.retroEventsForRange(start,target).map(event=>({title:event.note,sub:retroRevealSub(event,activePool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
       const combined={events:[...rangeResults.flatMap(r=>r.events),...retroEvents],entries:rangeResults.flatMap(r=>r.entries)};
-      const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points finalize when the pool completes this phase'}:e)};
+      const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:activePool.global===true?'Live points appear after you complete this checkpoint.':'Points finalize when the pool completes this phase'}:e)};
       const atProvisionalBoundary=target>=endEp&&!canClose;
       const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(rollingPhase?'board':'watch'));
       const nc=canClose?{...completed,[phase]:true}:completed;
@@ -2871,7 +2937,7 @@ function App() {
       setErr('');
       let pool = await window._fb.getPool(activePool.id);
       if (!pool) throw new Error('Pool not found');
-      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id)]);
+      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,pool.global===true),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id)]);
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
@@ -2893,7 +2959,6 @@ function App() {
     if(next==='standings'){setPoolInviteFeedback('');refreshStandings();}
   };
   useEffect(()=>{
-
     const refreshOnFocus=()=>{
       if(poolTab==='standings'&&activePool&&Date.now()-lastStandingsRefresh.current>=30000)refreshStandings();
     };
@@ -3042,7 +3107,7 @@ function App() {
         <option value="">No thanks — I’ll make separate global picks</option>
         {globalSourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
       </select>
-      {globalSourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks are copied to the global pool and future changes in that pool will keep its matching global picks updated until the global phase is revealed.</p>}
+      {globalSourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks are copied to the global pool and future changes in that pool will keep its matching global picks updated until you complete that global checkpoint.</p>}
       <div className="modal-actions"><button className="btn-primary" disabled={joiningGlobal} onClick={doJoinGlobalPool}>{joiningGlobal?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joiningGlobal} onClick={()=>setGlobalJoin(null)}>Cancel</button></div>
     </div></div>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
@@ -3074,14 +3139,13 @@ function App() {
     {reveal.events.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
     {reveal.events.map((ev,i)=><div className={'evt'+(ev.retro?' retro-event':'')} key={i}><h3>{ev.title}{ev.retro&&<span className="warnchip">retro</span>}{ev.placeholder&&<span className="warnchip">placeholder</span>}</h3>{ev.sub&&<div className="sub">{ev.sub}</div>}</div>)}
     {reveal.entries.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
-
   </div>;
   const currentRevealRetroIds=new Set(screen==='board'?(reveal?.events||[]).filter(event=>event.retro&&event.retroEventId).map(event=>event.retroEventId):[]);
   const persistentRetroEvents=(screen==='watch'||screen==='board')?(eng.RETRO_EVENTS||[]).filter(event=>event.revealedEp<=w&&!currentRevealRetroIds.has(event.id)):[];
   const PersistentRetroReveals = () => persistentRetroEvents.length>0 && <div className="persistent-retro-events">
     {persistentRetroEvents.map(event=><div className="evt retro-event" key={event.id}>
       <h3>{event.note}<span className="warnchip">retro</span>{!event.confirmed&&<span className="warnchip">placeholder</span>}</h3>
-      <div className="sub">{retroRevealSub(event)}</div>
+      <div className="sub">{retroRevealSub(event,activePool.global===true)}</div>
     </div>)}
   </div>;
   return <div className="app">
@@ -3105,7 +3169,7 @@ function App() {
     </div>
     {poolTab==='standings' && poolPlayers && <React.Fragment>
       <div style={{textAlign:'center',margin:'0 0 10px'}}><button className="btn-small" style={{width:'auto'}} onClick={refreshStandings}>Refresh standings</button></div>
-      <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites}/>
+      <Scoreboard eng={eng} playersById={playersById} statusDocs={poolStatus} memberLabels={memberLabels} meId={user.uid} myPhase={phase} pendingInvites={pendingPoolInvites} globalPool={activePool.global===true}/>
       {!activePool.global&&<div className="card">
         <h3>Invite someone</h3>
         <p className="lede">Invite more friends before the first player completes Pods.</p>
@@ -3121,7 +3185,7 @@ function App() {
       </div>}
     </React.Fragment>}
     {poolTab==='rules' && cfg.PLAYABLE && <div className="card"><h2>Rules</h2>{phaseIntro.rules}</div>}
-    {poolTab==='scoring' && cfg.PLAYABLE && <div className="card"><h2>Scoring</h2>{phaseIntro.scoring}</div>}
+    {poolTab==='scoring' && cfg.PLAYABLE && <div className="card"><h2>Scoring</h2>{activePool.global===true&&<div className="notice"><b>Global-pool scoring stays live.</b> References below to a phase closing mean your own checkpoint lock. Your score appears immediately and its Against-the-Grain bonus can change as more players finish that checkpoint.</div>}{phaseIntro.scoring}</div>}
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card">
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
@@ -3169,9 +3233,19 @@ function App() {
         <RevealSummary/>
         <div className="card">
           <h2>{navigationPhaseLabel(phase,RULES)} complete</h2>
-          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Retreats results are still being confirmed.':'Scores finalized when the phase closes.'}</h3>}
+          {closeInfo.closing.length>0&&<h3 style={{marginTop:10}}>{phase==='dating'&&!RESULTS_READY.dating?'Retreats results are still being confirmed.':activePool.global===true?'Your checkpoint is locked.':'Scores finalized when the phase closes.'}</h3>}
           {closeInfo.closing.map((e,i)=><Receipt key={i} e={e} eng={eng} meId={user.uid} memberLabels={memberLabels}/>)}
-          <div className="notice">{phase==='dating'&&!RESULTS_READY.dating?'Your predictions are locked. Once everyone completes Retreats, confirmed points appear in Standings while the Retreats results are finalized.':phase==='reunion'&&RESULTS_READY.reunion?'Your predictions are locked. Your Reunion score is visible in Standings now; final standings update when everyone locks their Reunion predictions.':RESULTS_READY[phase]?"Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase.":'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
+          <div className="notice">{activePool.global===true
+            ? (RESULTS_READY[phase]||phase==='dating'
+              ? 'Your predictions are permanently locked. Your live checkpoint score is now in Standings and may shift as more global players finish this phase.'
+              : 'Your predictions are permanently locked. This checkpoint will appear in the live standings when its results are confirmed.')
+            : phase==='dating'&&!RESULTS_READY.dating
+              ? 'Your predictions are locked. Once everyone completes Retreats, confirmed points appear in Standings while the Retreats results are finalized.'
+              : phase==='reunion'&&RESULTS_READY.reunion
+                ? 'Your predictions are locked. Your Reunion score is visible in Standings now; final standings update when everyone locks their Reunion predictions.'
+                : RESULTS_READY[phase]
+                  ? "Your predictions are locked. Scores and everyone's predictions are revealed on the Standings tab once the whole pool completes this phase."
+                  : 'Your predictions are locked. Results are being confirmed and scores will appear after the season sheet is marked ready.'}</div>
           {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+navigationPhaseLabel(NEXT_PH[phase],RULES)+' →':'Finish the season →'}</button>
         </div>
@@ -3179,12 +3253,12 @@ function App() {
       {screen==='final'&&<div className="card gatecard">
         <div className="crown">👑</div>
         <div className="winner">Season complete!</div>
-        <p className="lede" style={{marginBottom:12}}>Check the Standings tab to see how everyone did once the whole pool has finished.</p>
+        <p className="lede" style={{marginBottom:12}}>{activePool.global===true?'Your full score is live. The global standings and Against-the-Grain bonuses continue updating as more players finish.':'Check the Standings tab to see how everyone did once the whole pool has finished.'}</p>
         <button className="btn-primary" onClick={()=>switchPoolTab('standings')}>View Standings</button>
       </div>}
       {['intro','board','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
     </React.Fragment>}
-    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES}/>} 
+    {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} globalPool={activePool?.global===true}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool}/>} 
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
