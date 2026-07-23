@@ -126,6 +126,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .lb th,.lb td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line);font-size:14px}
 .lb th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft-text)}
 .lb th:first-child,.lb td:first-child{text-align:left}
+.lb tbody tr{animation:row-shift .32s ease both}.lb tbody tr:nth-child(n+8){animation-delay:.04s}
+@keyframes row-shift{from{opacity:.35;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 .lb tr.you td{font-weight:700;color:var(--wine)}
 .lb tr.champion td{background:color-mix(in srgb,var(--gold) 12%,transparent);border-bottom-color:color-mix(in srgb,var(--gold) 38%,var(--line))}
 .lb tr.champion td:first-child{border-radius:9px 0 0 9px}
@@ -137,6 +139,18 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .global-your-rank{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--rose) 45%,var(--line));border-radius:12px;background:var(--blush-soft)}
 .global-your-rank strong{color:var(--wine)}.global-your-rank-score{font-family:'Playfair Display',serif;font-size:21px;font-weight:700;color:var(--wine);white-space:nowrap}
 .global-leaderboard-note{margin:10px 0 0;text-align:center;color:var(--soft-text);font-size:12px}
+.standings-status{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin:0 0 7px;color:var(--rose);font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+.standings-status-dot{width:7px;height:7px;border-radius:50%;background:var(--rose);box-shadow:0 0 0 0 color-mix(in srgb,var(--rose) 45%,transparent);animation:live-pulse 1.8s ease-out infinite}
+@keyframes live-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--rose) 48%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+.current-podium{animation:standings-rise .45s ease both}
+@keyframes standings-rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.podium-through{display:block;margin-top:2px;color:var(--soft-text);font:600 9px Inter,sans-serif}
+.personal-race-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin:14px 0;padding:15px;border:1px solid color-mix(in srgb,var(--rose) 45%,var(--line));border-radius:14px;background:linear-gradient(135deg,var(--blush-soft),var(--surface))}
+.personal-race-kicker{color:var(--rose);font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.personal-race-title{margin:2px 0;color:var(--wine);font-family:'Playfair Display',serif;font-size:22px;font-weight:700}.personal-race-meta{color:var(--muted);font-size:12px;line-height:1.45}.personal-race-score{text-align:right;color:var(--wine);font-family:'Playfair Display',serif;font-size:27px;font-weight:700;white-space:nowrap}.personal-race-score span{display:block;color:var(--soft-text);font:700 9px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.checkpoint-leaders{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.checkpoint-leader{min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);padding:11px;text-align:left;cursor:pointer}.checkpoint-leader:hover:not(:disabled){border-color:var(--rose);transform:translateY(-1px)}.checkpoint-leader:disabled{cursor:default;opacity:.58}.checkpoint-leader.active{border-color:var(--wine);background:var(--blush-soft)}.checkpoint-leader-phase{display:block;color:var(--soft-text);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.checkpoint-leader-name{display:block;overflow:hidden;margin:4px 0 1px;color:var(--wine);font-family:'Playfair Display',serif;font-size:14px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}.checkpoint-leader-score{display:block;color:var(--muted);font-size:10px;font-weight:700}
+.atg-spotlight{position:relative;overflow:hidden;margin:15px 0 4px;padding:15px 16px;border:1px solid color-mix(in srgb,var(--gold) 55%,var(--line));border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 15%,var(--surface)),var(--surface))}.atg-spotlight::after{content:'✦';position:absolute;right:13px;top:7px;color:var(--gold);font-size:24px;opacity:.55}.atg-spotlight-kicker{color:var(--rose);font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.atg-spotlight-title{margin:4px 30px 3px 0;color:var(--wine);font-family:'Playfair Display',serif;font-size:18px;font-weight:700}.atg-spotlight-copy{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+@media(max-width:680px){.checkpoint-leaders{grid-template-columns:repeat(2,minmax(0,1fr))}.personal-race-card{grid-template-columns:1fr}.personal-race-score{text-align:left}}
+@media(prefers-reduced-motion:reduce){.standings-status-dot,.current-podium,.lb tbody tr{animation:none}.checkpoint-leader{transition:none}}
 .global-pool-card{position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--gold) 52%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--gold) 10%,var(--card)),var(--card) 58%,color-mix(in srgb,var(--rose) 8%,var(--card)))}
 .global-pool-card::after{content:'✦';position:absolute;right:14px;top:8px;color:var(--gold);font-size:24px;opacity:.6;pointer-events:none}
 .global-pool-head{display:flex;align-items:center;gap:10px}.global-pool-icon{width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:var(--wine);color:#fff;font-size:20px;box-shadow:0 5px 12px rgba(67,17,39,.18)}
@@ -2074,6 +2088,56 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
   </section>;
 }
+function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,globalPool,throughLabel,finalized=false}) {
+  const podium=ranked.slice(0,3);
+  if(!podium.length)return null;
+  const podiumKey=podium.map(id=>id+':'+scoreFor(id)).join('|');
+  return <section className="champion-ceremony current-podium" key={podiumKey} aria-label={(globalPool?'Live':'Current')+' top three standings'}>
+    <div className="standings-status">{globalPool&&<span className="standings-status-dot" aria-hidden="true"></span>}{finalized?'Final standings':globalPool?'Live podium':'Current standings'+(throughLabel?' through '+throughLabel:'')}</div>
+    <p className="champion-name">{finalized?'Final podium':'Top three'}</p>
+    <p className="champion-score">{globalPool?'Positions can shift as checkpoint scores update.':'Updated after each finalized pool phase.'}</p>
+    <div className="podium" aria-label="Top three places">
+      {podium.map((id,index)=>{
+        const place=rankById[id],visualClass=index===0?'first':index===1?'second':'third';
+        return <div className={'podium-place '+visualClass} key={id}>
+          <div className="podium-medal" aria-hidden="true">{place===1?'🥇':place===2?'🥈':'🥉'}</div>
+          <div className="podium-name">{playerName(id)}<span className="podium-through">Scored through {scoredThrough(id)}</span></div>
+          <div className="podium-step" aria-label={'Place '+place+', '+scoreFor(id)+' points'}><span>{place}</span><span className="podium-score">{scoreFor(id)} pts</span></div>
+        </div>;
+      })}
+    </div>
+  </section>;
+}
+function PersonalRaceCard({rank,total,playerCount,score,nextName,nextGap,leader,globalPool}) {
+  if(!rank||!playerCount)return null;
+  const percentile=Math.max(1,Math.round(((playerCount-rank+1)/playerCount)*100));
+  const percentileSuffix=percentile%100>=11&&percentile%100<=13?'th':percentile%10===1?'st':percentile%10===2?'nd':percentile%10===3?'rd':'th';
+  const raceCopy=leader?'You’re leading this leaderboard.':nextGap!=null?nextGap+' point'+(nextGap===1?'':'s')+' to pass '+nextName+'.':'Keep playing to climb the standings.';
+  return <section className="personal-race-card" aria-label="Your leaderboard position">
+    <div>
+      <div className="personal-race-kicker">Your position</div>
+      <div className="personal-race-title">#{rank} of {total}</div>
+      <div className="personal-race-meta">{(globalPool||playerCount>=10)?percentile+percentileSuffix+' percentile · ':''}{raceCopy}</div>
+    </div>
+    <div className="personal-race-score">{score} pts<span>{globalPool?'live points':'current points'}</span></div>
+  </section>;
+}
+function CheckpointLeaderCards({cards,activePhase,onSelect}) {
+  return <div className="checkpoint-leaders" aria-label="Checkpoint leaders">{cards.map(card=><button type="button" key={card.phase} className={'checkpoint-leader'+(activePhase===card.phase?' active':'')} disabled={!card.ready} onClick={()=>card.ready&&onSelect(card.phase)}>
+    <span className="checkpoint-leader-phase">{card.label}</span>
+    <span className="checkpoint-leader-name">{card.ready?card.names:'Locked'}</span>
+    <span className="checkpoint-leader-score">{card.ready?card.score+' pts · View checkpoint':'Not scored yet'}</span>
+  </button>)}</div>;
+}
+function AgainstTheGrainSpotlight({spotlight,globalPool}) {
+  if(!spotlight)return null;
+  const percent=Math.round((spotlight.owners/Math.max(spotlight.poolSize,1))*100);
+  return <section className="atg-spotlight">
+    <div className="atg-spotlight-kicker">Against-the-Grain spotlight · {spotlight.phaseLabel}</div>
+    <div className="atg-spotlight-title">{spotlight.label}</div>
+    <p className="atg-spotlight-copy">{globalPool?percent+'% of active '+spotlight.phaseLabel+' players predicted this.':spotlight.owners+' of '+spotlight.poolSize+' active players predicted this.'}</p>
+  </section>;
+}
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, demoMode=false, presetPhaseScores={}}) {
   const {RULES,RESULTS_READY:configuredResultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const resultsReady=demoMode?Object.fromEntries(PH_ORDER.map(ph=>[ph,true])):configuredResultsReady;
@@ -2122,6 +2186,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const grandTotals = {};
   memberIds.forEach(id=>grandTotals[id]=0);
   const phaseTotals = {};
+  const phaseEntries = {};
   const phaseMembers = {};
   PH_ORDER.forEach(ph => {
     const partialReunion = ph==='reunion' && reunionScoresPartial;
@@ -2133,8 +2198,9 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       const visible = !partialReunion || reunionLockedMembers.includes(id);
       picksBy[id] = visible ? ((playersById[id].picks && playersById[id].picks[ph]) || []) : [];
     });
-    const {totals:calculatedTotals} = scorePhase(ph, picksBy);
+    const {entries,totals:calculatedTotals} = scorePhase(ph, picksBy);
     const totals={...calculatedTotals,...(presetPhaseScores[ph]||{})};
+    phaseEntries[ph]=entries;
     phaseTotals[ph] = totals;
     phaseMembers[ph] = eligibleMembers;
     phaseMembers[ph].forEach(id => grandTotals[id] += totals[id] || 0);
@@ -2170,7 +2236,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     (phaseMembers[ph]||[]).forEach(id=>{runningById[id]+=(phaseTotals[ph]?.[id]||0);});
     checkpointTotals[ph]={...runningById};
   });
-  if(globalPool&&!retroSpoilerHidden) {
+  if(!retroSpoilerHidden) {
     retro.entries.filter(entry=>!entry.pending).forEach(entry=>{
       const revealIndex=PH_ORDER.indexOf(entry.retroPhase);
       scoredPhases.forEach(ph=>{
@@ -2193,15 +2259,48 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const globalTop=globalRanked.slice(0,50);
   const globalMeOutsideTop=globalRanked.includes(meId)&&!globalTop.includes(meId);
   const globalViewLabel=globalView==='overall'?'Overall':'After '+RULES.phases[globalView].label;
-  const podium = ranked.filter(id=>rankById[id]<=3);
   const playerName = id => id===meId ? 'You' : memberLabels[id];
-  const champions=ranked.filter(id=>rankById[id]===1);
-  const tiedChampions=champions.length>1;
-  const championNames=champions.map(playerName).join(' & ');
+  const latestScoredPhase=scoredPhases[scoredPhases.length-1]||null;
+  const raceRanked=globalPool?globalRanked:ranked;
+  const raceRankById=globalPool?globalRankById:rankById;
+  const raceScore=globalPool?globalViewScore:(id=>grandTotals[id]||0);
+  const meRaceIndex=raceRanked.indexOf(meId);
+  const nextRaceId=meRaceIndex>0?raceRanked[meRaceIndex-1]:null;
+  const nextRaceGap=nextRaceId?Math.max(1,raceScore(nextRaceId)-raceScore(meId)+1):null;
+  const checkpointCards=PH_ORDER.map(ph=>{
+    const ready=scoredPhases.includes(ph),eligible=phaseMembers[ph]||[],scores=checkpointTotals[ph]||{};
+    const high=ready&&eligible.length?Math.max(...eligible.map(id=>scores[id]||0)):0;
+    const leaders=ready?eligible.filter(id=>(scores[id]||0)===high):[];
+    const names=leaders.length>2
+      ? leaders.slice(0,2).map(playerName).join(' & ')+' +'+(leaders.length-2)
+      : leaders.map(playerName).join(' & ');
+    return {phase:ph,label:RULES.phases[ph].label,ready,names:names||'No points yet',score:high};
+  });
+  const selectCheckpoint=ph=>{
+    if(globalPool)setGlobalView(ph);
+    else {
+      setOpenPhase(ph);
+      setTimeout(()=>document.getElementById('phase-card-'+ph)?.scrollIntoView({behavior:'smooth',block:'start'}),0);
+    }
+  };
+  const spotlightPhases=globalPool&&globalView!=='overall'?[globalView]:scoredPhases;
+  const spotlightMap=new Map();
+  spotlightPhases.forEach(ph=>{
+    const scoringEnd=ph==='dating'&&Number.isFinite(eng.PH_SPAN.dating.retreatEndEp)?eng.PH_SPAN.dating.retreatEndEp:eng.PH_SPAN[ph].endEp;
+    if(scoringEnd>viewerWatched)return;
+    (phaseEntries[ph]||[]).filter(entry=>entry.ok&&!entry.pending&&Number.isFinite(entry.owners)&&entry.owners>0&&entry.poolSize>0).forEach(entry=>{
+      const key=ph+'|'+entry.label;
+      if(!spotlightMap.has(key))spotlightMap.set(key,{...entry,phaseLabel:RULES.phases[ph].label});
+    });
+  });
+  const spotlightCandidates=Array.from(spotlightMap.values()).sort((a,b)=>(a.owners/a.poolSize)-(b.owners/b.poolSize)||b.points-a.points||String(a.label).localeCompare(String(b.label)));
+  const atgSpotlight=demoMode
+    ? {label:'A bold Pods engagement call',owners:4,poolSize:126,phaseLabel:RULES.phases.pods.label}
+    : (spotlightCandidates[0]||null);
   return <React.Fragment>
     {!globalPool&&<SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>}
     <div className="card">
-      <h2>{globalPool?'Live global standings':'Standings'}</h2>
+      <h2>{globalPool?'Live global standings':latestScoredPhase?'Current standings through '+RULES.phases[latestScoredPhase].label:'Standings'}</h2>
       {demoMode&&<div className="notice"><b>Demo preview · 126 sample players.</b> This data exists only in your browser and is never saved to the real global pool.</div>}
       {globalPool&&<div className="notice"><b>Live scores.</b> Each checkpoint opens as players individually finish it. Against-the-Grain bonuses recalculate whenever another player locks that checkpoint, so these totals can move.</div>}
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No checkpoint scores yet. The leaderboard begins when the first player completes a phase.':'No phases fully completed yet. Scores appear once everyone in the pool finishes a phase.'}</p>}
@@ -2209,32 +2308,19 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions all settle when the retreat ends.{globalPool?' Against-the-Grain bonuses will also keep adjusting as more players finish.':''}</div>}
       {reunionScoresPartial&&<div className="notice">{reunionLockedMembers.length===1&&reunionLockedMembers[0]===meId?'Your Reunion score is in — final standings update when everyone else locks.':'Scores for players who have locked are shown now; the final standings update when everyone locks their Reunion predictions.'}</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
-      {seasonFinalized&&podium.length>0&&<section className="champion-ceremony" aria-label={tiedChampions?'Final standings. '+championNames+' tied as pool champions.':'Final standings. '+playerName(podium[0])+' won the pool.'}>
-        <div className="champion-kicker">Final standings</div>
-        <div className="award-trophy" aria-hidden="true">🏆</div>
-        <p className="champion-name">{tiedChampions?'Tied champions!':playerName(podium[0])+(podium[0]===meId?' win!':' wins!')}</p>
-        <p className="champion-score">{tiedChampions&&championNames+' · '}{grandTotals[podium[0]]} points · Pool champion{tiedChampions?'s':''}</p>
-        <div className="podium" aria-label="Top three places">
-          {podium.map(id=>{const place=rankById[id];return <div className={'podium-place '+(place===1?'first':place===2?'second':'third')} key={id}>
-            <div className="podium-medal" aria-hidden="true">{place===1?'🥇':place===2?'🥈':'🥉'}</div>
-            <div className="podium-name">{playerName(id)}</div>
-            <div className="podium-step" aria-label={'Place '+place+', '+grandTotals[id]+' points'}><span>{place}</span><span className="podium-score">{grandTotals[id]} pts</span></div>
-          </div>;})}
-        </div>
-      </section>}
+      {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} globalPool={globalPool} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized}/>}
+      {scoredPhases.length>0&&raceRanked.includes(meId)&&<PersonalRaceCard rank={raceRankById[meId]} total={raceRanked.length} playerCount={raceRanked.length} score={raceScore(meId)} nextName={nextRaceId?playerName(nextRaceId):''} nextGap={nextRaceGap} leader={raceRankById[meId]===1} globalPool={globalPool}/>}
+      <CheckpointLeaderCards cards={checkpointCards} activePhase={globalPool&&globalView!=='overall'?globalView:openPhase} onSelect={selectCheckpoint}/>
+      <AgainstTheGrainSpotlight spotlight={atgSpotlight} globalPool={globalPool}/>
       {scoredPhases.length>0&&!globalPool&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>} 
       {scoredPhases.length>0&&(globalPool?<React.Fragment>
         <div className="checkpoint-tabs" role="group" aria-label="Global leaderboard checkpoint">
           <button className={globalView==='overall'?'active':''} aria-pressed={globalView==='overall'} onClick={()=>setGlobalView('overall')}>Overall</button>
           {scoredPhases.map(ph=><button key={ph} className={globalView===ph?'active':''} aria-pressed={globalView===ph} onClick={()=>setGlobalView(ph)}>After {RULES.phases[ph].label}</button>)}
         </div>
-        {globalMeOutsideTop&&<div className="global-your-rank">
-          <div><strong>Your position · #{globalRankById[meId]}</strong><div className="subtle">{globalViewLabel} · Scored through {scoredThrough(meId)}</div></div>
-          <div className="global-your-rank-score">{globalViewScore(meId)} pts</div>
-        </div>}
         <div className="lb"><table>
           <thead><tr><th>Player</th><th>{globalViewLabel}</th></tr></thead>
-          <tbody>{globalTop.map(id=><tr key={id} className={id===meId?'you':''}>
+          <tbody key={globalView+'|'+globalTop.map(id=>id+':'+globalViewScore(id)).join('|')}>{globalTop.map(id=><tr key={id} className={id===meId?'you':''}>
             <td><span className="subtle">#{globalRankById[id]} </span>{playerName(id)}<div className="subtle">Scored through {scoredThrough(id)}</div></td>
             <td className="tot">{globalViewScore(id)}</td>
           </tr>)}</tbody>
@@ -2242,7 +2328,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
         {globalRanked.length>50&&<p className="global-leaderboard-note">Showing the top 50 of {globalRanked.length} scored players.{globalMeOutsideTop?' Your position is pinned above.':''}</p>}
       </React.Fragment>:<div className="lb"><table>
         <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>Total</th></tr></thead>
-        <tbody>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
+        <tbody key={ranked.map(id=>id+':'+grandTotals[id]).join('|')}>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
           <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
           {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
           {hasRetro&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
@@ -2280,7 +2366,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       const breakdownHidden=scoringEnd>viewerWatched;
       const notStarted = st.completedBy.length===0 && !isCurrent && PH_ORDER.indexOf(ph)>PH_ORDER.indexOf(myPhase) && !(ph==='reunion'&&reunionScoresPartial);
       if (notStarted) return null;
-      return <div className="card" key={ph}>
+      return <div className="card" id={'phase-card-'+ph} key={ph}>
         <h3>{RULES.phases[ph].label}</h3>
         {globalPool?<React.Fragment>
           {st.completedBy.length===0
@@ -2586,7 +2672,7 @@ function App() {
   /* ── Enter a pool ── */
   const enterPool = async (pool, duplicateFromPoolId='') => {
     try {
-      setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab('play');
+      setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab(pool.global===true&&GLOBAL_POOL_DEMO_MODE?'standings':'play');
       setPhaseCompletionError(''); phaseCompletionAttempted.current='';
       const liveCfg=await loadConfig(seasonForPool(pool).id);
       let enteredPool=pool;
@@ -3240,7 +3326,7 @@ function App() {
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <h1>{activePool.name} {saveBadge}</h1>
       <div className="user-bar">
-        <button className="backlink" onClick={()=>{setErr('');setPoolTab('play');if(screen==='board'&&!completed[phase]) setScreen('intro');}}>Pool Home</button>
+        <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
         <button className="backlink" onClick={exitPool}>← All pools</button>
         {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
         <span className="user-name">{meName}</span>
@@ -3250,9 +3336,9 @@ function App() {
     </BrandHeader>
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>} 
     <div className="tabbar">
-      <button className={poolTab==='play'?'active':''} onClick={()=>switchPoolTab('play')}>Play</button>
+      {!globalDemoData&&<button className={poolTab==='play'?'active':''} onClick={()=>switchPoolTab('play')}>Play</button>}
       <button className={poolTab==='standings'?'active':''} onClick={()=>switchPoolTab('standings')}>Standings</button>
-      {cfg.PLAYABLE&&<React.Fragment><button className={poolTab==='rules'?'active':''} onClick={()=>switchPoolTab('rules')}>Rules</button><button className={poolTab==='scoring'?'active':''} onClick={()=>switchPoolTab('scoring')}>Scoring</button></React.Fragment>}
+      {!globalDemoData&&cfg.PLAYABLE&&<React.Fragment><button className={poolTab==='rules'?'active':''} onClick={()=>switchPoolTab('rules')}>Rules</button><button className={poolTab==='scoring'?'active':''} onClick={()=>switchPoolTab('scoring')}>Scoring</button></React.Fragment>}
     </div>
     {poolTab==='standings' && poolPlayers && <React.Fragment>
       <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
