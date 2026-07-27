@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js"
+  },
+  "devDependencies": {
+    "@babel/standalone": "7.23.5"
+  }
+}
