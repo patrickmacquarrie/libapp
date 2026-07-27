@@ -3441,7 +3441,8 @@ function App() {
       else if(left>0) message+='\n\n'+label+': '+left+' unspent hearts will be lost.';
     });
     message+=range?'\n\nAfter locking, you can watch '+range+'.':'\n\nNo new episodes are out yet. You can still lock now and come back when they are.';
-    if(!await requestConfirmation({title:'Lock these predictions?',body:message,confirmLabel:'Lock predictions',cancelLabel:'Keep editing'})) return;
+    const noHeartsRemaining=phaseStates.every(({left})=>left<=0);
+    if(!noHeartsRemaining&&!await requestConfirmation({title:'Lock these predictions?',body:message,confirmLabel:'Lock predictions',cancelLabel:'Keep editing'})) return;
     setGating(true);
     try {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
