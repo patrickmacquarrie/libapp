@@ -3516,6 +3516,25 @@ function App() {
     if(phaseCompletionAttempted.current===key) return;
     registerPhaseCompletion(activePool.id,phase,user.uid);
   },[activePool?.id,poolTab,screen,phase,completed[phase],poolStatus,user?.uid,registerPhaseCompletion]);
+  // Hooks must run in the same order on lobby and in-pool renders. Keeping
+  // these pool-derived values above the render guards prevents React from
+  // crashing when activePool changes from null to a loaded pool.
+  const {playersById,memberLabels}=useMemo(()=>{
+    const nextPlayers={}, rawLabels={};
+    let nextLabels={};
+    if(activePool&&poolPlayers&&poolUsers) {
+      activePool.members.forEach(uid=>{
+        const uname=uid===user?.uid?meName:(poolUsers[uid]?.username||(poolPlayers[uid]?.username)||'Player');
+        rawLabels[uid]=cleanUsername(uname)||'Player';
+        nextPlayers[uid]=poolPlayers[uid]?{...poolPlayers[uid],picks:normalizePicks(poolPlayers[uid].picks)}:{picks:freshPicks(),completed:{}};
+      });
+      nextLabels=disambiguateMemberLabels(activePool.members,rawLabels);
+      // Ensure my latest local state is reflected.
+      if(user?.uid) nextPlayers[user.uid]={picks,completed,username:meName,phase,screen,w,watchThrough};
+    }
+    return {playersById:nextPlayers,memberLabels:nextLabels};
+  },[activePool,poolPlayers,poolUsers,user?.uid,picks,completed,meName,phase,screen,w,watchThrough]);
+  const globalDemoData=useMemo(()=>activePool?.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user?.uid,meName):null,[activePool?.id,user?.uid,meName]);
   /* ── RENDER ── */
   if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
@@ -3648,23 +3667,6 @@ function App() {
   /* ── IN POOL ── */
   const {RULES} = eng;
   const phaseIntro = PH_INTRO(phase,RULES,eng);
-  // Keep stable UIDs as identity; usernames are display labels only.
-  const {playersById,memberLabels}=useMemo(()=>{
-    const nextPlayers={}, rawLabels={};
-    let nextLabels={};
-    if(poolPlayers&&poolUsers) {
-      activePool.members.forEach(uid=>{
-        const uname=uid===user?.uid?meName:(poolUsers[uid]?.username||(poolPlayers[uid]?.username)||'Player');
-        rawLabels[uid]=cleanUsername(uname)||'Player';
-        nextPlayers[uid]=poolPlayers[uid]?{...poolPlayers[uid],picks:normalizePicks(poolPlayers[uid].picks)}:{picks:freshPicks(),completed:{}};
-      });
-      nextLabels=disambiguateMemberLabels(activePool.members,rawLabels);
-      // Ensure my latest local state is reflected.
-      if(user?.uid) nextPlayers[user.uid]={picks,completed,username:meName,phase,screen,w,watchThrough};
-    }
-    return {playersById:nextPlayers,memberLabels:nextLabels};
-  },[activePool,poolPlayers,poolUsers,user?.uid,picks,completed,meName,phase,screen,w,watchThrough]);
-  const globalDemoData=useMemo(()=>activePool.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user.uid,meName):null,[activePool?.id,user?.uid,meName]);
   const standingsPlayers=globalDemoData?.players||playersById;
   const standingsLabels=globalDemoData?.labels||memberLabels;
   const standingsStatus=globalDemoData?.statusDocs||poolStatus;
