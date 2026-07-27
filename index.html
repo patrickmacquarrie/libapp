@@ -213,6 +213,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .score-chart-grid{stroke:var(--line);stroke-width:1}.score-chart-axis{fill:var(--soft-text);font:10px Inter,system-ui,sans-serif}.score-chart-phase{fill:var(--soft-text);font:700 9px Inter,system-ui,sans-serif;letter-spacing:.03em;text-transform:uppercase}.score-series{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.score-point{stroke:var(--card);stroke-width:2}
 .score-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 12px;margin-top:10px}.score-legend-item{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:11px;font-weight:700}.score-legend-swatch{width:18px;height:3px;border-radius:999px;flex:0 0 auto}.score-legend-total{color:var(--muted);font-weight:600}
 .gatecard{text-align:center}
+.exhausted-board{padding:30px 24px;text-align:center}
+.exhausted-board h2{margin:0}
 .crown{font-size:44px;line-height:1}
 .winner{font-family:'Playfair Display',serif;font-size:28px;color:var(--wine);margin:4px 0}
 .notice{border:1px dashed #e3cd93;background:#fdf8ec;border-radius:12px;padding:11px 14px;font-size:13px;color:#6d5324;line-height:1.5;margin:10px 0}
@@ -1983,6 +1985,8 @@ function makeEngine(cfg, poolSize) {
 const retroRevealSub = (event,globalPool=false) => (event.confirmed?'':'Awaiting confirmation — ')+(globalPool
   ? 'Retroactive scoring change — confirmed points are included in the live global standings.'
   : 'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.');
+const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
+const normalizeSeenRetroNotices = value => [...new Set((Array.isArray(value)?value:[]).filter(item=>typeof item==='string'&&item))];
 /* ================================================================== */
 /*  SHARED UI                                                          */
 /* ================================================================== */
@@ -2281,6 +2285,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
   const open=w<PH_SPAN.weddings.endEp;
   const left=RULES.phases.weddings.budget-spent, maxS=Math.min(RULES.phases.weddings.cap,left);
   const [cid,setCid]=useState(''),[answer,setAnswer]=useState(''),[when,setWhen]=useState(''),[whoT,setWhoT]=useState(''),[stake,setStake]=useState(40);
+  if(open&&left<=0) return <div className="card exhausted-board" role="status"><h2>You have no more hearts for predictions</h2></div>;
   const alive=COUPLES.filter(c=>eligibleForWeddings(c,w)&&!picks.some(p=>p.c===c.id));
   const outcome=answer==='yes'?'married':(answer==='no'&&when==='before'?'calledOff':(answer==='no'&&when==='altar'?'saysNo':''));
   const previewMultiplier=answer==='yes'?WED_MULT.married:(outcome?WED_MULT[outcome]*(1+RULES.WHO_TAG):1);
@@ -2917,6 +2922,8 @@ function App() {
   const [watchThrough, setWatchThrough] = useState(0);
   const [picks, setPicks] = useState(freshPicks);
   const [completed, setCompleted] = useState({});
+  const [seenRetroNotices, setSeenRetroNotices] = useState([]);
+  const [sessionRetroNotices, setSessionRetroNotices] = useState([]);
   const [duplicateFromPoolId, setDuplicateFromPoolId] = useState('');
   const [reveal, setReveal] = useState(null);
   const [closeInfo, setCloseInfo] = useState(null);
@@ -3022,6 +3029,7 @@ function App() {
     try {
       setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab(pool.global===true&&GLOBAL_POOL_DEMO_MODE?'standings':'play');
       setPhaseCompletionError(''); phaseCompletionAttempted.current='';
+      setSeenRetroNotices([]);setSessionRetroNotices([]);
       const liveCfg=await loadConfig(seasonForPool(pool).id);
       let enteredPool=pool;
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
@@ -3058,6 +3066,9 @@ function App() {
           mine={...mine,picks:sourcePicks};
           players[user.uid]=mine;
         }
+        const savedRetroNotices=normalizeSeenRetroNotices(mine.seenRetroNotices);
+        mine={...mine,seenRetroNotices:savedRetroNotices};
+        players[user.uid]=mine;
         const minePhase=mine.phase||'pods';
         const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
           poolCfg.BOUNDARIES_FINAL?.[minePhase]===false &&
@@ -3069,7 +3080,7 @@ function App() {
           const reopenedCompleted={...(mine.completed||{})};
           delete reopenedCompleted[minePhase];
           await window._fb.reopenPhase(pool.id,minePhase,user.uid);
-          await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted});
+          await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted,seenRetroNotices:savedRetroNotices});
           mine={...mine,screen:'watch',completed:reopenedCompleted};
           players[user.uid]=mine;
           status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid),revealed:false};
@@ -3080,6 +3091,7 @@ function App() {
         setW(mine.w != null ? mine.w : (minePhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[minePhase]));
         setWatchThrough(Number.isFinite(mine.watchThrough)?mine.watchThrough:(mine.w||0));
         setCompleted(mine.completed || {});
+        setSeenRetroNotices(savedRetroNotices);
         // Recompute reveal/closeInfo from state
         const replayPhase=mine.phase||'pods';
         const replayBoard=mine.screen==='board'&&mine.w>PH_STARTW[replayPhase];
@@ -3097,7 +3109,9 @@ function App() {
             const scoringStart=scoringPhase==='dating'?Math.max(replayStart,PH_SPAN.dating.retreatStartEp):replayStart;
             for(let ep=scoringStart;ep<=mine.w;ep++) replayResults.push(engine.resolveEpisode(scoringPhase,ep,{[user.uid]:normalizedReplayPicks[scoringPhase]}));
           });
-          const retroEvents=engine.retroEventsForRange(replayStart,mine.w).map(event=>({title:event.note,sub:retroRevealSub(event,enteredPool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
+          const retroEvents=engine.retroEventsForRange(replayStart,mine.w)
+            .filter(event=>!savedRetroNotices.includes(retroNoticeKey(event)))
+            .map(event=>({title:event.note,sub:retroRevealSub(event,enteredPool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
           const r={events:[...replayResults.flatMap(result=>result.events),...retroEvents],entries:replayResults.flatMap(result=>result.entries)};
           const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:enteredPool.global===true?'Live points appear after you complete this checkpoint.':'Points finalize when the pool completes this phase'}:e)};
           setReveal({ep:mine.w,rangeLabel:mine.screen==='close'&&replayPhase==='dating'?'Retreats recap':undefined,...pendified});
@@ -3124,9 +3138,9 @@ function App() {
         }
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
         setDuplicateFromPoolId(duplicateFrom);
-        setCompleted(completed0); setReveal(null); setCloseInfo(null);
+        setCompleted(completed0); setSeenRetroNotices([]); setSessionRetroNotices([]); setReveal(null); setCloseInfo(null);
         if (skipped.length||duplicateFrom) {
-          await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
+          await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,seenRetroNotices:[],...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
           for(const skippedPhase of skipped) await window._fb.completePhase(pool.id,skippedPhase,user.uid);
           if(duplicateFrom) {
             await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
@@ -3193,12 +3207,12 @@ function App() {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
-    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...state,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
+    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...state,seenRetroNotices:normalizeSeenRetroNotices(state.seenRetroNotices??seenRetroNotices),...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
     pendingSave.current=snapshot;
     if (immediate) return flushSave();
     saveTimer.current = setTimeout(()=>flushSave().catch(()=>{}),600);
-  }, [user, activePool, profile, duplicateFromPoolId, flushSave]);
+  }, [user, activePool, profile, duplicateFromPoolId, seenRetroNotices, flushSave]);
   useEffect(() => {
     const flushWhenHidden = () => { if (document.visibilityState==='hidden') flushSave().catch(()=>{}); };
     const persistPendingSave = () => {
@@ -3233,7 +3247,7 @@ function App() {
   const exitPool = async () => {
     if(!await confirmExitWithUnsavedChanges())return;
     setErr('');
-    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setDuplicateFromPoolId(''); setEng(null);
+    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setDuplicateFromPoolId(''); setSeenRetroNotices([]);setSessionRetroNotices([]);setEng(null);
     resetRuntimeConfig();
     loadLobby();
   };
@@ -3477,7 +3491,9 @@ function App() {
         const scoringStart=scoringPhase==='dating'?Math.max(recapStart,PH_SPAN.dating.retreatStartEp):recapStart;
         for(let ep=scoringStart;ep<=target;ep++) rangeResults.push(eng.resolveEpisode(scoringPhase,ep,{[user.uid]:picks[scoringPhase]}));
       });
-      const retroEvents=eng.retroEventsForRange(start,target).map(event=>({title:event.note,sub:retroRevealSub(event,activePool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
+      const revealedRetroEvents=eng.retroEventsForRange(start,target);
+      const retroEvents=revealedRetroEvents.map(event=>({title:event.note,sub:retroRevealSub(event,activePool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
+      const nextSeenRetroNotices=normalizeSeenRetroNotices([...seenRetroNotices,...revealedRetroEvents.map(retroNoticeKey)]);
       const combined={events:[...rangeResults.flatMap(r=>r.events),...retroEvents],entries:rangeResults.flatMap(r=>r.entries)};
       const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:activePool.global===true?'Live points appear after you complete this checkpoint.':'Points finalize when the pool completes this phase'}:e)};
       const atProvisionalBoundary=target>=endEp&&!canClose;
@@ -3485,9 +3501,9 @@ function App() {
       const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(hasOpenBoard?'board':'watch'));
       const nc=canClose?{...completed,[phase]:true}:completed;
       const closing=canClose?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
-      await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
+      await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc,seenRetroNotices:nextSeenRetroNotices},true);
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
-      setScreen(nextScreen);setCompleted(nc);setCloseInfo(canClose?{closing}:null);
+      setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
       if(canClose) await registerPhaseCompletion(activePool.id,phase,user.uid);
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
     finally { setGating(false); }
@@ -3579,6 +3595,26 @@ function App() {
     return {playersById:nextPlayers,memberLabels:nextLabels};
   },[activePool,poolPlayers,poolUsers,user?.uid,picks,completed,meName,phase,screen,w,watchThrough]);
   const globalDemoData=useMemo(()=>activePool?.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user?.uid,meName):null,[activePool?.id,user?.uid,meName]);
+  const retroDisplayContext=activePool?activePool.id+':'+screen+':'+w:'';
+  useEffect(()=>{
+    setSessionRetroNotices([]);
+  },[retroDisplayContext]);
+  useEffect(()=>{
+    if(!activePool||!eng||!user?.uid||poolTab!=='play'||!['watch','board','close'].includes(screen)) return;
+    const currentRevealIds=new Set((reveal?.events||[]).filter(event=>event.retro&&event.retroEventId).map(event=>event.retroEventId));
+    const seen=new Set(seenRetroNotices);
+    const newlyDisplayed=(eng.RETRO_EVENTS||[]).filter(event=>
+      !seen.has(retroNoticeKey(event))&&
+      (currentRevealIds.has(event.id)||(['watch','board'].includes(screen)&&event.revealedEp<=w))
+    );
+    if(!newlyDisplayed.length) return;
+    const noticeKeys=newlyDisplayed.map(retroNoticeKey);
+    const nextSeen=normalizeSeenRetroNotices([...seenRetroNotices,...noticeKeys]);
+    setSessionRetroNotices(current=>normalizeSeenRetroNotices([...current,...noticeKeys]));
+    setSeenRetroNotices(nextSeen);
+    savePlayer({picks,phase,screen,w,watchThrough,completed,seenRetroNotices:nextSeen},true)
+      .catch(error=>console.info('A one-time retro notice acknowledgement will be retried later.',error));
+  },[activePool?.id,eng,user?.uid,poolTab,screen,w,reveal,seenRetroNotices,picks,phase,watchThrough,completed,savePlayer]);
   /* ── RENDER ── */
   if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
@@ -3726,7 +3762,12 @@ function App() {
   const historicalPredictionDeadline=completedSeason&&rollingPhase?predictionEndFor(phase)-1:null;
   const revealHeading=reveal?.rangeLabel==='Retreats recap'?'Retreats recap':reveal?.rangeLabel?'You have watched '+reveal.rangeLabel:(phase==='reunion'?'You have watched the Reunion':'You have watched Episode '+reveal?.ep);
   const currentRevealRetroIds=new Set(screen==='board'?(reveal?.events||[]).filter(event=>event.retro&&event.retroEventId).map(event=>event.retroEventId):[]);
-  const persistentRetroEvents=(screen==='watch'||screen==='board')?(eng.RETRO_EVENTS||[]).filter(event=>event.revealedEp<=w&&!currentRevealRetroIds.has(event.id)):[];
+  const seenRetroNoticeSet=new Set(seenRetroNotices);
+  const sessionRetroNoticeSet=new Set(sessionRetroNotices);
+  const persistentRetroEvents=(screen==='watch'||screen==='board')?(eng.RETRO_EVENTS||[]).filter(event=>
+    event.revealedEp<=w&&!currentRevealRetroIds.has(event.id)&&
+    (!seenRetroNoticeSet.has(retroNoticeKey(event))||sessionRetroNoticeSet.has(retroNoticeKey(event)))
+  ):[];
   const crossover=predictionPhases.length>1;
   const crossoverMessage=phase==='pods'&&predictionPhases.includes('dating')
     ? 'Last call on engagements, first call on the retreat.'
