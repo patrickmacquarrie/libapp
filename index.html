@@ -11,7 +11,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cpath%20fill='%23ed0c72'%20d='M30%2056S8%2042%208%2024C8%2012%2020%207%2030%2017v39Z'/%3E%3Cpath%20fill='%237b2ee5'%20d='M34%2056V17C44%207%2056%2012%2056%2024c0%2018-22%2032-22%2032Z'/%3E%3Cpath%20fill='%23fff'%20d='M30%2012h4v44h-4z'/%3E%3Cpath%20fill='%237b2ee5'%20d='m32%205%202%205%205%202-5%202-2%205-2-5-5-2%205-2Z'/%3E%3Cpath%20fill='%23f2c85f'%20d='m10%2035%201.5%204L16%2041l-4.5%202L10%2047l-1.5-4L4%2041l4.5-2Z'/%3E%3Cpath%20fill='%23f2c85f'%20d='m54%2034%201.2%203.2L59%2039l-3.8%201.8L54%2044l-1.2-3.2L49%2039l3.8-1.8Z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>try{document.documentElement.dataset.theme=localStorage.getItem('prediction-pool-theme')||'light';}catch(e){document.documentElement.dataset.theme='light';}</script>
+<script>try{const t=localStorage.getItem('prediction-pool-theme')==='dark'?'dark':'light';document.documentElement.dataset.theme=t;document.querySelector('meta[name="theme-color"]').content=t==='dark'?'#170a11':'#431127';}catch(e){document.documentElement.dataset.theme='light';}</script>
 <style>
 :root{
   --ink:#351323; --wine:#431127; --wine-deep:#290817; --rose:#ed0c72;
@@ -83,7 +83,7 @@ body{
 .btn-confirm:hover{filter:brightness(1.06)}
 .btn-confirm:active{transform:translateY(1px)}
 .btn-confirm:disabled{opacity:.4;cursor:default;box-shadow:none}
-.btn-x{border:none;background:none;color:#b08d95;font-size:16px;cursor:pointer;padding:4px 8px}
+.btn-x{display:grid;place-items:center;flex:0 0 auto;min-width:44px;min-height:44px;border:none;background:none;color:#b08d95;font-size:16px;cursor:pointer;padding:8px}
 .btn-small{padding:7px 14px;border:1.5px solid var(--wine);border-radius:10px;background:none;color:var(--wine);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-small.filled{background:var(--wine);color:#fff;border-color:var(--wine)}
 .btn-small:disabled{opacity:.35;cursor:default}
@@ -136,10 +136,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .evt.retro-event h3{position:relative;z-index:1;padding-right:22px}
 .evt.retro-event .warnchip{color:#fff;background:linear-gradient(135deg,#ed0c72,#7b2ee5);border-color:transparent;box-shadow:0 3px 10px color-mix(in srgb,#7b2ee5 28%,transparent)}
 .warnchip{display:inline-block;vertical-align:middle;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#8a6116;background:#f7e8c8;border:1px solid #e3cd93;padding:2px 8px;border-radius:999px;text-transform:uppercase;margin-left:6px}
-.lb table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.lb{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.lb table{width:100%;min-width:max-content;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .lb th,.lb td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line);font-size:14px}
 .lb th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft-text)}
 .lb th:first-child,.lb td:first-child{text-align:left}
+.lb-name{display:block;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lb tbody tr{animation:row-shift .32s ease both}.lb tbody tr:nth-child(n+8){animation-delay:.04s}
 @keyframes row-shift{from{opacity:.35;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 .lb tr.you td{font-weight:700;color:var(--wine)}
@@ -205,7 +207,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .errcard h3{color:var(--wine);margin:0 0 8px;font-family:'Playfair Display',serif}
 .errcard-close{position:absolute;top:10px;right:10px;border:none;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:6px;border-radius:8px}
 .errcard-close:hover{background:var(--blush-soft)}
-.savebadge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.save-status{display:flex;align-items:center;justify-content:center;gap:5px;min-height:23px;margin:0 0 3px}
+.savebadge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px}
 .savebadge.saving{color:var(--muted);background:var(--blush-soft)}
 .savebadge.saved{color:#2e7d4f;background:#e8f5e9}
 .savebadge.error{color:#b71c1c;background:#ffebee}
@@ -216,7 +219,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:5px;flex-wrap:wrap}
 .user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
 .user-name{font-size:13px;font-weight:600;color:var(--muted)}
-.btn-signout,.btn-how{font-size:12px;color:var(--soft-text);background:none;border:1px solid var(--line);border-radius:8px;padding:3px 10px;cursor:pointer;font-family:Inter,sans-serif}
+.btn-signout,.btn-how{min-height:36px;font-size:12px;color:var(--soft-text);background:none;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-signout:hover,.btn-how:hover{background:var(--blush-soft)}
 .btn-danger{padding:7px 10px;border:1px solid #d58a99;border-radius:9px;background:var(--surface);color:#b93356;font-weight:700;font-size:12px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-danger:hover{background:#fff0f3}
@@ -228,10 +231,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .modal-actions{display:flex;gap:10px;margin-top:18px}.modal-actions .btn-primary,.modal-actions .btn-secondary{margin-top:0}.modal-actions .btn-secondary{order:-1}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
-.pool-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);cursor:pointer;transition:box-shadow .15s}
-.pool-row:hover{box-shadow:0 4px 16px rgba(110,31,59,.1)}
-.pool-row .pname{font-family:'Playfair Display',serif;font-size:18px;color:var(--wine);font-weight:700}
-.pool-row .pmeta{font-size:12px;color:var(--soft-text);margin-top:2px}
+.pool-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);color:var(--ink);font:inherit;text-align:left;appearance:none;cursor:pointer;transition:box-shadow .15s,border-color .15s}
+.pool-row:hover,.pool-row:focus-visible{border-color:color-mix(in srgb,var(--rose) 48%,var(--line));box-shadow:0 4px 16px rgba(110,31,59,.1)}
+.pool-row-copy{display:block;min-width:0}
+.pool-row-action{flex:0 0 auto;color:var(--rose);font-size:13px;font-weight:800}
+.pool-row .pname{display:block;font-family:'Playfair Display',serif;font-size:18px;color:var(--wine);font-weight:700}
+.pool-row .pmeta{display:block;font-size:12px;color:var(--soft-text);margin-top:2px}
 .library-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .library-head h2{margin-bottom:2px}
 .library-head .btn-small{flex:0 0 auto;white-space:nowrap}
@@ -326,7 +331,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:7px}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
+@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -1981,9 +1986,9 @@ function BrandHeader({season=null,children}) {
         <path fill="#f2c85f" d="m54 34 1.2 3.2L59 39l-3.8 1.8L54 44l-1.2-3.2L49 39l3.8-1.8Z"/>
       </g>
       <g transform="translate(260 66)">
-        <text x="0" y="58" fill="var(--wine)" fontFamily="Georgia, 'Times New Roman', serif" fontSize="68" fontWeight="700" letterSpacing="-1.5">Through the Wall</text>
+        <text x="0" y="58" textLength="475" lengthAdjust="spacingAndGlyphs" fill="var(--wine)" fontFamily="Georgia, 'Times New Roman', serif" fontSize="68" fontWeight="700" letterSpacing="-1.5">Through the Wall</text>
         <rect x="2" y="82" width="112" height="5" rx="2.5" fill="var(--rose)"/>
-        <text x="132" y="88" fill="var(--muted)" fontFamily="Inter, Arial, sans-serif" fontSize="22" letterSpacing="1.2">A SOCIAL PREDICTION POOL FOR FRIENDS</text>
+        <text x="132" y="88" textLength="475" lengthAdjust="spacingAndGlyphs" fill="var(--muted)" fontFamily="Inter, Arial, sans-serif" fontSize="22" letterSpacing="1.2">A SOCIAL PREDICTION POOL FOR FRIENDS</text>
       </g>
     </svg>
     {season&&<span className="seasonpill">{season}</span>}
@@ -2567,7 +2572,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
         <div className="lb"><table>
           <thead><tr><th>Player</th><th>{globalViewLabel}</th></tr></thead>
           <tbody key={globalView+'|'+globalTop.map(id=>id+':'+globalViewScore(id)).join('|')}>{globalTop.map(id=><tr key={id} className={id===meId?'you':''}>
-            <td><span className="subtle">#{globalRankById[id]} </span>{playerName(id)}<div className="subtle">Scored through {scoredThrough(id)}</div></td>
+            <td><span className="lb-name"><span className="subtle">#{globalRankById[id]} </span>{playerName(id)}</span><div className="subtle">Scored through {scoredThrough(id)}</div></td>
             <td className="tot">{globalViewScore(id)}</td>
           </tr>)}</tbody>
         </table></div>
@@ -2575,7 +2580,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       </React.Fragment>:<div className="lb"><table>
         <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>Total</th></tr></thead>
         <tbody key={ranked.map(id=>id+':'+grandTotals[id]).join('|')}>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
-          <td>{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</td>
+          <td><span className="lb-name">{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</span></td>
           {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
           {hasRetro&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
           <td className="tot">{grandTotals[id]}</td>
@@ -2697,6 +2702,7 @@ function PH_INTRO(phase,RULES,cfg) {
   };
   return copy[phase];
 }
+const MODAL_FOCUSABLE='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 function useModalLifecycle(onClose,canClose=true) {
   const modalRef=useRef(null), closeRef=useRef(onClose), canCloseRef=useRef(canClose);
   closeRef.current=onClose;canCloseRef.current=canClose;
@@ -2704,12 +2710,21 @@ function useModalLifecycle(onClose,canClose=true) {
     const trigger=document.activeElement, previousOverflow=document.body.style.overflow;
     document.body.style.overflow='hidden';
     const focusTimer=setTimeout(()=>modalRef.current?.focus(),0);
-    const onKeyDown=e=>{if(e.key==='Escape'&&canCloseRef.current){e.preventDefault();closeRef.current();}};
+    const onKeyDown=e=>{
+      if(e.key==='Escape'&&canCloseRef.current){e.preventDefault();closeRef.current();return;}
+      if(e.key!=='Tab'||!modalRef.current)return;
+      const modal=modalRef.current;
+      const focusable=[...modal.querySelectorAll(MODAL_FOCUSABLE)].filter(element=>element.getClientRects().length>0);
+      if(!focusable.length){e.preventDefault();modal.focus();return;}
+      const first=focusable[0],last=focusable[focusable.length-1],active=document.activeElement;
+      if(e.shiftKey&&(active===first||active===modal||!modal.contains(active))){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&(active===last||!modal.contains(active))){e.preventDefault();first.focus();}
+    };
     document.addEventListener('keydown',onKeyDown);
     return()=>{
       clearTimeout(focusTimer);document.removeEventListener('keydown',onKeyDown);
       document.body.style.overflow=previousOverflow;
-      if(trigger&&typeof trigger.focus==='function')setTimeout(()=>trigger.focus(),0);
+      if(trigger?.isConnected&&typeof trigger.focus==='function')setTimeout(()=>trigger.focus(),0);
     };
   },[]);
   return modalRef;
@@ -2743,7 +2758,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDe
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
   const [deleteError,setDeleteError]=useState('');
-  const modalRef=useModalLifecycle(onClose);
+  const modalRef=useModalLifecycle(onClose,!deleting);
   const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
   const finishDelete=async()=>{
@@ -2789,6 +2804,22 @@ function ConfirmModal({title,body,confirmLabel='Confirm',cancelLabel='Cancel',on
         <button className="btn-secondary" onClick={onCancel}>{cancelLabel}</button>
         <button className="btn-primary" onClick={onConfirm}>{confirmLabel}</button>
       </div>
+    </div>
+  </div>;
+}
+function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onJoin,onClose}) {
+  const titleId=useId(),selectId=useId(),modalRef=useModalLifecycle(onClose,!joining);
+  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!joining)onClose();}}>
+    <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <h2 id={titleId}>Join the global pool</h2>
+      <p>Play {formatSeasonLabel(join.season)} with everyone who joins this public pool. Its against-the-grain bonus and leaderboard are calculated independently from your friend pools.</p>
+      <label className="small" htmlFor={selectId}>Copy picks from one of your pools</label>
+      <select id={selectId} value={join.sourcePoolId} onChange={e=>onSourceChange(e.target.value)} disabled={joining}>
+        <option value="">No thanks — I’ll make separate global picks</option>
+        {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
+      </select>
+      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks are copied to the global pool and future changes in that pool will keep its matching global picks updated until you complete that global checkpoint.</p>}
+      <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
     </div>
   </div>;
 }
@@ -2872,6 +2903,8 @@ function App() {
   const changeTheme=value=>{
     const next=value==='dark'?'dark':'light';
     setTheme(next);document.documentElement.dataset.theme=next;
+    const themeMeta=document.querySelector('meta[name="theme-color"]');
+    if(themeMeta)themeMeta.setAttribute('content',next==='dark'?'#170a11':'#431127');
     try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
   };
   const replayPendingSave = useCallback(async uid=>{
@@ -3556,20 +3589,20 @@ function App() {
     </div>}
     {GLOBAL_POOL_SEASON&&<section className="card global-pool-card">
       <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pool</h2><p className="lede">One universal season pool with its own predictions, scoring, and leaderboard.</p></div></div>
-      <div className="pool-row" onClick={()=>openGlobalPool(GLOBAL_POOL_SEASON)}>
-        <div><div className="pname">{formatSeasonLabel(GLOBAL_POOL_SEASON)}</div><div className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(GLOBAL_POOL_SEASON)||'Live season'}</div></div>
-        <button className="btn-small filled" onClick={e=>{e.stopPropagation();openGlobalPool(GLOBAL_POOL_SEASON);}}>{joinedGlobalPool?'Open':'Join'}</button>
-      </div>
+      <button type="button" className="pool-row" onClick={()=>openGlobalPool(GLOBAL_POOL_SEASON)}>
+        <span className="pool-row-copy"><span className="pname">{formatSeasonLabel(GLOBAL_POOL_SEASON)}</span><span className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(GLOBAL_POOL_SEASON)||'Live season'}</span></span>
+        <span className="pool-row-action">{joinedGlobalPool?'Open':'Join'} →</span>
+      </button>
       <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are separate from your friend pools and are scored only against global-pool players.</p>
     </section>}
     <div className="card">
       <h2>Your pools</h2>
       {lobbyLoading && <p className="subtle">Loading...</p>}
       {!lobbyLoading && friendPools.length===0 && <p className="lede">You're not in any friend pools yet. Create one and invite your friends!</p>}
-      {friendPools.map(p=><div className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
-        <div><div className="pname">{p.name}</div><div className="pmeta">{seasonLabelForPool(p)} · {seasonPoolStatusLabel(seasonForPool(p))||`${p.members.length} member${p.members.length!==1?'s':''}`}</div></div>
-        <span style={{color:'var(--rose)',fontWeight:700}}>→</span>
-      </div>)}
+      {friendPools.map(p=><button type="button" className="pool-row" key={p.id} onClick={()=>enterPool(p)}>
+        <span className="pool-row-copy"><span className="pname">{p.name}</span><span className="pmeta">{seasonLabelForPool(p)} · {seasonPoolStatusLabel(seasonForPool(p))||`${p.members.length} member${p.members.length!==1?'s':''}`}</span></span>
+        <span className="pool-row-action" aria-hidden="true">→</span>
+      </button>)}
       {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
       {creating && <div ref={newPoolFormRef} style={{marginTop:14}}>
         <hr className="divider"/>
@@ -3609,17 +3642,7 @@ function App() {
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
-    {globalJoin&&<div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="global-pool-join-title"><div className="modal">
-      <h2 id="global-pool-join-title">Join the global pool</h2>
-      <p>Play {formatSeasonLabel(globalJoin.season)} with everyone who joins this public pool. Its against-the-grain bonus and leaderboard are calculated independently from your friend pools.</p>
-      <label className="small" htmlFor="global-pool-copy-source">Copy picks from one of your pools</label>
-      <select id="global-pool-copy-source" value={globalJoin.sourcePoolId} onChange={e=>setGlobalJoin(current=>({...current,sourcePoolId:e.target.value}))}>
-        <option value="">No thanks — I’ll make separate global picks</option>
-        {globalSourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
-      </select>
-      {globalSourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks are copied to the global pool and future changes in that pool will keep its matching global picks updated until you complete that global checkpoint.</p>}
-      <div className="modal-actions"><button className="btn-primary" disabled={joiningGlobal} onClick={doJoinGlobalPool}>{joiningGlobal?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joiningGlobal} onClick={()=>setGlobalJoin(null)}>Cancel</button></div>
-    </div></div>}
+    {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
   /* ── IN POOL ── */
@@ -3650,7 +3673,7 @@ function App() {
     url.searchParams.delete('globalDemo');
     window.location.assign(url.toString());
   };
-  const saveBadge = saveState && <React.Fragment><span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}</span>{saveState==='error'&&<button className="save-retry" onClick={()=>flushSave().catch(()=>{})}>Retry save</button>}</React.Fragment>;
+  const saveBadge = <div className="save-status" aria-live="polite" aria-atomic="true">{saveState&&<React.Fragment><span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}</span>{saveState==='error'&&<button className="save-retry" onClick={()=>flushSave().catch(()=>{})}>Retry save</button>}</React.Fragment>}</div>;
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
   const readyWatchEnd=nextAvailableEnd();
@@ -3672,7 +3695,8 @@ function App() {
   return <div className="app">
     <BrandHeader season={seasonLabelForPool(activePool)}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
-      <h1>{activePool.name} {saveBadge}</h1>
+      <h1>{activePool.name}</h1>
+      {saveBadge}
       <div className="user-bar">
         <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
         <button className="backlink" onClick={exitPool}>← All pools</button>
