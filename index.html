@@ -1987,6 +1987,15 @@ const retroRevealSub = (event,globalPool=false) => (event.confirmed?'':'Awaiting
   : 'Retroactive scoring change — confirmed points update in Standings once everyone completes this reveal phase.');
 const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
 const normalizeSeenRetroNotices = value => [...new Set((Array.isArray(value)?value:[]).filter(item=>typeof item==='string'&&item))];
+const retroNoticeStorageKey = (poolId,uid) => 'prediction-pool-retro-notices:'+uid+':'+poolId;
+const readSeenRetroNotices = (poolId,uid) => {
+  try { return normalizeSeenRetroNotices(JSON.parse(localStorage.getItem(retroNoticeStorageKey(poolId,uid))||'[]')); }
+  catch(e) { return []; }
+};
+const writeSeenRetroNotices = (poolId,uid,value) => {
+  try { localStorage.setItem(retroNoticeStorageKey(poolId,uid),JSON.stringify(normalizeSeenRetroNotices(value))); }
+  catch(e) { console.info('One-time retro notices could not be stored on this device.',e); }
+};
 /* ================================================================== */
 /*  SHARED UI                                                          */
 /* ================================================================== */
@@ -3066,9 +3075,7 @@ function App() {
           mine={...mine,picks:sourcePicks};
           players[user.uid]=mine;
         }
-        const savedRetroNotices=normalizeSeenRetroNotices(mine.seenRetroNotices);
-        mine={...mine,seenRetroNotices:savedRetroNotices};
-        players[user.uid]=mine;
+        const savedRetroNotices=readSeenRetroNotices(pool.id,user.uid);
         const minePhase=mine.phase||'pods';
         const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
           poolCfg.BOUNDARIES_FINAL?.[minePhase]===false &&
@@ -3080,7 +3087,7 @@ function App() {
           const reopenedCompleted={...(mine.completed||{})};
           delete reopenedCompleted[minePhase];
           await window._fb.reopenPhase(pool.id,minePhase,user.uid);
-          await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted,seenRetroNotices:savedRetroNotices});
+          await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted});
           mine={...mine,screen:'watch',completed:reopenedCompleted};
           players[user.uid]=mine;
           status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid),revealed:false};
@@ -3140,7 +3147,7 @@ function App() {
         setDuplicateFromPoolId(duplicateFrom);
         setCompleted(completed0); setSeenRetroNotices([]); setSessionRetroNotices([]); setReveal(null); setCloseInfo(null);
         if (skipped.length||duplicateFrom) {
-          await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,seenRetroNotices:[],...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
+          await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
           for(const skippedPhase of skipped) await window._fb.completePhase(pool.id,skippedPhase,user.uid);
           if(duplicateFrom) {
             await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
@@ -3207,12 +3214,13 @@ function App() {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
-    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...state,seenRetroNotices:normalizeSeenRetroNotices(state.seenRetroNotices??seenRetroNotices),...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
+    const {seenRetroNotices:localRetroNotices,...persistedState}=state;
+    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
     pendingSave.current=snapshot;
     if (immediate) return flushSave();
     saveTimer.current = setTimeout(()=>flushSave().catch(()=>{}),600);
-  }, [user, activePool, profile, duplicateFromPoolId, seenRetroNotices, flushSave]);
+  }, [user, activePool, profile, duplicateFromPoolId, flushSave]);
   useEffect(() => {
     const flushWhenHidden = () => { if (document.visibilityState==='hidden') flushSave().catch(()=>{}); };
     const persistPendingSave = () => {
@@ -3447,7 +3455,7 @@ function App() {
     try {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
-    } catch(e) { setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
+    } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
     finally { setGating(false); }
   };
   const beginNextBatch = async () => {
@@ -3502,8 +3510,9 @@ function App() {
       const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(hasOpenBoard?'board':'watch'));
       const nc=canClose?{...completed,[phase]:true}:completed;
       const closing=canClose?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
-      await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc,seenRetroNotices:nextSeenRetroNotices},true);
+      await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
+      writeSeenRetroNotices(activePool.id,user.uid,nextSeenRetroNotices);
       setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
       if(canClose) await registerPhaseCompletion(activePool.id,phase,user.uid);
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
@@ -3612,10 +3621,9 @@ function App() {
     const noticeKeys=newlyDisplayed.map(retroNoticeKey);
     const nextSeen=normalizeSeenRetroNotices([...seenRetroNotices,...noticeKeys]);
     setSessionRetroNotices(current=>normalizeSeenRetroNotices([...current,...noticeKeys]));
+    writeSeenRetroNotices(activePool.id,user.uid,nextSeen);
     setSeenRetroNotices(nextSeen);
-    savePlayer({picks,phase,screen,w,watchThrough,completed,seenRetroNotices:nextSeen},true)
-      .catch(error=>console.info('A one-time retro notice acknowledgement will be retried later.',error));
-  },[activePool?.id,eng,user?.uid,poolTab,screen,w,reveal,seenRetroNotices,picks,phase,watchThrough,completed,savePlayer]);
+  },[activePool?.id,eng,user?.uid,poolTab,screen,w,reveal,seenRetroNotices]);
   /* ── RENDER ── */
   if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
