@@ -122,10 +122,6 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .points-preview strong{color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:15px;white-space:nowrap}
 .pickchip{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px 13px;margin:7px 0;background:var(--surface)}
 .pickchip .nm{font-weight:600;font-size:14px}
-.locked-market-list{display:grid;gap:7px;margin:12px 0}
-.locked-market{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);border-radius:12px;padding:10px 13px;background:var(--surface);color:var(--soft-text)}
-.locked-market strong{color:var(--ink);font-size:14px}
-.locked-market .lock-reason{text-align:right;font-size:12px}
 .subtle{color:var(--soft-text);font-size:12px;line-height:1.45}
 .results-group{margin:16px 0}
 .results-group:first-of-type{margin-top:10px}
@@ -1286,47 +1282,19 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
       `PODS_START_EP (${phaseStart.pods}) while SEASON_STATUS is live.`
     );
   }
-  const seasonWarningName=season.label||season.id||season.sheetId;
-  const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>{
-    const lockEpText=String(r.lock_ep||'').trim();
-    const parsedLockEp=Number.parseInt(lockEpText,10);
-    const missingLockEp=lockEpText==='';
-    const invalidLockEp=!missingLockEp&&(!Number.isFinite(parsedLockEp)||parsedLockEp<1||parsedLockEp>phaseSpan.weddings.endEp);
-    if(missingLockEp) {
-      console.warn(
-        `[Season data warning] ${seasonWarningName} / ${r.id}: lock_ep is blank; ` +
-        `falling back to WEDDINGS_END_EP (${phaseSpan.weddings.endEp}).`
-      );
-    } else if(invalidLockEp) {
-      console.warn(
-        `[Season data warning] ${seasonWarningName} / ${r.id}: lock_ep "${lockEpText}" is invalid ` +
-        `or later than WEDDINGS_END_EP (${phaseSpan.weddings.endEp}); falling back to ${phaseSpan.weddings.endEp}.`
-      );
-    }
-    return {
-      id:r.id, him:r.him, her:r.her, engagedEp:Number.parseInt(r.engaged_ep,10),
-      // A later off-cycle engagement remains a real relationship for Weddings
-      // and Reunion, but is not offered in the Pods or Retreats markets.
-      // These are opt-out controls: blank means eligible, which fits ordinary
-      // Pods-to-Retreats relationships. Later relationship entries opt out.
-      podsEligible:r.pods_eligible==null||r.pods_eligible===''?true:pBool(r.pods_eligible),
-      datingEligible:r.dating_eligible==null||r.dating_eligible===''?true:pBool(r.dating_eligible),
-      wedding:r.wedding||undefined, who:r.who_says_no||undefined,
-      breakupEp:r.breakup_ep?parseInt(r.breakup_ep):undefined,
-      settledEp:r.settled_ep?parseInt(r.settled_ep):undefined,
-      togetherNow:r.together_now?pBool(r.together_now):undefined,
-      lockEp:missingLockEp||invalidLockEp?phaseSpan.weddings.endEp:parsedLockEp,
-      lockEpFallback:missingLockEp||invalidLockEp,
-      lockEpMissing:missingLockEp,
-    };
-  });
-  const weddingLockQc = seasonStatus==='completed' ? [] : COUPLES.filter(c=>c.wedding&&c.lockEpMissing);
-  if(weddingLockQc.length) {
-    console.warn(
-      `[Season QC] ${seasonWarningName}: non-completed season has wedding outcomes without lock_ep ` +
-      `(${weddingLockQc.map(c=>c.id).join(', ')}).`
-    );
-  }
+  const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>({
+    id:r.id, him:r.him, her:r.her, engagedEp:Number.parseInt(r.engaged_ep,10),
+    // A later off-cycle engagement remains a real relationship for Weddings
+    // and Reunion, but is not offered in the Pods or Retreats markets.
+    // These are opt-out controls: blank means eligible, which fits ordinary
+    // Pods-to-Retreats relationships. Later relationship entries opt out.
+    podsEligible:r.pods_eligible==null||r.pods_eligible===''?true:pBool(r.pods_eligible),
+    datingEligible:r.dating_eligible==null||r.dating_eligible===''?true:pBool(r.dating_eligible),
+    wedding:r.wedding||undefined, who:r.who_says_no||undefined,
+    breakupEp:r.breakup_ep?parseInt(r.breakup_ep):undefined,
+    settledEp:r.settled_ep?parseInt(r.settled_ep):undefined,
+    togetherNow:r.together_now?pBool(r.together_now):undefined,
+  }));
   const missingEp = COUPLES.filter(c => !Number.isFinite(c.engagedEp));
   if (missingEp.length) {
     throw new Error(
@@ -1550,7 +1518,7 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     }
     return {id:'retro-'+(index+1),market,target,voidMarket,appliesPhase,revealedEp,note,confirmed:pBool(r.confirmed),revealingPhase};
   });
-  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
+  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:{...DEFAULT_REU_MULT},RACE_MULT:DEFAULT_RACE_MULT};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -1711,23 +1679,11 @@ function makeEngine(cfg, poolSize) {
     Number.isFinite(RULES.WEDDINGS_LEAD_CAP)?RULES.WEDDINGS_LEAD_CAP:1.75,
     1+(Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*Math.max(0,f)
   );
-  const weddingMarketState = c => {
-    const lockEp=Number.isFinite(c?.lockEp)?c.lockEp:SPAN.weddings.endEp;
-    const publishedThrough=Number.isFinite(cfg.AVAILABLE_THROUGH_EP)?cfg.AVAILABLE_THROUGH_EP:0;
-    const open=publishedThrough<lockEp;
-    return {
-      open,
-      lockEp,
-      usedFallback:!!c?.lockEpFallback,
-      reason:open
-        ? `Open until Episode ${lockEp} becomes available`
-        : `Locked when Episode ${lockEp} became available`,
-    };
-  };
   const eligibleForWeddings = (c,w) =>
     c.wedding!=='notShown' &&
     c.engagedEp<=w &&
-    weddingMarketState(c).open;
+    !(c.settledEp&&c.settledEp<=w) &&
+    !(c.breakupEp&&c.breakupEp<=w);
   const activePoolSize = picksBy => Math.max(Object.values(picksBy).filter(v=>Array.isArray(v)&&v.length>0).length,1);
   const contraV = (o,p=POOL)=>1+RULES.K*(1-o/p);
   const owTxt   = (o,p=POOL)=>o===1?'only prediction':(o===p?'everyone who played this phase predicted it':o+' of '+p+' players who played this phase predicted it');
@@ -2023,7 +1979,7 @@ function makeEngine(cfg, poolSize) {
   const spentBy = picks => picks.reduce((t,p)=>t+p.s,0);
   return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,DATING_MULT:DATING_MARKET_MULT,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
-          nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
+          nameOf,membOf,coupleFor,sameCouple,whoNm,fmt,leadM,weddingLeadM,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
           resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,spentBy};
 }
 const retroRevealSub = (event,globalPool=false) => (event.confirmed?'':'Awaiting confirmation — ')+(globalPool
@@ -2334,36 +2290,29 @@ function DatingBoard({w,picks,add,remove,spent,eng,finalWindow}) {
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{p.m==='flirt'?p.p:nameOf(p.c)} - {ml(p)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{open&&p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+(p.m==='flirt'?p.p:nameOf(p.c))}>✕</button>}</div>)}</div>;
 }
 function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
-  const {COUPLES,RULES,PH_SPAN,PH_STARTW,WED_MULT,nameOf,membOf,whoNm,fmt,weddingLeadM,weddingMarketState,eligibleForWeddings}=eng;
-  const phaseOpen=w<PH_SPAN.weddings.endEp;
+  const {COUPLES,RULES,PH_SPAN,PH_STARTW,WED_MULT,nameOf,membOf,whoNm,fmt,weddingLeadM,eligibleForWeddings}=eng;
+  const open=w<PH_SPAN.weddings.endEp;
   const left=RULES.phases.weddings.budget-spent, maxS=Math.min(RULES.phases.weddings.cap,left);
   const [cid,setCid]=useState(''),[answer,setAnswer]=useState(''),[when,setWhen]=useState(''),[whoT,setWhoT]=useState(''),[stake,setStake]=useState(40);
-  const exhausted=phaseOpen&&left<=0;
-  const listed=COUPLES.filter(c=>c.wedding!=='notShown'&&c.engagedEp<=w);
-  const alive=listed.filter(c=>eligibleForWeddings(c,w)&&!picks.some(p=>p.c===c.id));
-  const locked=listed.filter(c=>!weddingMarketState(c).open);
-  const open=phaseOpen&&!exhausted&&alive.length>0;
+  if(open&&left<=0) return <div className="card exhausted-board" role="status"><h2>You have no more hearts for predictions</h2></div>;
+  const alive=COUPLES.filter(c=>eligibleForWeddings(c,w)&&!picks.some(p=>p.c===c.id));
   const outcome=answer==='yes'?'married':(answer==='no'&&when==='before'?'calledOff':(answer==='no'&&when==='altar'?'saysNo':''));
   const previewMultiplier=answer==='yes'?WED_MULT.married:(outcome?WED_MULT[outcome]*(1+RULES.WHO_TAG):1);
   const previewNote=answer==='no'&&outcome?'if timing and person are right, before clock and grain':'before clock and grain bonuses';
   const pickWindow=p=>Number.isFinite(p.w)?p.w:PH_STARTW.weddings;
   const predictionStatus=p=>{
     const c=eng.coupleFor(p.c), resultEp=c&&(c.settledEp||PH_SPAN.weddings.endEp);
-    const market=c&&weddingMarketState(c);
-    if(market&&!market.open) return market.reason;
     if(!Number.isFinite(p.w)) return 'Locked before rolling Wedding windows — no Against-the-Clock bonus';
     if(c?.wedding&&resultEp<=w) return 'Resolved in Episode '+resultEp+' · Against-the-Clock x'+fmt(weddingLeadM(Math.max(0,resultEp-p.w-1)));
     return 'Locked after Episode '+p.w+' · Against-the-Clock is now at least x'+fmt(weddingLeadM(Math.max(0,w-p.w)));
   };
-  const title=exhausted?'You have no more hearts for predictions':open?'Wedding predictions after Episode '+w:'Wedding markets locked';
-  return <div className={'card'+(exhausted?' exhausted-board':'')}><h2>{title}</h2><p className="lede">{exhausted?'Your existing predictions and every couple whose window has passed remain visible below.':open?<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Weddings hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining hearts now. Any hearts you keep will remain available in later Weddings prediction windows.'}</React.Fragment>:phaseOpen?'Every currently listed couple has reached its individual Wedding lock episode.':'The Weddings phase has closed.'}</p><Budget phase="weddings" spent={spent} RULES={RULES} finalWindow={finalWindow}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} prediction{picks.length===1?'':'s'} placed · {alive.length} open · {locked.length} locked</p>
+  return <div className="card"><h2>{open?'Wedding predictions after Episode '+w:'Predictions locked'}</h2><p className="lede">{open&&<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> </React.Fragment>}{finalWindow?<React.Fragment><b>This is your last chance to use your Weddings hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining hearts now. Any hearts you keep will remain available in later Weddings prediction windows.'}</p><Budget phase="weddings" spent={spent} RULES={RULES} finalWindow={finalWindow}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} of {picks.length+alive.length} eligible couples predicted</p>
     {open&&<React.Fragment>
     <div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setAnswer('');setWhen('');setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Do they get married?" value={answer} onChange={v=>{setAnswer(v);setWhen('');setWhoT('');}} options={[{v:'yes',t:'Yes (x'+fmt(WED_MULT.married)+')'},{v:'no',t:'No'}]}/></div>
     {answer==='no'&&cid&&<React.Fragment><div className="row"><Sel label="When?" value={when} onChange={setWhen} options={[{v:'before',t:'Before the altar (x'+fmt(WED_MULT.calledOff)+' bonus)'},{v:'altar',t:'At the altar (x'+fmt(WED_MULT.saysNo)+' bonus)'}]}/><Sel label="Who ends it?" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]}]}/></div></React.Fragment>}
     <div className="row"><StakeSlider value={stake} onChange={setStake} max={maxS} multiplier={previewMultiplier} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote={previewNote}/><button className="btn-add" disabled={!cid||!answer||left<5||(answer==='no'&&(!when||!whoT))} onClick={()=>{add({c:cid,o:outcome,...(answer==='no'?{who:whoT}:{}),s:Math.min(stake,maxS),w});setCid('');setAnswer('');setWhen('');setWhoT('');}}>Add prediction</button></div>
     </React.Fragment>}
-    {locked.length>0&&<React.Fragment><hr className="divider"/><div className="mkt-title"><h3>Locked couples</h3><span className="multpill">{locked.length}</span></div><div className="locked-market-list">{locked.map(c=><div className="locked-market" key={c.id}><strong>{nameOf(c.id)}</strong><span className="lock-reason">{weddingMarketState(c).reason}</span></div>)}</div></React.Fragment>}
-    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=>{const c=eng.coupleFor(p.c),market=c&&weddingMarketState(c);return <div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{phaseOpen&&!exhausted&&market?.open&&pickWindow(p)===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>;})}</div>;
+    {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{open&&pickWindow(p)===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}</div>;
 }
 function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const {MEN,WOMEN,COUPLES,RULES,PH_STARTW,REU_MULT,RESULTS_READY,nameOf,fmt,personKey,pairKeyFor}=eng;
@@ -3451,19 +3400,11 @@ function App() {
   const predictionPhases=eng?predictionPhasesAt(phase,w,eng.PH_SPAN,eng.PH_STARTW):[phase];
   const addPick = (pickPhase,p) => {
     if(picks[pickPhase].some(existing=>pickKey(pickPhase,existing)===pickKey(pickPhase,p))) return;
-    if(pickPhase==='weddings') {
-      const couple=eng?.coupleFor(p.c);
-      if(!couple||!eng.weddingMarketState(couple).open) return;
-    }
     const np = {...picks,[pickPhase]:[...picks[pickPhase],p]};
     setPicks(np);
     savePlayer({picks:np,phase,predictionPhases,screen,w,watchThrough,completed});
   };
   const removePick = (pickPhase,i) => {
-    if(pickPhase==='weddings') {
-      const couple=eng?.coupleFor(picks.weddings[i]?.c);
-      if(!couple||!eng.weddingMarketState(couple).open) return;
-    }
     const np = {...picks,[pickPhase]:picks[pickPhase].filter((_,idx)=>idx!==i)};
     setPicks(np);
     savePlayer({picks:np,phase,predictionPhases,screen,w,watchThrough,completed});
