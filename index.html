@@ -1288,12 +1288,23 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
   }
   const seasonWarningName=season.label||season.id||season.sheetId;
   const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>{
+    const engagedEpText=String(r.engaged_ep||'').trim();
+    const engagedEp=engagedEpText===''?undefined:Number.parseInt(engagedEpText,10);
+    const engagedEpProvided=engagedEpText!=='';
+    const wedding=r.wedding||undefined;
+    const hasWeddingOutcome=!!wedding&&wedding!=='notShown';
     const lockEpText=String(r.lock_ep||'').trim();
     const parsedLockEp=Number.parseInt(lockEpText,10);
     const missingLockEp=lockEpText==='';
     const invalidLockEp=!missingLockEp&&(!Number.isFinite(parsedLockEp)||parsedLockEp<1||parsedLockEp>phaseSpan.weddings.endEp);
     const reunionStatusEligible=pBool(r.reunion_status_eligible);
-    if(missingLockEp&&!reunionStatusEligible) {
+    if(!engagedEpProvided&&hasWeddingOutcome) {
+      console.warn(
+        `[Season data warning] ${seasonWarningName} / ${r.id}: engaged_ep is blank despite wedding="${wedding}"; ` +
+        `treating the couple as Wedding-eligible from Episode ${phaseStart.weddings}.`
+      );
+    }
+    if(missingLockEp&&(Number.isFinite(engagedEp)||hasWeddingOutcome)) {
       console.warn(
         `[Season data warning] ${seasonWarningName} / ${r.id}: lock_ep is blank; ` +
         `falling back to WEDDINGS_END_EP (${phaseSpan.weddings.endEp}).`
@@ -1305,15 +1316,16 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
       );
     }
     return {
-      id:r.id, him:r.him, her:r.her, engagedEp:Number.parseInt(r.engaged_ep,10),
+      id:r.id, him:r.him, her:r.her, engagedEp, engagedEpProvided,
+      weddingEligibleFromEp:Number.isFinite(engagedEp)?engagedEp:(hasWeddingOutcome?phaseStart.weddings:undefined),
       // A later off-cycle engagement remains a real relationship for Weddings
       // and Reunion, but is not offered in the Pods or Retreats markets.
       // These are opt-out controls: blank means eligible, which fits ordinary
       // Pods-to-Retreats relationships. Later relationship entries opt out.
-      podsEligible:r.pods_eligible==null||r.pods_eligible===''?!reunionStatusEligible:pBool(r.pods_eligible),
-      datingEligible:r.dating_eligible==null||r.dating_eligible===''?!reunionStatusEligible:pBool(r.dating_eligible),
+      podsEligible:Number.isFinite(engagedEp)&&(r.pods_eligible==null||r.pods_eligible===''?true:pBool(r.pods_eligible)),
+      datingEligible:r.dating_eligible==null||r.dating_eligible===''?true:pBool(r.dating_eligible),
       reunionStatusEligible,
-      wedding:r.wedding||undefined, who:r.who_says_no||undefined,
+      wedding, who:r.who_says_no||undefined,
       breakupEp:r.breakup_ep?parseInt(r.breakup_ep):undefined,
       settledEp:r.settled_ep?parseInt(r.settled_ep):undefined,
       togetherNow:r.together_now?pBool(r.together_now):undefined,
@@ -1329,25 +1341,18 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
       `(${weddingLockQc.map(c=>c.id).join(', ')}).`
     );
   }
-  const missingEp = COUPLES.filter(c => !c.reunionStatusEligible&&!Number.isFinite(c.engagedEp));
-  if (missingEp.length) {
-    throw new Error(
-      `Season data incomplete: ${missingEp.length} of ${COUPLES.length} couples ` +
-      `are missing engaged_ep (${missingEp.map(c => c.id).join(', ')}). ` +
-      `Fill the engaged_ep column in the season sheet before setting available:true.`
-    );
-  }
-  const badEp = COUPLES.filter(c => Number.isFinite(c.engagedEp)&&(c.engagedEp < 1 || c.engagedEp > phaseSpan.reunion.endEp));
+  const badEp = COUPLES.filter(c => c.engagedEpProvided&&(!Number.isFinite(c.engagedEp)||c.engagedEp < 1||c.engagedEp > phaseSpan.reunion.endEp));
   if (badEp.length) {
     throw new Error(
-      `Season data invalid: ${badEp.length} of ${COUPLES.length} couples have engaged_ep ` +
+      `Season data invalid: ${badEp.length} of ${COUPLES.length} couples have engaged_ep invalid or ` +
       `outside 1..${phaseSpan.reunion.endEp} (${badEp.map(c => c.id).join(', ')}). ` +
       `Correct the engaged_ep column in the season sheet before setting available:true.`
     );
   }
   const missingWeddingOutcomes = resultsReady.weddings ? COUPLES.filter(c =>
     c.wedding!=='notShown' &&
-    c.engagedEp<=phaseStart.weddings &&
+    Number.isFinite(c.weddingEligibleFromEp) &&
+    c.weddingEligibleFromEp<=phaseStart.weddings &&
     !(c.settledEp&&c.settledEp<=phaseStart.weddings) &&
     !(c.breakupEp&&c.breakupEp<=phaseStart.weddings) &&
     !c.wedding
@@ -1361,7 +1366,8 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
   }
   const missingWeddingWho = COUPLES.filter(c =>
     ['saysNo','calledOff'].includes(c.wedding) &&
-    c.engagedEp<=phaseStart.weddings &&
+    Number.isFinite(c.weddingEligibleFromEp) &&
+    c.weddingEligibleFromEp<=phaseStart.weddings &&
     !(c.settledEp&&c.settledEp<=phaseStart.weddings) &&
     !(c.breakupEp&&c.breakupEp<=phaseStart.weddings) &&
     !['him','her'].includes(c.who)
@@ -1739,7 +1745,8 @@ function makeEngine(cfg, poolSize) {
   };
   const eligibleForWeddings = (c,w) =>
     c.wedding!=='notShown' &&
-    c.engagedEp<=w &&
+    Number.isFinite(c.weddingEligibleFromEp) &&
+    c.weddingEligibleFromEp<=w &&
     weddingMarketState(c,w).open;
   const activePoolSize = picksBy => Math.max(Object.values(picksBy).filter(v=>Array.isArray(v)&&v.length>0).length,1);
   const contraV = (o,p=POOL)=>1+RULES.K*(1-o/p);
@@ -1759,7 +1766,7 @@ function makeEngine(cfg, poolSize) {
     const mkEntry=entry=>mk({...entry,poolSize});
     const events=[], entries=[];
     if(phase==='pods') {
-      COUPLES.filter(c=>c.podsEligible&&c.engagedEp===ep).forEach(c=>{
+      COUPLES.filter(c=>c.podsEligible&&Number.isFinite(c.engagedEp)&&c.engagedEp===ep).forEach(c=>{
         const owners=MEMBERS.filter(m=>all[m].some(p=>sameCouple(p.c,c))).length;
         events.push({title:nameOf(c.id)+' got engaged',sub:ep===START.pods?'Episode '+START.pods+' - unavailable for predictions by design; no one scores it.':'Against-the-Grain bonus calculated once everyone finishes Pods.'});
         MEMBERS.forEach(m=>all[m].filter(p=>sameCouple(p.c,c)).forEach(p=>{
@@ -1909,7 +1916,7 @@ function makeEngine(cfg, poolSize) {
       // Keep future relationship developments hidden at the Pods boundary.
       // A later engagement, if applicable, is revealed only by its own retro
       // event once the player has watched that episode.
-      if(!c||!c.podsEligible||c.engagedEp>SPAN.pods.endEp) {
+      if(!c||!c.podsEligible||!Number.isFinite(c.engagedEp)||c.engagedEp>SPAN.pods.endEp) {
         entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' did not get engaged',stake:p.s}));
       }
     }));
@@ -1964,7 +1971,10 @@ function makeEngine(cfg, poolSize) {
       return 1;
     };
     const matchingPick=(event,pick)=>{
-      if(event.market==='pods') return sameCouple(pick.c,coupleFor(event.target));
+      if(event.market==='pods') {
+        const couple=coupleFor(event.target);
+        return !!couple&&Number.isFinite(couple.engagedEp)&&sameCouple(pick.c,couple);
+      }
       if(event.market==='flirt') return pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
       if(event.market==='still') return relationshipOutcome(pick)==='still'&&sameCouple(pick.c,coupleFor(event.target));
       return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
@@ -1978,7 +1988,7 @@ function makeEngine(cfg, poolSize) {
     const normallyScored=(event,pick)=>{
       if(event.market==='pods') {
         const couple=coupleFor(event.target);
-        return !!couple&&couple.podsEligible&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
+        return !!couple&&couple.podsEligible&&Number.isFinite(couple.engagedEp)&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
       }
       if(event.market==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
       if(event.market==='flirt') return !!flirtResultFor(event.target)?.confirmed;
@@ -1992,7 +2002,7 @@ function makeEngine(cfg, poolSize) {
       if(event.voidMarket==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
       if(event.voidMarket==='pods') {
         const couple=coupleFor(event.target);
-        return !!couple&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
+        return !!couple&&couple.podsEligible&&Number.isFinite(couple.engagedEp)&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
       }
       if(event.voidMarket==='weddings') {
         const couple=coupleFor(event.target), noOutcomes=['saysNo','calledOff'];
@@ -2248,7 +2258,7 @@ function ContestantReferenceBoard({eng,w,phase}) {
   const bodyId=useId();
   // Relationships are historical records. A person can appear in more than
   // one, so display only the relationship that is active in this episode.
-  const activeCouples=eng.COUPLES.filter(c=>c.engagedEp<=w&&(!c.breakupEp||c.breakupEp>w));
+  const activeCouples=eng.COUPLES.filter(c=>Number.isFinite(c.engagedEp)&&c.engagedEp<=w&&(!c.breakupEp||c.breakupEp>w));
   const activeNames=new Set(activeCouples.flatMap(c=>[c.him,c.her]));
   const marriedNames=new Set(eng.COUPLES.filter(c=>c.wedding==='married'&&Number.isFinite(c.settledEp)&&c.settledEp<=w).flatMap(c=>[c.him,c.her]));
   const brokenUpNames=new Set(eng.COUPLES.filter(c=>c.breakupEp&&c.breakupEp<=w).flatMap(c=>[c.him,c.her]).filter(name=>!activeNames.has(name)));
@@ -2297,13 +2307,15 @@ function StakeSlider({value,onChange,max,multiplier=1,pointsPerHeart=1,previewNo
 /*  Pods, Retreats & Weddings: rolling windows. Reunion: single lock.  */
 /* ================================================================== */
 function PodsBoard({w,picks,add,remove,spent,eng,finalWindow,onPendingChange,pendingRef}) {
-  const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,leadM,fmt}=eng;
+  const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,pairKeyFor,leadM,fmt}=eng;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
   const [adding,setAdding]=useState(picks.length===0);
-  const engaged=COUPLES.filter(c=>c.podsEligible&&c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
+  const engaged=COUPLES.filter(c=>c.podsEligible&&Number.isFinite(c.engagedEp)&&c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
   const used=picks.flatMap(p=>membOf(p.c));
-  const menA=MEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
-  const womA=WOMEN.filter(n=>!engaged.includes(n)&&!used.includes(n));
+  const neverEngagedPairs=new Set(COUPLES.filter(c=>!Number.isFinite(c.engagedEp)).map(c=>pairKeyFor(c.id)));
+  const pairAvailable=(man,woman)=>!man||!woman||!neverEngagedPairs.has(pairKeyFor(man+'|'+woman));
+  const menA=MEN.filter(n=>!engaged.includes(n)&&!used.includes(n)&&pairAvailable(n,her));
+  const womA=WOMEN.filter(n=>!engaged.includes(n)&&!used.includes(n)&&pairAvailable(him,n));
   const left=RULES.phases.pods.budget-spent, maxS=Math.min(RULES.phases.pods.cap,left);
   const doAdd=()=>{add({c:him+'|'+her,s:Math.min(stake,maxS),w});setHim('');setHer('');setAdding(false);};
   const startAnother=()=>{setHim('');setHer('');setAdding(true);};
@@ -2313,14 +2325,14 @@ function PodsBoard({w,picks,add,remove,spent,eng,finalWindow,onPendingChange,pen
   useEffect(()=>{onPendingChange(!!predictionInProgress);return()=>onPendingChange(false);},[predictionInProgress,onPendingChange]);
   const predictionStatus=p=>{
     const couple=coupleFor(p.c);
-    return couple&&couple.engagedEp<=w
+    return couple&&Number.isFinite(couple.engagedEp)&&couple.engagedEp<=w
       ? 'Resolved in Episode '+couple.engagedEp
       : 'Locked after Episode '+p.w+' · Against-the-Clock x'+fmt(leadM(w-p.w))+' if they propose next episode';
   };
   const firstPick=picks.length===0;
   return <div className="card"><h2>Making predictions after Episode {w}</h2><p className="lede"><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Pods hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining hearts now. Any hearts you keep will remain available in later Pods prediction windows.'}</p><Budget phase="pods" spent={spent} RULES={RULES} finalWindow={finalWindow}/>
     {firstPick&&<div className="guided-pick"><div className="guided-pick-kicker">Your first prediction</div><p>Choose one pair, decide how many hearts you believe in them, then confirm. That’s all you need to start; the Rules tab is here whenever you want the full details.</p></div>}
-    {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={maxS} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote="minimum before bonuses"/><button className="btn-add btn-confirm" disabled={!him||!her||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
+    {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={maxS} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote="minimum before bonuses"/><button className="btn-add btn-confirm" disabled={!him||!her||!pairAvailable(him,her)||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
     {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
   </div>;
 }
@@ -2331,7 +2343,7 @@ function DatingBoard({w,picks,add,remove,spent,eng,finalWindow}) {
   const [bC,setBC]=useState(''),[bS,setBS]=useState(20);
   const [sC,setSC]=useState(''),[sS,setSS]=useState(20);
   const [fP,setFP]=useState(''),[fS,setFS]=useState(20);
-  const retreatCouples=COUPLES.filter(c=>c.datingEligible&&c.engagedEp<=w);
+  const retreatCouples=COUPLES.filter(c=>c.datingEligible&&(!Number.isFinite(c.engagedEp)||c.engagedEp<=w));
   const bO=retreatCouples.filter(c=>!(DATING_RESULTS.breakup[c.id]&&DATING_RESULTS.breakup[c.id].ep<=w)&&!picks.some(p=>p.m==='breakup'&&p.c===c.id));
   const sO=retreatCouples.filter(c=>!(DATING_RESULTS.sex[c.id]&&DATING_RESULTS.sex[c.id].ep<=w)&&!picks.some(p=>p.m==='sex'&&p.c===c.id));
   const fO=retreatCouples.flatMap(c=>[c.him,c.her]).filter((person,index,people)=>people.indexOf(person)===index&&!(flirtResultFor(person)&&flirtResultFor(person).ep<=w)&&!picks.some(p=>p.m==='flirt'&&personKey(p.p)===personKey(person)));
@@ -2357,7 +2369,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
   const left=RULES.phases.weddings.budget-spent, maxS=Math.min(RULES.phases.weddings.cap,left);
   const [cid,setCid]=useState(''),[answer,setAnswer]=useState(''),[when,setWhen]=useState(''),[whoT,setWhoT]=useState(''),[stake,setStake]=useState(40);
   const exhausted=phaseOpen&&left<=0;
-  const listed=COUPLES.filter(c=>c.wedding!=='notShown'&&c.engagedEp<=w);
+  const listed=COUPLES.filter(c=>c.wedding!=='notShown'&&Number.isFinite(c.weddingEligibleFromEp)&&c.weddingEligibleFromEp<=w);
   const alive=listed.filter(c=>eligibleForWeddings(c,w)&&!picks.some(p=>p.c===c.id));
   const locked=listed.filter(c=>!weddingMarketState(c,w).open);
   const open=phaseOpen&&!exhausted&&alive.length>0;
@@ -2389,7 +2401,7 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
   const AC=[...new Set(COUPLES.flatMap(c=>[c.him,c.her]))].sort(alphaByName);
   const married=COUPLES.filter(c=>c.wedding==='married').map(c=>c.id);
-  const split=COUPLES.filter(c=>c.wedding&&c.wedding!=='married'&&c.wedding!=='notShown').map(c=>c.id);
+  const split=COUPLES.filter(c=>!c.reunionStatusEligible&&c.wedding!=='married'&&c.wedding!=='notShown').map(c=>c.id);
   const knownDating=COUPLES.filter(c=>c.reunionStatusEligible).map(c=>c.id);
   const knownPairKeys=new Set(COUPLES.map(c=>pairKeyFor(c.id)));
   const [relC,setRelC]=useState(''),[relO,setRelO]=useState(''),[relS,setRelS]=useState(20);
