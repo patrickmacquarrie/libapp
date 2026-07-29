@@ -261,6 +261,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .how-modal .how-hero p{max-width:535px;margin:0;color:var(--muted)}
 .prediction-demo{position:relative;height:270px;margin:18px 22px;padding:15px 16px;border:1px solid var(--line);border-radius:17px;background:var(--card);box-shadow:0 12px 30px rgba(72,27,111,.08);overflow:hidden}
 .demo-title{color:var(--wine);font:700 18px/1.15 'Playfair Display',Georgia,serif}
+.demo-example-badge{position:absolute;right:15px;top:13px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:var(--blush-soft);color:var(--rose);font:800 8px/1 Inter,sans-serif;letter-spacing:.1em;text-transform:uppercase}
 .demo-selectors{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .demo-select-wrap{position:relative}
 .demo-select-label{display:block;margin:0 0 5px;color:var(--soft-text);font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
@@ -299,7 +300,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .demo-preview-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
 .demo-preview-count{position:relative;display:block;width:118px;height:25px;color:var(--wine);font:700 17px/25px 'Playfair Display',Georgia,serif}
 .demo-preview-count span{position:absolute;inset:0 auto auto 0;white-space:nowrap;opacity:0}
-.demo-finger{position:absolute;z-index:6;left:25%;top:29%;font-size:29px;line-height:1;filter:drop-shadow(0 4px 4px rgba(48,16,31,.2));transform:translate(-50%,-8%);animation:demoFinger 9.6s ease-in-out infinite;pointer-events:none}
+.demo-finger{position:absolute;z-index:6;left:25%;top:29%;font-size:29px;line-height:1;filter:drop-shadow(0 4px 4px rgba(48,16,31,.2));transform:translate(0,-50%);transform-origin:left center;animation:demoFinger 9.6s ease-in-out infinite;pointer-events:none}
 .how-content{padding:0 22px 22px}
 .how-quick-grid{display:grid;grid-template-columns:1fr;gap:0;padding:4px 0}
 .how-phases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -339,7 +340,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 @keyframes demoCount40{0%,53%,90%,100%{opacity:0}55%,88%{opacity:1}}
 @keyframes demoConfirm{0%,66%,100%{transform:scale(1);filter:none}70%,75%{transform:scale(.985);filter:brightness(1.12)}78%,88%{transform:scale(1);box-shadow:0 0 0 4px color-mix(in srgb,var(--rose) 16%,transparent),0 8px 18px rgba(237,12,114,.18)}}
 @keyframes demoConfirmVeil{0%,28%,100%{opacity:1}33%,88%{opacity:0}}
-@keyframes demoFinger{0%{left:25%;top:29%;opacity:0}3%{opacity:1}6%{left:25%;top:29%;transform:translate(-50%,-8%) scale(1)}8%{transform:translate(-50%,-8%) scale(.8)}10%{left:25%;top:53%;transform:translate(-50%,-8%) scale(1)}13%{transform:translate(-50%,-8%) scale(.8)}16%{transform:translate(-50%,-8%) scale(1)}19%{left:75%;top:29%}22%{transform:translate(-50%,-8%) scale(.8)}24%{left:75%;top:53%;transform:translate(-50%,-8%) scale(1)}28%{transform:translate(-50%,-8%) scale(.8)}31%{transform:translate(-50%,-8%) scale(1)}38%{left:17%;top:59%}56%{left:58%;top:59%}66%{left:87%;top:59%}71%{transform:translate(-50%,-8%) scale(.78)}75%{transform:translate(-50%,-8%) scale(1)}88%{opacity:1}94%,100%{left:87%;top:59%;opacity:0}}
+@keyframes demoFinger{0%{left:25%;top:29%;opacity:0}3%{opacity:1}6%{left:25%;top:29%;transform:translate(0,-50%) scale(1)}8%{transform:translate(0,-50%) scale(.8)}10%{left:25%;top:53%;transform:translate(0,-50%) scale(1)}13%{transform:translate(0,-50%) scale(.8)}16%{transform:translate(0,-50%) scale(1)}19%{left:75%;top:29%}22%{transform:translate(0,-50%) scale(.8)}24%{left:75%;top:53%;transform:translate(0,-50%) scale(1)}28%{transform:translate(0,-50%) scale(.8)}31%{transform:translate(0,-50%) scale(1)}38%{left:15%;top:59%}56%{left:45%;top:59%}66%{left:84%;top:59%}71%{transform:translate(0,-50%) scale(.78)}75%{transform:translate(0,-50%) scale(1)}88%{opacity:1}94%,100%{left:84%;top:59%;opacity:0}}
 @media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
@@ -2967,6 +2968,7 @@ function useModalLifecycle(onClose,canClose=true) {
 function PredictionDemo() {
   return <div className="prediction-demo" aria-hidden="true">
     <div className="demo-title">Who gets engaged?</div>
+    <span className="demo-example-badge">Example</span>
     <div className="demo-selectors">
       <div className="demo-select-wrap">
         <span className="demo-select-label">Him</span>
@@ -2986,7 +2988,7 @@ function PredictionDemo() {
       <div className="demo-confirm"><span>Confirm prediction</span></div>
     </div>
     <div className="demo-preview-row"><strong className="demo-preview-count"><span className="demo-count-10">10♥ → 10 pts</span><span className="demo-count-20">20♥ → 20 pts</span><span className="demo-count-30">30♥ → 30 pts</span><span className="demo-count-40">40♥ → 40 pts</span></strong></div>
-    <span className="demo-finger" aria-hidden="true">☝</span>
+    <span className="demo-finger" aria-hidden="true">👈</span>
   </div>;
 }
 function HowItWorksModal({onClose}) {
