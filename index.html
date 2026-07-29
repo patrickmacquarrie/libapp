@@ -394,6 +394,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .danger-zone h3{color:#b93356;margin-top:0}
 .danger-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
 .danger-row:last-child{border-bottom:none}
+.pool-management-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
 .danger-confirm{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .danger-confirm label{font-size:13px;color:var(--ink);display:block;margin-bottom:7px}
 .btn-danger-wide{display:block;width:100%;padding:12px 14px;margin-top:10px;border:1px solid #c52d55;border-radius:12px;background:#b71f49;color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}
@@ -3051,7 +3052,7 @@ function HowItWorksModal({onClose}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDeletePool}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDeletePool,onSetPoolMembershipClosed,membershipUpdating=false}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -3077,8 +3078,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDe
       </div>
       {ownedPools.length>0&&<div className="danger-zone">
         <h3>Pool management</h3>
-        <p>Only pool owners can delete a pool. Deleting removes the pool, invitations, predictions, and standings for everyone.</p>
-        {!confirmPool&&ownedPools.map(pool=><div className="danger-row" key={pool.id}><div><b>{pool.name}</b><div className="subtle">{pool.members.length} member{pool.members.length!==1?'s':''}</div></div><button className="btn-danger" onClick={()=>{setConfirmPool(pool);setTypedName('');}}>Delete pool</button></div>)}
+        <p>Pool owners can control new membership or permanently delete a pool. Existing members can keep playing after membership closes.</p>
+        {!confirmPool&&ownedPools.map(pool=><div className="danger-row" key={pool.id}><div><b>{pool.name}</b><div className="subtle">{pool.members.length} member{pool.members.length!==1?'s':''} · {pool.membershipClosed===true?'Closed to new members':'Open to new members'}</div></div><div className="pool-management-actions">{activePool?.id===pool.id&&onSetPoolMembershipClosed&&<button className="btn-secondary" disabled={membershipUpdating} onClick={()=>onSetPoolMembershipClosed(pool.membershipClosed!==true)}>{membershipUpdating?'Updating...':pool.membershipClosed===true?'Reopen pool':'Close to new members'}</button>}<button className="btn-danger" disabled={membershipUpdating} onClick={()=>{setConfirmPool(pool);setTypedName('');}}>Delete pool</button></div></div>)}
         {confirmPool&&<div className="danger-confirm">
           <label htmlFor="delete-pool-name">Type <b>{confirmPool.name}</b> to confirm permanent deletion.</label>
           <input id="delete-pool-name" type="text" value={typedName} onChange={e=>setTypedName(e.target.value)} autoComplete="off"/>
@@ -3597,21 +3598,23 @@ function App() {
     } finally { setSendingPoolInvite(false); }
   };
   const doSetPoolMembershipClosed = async closed => {
-    if(!activePool||activePool.global===true||activePool.ownerUid!==user.uid||updatingPoolMembership)return;
+    if(!activePool||activePool.global===true||activePool.ownerUid!==user.uid||updatingPoolMembership)return false;
     if(closed&&!await requestConfirmation({
       title:'Close this pool to new players?',
       body:'Existing members can keep watching and predicting at their own pace. New invitations cannot be accepted unless you reopen the pool.',
       confirmLabel:'Close pool',
       cancelLabel:'Keep it open'
-    }))return;
+    }))return false;
     setUpdatingPoolMembership(true);setPoolInviteFeedback('');setPoolInviteError(false);
     try {
       await window._fb.setPoolMembershipClosed(activePool.id,user.uid,closed);
       setActivePool(current=>current?{...current,membershipClosed:closed}:current);
       setPools(current=>current.map(pool=>pool.id===activePool.id?{...pool,membershipClosed:closed}:pool));
       setPoolInviteFeedback(closed?'Pool closed to new players. Existing members can keep playing.':'Pool reopened. Friends can join and begin at Episode 1.');
+      return true;
     } catch(e) {
       console.error(e);setPoolInviteFeedback(e?.message||'The pool membership setting could not be changed.');setPoolInviteError(true);
+      return false;
     } finally {setUpdatingPoolMembership(false);}
   };
   /* Game actions - plain updates, side effects kept out of state updaters */
@@ -4141,7 +4144,7 @@ function App() {
       {['intro','board','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} globalPool={activePool?.global===true}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool}/>} 
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership}/>} 
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
 }
