@@ -2603,7 +2603,7 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
   </section>;
 }
-function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,liveStandings=true,throughLabel,finalized=false}) {
+function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,liveStandings=true,throughLabel,finalized=false,showLiveShiftNote=true}) {
   const podium=ranked.slice(0,3);
   if(!podium.length)return null;
   const podiumKey=podium.map(id=>id+':'+scoreFor(id)).join('|');
@@ -2620,7 +2620,7 @@ function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,live
         </div>;
       })}
     </div>
-    <p className="podium-bottom-note">{finalized?'Final standings are locked.':'Positions can shift as more players complete this checkpoint.'}</p>
+    {(finalized||showLiveShiftNote)&&<p className="podium-bottom-note">{finalized?'Final standings are locked.':'Positions can shift as more players complete this checkpoint.'}</p>}
   </section>;
 }
 function PersonalRaceCard({rank,total,playerCount,score,nextName,nextGap,leader,globalPool,liveStandings=true}) {
@@ -2809,14 +2809,14 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     <div className="card">
       <h2>{globalPool?'Live global standings':seasonFinalized?'Final standings':latestScoredPhase?'Live standings through '+RULES.phases[latestScoredPhase].label:'Standings'}</h2>
       {demoMode&&<div className="notice"><b>Demo preview · 126 sample players.</b> This data exists only in your browser and is never saved to the real global pool.</div>}
-      {!demoMode&&!seasonFinalized&&<div className="notice"><b>Live standings.</b> Each checkpoint scores as players individually finish it. Against-the-Grain bonuses and positions can change whenever another player locks that checkpoint.</div>}
-      {!globalPool&&!membershipClosed&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete.</div>}
+      {globalPool&&!demoMode&&!seasonFinalized&&<div className="notice"><b>Live standings.</b> Each checkpoint scores as players individually finish it. Against-the-Grain bonuses and positions can change whenever another player locks that checkpoint.</div>}
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No checkpoint scores yet. The leaderboard begins when the first player completes a phase.':memberIds.some(id=>(phaseStatus.pods.completedBy||[]).includes(id))?'Complete Pods to unlock the live standings without seeing spoilers.':'No checkpoint scores yet. The leaderboard begins after you complete your first phase.'}</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
       {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions settle when the retreat ends. Against-the-Grain bonuses keep adjusting as more players finish.</div>}
-      {reunionScoresPartial&&<div className="notice">Reunion scores are live for players who have finished. They remain provisional while the pool is open or another member is still watching.</div>}
+      {globalPool&&reunionScoresPartial&&<div className="notice">Reunion scores are live for players who have finished. They remain provisional while the pool is open or another member is still watching.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
-      {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} liveStandings={!seasonFinalized} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized}/>}
+      {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} liveStandings={!seasonFinalized} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized} showLiveShiftNote={globalPool}/>}
+      {!globalPool&&!membershipClosed&&scoredPhases.length>0&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete. Positions can shift as more players complete each checkpoint.</div>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&<PersonalRaceCard rank={raceRankById[meId]} total={raceRanked.length} playerCount={raceRanked.length} score={raceScore(meId)} nextName={nextRaceId?playerName(nextRaceId):''} nextGap={nextRaceGap} leader={raceRankById[meId]===1} globalPool={globalPool} liveStandings={!seasonFinalized}/>}
       <CheckpointLeaderCards cards={checkpointCards} activePhase={globalPool&&globalView!=='overall'?globalView:openPhase} onSelect={selectCheckpoint}/>
       <AgainstTheGrainSpotlight spotlight={atgSpotlight} globalPool={globalPool}/>
