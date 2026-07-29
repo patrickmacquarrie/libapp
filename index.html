@@ -280,6 +280,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .demo-menu-a{animation:demoMenuA 9.6s ease-in-out infinite}
 .demo-menu-b{animation:demoMenuB 9.6s ease-in-out infinite}
 .demo-option{display:flex;align-items:center;gap:8px;padding:7px;border-radius:8px;background:var(--blush-soft);color:var(--wine);font-size:11px;font-weight:750}
+.demo-option+.demo-option{margin-top:3px;background:var(--surface)}
 .demo-option-avatar{width:23px;height:23px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;font-size:9px;font-weight:800}
 .demo-stake-label{display:block;margin:15px 0 8px;color:var(--soft-text);font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
 .demo-wager-row{display:grid;grid-template-columns:minmax(0,1fr) 76px 170px;gap:13px;align-items:center}
@@ -298,7 +299,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .demo-preview-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
 .demo-preview-count{position:relative;display:block;width:118px;height:25px;color:var(--wine);font:700 17px/25px 'Playfair Display',Georgia,serif}
 .demo-preview-count span{position:absolute;inset:0 auto auto 0;white-space:nowrap;opacity:0}
-.demo-finger{position:absolute;z-index:6;left:25%;top:29%;font-size:29px;line-height:1;filter:drop-shadow(0 4px 4px rgba(48,16,31,.2));transform:translate(-50%,-50%);animation:demoFinger 9.6s ease-in-out infinite;pointer-events:none}
+.demo-finger{position:absolute;z-index:6;left:25%;top:29%;font-size:29px;line-height:1;filter:drop-shadow(0 4px 4px rgba(48,16,31,.2));transform:translate(-50%,-8%);animation:demoFinger 9.6s ease-in-out infinite;pointer-events:none}
 .how-content{padding:0 22px 22px}
 .how-quick-grid{display:grid;grid-template-columns:1fr;gap:0;padding:4px 0}
 .how-phases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -312,6 +313,10 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .how-info-card p,.how-phase p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
 .how-section-title{display:flex;align-items:center;gap:8px;margin:18px 0 9px;color:var(--wine);font:700 19px 'Playfair Display',Georgia,serif}
 .how-section-title span{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:var(--blush-soft);color:var(--rose);font:800 11px Inter,sans-serif}
+.how-section-title .phase-track-icon{position:relative;width:42px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:space-between;padding:0 5px;background:var(--blush-soft)}
+.phase-track-icon::before{content:'';position:absolute;left:8px;right:8px;top:11px;height:2px;background:linear-gradient(90deg,var(--rose),var(--purple))}
+.phase-track-icon i{position:relative;z-index:1;width:7px;height:7px;border:1.5px solid var(--card);border-radius:50%;background:var(--rose)}
+.phase-track-icon i:nth-child(3),.phase-track-icon i:nth-child(4){background:var(--purple)}
 .how-points{display:grid;gap:8px}
 .how-point{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(120deg,var(--surface),var(--surface-soft))}
 .how-point-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:var(--blush-soft);color:var(--rose);font-size:17px;font-weight:800}
@@ -333,8 +338,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 @keyframes demoCount30{0%,48%,54%,100%{opacity:0}50%,52%{opacity:1}}
 @keyframes demoCount40{0%,53%,90%,100%{opacity:0}55%,88%{opacity:1}}
 @keyframes demoConfirm{0%,66%,100%{transform:scale(1);filter:none}70%,75%{transform:scale(.985);filter:brightness(1.12)}78%,88%{transform:scale(1);box-shadow:0 0 0 4px color-mix(in srgb,var(--rose) 16%,transparent),0 8px 18px rgba(237,12,114,.18)}}
-@keyframes demoConfirmVeil{0%,68%,100%{opacity:1}73%,88%{opacity:0}}
-@keyframes demoFinger{0%{left:25%;top:29%;opacity:0}3%{opacity:1}6%{left:25%;top:29%;transform:translate(-50%,-50%) scale(1)}8%{transform:translate(-50%,-50%) scale(.8)}10%{left:25%;top:47%;transform:translate(-50%,-50%) scale(1)}13%{transform:translate(-50%,-50%) scale(.8)}16%{transform:translate(-50%,-50%) scale(1)}19%{left:75%;top:29%}22%{transform:translate(-50%,-50%) scale(.8)}24%{left:75%;top:47%;transform:translate(-50%,-50%) scale(1)}28%{transform:translate(-50%,-50%) scale(.8)}31%{transform:translate(-50%,-50%) scale(1)}38%{left:17%;top:59%}56%{left:58%;top:59%}66%{left:87%;top:59%}71%{transform:translate(-50%,-50%) scale(.78)}75%{transform:translate(-50%,-50%) scale(1)}88%{opacity:1}94%,100%{left:87%;top:59%;opacity:0}}
+@keyframes demoConfirmVeil{0%,28%,100%{opacity:1}33%,88%{opacity:0}}
+@keyframes demoFinger{0%{left:25%;top:29%;opacity:0}3%{opacity:1}6%{left:25%;top:29%;transform:translate(-50%,-8%) scale(1)}8%{transform:translate(-50%,-8%) scale(.8)}10%{left:25%;top:53%;transform:translate(-50%,-8%) scale(1)}13%{transform:translate(-50%,-8%) scale(.8)}16%{transform:translate(-50%,-8%) scale(1)}19%{left:75%;top:29%}22%{transform:translate(-50%,-8%) scale(.8)}24%{left:75%;top:53%;transform:translate(-50%,-8%) scale(1)}28%{transform:translate(-50%,-8%) scale(.8)}31%{transform:translate(-50%,-8%) scale(1)}38%{left:17%;top:59%}56%{left:58%;top:59%}66%{left:87%;top:59%}71%{transform:translate(-50%,-8%) scale(.78)}75%{transform:translate(-50%,-8%) scale(1)}88%{opacity:1}94%,100%{left:87%;top:59%;opacity:0}}
 @media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
@@ -2966,12 +2971,12 @@ function PredictionDemo() {
       <div className="demo-select-wrap">
         <span className="demo-select-label">Him</span>
         <div className="demo-select-control demo-select-control-a"><span className="demo-select-value"><span className="demo-placeholder demo-placeholder-a">Choose cast member</span><span className="demo-chosen demo-chosen-a">Alex</span></span><span className="demo-chevron">▾</span></div>
-        <div className="demo-menu demo-menu-a"><div className="demo-option"><span className="demo-option-avatar">A</span>Alex</div></div>
+        <div className="demo-menu demo-menu-a"><div className="demo-option"><span className="demo-option-avatar">A</span>Alex</div><div className="demo-option"><span className="demo-option-avatar">B</span>Ben</div><div className="demo-option"><span className="demo-option-avatar">C</span>Chris</div></div>
       </div>
       <div className="demo-select-wrap">
         <span className="demo-select-label">Her</span>
         <div className="demo-select-control demo-select-control-b"><span className="demo-select-value"><span className="demo-placeholder demo-placeholder-b">Choose cast member</span><span className="demo-chosen demo-chosen-b">Taylor</span></span><span className="demo-chevron">▾</span></div>
-        <div className="demo-menu demo-menu-b"><div className="demo-option"><span className="demo-option-avatar">T</span>Taylor</div></div>
+        <div className="demo-menu demo-menu-b"><div className="demo-option"><span className="demo-option-avatar">T</span>Taylor</div><div className="demo-option"><span className="demo-option-avatar">M</span>Morgan</div><div className="demo-option"><span className="demo-option-avatar">S</span>Sam</div></div>
       </div>
     </div>
     <span className="demo-stake-label">Stake (max 60)</span>
@@ -2991,7 +2996,7 @@ function HowItWorksModal({onClose}) {
       <div className="how-hero">
         <span className="how-eyebrow">How it works</span>
         <h2 id="how-title">Pick. Wager. Watch.</h2>
-        <p>Make predictions, wager Hearts, and earn points when you’re right. There’s no cash prize—just bragging rights.</p>
+        <p>A social prediction game for fans of Love Is Blind. Make predictions, wager Hearts, and earn points when you’re right. There’s no cash prize—just bragging rights.</p>
       </div>
       <PredictionDemo/>
       <div className="how-content">
@@ -2999,7 +3004,7 @@ function HowItWorksModal({onClose}) {
           <div className="how-info-card"><span className="how-step-number">1</span><div><strong>Join a pool</strong><p>Create a private pool with friends or join the Global Pool.</p></div></div>
           <div className="how-info-card"><span className="how-step-number">2</span><div><strong>Make predictions</strong><p>Each phase gives you a budget of “Hearts.” Spend them on the outcomes you believe will happen.</p></div></div>
         </div>
-        <h3 className="how-section-title"><span>4</span>The four phases</h3>
+        <h3 className="how-section-title"><span className="phase-track-icon" aria-hidden="true"><i/><i/><i/><i/></span>The four phases</h3>
         <div className="how-phases">
           <div className="how-phase"><strong>Pods</strong><p>Predict which couples get engaged.</p></div>
           <div className="how-phase"><strong>Retreats</strong><p>Predict breakups, hookups, and inappropriate flirting.</p></div>
