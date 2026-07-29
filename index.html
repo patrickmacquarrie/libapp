@@ -15,6 +15,7 @@
 <style>
 :root{
   --ink:#351323; --wine:#431127; --wine-deep:#290817; --rose:#ed0c72;
+  --purple:#7b2ee5;
   --gold:#7b2ee5; --gold-soft:#c8a9ff; --blush:#ffd0e3; --blush-soft:#fce7ef;
   --cream:#f8f3ef; --card:#fffaf7; --line:#efd7df; --miss:#9b5b6b;
   --muted:#806b70; --soft-text:#9a8589; --surface:#fff; --surface-soft:#fff5f7;
@@ -22,6 +23,7 @@
 :root[data-theme="dark"]{
   color-scheme:dark;
   --ink:#f8e9ee; --wine:#f3dbe4; --wine-deep:#fff4f7; --rose:#e78cab;
+  --purple:#b98cff;
   --gold:#f2c85f; --gold-soft:#f7df96; --blush:#71334c; --blush-soft:#3a1b29;
   --cream:#170a11; --card:#25131c; --line:#5b2d41; --miss:#c898a7;
   --muted:#c6a8b3; --soft-text:#a98794; --surface:#211019; --surface-soft:#301722;
@@ -283,24 +285,29 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .demo-wager-row{display:grid;grid-template-columns:minmax(0,1fr) 76px 170px;gap:13px;align-items:center}
 .demo-heart-count{position:relative;display:block;width:76px;height:36px;color:var(--wine);font:700 29px/36px 'Playfair Display',Georgia,serif}
 .demo-heart-count span{position:absolute;right:0;top:0;white-space:nowrap;opacity:0}
-.demo-count-10{animation:demoCount10 9.6s linear infinite}
-.demo-count-20{animation:demoCount20 9.6s linear infinite}
-.demo-count-30{animation:demoCount30 9.6s linear infinite}
-.demo-count-40{animation:demoCount40 9.6s linear infinite}
+.demo-count-10{animation:demoCount10 9.6s step-end infinite}
+.demo-count-20{animation:demoCount20 9.6s step-end infinite}
+.demo-count-30{animation:demoCount30 9.6s step-end infinite}
+.demo-count-40{animation:demoCount40 9.6s step-end infinite}
 .demo-slider-track{position:relative;height:9px;border:1px solid color-mix(in srgb,var(--soft-text) 55%,var(--line));border-radius:999px;background:var(--surface)}
 .demo-slider-fill{position:absolute;inset:-1px auto -1px -1px;width:20%;border-radius:inherit;background:var(--rose);animation:demoSlider 9.6s ease-in-out infinite}
 .demo-slider-knob{position:absolute;right:-9px;top:50%;width:19px;height:19px;border:none;border-radius:50%;background:var(--rose);box-shadow:none;transform:translateY(-50%)}
-.demo-confirm{display:block;width:100%;margin:0;padding:13px 10px;border:none;border-radius:13px;background:color-mix(in srgb,var(--rose) 42%,#fff);color:#fff;font:800 13px Inter,sans-serif;text-align:center;box-shadow:none;animation:demoConfirm 9.6s ease-in-out infinite}
+.demo-confirm{position:relative;isolation:isolate;overflow:hidden;display:block;width:100%;margin:0;padding:13px 10px;border:none;border-radius:13px;background:var(--rose);color:#fff;font:800 13px Inter,sans-serif;text-align:center;box-shadow:none;animation:demoConfirm 9.6s ease-in-out infinite}
+.demo-confirm span{position:relative;z-index:2}
+.demo-confirm::after{content:'';position:absolute;z-index:1;inset:0;background:rgba(255,255,255,.5);animation:demoConfirmVeil 9.6s ease-in-out infinite}
 .demo-preview-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
 .demo-preview-count{position:relative;display:block;width:118px;height:25px;color:var(--wine);font:700 17px/25px 'Playfair Display',Georgia,serif}
 .demo-preview-count span{position:absolute;inset:0 auto auto 0;white-space:nowrap;opacity:0}
 .demo-preview-note{color:var(--soft-text);font-size:10px}
 .demo-finger{position:absolute;z-index:6;left:25%;top:29%;font-size:29px;line-height:1;filter:drop-shadow(0 4px 4px rgba(48,16,31,.2));transform:translate(-50%,-50%);animation:demoFinger 9.6s ease-in-out infinite;pointer-events:none}
 .how-content{padding:0 22px 22px}
-.how-quick-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.how-quick-grid{display:grid;grid-template-columns:1fr;gap:0;padding:4px 0}
 .how-phases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.how-info-card{display:grid;grid-template-columns:36px 1fr;gap:11px;align-items:center;border:1px solid var(--line);border-radius:13px;background:var(--surface);padding:13px 14px}
-.how-step-number{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;font:800 14px Inter,sans-serif;box-shadow:0 5px 12px rgba(110,31,59,.14)}
+.how-info-card{position:relative;display:grid;grid-template-columns:44px 1fr;gap:11px;align-items:center;border:none;background:transparent;padding:10px 5px}
+.how-info-card:first-child::after{content:'';position:absolute;z-index:0;left:21px;top:43px;bottom:-10px;width:3px;border-radius:999px;background:linear-gradient(var(--rose),var(--purple))}
+.how-step-number{position:relative;z-index:1;width:34px;height:34px;border:2px solid var(--rose);border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--rose);font:800 13px Inter,sans-serif;box-shadow:0 0 0 5px var(--blush-soft)}
+.how-info-card:first-child .how-step-number{background:var(--rose);color:#fff}
+.how-info-card:last-child .how-step-number{border-color:var(--purple);color:var(--purple);box-shadow:0 0 0 5px color-mix(in srgb,var(--purple) 10%,var(--card))}
 .how-phase{border:1px solid var(--line);border-radius:13px;background:var(--surface);padding:13px 14px}
 .how-info-card strong,.how-phase strong{display:block;color:var(--wine);font-size:13px;margin-bottom:3px}
 .how-info-card p,.how-phase p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
@@ -327,6 +334,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 @keyframes demoCount30{0%,48%,54%,100%{opacity:0}50%,52%{opacity:1}}
 @keyframes demoCount40{0%,53%,90%,100%{opacity:0}55%,88%{opacity:1}}
 @keyframes demoConfirm{0%,66%,100%{transform:scale(1);filter:none}70%,75%{transform:scale(.985);filter:brightness(1.12)}78%,88%{transform:scale(1);box-shadow:0 0 0 4px color-mix(in srgb,var(--rose) 16%,transparent),0 8px 18px rgba(237,12,114,.18)}}
+@keyframes demoConfirmVeil{0%,68%,100%{opacity:1}73%,88%{opacity:0}}
 @keyframes demoFinger{0%{left:25%;top:29%;opacity:0}3%{opacity:1}6%{left:25%;top:29%;transform:translate(-50%,-50%) scale(1)}8%{transform:translate(-50%,-50%) scale(.8)}10%{left:25%;top:47%;transform:translate(-50%,-50%) scale(1)}13%{transform:translate(-50%,-50%) scale(.8)}16%{transform:translate(-50%,-50%) scale(1)}19%{left:75%;top:29%}22%{transform:translate(-50%,-50%) scale(.8)}24%{left:75%;top:47%;transform:translate(-50%,-50%) scale(1)}28%{transform:translate(-50%,-50%) scale(.8)}31%{transform:translate(-50%,-50%) scale(1)}38%{left:17%;top:59%}56%{left:58%;top:59%}66%{left:87%;top:59%}71%{transform:translate(-50%,-50%) scale(.78)}75%{transform:translate(-50%,-50%) scale(1)}88%{opacity:1}94%,100%{left:87%;top:59%;opacity:0}}
 @media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.demo-preview-note{font-size:9px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}}
 .login-card{text-align:center}
@@ -2971,7 +2979,7 @@ function PredictionDemo() {
     <div className="demo-wager-row">
       <div className="demo-slider-track"><div className="demo-slider-fill"><span className="demo-slider-knob"/></div></div>
       <strong className="demo-heart-count"><span className="demo-count-10">10♥</span><span className="demo-count-20">20♥</span><span className="demo-count-30">30♥</span><span className="demo-count-40">40♥</span></strong>
-      <div className="demo-confirm">Confirm prediction</div>
+      <div className="demo-confirm"><span>Confirm prediction</span></div>
     </div>
     <div className="demo-preview-row"><strong className="demo-preview-count"><span className="demo-count-10">10♥ → 10 pts</span><span className="demo-count-20">20♥ → 20 pts</span><span className="demo-count-30">30♥ → 30 pts</span><span className="demo-count-40">40♥ → 40 pts</span></strong><span className="demo-preview-note">minimum before bonuses</span></div>
     <span className="demo-finger" aria-hidden="true">☝</span>
