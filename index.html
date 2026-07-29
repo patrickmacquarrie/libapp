@@ -320,6 +320,23 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .phase-track-icon i:nth-child(3),.phase-track-icon i:nth-child(4){background:var(--purple)}
 .how-points{display:grid;gap:8px}
 .how-point{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(120deg,var(--surface),var(--surface-soft))}
+.phase-guide{padding:0;overflow:hidden}
+.phase-guide-hero{position:relative;padding:24px 25px 20px;background:radial-gradient(circle at 88% 8%,color-mix(in srgb,var(--purple) 16%,transparent),transparent 34%),linear-gradient(135deg,var(--blush-soft),var(--surface));border-bottom:1px solid var(--line)}
+.phase-guide-hero h2{font-size:31px;line-height:1.08;margin:0 48px 8px 0}
+.phase-guide-hero p{max-width:650px;margin:0;color:var(--muted);font-size:14px;line-height:1.55}
+.phase-guide-symbol{position:absolute;right:24px;top:20px;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--purple) 12%,var(--card));border:1px solid color-mix(in srgb,var(--purple) 22%,var(--line));color:var(--purple);font:800 18px/1 Inter,sans-serif}
+.phase-guide-body{padding:20px 22px 22px}
+.phase-guide-rules>ul{counter-reset:phase-rule;display:grid;gap:9px;list-style:none;margin:0;padding:0}
+.phase-guide-rules>ul>li{counter-increment:phase-rule;position:relative;margin:0;padding:13px 14px 13px 49px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(120deg,var(--surface),var(--surface-soft));color:var(--ink);font-size:13px;line-height:1.55}
+.phase-guide-rules>ul>li::before{content:counter(phase-rule);position:absolute;left:13px;top:12px;width:25px;height:25px;border-radius:9px;display:grid;place-items:center;background:var(--blush-soft);color:var(--rose);font:800 11px/1 Inter,sans-serif}
+.phase-guide-rules ul ul{margin:10px 0 0;padding:0;list-style:none}
+.phase-guide-rules ul ul li{position:relative;margin:7px 0;padding:8px 10px 8px 27px;border-left:2px solid color-mix(in srgb,var(--purple) 38%,var(--line));border-radius:0 9px 9px 0;background:color-mix(in srgb,var(--purple) 5%,var(--card));font-size:12px;line-height:1.5}
+.phase-guide-rules ul ul li::before{content:'♥';position:absolute;left:9px;top:8px;color:var(--rose);font-size:10px}
+.phase-guide-scoring>div{display:grid;gap:10px}
+.phase-guide-scoring p{margin:0;padding:14px 15px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(120deg,var(--surface),var(--surface-soft));color:var(--ink);font-size:13px;line-height:1.6}
+.phase-guide-scoring p b{color:var(--wine)}
+.phase-guide-scoring p:first-child{padding:17px 18px;border-color:color-mix(in srgb,var(--rose) 40%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--rose) 10%,var(--surface)),color-mix(in srgb,var(--purple) 8%,var(--surface)));font-family:'Playfair Display',Georgia,serif;font-size:17px;color:var(--wine)}
+.phase-guide-scoring p:last-child{border-color:color-mix(in srgb,var(--purple) 30%,var(--line));background:color-mix(in srgb,var(--purple) 6%,var(--surface))}
 .how-point-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:var(--blush-soft);color:var(--rose);font-size:17px;font-weight:800}
 .how-point p{margin:0;font-size:12.5px;line-height:1.42;color:var(--muted)}
 .how-point strong{color:var(--wine)}
@@ -341,7 +358,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 @keyframes demoConfirm{0%,66%,100%{transform:scale(1);filter:none}70%,75%{transform:scale(.985);filter:brightness(1.12)}78%,88%{transform:scale(1);box-shadow:0 0 0 4px color-mix(in srgb,var(--rose) 16%,transparent),0 8px 18px rgba(237,12,114,.18)}}
 @keyframes demoConfirmVeil{0%,28%,100%{opacity:1}33%,88%{opacity:0}}
 @keyframes demoFinger{0%{left:25%;top:29%;opacity:0}3%{opacity:1}6%{left:25%;top:29%;transform:translate(0,-50%) scale(1)}8%{transform:translate(0,-50%) scale(.8)}10%{left:25%;top:53%;transform:translate(0,-50%) scale(1)}13%{transform:translate(0,-50%) scale(.8)}16%{transform:translate(0,-50%) scale(1)}19%{left:75%;top:29%}22%{transform:translate(0,-50%) scale(.8)}24%{left:75%;top:53%;transform:translate(0,-50%) scale(1)}28%{transform:translate(0,-50%) scale(.8)}31%{transform:translate(0,-50%) scale(1)}38%{left:15%;top:59%}56%{left:45%;top:59%}66%{left:84%;top:59%}71%{transform:translate(0,-50%) scale(.78)}75%{transform:translate(0,-50%) scale(1)}88%{opacity:1}94%,100%{left:84%;top:59%;opacity:0}}
-@media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}}
+@media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}.phase-guide-hero{padding-inline:18px}.phase-guide-hero h2{font-size:27px}.phase-guide-body{padding-inline:14px}.danger-row{align-items:flex-start;flex-wrap:wrap}.pool-management-actions{width:100%}}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
 .pool-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);color:var(--ink);font:inherit;text-align:left;appearance:none;cursor:pointer;transition:box-shadow .15s,border-color .15s}
@@ -394,7 +411,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .danger-zone h3{color:#b93356;margin-top:0}
 .danger-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
 .danger-row:last-child{border-bottom:none}
-.pool-management-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.pool-management-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:8px;width:min(100%,320px);margin-left:auto}
+.pool-management-actions .btn-secondary,.pool-management-actions .btn-danger{display:grid;place-items:center;width:100%;min-height:34px;margin:0;padding:7px 9px;border-radius:9px;font-size:12px;line-height:1.2}
 .danger-confirm{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .danger-confirm label{font-size:13px;color:var(--ink);display:block;margin-bottom:7px}
 .btn-danger-wide{display:block;width:100%;padding:12px 14px;margin-top:10px;border:1px solid #c52d55;border-radius:12px;background:#b71f49;color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}
@@ -2966,6 +2984,18 @@ function PH_INTRO(phase,RULES,cfg) {
   };
   return copy[phase];
 }
+function PhaseGuidePanel({kind,phaseLabel,tagline,children,id,labelledBy}) {
+  const scoring=kind==='scoring';
+  return <section className={'card phase-guide '+(scoring?'phase-guide-is-scoring':'phase-guide-is-rules')} id={id} role="tabpanel" aria-labelledby={labelledBy}>
+    <div className="phase-guide-hero">
+      <span className="how-eyebrow">{phaseLabel} phase</span>
+      <h2>{scoring?'How scoring works':'Rules'}</h2>
+      <p>{scoring?'See how your Hearts turn into points in this phase.':tagline}</p>
+      <span className="phase-guide-symbol" aria-hidden="true">{scoring?'×':'✓'}</span>
+    </div>
+    <div className={'phase-guide-body '+(scoring?'phase-guide-scoring':'phase-guide-rules')}>{children}</div>
+  </section>;
+}
 const MODAL_FOCUSABLE='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 function useModalLifecycle(onClose,canClose=true) {
   const modalRef=useRef(null), closeRef=useRef(onClose), canCloseRef=useRef(canClose);
@@ -4077,8 +4107,8 @@ function App() {
         {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
       </div>}
     </div>}
-    {poolTab==='rules' && cfg.PLAYABLE && <div className="card" id="pool-panel-rules" role="tabpanel" aria-labelledby="pool-tab-rules"><h2>Rules</h2>{phaseIntro.rules}</div>}
-    {poolTab==='scoring' && cfg.PLAYABLE && <div className="card" id="pool-panel-scoring" role="tabpanel" aria-labelledby="pool-tab-scoring"><h2>Scoring</h2><div className="notice"><b>Scoring stays live.</b> A phase closes for you when you lock your own checkpoint. Your score appears immediately and its Against-the-Grain bonus can change as more players finish that checkpoint.</div>{phaseIntro.scoring}</div>}
+    {poolTab==='rules' && cfg.PLAYABLE && <PhaseGuidePanel kind="rules" phaseLabel={RULES.phases[phase].label} tagline={phaseIntro.tagline} id="pool-panel-rules" labelledBy="pool-tab-rules">{phaseIntro.rules}</PhaseGuidePanel>}
+    {poolTab==='scoring' && cfg.PLAYABLE && <PhaseGuidePanel kind="scoring" phaseLabel={RULES.phases[phase].label} id="pool-panel-scoring" labelledBy="pool-tab-scoring">{phaseIntro.scoring}</PhaseGuidePanel>}
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
