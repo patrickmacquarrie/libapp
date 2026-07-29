@@ -47,22 +47,36 @@ body{
   font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-.app{max-width:680px;margin:0 auto;padding:18px 16px 90px}
+.app{max-width:760px;margin:0 auto;padding:18px 18px 96px}
 .hdr{text-align:center;padding:10px 0 0;position:relative}
 .brand-logo{display:block;width:min(100%,500px);height:auto;margin:0 auto -2px}
 .eyebrow{letter-spacing:.35em;font-size:11px;font-weight:600;color:var(--rose);text-transform:uppercase}
 .hdr h1{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;margin:8px 0 6px;color:var(--wine)}
 .seasonpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);background:linear-gradient(135deg,var(--blush-soft),#f5d7e4);padding:4px 14px;border-radius:999px}
-.stepper{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;margin:22px 0 6px;padding:8px 0 6px}
-.stepper::before{content:"";position:absolute;z-index:0;left:12.5%;right:12.5%;bottom:15px;height:2px;background:var(--line)}
-.step{position:relative;z-index:1;display:grid;grid-template-rows:12px minmax(29px,auto) 18px;place-items:center;min-width:0;padding:0 5px;color:#c0a2ab}
-.step-arrow{height:12px;color:var(--rose);font-size:10px;line-height:1;opacity:0;transform:translateY(-1px)}
-.step.cur .step-arrow{opacity:1}
-.step-label{font-size:10px;font-weight:800;letter-spacing:.07em;line-height:1.2;text-align:center;text-transform:uppercase}
-.step-dot{position:relative;width:10px;height:10px;border:2px solid var(--line);border-radius:50%;background:var(--surface)}
+.stepper{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;margin:24px 0 18px;padding:0 4px}
+.stepper::before{content:"";position:absolute;z-index:0;left:12.5%;right:12.5%;top:23px;height:1.5px;background:linear-gradient(90deg,#ec9fc0 0%,#cba4ea 46%,#d7b969 72%,#b996a4 100%)}
+.step{--step-accent:#bfa7af;position:relative;z-index:1;display:grid;grid-template-rows:48px auto;place-items:center;min-width:0;padding:0 5px;color:#bba2aa}
+.step:nth-child(1){--step-accent:var(--rose)}
+.step:nth-child(2){--step-accent:var(--purple)}
+.step:nth-child(3){--step-accent:#bd8a1c}
+.step:nth-child(4){--step-accent:var(--wine)}
+.step-icon{position:relative;width:46px;height:46px;display:grid;place-items:center;border:1.5px solid color-mix(in srgb,var(--step-accent) 38%,var(--line));border-radius:50%;background:var(--card);color:var(--step-accent);font:700 22px/1 'Playfair Display',Georgia,serif;box-shadow:0 4px 14px rgba(67,17,39,.06)}
+.step.done .step-icon{background:color-mix(in srgb,var(--step-accent) 10%,var(--card))}
+.step.done .step-icon::after{content:"✓";position:absolute;right:-2px;bottom:-1px;width:17px;height:17px;display:grid;place-items:center;border:2px solid var(--cream);border-radius:50%;background:var(--step-accent);color:#fff;font:800 9px/1 Inter,sans-serif}
+.step.cur .step-icon{border-color:var(--step-accent);background:var(--step-accent);color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--step-accent) 12%,transparent),0 7px 18px color-mix(in srgb,var(--step-accent) 22%,transparent)}
+.step-label{margin-top:8px;font-size:9.5px;font-weight:800;letter-spacing:.08em;line-height:1.25;text-align:center;text-transform:uppercase}
 .step.done .step-label,.step.cur .step-label{color:var(--wine)}
-.step.done .step-dot{border-color:var(--gold);background:var(--gold)}
-.step.cur .step-dot{width:14px;height:14px;border:3px solid var(--surface);background:var(--rose);box-shadow:0 0 0 2px var(--rose)}
+.phase-hero{--phase-accent:var(--rose);position:relative;overflow:hidden;margin:4px 0 18px;padding:28px 24px 23px;border:1px solid color-mix(in srgb,var(--phase-accent) 18%,var(--line));border-radius:18px;background:radial-gradient(circle at 92% 4%,color-mix(in srgb,var(--phase-accent) 10%,transparent),transparent 32%),linear-gradient(135deg,color-mix(in srgb,var(--blush-soft) 62%,var(--card)),var(--card));text-align:center}
+.phase-hero.phase-dating{--phase-accent:var(--purple)}
+.phase-hero.phase-weddings{--phase-accent:#b68419}
+.phase-hero.phase-reunion{--phase-accent:var(--wine)}
+.phase-hero-kicker{display:block;margin-bottom:7px;color:var(--phase-accent);font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+.phase-hero h2{margin:0;color:var(--wine);font:700 clamp(29px,5vw,40px)/1.05 'Playfair Display',Georgia,serif}
+.phase-hero-rule{display:flex;align-items:center;justify-content:center;gap:10px;width:min(260px,70%);margin:12px auto 9px;color:#c59a35}
+.phase-hero-rule::before,.phase-hero-rule::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,#d9b85e)}
+.phase-hero-rule::after{background:linear-gradient(90deg,#d9b85e,transparent)}
+.phase-hero-rule span{font-size:14px}
+.phase-hero p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
 .season-progress-scale,.season-progress-row{display:grid;grid-template-columns:minmax(88px,126px) 1fr;gap:10px;align-items:center}
 .season-progress-scale{margin:13px 0 8px}
 .season-progress-phases,.season-progress-track{display:flex;min-width:0}
@@ -78,7 +92,13 @@ body{
 .season-progress-segment:nth-child(4){background:color-mix(in srgb,var(--muted) 10%,transparent);border-radius:0 999px 999px 0}
 .season-progress-marker{position:absolute;top:50%;width:20px;height:20px;display:grid;place-items:center;transform:translate(-50%,-50%);border-radius:50%;background:var(--wine);color:#fff;border:2px solid var(--card);box-shadow:0 2px 7px rgba(67,17,39,.25);font-size:9px;line-height:1}
 .season-progress-status{grid-column:2;color:var(--muted);font-size:10.5px;line-height:1.25;margin-top:-5px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin:14px 0;box-shadow:0 8px 24px rgba(110,31,59,.05)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:17px;padding:19px;margin:14px 0;box-shadow:0 9px 25px rgba(110,31,59,.055)}
+.phase-board{--phase-accent:var(--rose);position:relative;border-color:transparent;background:linear-gradient(var(--card),var(--card)) padding-box,linear-gradient(135deg,color-mix(in srgb,var(--phase-accent) 68%,#fff),color-mix(in srgb,var(--purple) 44%,var(--line))) border-box;box-shadow:0 12px 30px color-mix(in srgb,var(--phase-accent) 8%,transparent)}
+.phase-board-dating{--phase-accent:var(--purple)}
+.phase-board-weddings{--phase-accent:#b68419}
+.phase-board-reunion{--phase-accent:var(--wine)}
+.board-window-title{display:flex;align-items:center;gap:8px;margin:0 0 5px!important;color:var(--phase-accent)!important;font:800 10px/1.3 Inter,sans-serif!important;letter-spacing:.12em;text-transform:uppercase}
+.board-window-title::before{content:"";width:22px;height:1px;background:currentColor}
 .card h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:23px;margin:0 0 4px}
 .card h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:0 0 8px}
 .lede{color:var(--muted);font-size:14px;line-height:1.55;margin:4px 0 0}
@@ -101,13 +121,17 @@ body{
 .btn-small{padding:7px 14px;border:1.5px solid var(--wine);border-radius:10px;background:none;color:var(--wine);font-weight:700;font-size:13px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-small.filled{background:var(--wine);color:#fff;border-color:var(--wine)}
 .btn-small:disabled{opacity:.35;cursor:default}
-.budget-card{margin:10px 0 8px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.budget-card{--budget-accent:var(--rose);position:relative;margin:14px 0 10px;padding:15px 16px 14px 54px;border:1px solid color-mix(in srgb,var(--budget-accent) 26%,var(--line));border-radius:15px;background:linear-gradient(125deg,color-mix(in srgb,var(--budget-accent) 6%,var(--surface)),var(--surface));box-shadow:0 6px 18px color-mix(in srgb,var(--budget-accent) 7%,transparent)}
+.budget-card.phase-dating{--budget-accent:var(--purple)}
+.budget-card.phase-weddings{--budget-accent:#b68419}
+.budget-card.phase-reunion{--budget-accent:var(--wine)}
+.budget-card::before{content:"♥";position:absolute;left:15px;top:14px;width:28px;height:28px;display:grid;place-items:center;border-radius:10px;background:color-mix(in srgb,var(--budget-accent) 12%,var(--card));color:var(--budget-accent);font:700 16px/1 Georgia,serif}
 .budget-card.expiring{border-color:#d88923;background:color-mix(in srgb,#fff2d9 55%,var(--surface))}
-.budget-card.carrying{border-color:color-mix(in srgb,var(--rose) 38%,var(--line))}
+.budget-card.carrying{border-color:color-mix(in srgb,var(--budget-accent) 34%,var(--line))}
 .budgetrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
 .budgetrow .n{font-family:'Playfair Display',serif;font-size:22px;color:var(--wine)}
 .budget-bar{height:10px;border-radius:999px;background:var(--blush-soft);overflow:hidden}
-.budget-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-soft));transition:width .25s}
+.budget-fill{height:100%;background:linear-gradient(90deg,var(--budget-accent),color-mix(in srgb,var(--budget-accent) 44%,#fff));transition:width .25s}
 .budget-note{display:block;margin-top:7px;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.02em}
 .budget-card.expiring .budget-note{color:#8a5511}
 .scoring-primer{margin:10px 0;padding:11px 13px;border:1px dashed color-mix(in srgb,var(--gold) 65%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--gold) 8%,var(--surface));color:var(--muted);font-size:12px;line-height:1.5}
@@ -433,8 +457,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .danger-confirm label{font-size:13px;color:var(--ink);display:block;margin-bottom:7px}
 .btn-danger-wide{display:block;width:100%;padding:12px 14px;margin-top:10px;border:1px solid #c52d55;border-radius:12px;background:#b71f49;color:#fff;font:700 14px Inter,sans-serif;cursor:pointer}
 .btn-danger-wide:disabled{opacity:.35;cursor:default}
-.cast-board{padding:0;overflow:hidden}
-.cast-board-head{width:100%;border:none;background:linear-gradient(135deg,var(--blush-soft),var(--surface));color:var(--wine);padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;cursor:pointer;font-family:Inter,sans-serif}
+.cast-board{padding:0;overflow:hidden;border-color:color-mix(in srgb,var(--wine) 13%,var(--line));box-shadow:0 6px 18px rgba(67,17,39,.035)}
+.cast-board-head{width:100%;border:none;background:linear-gradient(135deg,color-mix(in srgb,var(--blush-soft) 58%,var(--surface)),var(--surface));color:var(--wine);padding:15px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;cursor:pointer;font-family:Inter,sans-serif}
 .cast-board-head strong{display:block;font-family:'Playfair Display',Georgia,serif;font-size:21px}
 .cast-board-head span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:2px}
 .cast-board-toggle{font-size:22px;font-weight:500;color:var(--rose);line-height:1}
@@ -481,7 +505,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.step{padding:0 2px}.step-label{font-size:8.5px;letter-spacing:.035em}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
+@media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 12px;font-size:12px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -2397,7 +2421,7 @@ function BrandHeader({season=null,children}) {
 function Budget({phase,spent,RULES,finalWindow=false}) {
   const {budget}=RULES.phases[phase],left=budget-spent;
   const expires=phase==='reunion'||finalWindow;
-  return <div className={'budget-card '+(expires?'expiring':'carrying')}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} Hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div><span className="budget-note">{expires?'Expires when you lock':'Carries into later '+RULES.phases[phase].label+' windows'}</span></div>;
+  return <div className={'budget-card phase-'+phase+' '+(expires?'expiring':'carrying')}><div className="budgetrow"><span>{RULES.phases[phase].label} budget</span><span><span className="n">{left}</span> / {budget} Hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(left/budget*100)+'%'}}/></div><span className="budget-note">{expires?'Expires when you lock':'Carries into later '+RULES.phases[phase].label+' windows'}</span></div>;
 }
 function Receipt({e,eng,meId,memberLabels={}}) {
   const {owTxt,RULES}=eng, cls='receipt '+(e.ok?'hit':(e.pending?'pending':'miss'))+(e.pending?' pending':'')+(e.retro?' retro':'');
@@ -2469,11 +2493,21 @@ function LockedPicks({phase,picks,eng}) {
 const navigationPhaseLabel = (phase,RULES) => phase==='weddings'?'Wedding Predictions':RULES.phases[phase].label;
 function Stepper({phase,RULES}) {
   const idx=PH_ORDER.indexOf(phase);
+  const icons={pods:'♡',dating:'✦',weddings:'◇',reunion:'◎'};
   return <div className="stepper" role="list" aria-label="Season phase progress">{PH_ORDER.map((p,i)=><div className={'step '+(i===idx?'cur':(i<idx?'done':'upcoming'))} role="listitem" aria-current={i===idx?'step':undefined} key={p}>
-    <span className="step-arrow" aria-hidden="true">▼</span>
+    <span className="step-icon" aria-hidden="true">{icons[p]}</span>
     <span className="step-label">{navigationPhaseLabel(p,RULES)}</span>
-    <span className="step-dot" aria-hidden="true"></span>
   </div>)}</div>;
+}
+function PhaseHero({phase,w,RULES}) {
+  const titles={pods:'Who gets engaged?',dating:'What happens at the retreat?',weddings:'Who gets married?',reunion:'What happens at the Reunion?'};
+  const copy=phase==='reunion'?'Make your predictions before watching the Reunion.':'Make your predictions after Episode '+w+', before watching Episode '+(w+1)+'.';
+  return <section className={'phase-hero phase-'+phase} aria-labelledby={'phase-hero-'+phase}>
+    <span className="phase-hero-kicker">{navigationPhaseLabel(phase,RULES)}</span>
+    <h2 id={'phase-hero-'+phase}>{titles[phase]}</h2>
+    <div className="phase-hero-rule" aria-hidden="true"><span>✦</span></div>
+    <p>{copy}</p>
+  </section>;
 }
 function PoolTabs({tabs,active,onChange}) {
   const tabRefs=useRef([]);
@@ -2620,7 +2654,7 @@ function PodsBoard({w,picks,add,remove,spent,eng,finalWindow,onPendingChange,pen
       : 'Locked after Episode '+p.w+' · Against-the-Clock x'+fmt(leadM(w-p.w))+' if they propose next episode';
   };
   const firstPick=picks.length===0;
-  return <div className="card"><h2>Who gets engaged?</h2><p className="lede"><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Pods Hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining Hearts now. Any Hearts you keep will remain available in later Pods prediction windows.'}</p><Budget phase="pods" spent={spent} RULES={RULES} finalWindow={finalWindow}/>
+  return <div className="card phase-board phase-board-pods"><h2 className="board-window-title">Your Pods predictions</h2><p className="lede"><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Pods Hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining Hearts now. Any Hearts you keep will remain available in later Pods prediction windows.'}</p><Budget phase="pods" spent={spent} RULES={RULES} finalWindow={finalWindow}/>
     {firstPick&&<div className="guided-pick"><div className="guided-pick-kicker">Your first prediction</div><p>Choose one pair, decide how many Hearts you believe in them, then confirm. That’s all you need to start; the Rules tab is here whenever you want the full details.</p></div>}
     {adding&&<React.Fragment><div className="row"><Sel label="Him" value={him} onChange={setHim} options={menA}/><Sel label="Her" value={her} onChange={setHer} options={womA}/></div><div className="row"><StakeSlider value={stake} onChange={setStake} max={maxS} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote="minimum before bonuses"/><button className="btn-add btn-confirm" disabled={!him||!her||!pairAvailable(him,her)||left<5} onClick={doAdd}>Confirm prediction</button></div></React.Fragment>}
     {picks.length>0&&<React.Fragment><hr className="divider"/>{picks.map((p,i)=><div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{p.w===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>)}{!adding&&left>=5&&<button className="btn-primary" style={{marginTop:14}} onClick={startAnother}>+ Make Another Prediction</button>}</React.Fragment>}
@@ -2645,7 +2679,7 @@ function DatingBoard({w,picks,add,remove,spent,eng,finalWindow}) {
     if(result?.ep<=w) return 'Resolved in Episode '+result.ep+' · Against-the-Clock x'+fmt(leadM(Math.max(0,result.ep-p.w-1)));
     return p.w===w?'editable until you start Episode '+(w+1):'Locked after Episode '+p.w+' · predicting before you see it coming';
   };
-  return <div className="card"><h2>{open?'Make your Retreats predictions after Episode '+w:'Retreats predictions locked'}</h2><p className="lede">{open?<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Retreats Hearts.</b> Any left after this window are lost.</React.Fragment>:'Spend some, all, or none now. Hearts you keep remain available in later Retreats windows, and earlier picks earn more for predicting before you see the outcome coming.'}</React.Fragment>:'The retreat scoring window has ended.'}</p><Budget phase="dating" spent={spent} RULES={RULES} finalWindow={finalWindow}/>
+  return <div className="card phase-board phase-board-dating"><h2 className="board-window-title">{open?'Your Retreats predictions':'Retreats predictions locked'}</h2><p className="lede">{open?<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Retreats Hearts.</b> Any left after this window are lost.</React.Fragment>:'Spend some, all, or none now. Hearts you keep remain available in later Retreats windows, and earlier picks earn more for predicting before you see the outcome coming.'}</React.Fragment>:'The retreat scoring window has ended.'}</p><Budget phase="dating" spent={spent} RULES={RULES} finalWindow={finalWindow}/>
     {open&&<React.Fragment>
     <div className="mkt-title"><h3>Who breaks up during the retreat?</h3><span className="multpill">x{fmt(DATING_MULT.breakup)}</span></div><p className="subtle">Both members of the couple must clearly understand that their relationship is over.</p><div className="row"><Sel label="Couple" value={bC} onChange={setBC} options={opt(bO)}/><StakeSlider value={bS} onChange={setBS} max={maxS} multiplier={DATING_MULT.breakup} pointsPerHeart={RULES.POINTS_PER_HEART}/><button className="btn-add" disabled={!bC||left<5} onClick={()=>{add({m:'breakup',c:bC,s:Math.min(bS,maxS),w});setBC('');}}>Add prediction</button></div>
     <hr className="divider"/><div className="mkt-title"><h3>Who sleeps together on the retreat?</h3><span className="multpill">x{fmt(DATING_MULT.sex)}</span></div><p className="subtle">Must be explicitly stated or very clearly implied.</p><div className="row"><Sel label="Couple" value={sC} onChange={setSC} options={opt(sO)}/><StakeSlider value={sS} onChange={setSS} max={maxS} multiplier={DATING_MULT.sex} pointsPerHeart={RULES.POINTS_PER_HEART}/><button className="btn-add" disabled={!sC||left<5} onClick={()=>{add({m:'sex',c:sC,s:Math.min(sS,maxS),w});setSC('');}}>Add prediction</button></div>
@@ -2676,7 +2710,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
     return 'Locked after Episode '+p.w+' · Against-the-Clock is now at least x'+fmt(weddingLeadM(Math.max(0,w-p.w)));
   };
   const title=exhausted?'You have no more Hearts for predictions':open?'Wedding predictions after Episode '+w:'Wedding markets locked';
-  return <div className={'card'+(exhausted?' exhausted-board':'')}><h2>{title}</h2><p className="lede">{exhausted?'Your existing predictions and every couple whose window has passed remain visible below.':open?<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Weddings Hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining Hearts now. Any Hearts you keep will remain available in later Weddings prediction windows.'}</React.Fragment>:phaseOpen?'Every currently listed couple has reached its individual Wedding lock episode.':'The Weddings phase has closed.'}</p><Budget phase="weddings" spent={spent} RULES={RULES} finalWindow={finalWindow}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} prediction{picks.length===1?'':'s'} placed · {alive.length} open · {locked.length} locked</p>
+  return <div className={'card phase-board phase-board-weddings'+(exhausted?' exhausted-board':'')}><h2 className="board-window-title">{title}</h2><p className="lede">{exhausted?'Your existing predictions and every couple whose window has passed remain visible below.':open?<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> {finalWindow?<React.Fragment><b>This is your last chance to use your Weddings Hearts.</b> Any left after this window are lost.</React.Fragment>:'You can spend some, all, or none of your remaining Hearts now. Any Hearts you keep will remain available in later Weddings prediction windows.'}</React.Fragment>:phaseOpen?'Every currently listed couple has reached its individual Wedding lock episode.':'The Weddings phase has closed.'}</p><Budget phase="weddings" spent={spent} RULES={RULES} finalWindow={finalWindow}/><p className="subtle" style={{margin:'4px 0 0'}}>{picks.length} prediction{picks.length===1?'':'s'} placed · {alive.length} open · {locked.length} locked</p>
     {open&&<React.Fragment>
     <div className="row"><Sel label="Couple" value={cid} onChange={v=>{setCid(v);setAnswer('');setWhen('');setWhoT('');}} options={alive.map(c=>({v:c.id,t:nameOf(c.id)}))}/><Sel label="Do they get married?" value={answer} onChange={v=>{setAnswer(v);setWhen('');setWhoT('');}} options={[{v:'yes',t:'Yes (x'+fmt(WED_MULT.married)+')'},{v:'no',t:'No'}]}/></div>
     {answer==='no'&&cid&&<React.Fragment><div className="row"><Sel label="When?" value={when} onChange={setWhen} options={[{v:'before',t:'Before the altar (x'+fmt(WED_MULT.calledOff)+' bonus)'},{v:'altar',t:'At the altar (x'+fmt(WED_MULT.saysNo)+' bonus)'}]}/><Sel label="Who ends it?" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]}]}/></div></React.Fragment>}
@@ -2721,7 +2755,7 @@ function ReunionBoard({w,picks,add,remove,spent,eng}) {
   const lifeUpdateOptions=Object.entries(LIFE_UPD).filter(([update])=>!lP||lifeUpdateAvailable(lP,update)).map(([v,t])=>({v,t}));
   const absentPeople=AC.filter(absentAvailable);
   const ml=reunionPickLabel;
-  return <div className="card"><h2>{open?'Make your Reunion predictions after Episode '+w:'Reunion predictions locked'}</h2><p className="lede">{open&&<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> </React.Fragment>}Choose any combination of categories. Each prediction uses Hearts separately, and you may leave categories empty. Unspent Hearts are lost when you lock — this is your only Reunion window.</p><Budget phase="reunion" spent={spent} RULES={RULES} finalWindow/>{!RESULTS_READY.weddings&&<div className="notice" style={{marginTop:12}}><b>Wedding outcomes are still being confirmed.</b> Back-together options will appear once a resolved, non-married outcome is available.</div>}
+  return <div className="card phase-board phase-board-reunion"><h2 className="board-window-title">{open?'Your Reunion predictions':'Reunion predictions locked'}</h2><p className="lede">{open&&<React.Fragment><b>Prediction window: after Episode {w}, before Episode {w+1}.</b> </React.Fragment>}Choose any combination of categories. Each prediction uses Hearts separately, and you may leave categories empty. Unspent Hearts are lost when you lock — this is your only Reunion window.</p><Budget phase="reunion" spent={spent} RULES={RULES} finalWindow/>{!RESULTS_READY.weddings&&<div className="notice" style={{marginTop:12}}><b>Wedding outcomes are still being confirmed.</b> Back-together options will appear once a resolved, non-married outcome is available.</div>}
     {open&&<React.Fragment>
     <div className={'reunion-market'+(relationshipCouples.length?'':' reunion-market-muted')}><div className="reunion-market-head"><div><h3>Where are they now?</h3><span className="reunion-market-caption">One relationship-status prediction per known couple</span></div><div className="reunion-market-multiplier" aria-label={'Multiplier range '+relationshipMultiplierRange}><strong>{relationshipMultiplierRange}</strong><span>by answer</span></div></div>{relationshipOptions.length?<React.Fragment><div className="row"><Sel label="Couple" value={relC} onChange={value=>{setRelC(value);setRelO('');}} options={relationshipOptions}/><Sel label="Reunion status" value={relO} onChange={setRelO} options={relationshipAnswers}/></div><div className="row"><StakeSlider value={relS} onChange={setRelS} max={maxS} multiplier={relationshipPreviewMultiplier} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote="before Against-the-Grain"/><button className="btn-add" disabled={!relC||!relO||!relationshipAvailable(relC)||left<5} onClick={()=>{add({m:'relationship',c:relC,outcome:relO,s:Math.min(relS,maxS)});setRelC('');setRelO('');}}>Add prediction</button></div></React.Fragment>:<p className="subtle">{relationshipCouples.length?'You have already predicted every eligible couple.':'Relationship-status options will appear after wedding outcomes are confirmed.'}</p>}</div>
     <div className="reunion-market"><div className="reunion-market-head"><div><h3>New couple revealed</h3><span className="reunion-market-caption">A pairing first revealed at the Reunion</span></div><div className="reunion-market-multiplier" aria-label={'Multiplier x'+fmt(REU_MULT.newCouple)}><strong>×{fmt(REU_MULT.newCouple)}</strong><span>multiplier</span></div></div><div className="row"><Sel label="Him" value={nH} onChange={setNH} options={newCoupleMen}/><Sel label="Her" value={nW} onChange={setNW} options={newCoupleWomen}/></div><div className="row"><StakeSlider value={nS} onChange={setNS} max={maxS} multiplier={REU_MULT.newCouple} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote="before Against-the-Grain"/><button className="btn-add" disabled={!nH||!nW||!newCoupleAvailable(nH,nW)||left<5} onClick={()=>{add({m:'newCouple',pair:nH+'|'+nW,s:Math.min(nS,maxS)});setNH('');setNW('');}}>Add prediction</button></div></div>
@@ -4325,6 +4359,7 @@ function App() {
       {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
       {screen==='intro'&&<div className="card"><h2>{navigationPhaseLabel(phase,RULES)}</h2><p className="lede">{phaseIntro.tagline}</p><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
+        <PhaseHero phase={phase} w={w} RULES={RULES}/>
         {historicalPredictionDeadline!=null&&<div className="notice" style={{margin:'8px 0 14px'}}><b>Your last chance for {RULES.phases[phase].label} predictions is after Episode {historicalPredictionDeadline}.</b></div>}
         {crossover&&<div className="notice" style={{margin:'8px 0 14px'}}><b>{crossoverMessage}</b> This lock covers both boards before you watch Episode {w+1}.</div>}
         <RevealSummary reveal={reveal} heading={revealHeading} eng={eng} meId={user.uid} memberLabels={memberLabels}/>
