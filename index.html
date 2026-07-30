@@ -575,11 +575,25 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .podium-place small{display:block;margin-top:4px;color:var(--rose);font-size:11px;font-weight:900}
 .leaderboard-list{display:grid;gap:7px}
 .leaderboard-row{display:grid;grid-template-columns:28px 45px minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--line);border-radius:13px;background:var(--surface)}
+.leaderboard-row.expandable{grid-template-columns:28px 45px minmax(0,1fr) auto 24px;cursor:pointer;transition:border-color .16s ease,background .16s ease,transform .16s ease}
+.leaderboard-row.expandable:hover{border-color:color-mix(in srgb,var(--rose) 42%,var(--line));background:color-mix(in srgb,var(--blush-soft) 32%,var(--surface))}
+.leaderboard-row.expandable:focus-visible{outline:3px solid color-mix(in srgb,var(--purple) 32%,transparent);outline-offset:2px}
+.leaderboard-row.expandable.open{border-color:color-mix(in srgb,var(--purple) 44%,var(--line));border-radius:13px 13px 6px 6px;background:color-mix(in srgb,var(--purple) 5%,var(--surface))}
 .leaderboard-rank{text-align:center;color:var(--soft-text);font-size:11px;font-weight:900}
 .leaderboard-avatar{width:45px;height:45px;overflow:hidden;border-radius:11px;background:var(--blush-soft);display:grid;place-items:center;color:var(--wine);font:700 13px/1 'Playfair Display',Georgia,serif}
 .leaderboard-avatar img{width:100%;height:100%;object-fit:cover}
 .leaderboard-name{min-width:0}.leaderboard-name strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:13px}.leaderboard-name span{display:block;margin-top:2px;color:var(--soft-text);font-size:10px}
 .leaderboard-score{text-align:right;color:var(--wine);font:700 20px/1 'Playfair Display',Georgia,serif}.leaderboard-score span{display:block;margin-top:3px;color:var(--soft-text);font:800 8px/1 Inter,sans-serif;text-transform:uppercase}
+.leaderboard-expand-icon{display:grid;place-items:center;color:var(--purple);font-size:15px;font-weight:900;transition:transform .16s ease}.leaderboard-row.open .leaderboard-expand-icon{transform:rotate(180deg)}
+.leaderboard-hint{margin:4px 0 9px;color:var(--muted);font-size:10.5px;text-align:center}
+.leaderboard-breakdown{margin-top:-7px;padding:14px;border:1px solid color-mix(in srgb,var(--purple) 28%,var(--line));border-top:0;border-radius:0 0 14px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--purple) 5%,var(--surface)),var(--surface))}
+.leaderboard-breakdown-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.leaderboard-breakdown-head h4{margin:0;color:var(--wine);font:700 18px/1.15 'Playfair Display',Georgia,serif}.leaderboard-breakdown-head p{margin:3px 0 0;color:var(--muted);font-size:10.5px;line-height:1.4}.leaderboard-breakdown-head span{flex:0 0 auto;padding:5px 7px;border-radius:8px;background:var(--blush-soft);color:var(--rose);font-size:9px;font-weight:900}
+.pool-score-list{display:grid;gap:7px}
+.pool-score-row{display:grid;grid-template-columns:minmax(105px,1fr) minmax(210px,1.4fr) 48px;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:var(--surface)}
+.pool-score-player{min-width:0}.pool-score-player strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:12px}.pool-score-player span{display:block;margin-top:2px;color:var(--soft-text);font-size:9px}
+.pool-score-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.pool-score-values span{text-align:center;padding:5px 2px;border-radius:7px;background:var(--blush-soft);color:var(--soft-text);font-size:8px;font-weight:900}.pool-score-values b{display:block;margin-top:2px;color:var(--wine);font-size:11px}
+.pool-score-overall{text-align:right;color:var(--rose);font:700 19px/1 'Playfair Display',Georgia,serif}.pool-score-overall span{display:block;margin-top:3px;color:var(--soft-text);font:800 7px/1 Inter,sans-serif;text-transform:uppercase}
+.breakdown-pagination{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:11px}.breakdown-pagination button{min-width:76px;padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--wine);font-size:10px;font-weight:900;cursor:pointer}.breakdown-pagination button:disabled{opacity:.4;cursor:default}.breakdown-pagination span{color:var(--muted);font-size:9.5px;font-weight:800}
 .chemistry-fingerprint{position:relative;overflow:hidden;margin:16px 0;padding:18px;border:1px solid color-mix(in srgb,var(--rose) 28%,var(--line));border-radius:17px;background:linear-gradient(135deg,color-mix(in srgb,var(--rose) 9%,var(--surface)),color-mix(in srgb,var(--purple) 8%,var(--surface)))}
 .chemistry-fingerprint h3{margin:0 0 4px}.chemistry-fingerprint p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.chemistry-fingerprint .btn-secondary{margin-top:12px}
 .friend-scorecard-head{display:flex;align-items:center;gap:10px;margin:14px 0}.friend-scorecard-head .field{min-width:0}
@@ -626,7 +640,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 11px;font-size:11px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.step-icon svg{width:20px;height:20px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-slider-shell{grid-template-columns:92px minmax(0,1fr) 30px;gap:6px;padding:9px}.cast-slider-title{padding-right:8px}.cast-slider-title strong{font-size:14px}.cast-slider-title span{font-size:8px}.cast-slider-arrow.prev{display:none}.cast-slider-arrow{width:29px;height:29px}.cast-slider-track>[role="listitem"]{flex-basis:62px}.cast-reference-avatar{width:55px;height:55px}.cast-reference-status{width:18px;height:18px;right:-2px;border-width:2px}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}.rating-grid{grid-template-columns:1fr}.rating-card-head{grid-template-columns:64px 1fr auto}.rating-card-photo{width:64px;height:64px}.rating-row{grid-template-columns:76px 1fr 20px;gap:5px}.rating-dots{gap:3px}.rating-dot{width:23px;height:23px}.chemistry-hero{padding:23px 16px}.chemistry-tea-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.chemistry-podium{gap:5px}.podium-place{padding-inline:4px}.podium-photo{width:50px;height:50px}.podium-place strong{font-size:13px}.leaderboard-row{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:7px}.leaderboard-avatar{width:40px;height:40px}.compare-controls{grid-template-columns:1fr 1fr}.compare-vs{display:none}.compare-row{grid-template-columns:40px minmax(0,1fr) 46px 46px;gap:6px}.compare-row .compare-delta{grid-column:2/-1;justify-self:start}.compare-score{font-size:16px}}
+@media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 11px;font-size:11px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.step-icon svg{width:20px;height:20px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-slider-shell{grid-template-columns:92px minmax(0,1fr) 30px;gap:6px;padding:9px}.cast-slider-title{padding-right:8px}.cast-slider-title strong{font-size:14px}.cast-slider-title span{font-size:8px}.cast-slider-arrow.prev{display:none}.cast-slider-arrow{width:29px;height:29px}.cast-slider-track>[role="listitem"]{flex-basis:62px}.cast-reference-avatar{width:55px;height:55px}.cast-reference-status{width:18px;height:18px;right:-2px;border-width:2px}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}.rating-grid{grid-template-columns:1fr}.rating-card-head{grid-template-columns:64px 1fr auto}.rating-card-photo{width:64px;height:64px}.rating-row{grid-template-columns:76px 1fr 20px;gap:5px}.rating-dots{gap:3px}.rating-dot{width:23px;height:23px}.chemistry-hero{padding:23px 16px}.chemistry-tea-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.chemistry-podium{gap:5px}.podium-place{padding-inline:4px}.podium-photo{width:50px;height:50px}.podium-place strong{font-size:13px}.leaderboard-row{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:7px}.leaderboard-row.expandable{grid-template-columns:24px 40px minmax(0,1fr) auto 18px}.leaderboard-avatar{width:40px;height:40px}.leaderboard-breakdown{padding:11px 9px}.pool-score-row{grid-template-columns:minmax(85px,1fr) 46px;gap:7px}.pool-score-values{grid-column:1/-1;grid-row:2}.compare-controls{grid-template-columns:1fr 1fr}.compare-vs{display:none}.compare-row{grid-template-columns:40px minmax(0,1fr) 46px 46px;gap:6px}.compare-row .compare-delta{grid-column:2/-1;justify-self:start}.compare-score{font-size:16px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -2944,6 +2958,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   const [selectedFriend,setSelectedFriend]=useState('');
   const [compareA,setCompareA]=useState('mine');
   const [compareB,setCompareB]=useState(globalPool?'global':'pool');
+  const [expandedCast,setExpandedCast]=useState('');
+  const [expandedPage,setExpandedPage]=useState(0);
   const [draft,setDraft]=useState(()=>valuesByCast(myRatingDoc?.ratings));
   const [shareWithFriends,setShareWithFriends]=useState(false);
   const [dirty,setDirty]=useState(false);
@@ -2960,6 +2976,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   useEffect(()=>{
     if(!otherFriends.some(entry=>entry.uid===selectedFriend))setSelectedFriend(otherFriends[0]?.uid||'');
   },[community?.loadedAt,selectedFriend]);
+  useEffect(()=>setExpandedPage(0),[expandedCast,sort,gender,community?.loadedAt]);
   const visibleCast=eng.CAST.filter(person=>gender==='all'||person.gender===gender);
   const completeCount=visibleCast.filter(person=>completeRating(draft[person.name])).length;
   const progress=visibleCast.length?Math.round(completeCount/visibleCast.length*100):0;
@@ -3044,6 +3061,20 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   };
   const showingGlobal=globalPool||teaView==='global';
   const audienceCount=showingGlobal?(Number(globalCommunity?.aggregate?.participantCount)||0):friendEntries.length;
+  const expandedScores=expandedCast?friendEntries.map(entry=>{
+    const rating=(entry.ratings||[]).find(item=>item.name===expandedCast);
+    if(!rating)return null;
+    return {
+      uid:entry.uid,
+      label:entry.uid===currentUid?'You':memberLabels[entry.uid]||entry.username||'Player',
+      values:rating.values||{},
+      overall:overallRating(rating.values),
+    };
+  }).filter(Boolean).sort((a,b)=>alphaByName(a.label,b.label)):[];
+  const breakdownPageSize=5;
+  const breakdownPages=Math.max(1,Math.ceil(expandedScores.length/breakdownPageSize));
+  const safeExpandedPage=Math.min(expandedPage,breakdownPages-1);
+  const visibleExpandedScores=expandedScores.slice(safeExpandedPage*breakdownPageSize,(safeExpandedPage+1)*breakdownPageSize);
   return <div id="pool-panel-chemistry" role="tabpanel" aria-labelledby="pool-tab-chemistry">
     <section className="chemistry-hero">
       <span className="chemistry-orbit one"></span><span className="chemistry-orbit two"></span>
@@ -3089,7 +3120,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
           <div className="chemistry-segmented three" style={{flex:'1 1 290px',margin:0}}>{[{id:'all',label:'Both'},{id:'M',label:'Men'},{id:'F',label:'Women'}].map(option=><button type="button" className={gender===option.id?'active':''} onClick={()=>setGender(option.id)} key={option.id}>{option.label}</button>)}</div>
           <div className="field"><label className="small" htmlFor="chemistry-sort">Sort by</label><select id="chemistry-sort" value={sort} onChange={event=>setSort(event.target.value)}>{RATING_SORTS.map(option=><option value={option.id} key={option.id}>{option.label}</option>)}</select></div>
         </div>
-        {(!globalPool&&teaView==='leaderboard'&&outlier)&&<div className="chemistry-outlier"><span className="chemistry-outlier-kicker">The biggest beautiful outlier</span><h3>I love that for you, {memberLabels[outlier.entry.uid]||outlier.entry.username||'friend'}…</h3><p>You gave <strong>{outlier.rating.name}</strong> {outlier.score}/20 while everyone else averaged {outlier.peerAverage.toFixed(1)}/20. That’s {outlier.delta.toFixed(1)} points above the room.</p></div>}
+        {(!globalPool&&teaView==='leaderboard'&&outlier)&&<div className="chemistry-outlier"><span className="chemistry-outlier-kicker">The biggest beautiful outlier</span><h3>I love that for you…</h3><p>You gave <strong>{outlier.rating.name}</strong> {outlier.score}/20 while everyone else averaged {outlier.peerAverage.toFixed(1)}/20. That’s {outlier.delta.toFixed(1)} points above the room.</p></div>}
         {teaView==='compare'?<React.Fragment>
           <div className="compare-controls">
             <div className="field"><label className="small" htmlFor="compare-source-a">Perspective A</label><select id="compare-source-a" value={sourceA?.id||''} onChange={event=>setCompareA(event.target.value)}>{compareSources.map(source=><option value={source.id} key={source.id}>{source.label}</option>)}</select></div>
@@ -3104,7 +3135,25 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
           </React.Fragment>:<div className="chemistry-empty"><div className="chemistry-empty-icon">🤐</div><h3>No friends have spilled yet</h3><p>When someone turns on sharing, their scorecard will appear here. Your pool averages only use shared ratings.</p></div>}
         </React.Fragment>:filteredCommunity.length?<React.Fragment>
           <div className="chemistry-podium">{filteredCommunity.slice(0,3).map((row,index)=><div className={'podium-place '+(index===0?'first':index===1?'second':'third')} key={row.name}><div className="podium-medal">{index===0?'👑':index===1?'🥈':'🥉'}</div><RatingPhoto person={castByName[row.name]||{name:row.name}} className="podium-photo"/><strong>{row.name}</strong><small>{scoreLabel(row.scores[sort])}</small></div>)}</div>
-          <div className="leaderboard-list">{filteredCommunity.map((row,index)=><div className="leaderboard-row" key={row.name}><span className="leaderboard-rank">{index+1}</span><RatingPhoto person={castByName[row.name]||{name:row.name}} className="leaderboard-avatar"/><div className="leaderboard-name"><strong>{row.name}</strong><span>{row.counts[sort]||0} rating{row.counts[sort]===1?'':'s'}</span></div><div className="leaderboard-score">{scoreLabel(row.scores[sort]).split('/')[0]}<span>of {sort==='overall'?'20':'5'}</span></div></div>)}</div>
+          {!showingGlobal&&<p className="leaderboard-hint">Tap a cast member to see every shared scorecard.</p>}
+          <div className="leaderboard-list">{filteredCommunity.map((row,index)=>{
+            const canExpand=!showingGlobal&&teaView==='leaderboard';
+            const open=canExpand&&expandedCast===row.name;
+            return <React.Fragment key={row.name}>
+              <div className={'leaderboard-row '+(canExpand?'expandable ':'')+(open?'open':'')} role={canExpand?'button':undefined} tabIndex={canExpand?0:undefined} aria-expanded={canExpand?open:undefined} aria-label={canExpand?`${row.name}: ${scoreLabel(row.scores[sort])}. ${open?'Hide':'Show'} pool scorecards`:undefined} onClick={canExpand?()=>setExpandedCast(current=>current===row.name?'':row.name):undefined} onKeyDown={canExpand?event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setExpandedCast(current=>current===row.name?'':row.name);}}:undefined}>
+                <span className="leaderboard-rank">{index+1}</span><RatingPhoto person={castByName[row.name]||{name:row.name}} className="leaderboard-avatar"/><div className="leaderboard-name"><strong>{row.name}</strong><span>{row.counts[sort]||0} rating{row.counts[sort]===1?'':'s'}</span></div><div className="leaderboard-score">{scoreLabel(row.scores[sort]).split('/')[0]}<span>of {sort==='overall'?'20':'5'}</span></div>{canExpand&&<span className="leaderboard-expand-icon" aria-hidden="true">⌄</span>}
+              </div>
+              {open&&<section className="leaderboard-breakdown" aria-label={'Pool scorecards for '+row.name}>
+                <div className="leaderboard-breakdown-head"><div><h4>{row.name}: the receipts</h4><p>Every scorecard shared with this friend pool.</p></div><span>{expandedScores.length} player{expandedScores.length===1?'':'s'}</span></div>
+                <div className="pool-score-list">{visibleExpandedScores.map(scorecard=><div className="pool-score-row" key={scorecard.uid}>
+                  <div className="pool-score-player"><strong>{scorecard.label}</strong><span>{sort==='overall'?'Overall':RATING_SORTS.find(metric=>metric.id===sort)?.label}: {sort==='overall'?(scorecard.overall??'—'):(scorecard.values[sort]??'—')}</span></div>
+                  <div className="pool-score-values">{RATING_CATEGORIES.map(category=><span key={category.id}>{category.icon} {category.short}<b>{scorecard.values[category.id]??'—'}</b></span>)}</div>
+                  <div className="pool-score-overall">{scorecard.overall??'—'}<span>of 20</span></div>
+                </div>)}</div>
+                {breakdownPages>1&&<div className="breakdown-pagination"><button type="button" disabled={safeExpandedPage===0} onClick={()=>setExpandedPage(page=>Math.max(0,page-1))}>Previous</button><span>Page {safeExpandedPage+1} of {breakdownPages}</span><button type="button" disabled={safeExpandedPage>=breakdownPages-1} onClick={()=>setExpandedPage(page=>Math.min(breakdownPages-1,page+1))}>Next</button></div>}
+              </section>}
+            </React.Fragment>;
+          })}</div>
           <button className="btn-secondary" onClick={()=>shareLeaderboard('community')}>Share this leaderboard</button>{shareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{shareFeedback}</p>}
         </React.Fragment>:<div className="chemistry-empty"><div className="chemistry-empty-icon">🫖</div><h3>The tea is still steeping</h3><p>Be the first to rate the cast. This board wakes up as players save their picks.</p></div>}
       </div>
@@ -3121,11 +3170,30 @@ function ChemistryPreview() {
     {name:'Jimmy',gender:'M',photoUrl:'images/cast/love-is-blind-us-6/Jimmy.png'},
     {name:'Johnny',gender:'M',photoUrl:'images/cast/love-is-blind-us-6/Johnny.png'},
   ];
-  const scorecards=[
-    {uid:'demo-me',username:'You',shared:true,ratings:cast.map((person,index)=>({name:person.name,gender:person.gender,values:{hotness:3+(index%3),humour:2+((index+2)%4),intelligence:3+((index+1)%3),vibes:2+((index+3)%4)}}))},
-    {uid:'demo-maya',username:'Maya',shared:true,ratings:cast.map((person,index)=>({name:person.name,gender:person.gender,values:{hotness:2+((index+1)%4),humour:3+(index%3),intelligence:2+((index+2)%4),vibes:3+((index+1)%3)}}))},
-    {uid:'demo-lex',username:'Lex',shared:true,ratings:cast.map((person,index)=>({name:person.name,gender:person.gender,values:{hotness:3+((index+2)%3),humour:2+((index+1)%4),intelligence:3+(index%3),vibes:2+((index+2)%4)}}))},
+  const demoPlayers=[
+    {uid:'demo-me',username:'You'},
+    {uid:'demo-maya',username:'Maya'},
+    {uid:'demo-lex',username:'Lex'},
+    {uid:'demo-priya',username:'Priya'},
+    {uid:'demo-ben',username:'Ben'},
+    {uid:'demo-sofia',username:'Sofia'},
+    {uid:'demo-marcus',username:'Marcus'},
+    {uid:'demo-jules',username:'Jules'},
   ];
+  const scorecards=demoPlayers.map((player,playerIndex)=>({
+    ...player,
+    shared:true,
+    ratings:cast.map((person,index)=>({
+      name:person.name,
+      gender:person.gender,
+      values:{
+        hotness:(3+index+playerIndex)%6,
+        humour:(4+index*2+playerIndex)%6,
+        intelligence:(5+index+playerIndex*2)%6,
+        vibes:(2+index*3+playerIndex)%6,
+      },
+    })),
+  }));
   const aggregate={
     participantCount:scorecards.length,
     updatedAt:1,
