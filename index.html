@@ -3056,13 +3056,13 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
       if(delta>0&&(!highOutlier||delta>highOutlier.delta))highOutlier={entry,rating,score,peerAverage,delta};
       if(delta<0&&(!lowOutlier||delta<lowOutlier.delta))lowOutlier={entry,rating,score,peerAverage,delta};
     }));
-    const distributions=Object.values(castScores).filter(row=>row.entries.length>=3).map(row=>{
+    const distributions=Object.values(castScores).filter(row=>row.entries.length>=2).map(row=>{
       const sorted=[...row.entries].sort((a,b)=>a.score-b.score);
       const scores=sorted.map(item=>item.score),min=scores[0],max=scores[scores.length-1];
       return {...row,sorted,scores,min,max,range:max-min,average:scores.reduce((sum,value)=>sum+value,0)/scores.length};
     });
     const wildSplit=[...distributions].filter(row=>row.range>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.wildSplit).sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
-    const debate=[...distributions].filter(row=>row.name!==wildSplit?.name&&row.range>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.debate).sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
+    const debate=[...distributions].filter(row=>row.entries.length>=3&&row.name!==wildSplit?.name&&row.range>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.debate).sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
     const consensus=[...distributions].filter(row=>row.entries.length>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.minConsensusRatings&&row.range<=CHEMISTRY_HIGHLIGHT_THRESHOLDS.consensus&&row.name!==wildSplit?.name&&row.name!==debate?.name).sort((a,b)=>a.range-b.range||alphaByName(a.name,b.name))[0];
     return [
       highOutlier?.delta>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.outlier&&{type:'high',kicker:'The biggest beautiful outlier',title:'I love that for you…',emoji:'😬',...highOutlier},
