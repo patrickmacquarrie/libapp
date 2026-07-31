@@ -2646,6 +2646,7 @@ const RATING_CATEGORIES = [
   {id:'vibes',label:'Vibes',short:'Vibes',icon:'✨'},
 ];
 const RATING_SORTS=[{id:'overall',label:'Overall · /40'},...RATING_CATEGORIES.map(category=>({id:category.id,label:category.label+' · /10'}))];
+const CHEMISTRY_HIGHLIGHT_THRESHOLDS={outlier:4,wildSplit:8,debate:6,consensus:5,minConsensusRatings:4};
 const castInitials = name => String(name||'').split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();
 const completeRating = values => RATING_CATEGORIES.every(category=>Number.isInteger(values?.[category.id]));
 const overallRating = values => completeRating(values)?RATING_CATEGORIES.reduce((sum,category)=>sum+values[category.id],0):null;
@@ -3027,8 +3028,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
       if(gender!=='all'&&rating.gender!==gender)return;
       const score=overallRating(rating.values);
       if(score==null)return;
-      const scoreRow=castScores[rating.name]||(castScores[rating.name]={name:rating.name,scores:[]});
-      scoreRow.scores.push(score);
+      const scoreRow=castScores[rating.name]||(castScores[rating.name]={name:rating.name,gender:rating.gender,entries:[]});
+      scoreRow.entries.push({entry,score});
       const peerScores=friendEntries.filter(peer=>peer.uid!==entry.uid).map(peer=>overallRating((peer.ratings||[]).find(item=>item.name===rating.name)?.values)).filter(value=>value!=null);
       if(!peerScores.length)return;
       const peerAverage=peerScores.reduce((sum,value)=>sum+value,0)/peerScores.length;
@@ -3036,17 +3037,20 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
       if(delta>0&&(!highOutlier||delta>highOutlier.delta))highOutlier={entry,rating,score,peerAverage,delta};
       if(delta<0&&(!lowOutlier||delta<lowOutlier.delta))lowOutlier={entry,rating,score,peerAverage,delta};
     }));
-    const distributions=Object.values(castScores).filter(row=>row.scores.length>=3).map(row=>{
-      const min=Math.min(...row.scores),max=Math.max(...row.scores);
-      return {...row,min,max,range:max-min,average:row.scores.reduce((sum,value)=>sum+value,0)/row.scores.length};
+    const distributions=Object.values(castScores).filter(row=>row.entries.length>=3).map(row=>{
+      const sorted=[...row.entries].sort((a,b)=>a.score-b.score);
+      const scores=sorted.map(item=>item.score),min=scores[0],max=scores[scores.length-1];
+      return {...row,sorted,scores,min,max,range:max-min,average:scores.reduce((sum,value)=>sum+value,0)/scores.length};
     });
-    const debate=[...distributions].sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
-    const consensus=[...distributions].filter(row=>row.name!==debate?.name).sort((a,b)=>a.range-b.range||alphaByName(a.name,b.name))[0]||distributions[0];
+    const wildSplit=[...distributions].filter(row=>row.range>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.wildSplit).sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
+    const debate=[...distributions].filter(row=>row.name!==wildSplit?.name&&row.range>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.debate).sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
+    const consensus=[...distributions].filter(row=>row.entries.length>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.minConsensusRatings&&row.range<=CHEMISTRY_HIGHLIGHT_THRESHOLDS.consensus&&row.name!==wildSplit?.name&&row.name!==debate?.name).sort((a,b)=>a.range-b.range||alphaByName(a.name,b.name))[0];
     return [
-      highOutlier&&{type:'high',kicker:'The biggest beautiful outlier',title:'I love that for you…',emoji:'💖',...highOutlier},
-      lowOutlier&&{type:'low',kicker:'The boldest dissent',title:'Hear me out…',emoji:'🤔',...lowOutlier},
+      highOutlier?.delta>=CHEMISTRY_HIGHLIGHT_THRESHOLDS.outlier&&{type:'high',kicker:'The biggest beautiful outlier',title:'I love that for you…',emoji:'😬',...highOutlier},
+      lowOutlier?.delta<=-CHEMISTRY_HIGHLIGHT_THRESHOLDS.outlier&&{type:'low',kicker:'The boldest dissent',title:'Hear me out…',emoji:'🤔',...lowOutlier},
+      wildSplit&&{type:'split',kicker:'Two wildly different reads',title:wildSplit.gender==='M'?'…Him?':'…Her?',emoji:'🤨',distribution:wildSplit},
       debate&&{type:'debate',kicker:'The most divisive scorecard',title:'The group chat needs a meeting…',emoji:'🫖',distribution:debate},
-      consensus&&{type:'consensus',kicker:'The rare agreement',title:'Wait… we all agree?',emoji:'🤝',distribution:consensus},
+      consensus&&{type:'consensus',kicker:'The rare agreement',title:'The room has spoken.',emoji:'🤝',distribution:consensus},
     ].filter(Boolean);
   },[community?.loadedAt,gender]);
   useEffect(()=>setHighlightIndex(0),[community?.loadedAt,gender]);
@@ -3056,9 +3060,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     return ()=>clearInterval(timer);
   },[chemistryHighlights.length]);
   const activeHighlight=chemistryHighlights.length?chemistryHighlights[highlightIndex%chemistryHighlights.length]:null;
-  const activeHighlightPlayer=activeHighlight?.entry
-    ? activeHighlight.entry.uid===currentUid?'You':memberLabels[activeHighlight.entry.uid]||activeHighlight.entry.username||'A player'
-    : '';
+  const highlightPlayerLabel=entry=>entry?.uid===currentUid?'You':memberLabels[entry?.uid]||entry?.username||'A player';
+  const activeHighlightPlayer=activeHighlight?.entry?highlightPlayerLabel(activeHighlight.entry):'';
   const sourceValuesFromRatings=ratings=>Object.fromEntries((ratings||[]).map(rating=>[rating.name,{...rating.values,overall:overallRating(rating.values)}]));
   const sourceValuesFromRows=rows=>Object.fromEntries(rows.map(row=>[row.name,{...row.scores}]));
   const compareSources=[
@@ -3160,6 +3163,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
             <h3>{activeHighlight.title}</h3>
             {['high','low'].includes(activeHighlight.type)
               ? <p>{activeHighlightPlayer} rated <strong>{activeHighlight.rating.name}</strong> {activeHighlight.score}/40, but everyone else averaged {activeHighlight.peerAverage.toFixed(1)}/40.</p>
+              : activeHighlight.type==='split'
+                ? <p>{highlightPlayerLabel(activeHighlight.distribution.sorted[activeHighlight.distribution.sorted.length-1].entry)} rated <strong>{activeHighlight.distribution.name}</strong> {activeHighlight.distribution.max}/40. {highlightPlayerLabel(activeHighlight.distribution.sorted[0].entry)} gave them {activeHighlight.distribution.min}/40—a {activeHighlight.distribution.range}-point gap.</p>
               : activeHighlight.type==='debate'
                 ? <p>Scores for <strong>{activeHighlight.distribution.name}</strong> run from {activeHighlight.distribution.min}/40 to {activeHighlight.distribution.max}/40—a {activeHighlight.distribution.range}-point spread.</p>
                 : <p>Your pool averaged {activeHighlight.distribution.average.toFixed(1)}/40 for <strong>{activeHighlight.distribution.name}</strong>, with only {activeHighlight.distribution.range} points between the highest and lowest score.</p>}
