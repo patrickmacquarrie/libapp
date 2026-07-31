@@ -1,7 +1,7 @@
 {
   "name": "Through the Wall",
   "short_name": "The Wall",
-  "description": "Social prediction pools and Cast Chemistry for reality-TV watch groups.",
+  "description": "Social prediction pools and Heat Check for reality-TV watch groups.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
