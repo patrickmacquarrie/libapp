@@ -423,6 +423,10 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .public-couple-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .public-couple{min-height:72px;padding:10px 7px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface);color:var(--ink);font:700 12px/1.35 Inter,sans-serif;cursor:pointer;text-align:center}.public-couple:hover{border-color:var(--rose)}.public-couple.active{border-color:var(--rose);background:var(--blush-soft);color:var(--wine);box-shadow:0 0 0 3px color-mix(in srgb,var(--rose) 10%,transparent)}
 .public-couple span{display:block;margin-bottom:5px;font-size:21px}
+.public-demo-budget{margin:14px 0 12px;text-align:left}
+.public-stakebox{gap:14px;margin-bottom:10px}
+.public-stakebox input{min-width:0;flex:1}
+.public-stake-value{min-width:74px;text-align:right;font-size:32px;line-height:1}
 .public-demo-result{margin-top:13px;padding:13px 14px;border:1px solid color-mix(in srgb,#3f9360 38%,var(--line));border-radius:12px;background:color-mix(in srgb,#3f9360 8%,var(--surface));color:var(--muted);font-size:12px;line-height:1.45}.public-demo-result strong{display:block;margin-bottom:3px;color:#247344;font-family:'Playfair Display',Georgia,serif;font-size:18px}
 .public-mini-board{display:grid;gap:7px}.public-mini-row{display:grid;grid-template-columns:30px 38px minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.public-mini-row.you{border-color:color-mix(in srgb,var(--rose) 46%,var(--line));background:var(--blush-soft)}.public-mini-rank{color:var(--soft-text);font-size:11px;font-weight:900}.public-mini-avatar,.avatar-initials{display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;font-weight:900}.public-mini-avatar{width:38px;height:38px;font-size:11px}.public-mini-row strong{font-size:12px}.public-mini-score{color:var(--wine);font:700 18px 'Playfair Display',Georgia,serif}
 .public-how{display:grid;gap:0;padding:8px 6px 3px;text-align:left}.public-how-line{position:relative;display:grid;grid-template-columns:35px 1fr;gap:11px;align-items:center;padding:10px 0}.public-how-line:not(:last-child)::after{content:'';position:absolute;left:17px;top:42px;bottom:-9px;width:2px;background:linear-gradient(var(--rose),var(--purple))}.public-how-line span{position:relative;z-index:1;width:35px;height:35px;display:grid;place-items:center;border:2px solid var(--rose);border-radius:50%;background:var(--card);color:var(--rose);font-weight:900}.public-how-line:nth-child(2) span{border-color:var(--purple);color:var(--purple)}.public-how-line:nth-child(3) span{border-color:var(--gold);color:#966d12}.public-how-line p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.public-how-line strong{color:var(--wine)}
@@ -432,7 +436,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .badge-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.player-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:999px;background:var(--blush-soft);color:var(--rose);font-size:8px;font-weight:900;letter-spacing:.02em;white-space:nowrap}.player-badge.purple{background:color-mix(in srgb,var(--purple) 10%,var(--surface));color:var(--purple)}.player-badge.gold{background:color-mix(in srgb,var(--gold) 18%,var(--surface));color:#8a6116}.lb-player{display:flex;align-items:center;gap:8px;min-width:145px}.lb-avatar{width:31px;height:31px;flex:0 0 auto;font-size:9px}.lb-player-copy{min-width:0}
 .lock-rally{margin:12px 0 0;text-align:center;color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700}.lock-rally span{display:block;margin-top:3px;color:var(--muted);font:500 11px/1.4 Inter,sans-serif}
 .user-avatar-fallback{width:28px;height:28px;font-size:9px;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line)}
-@media(max-width:520px){.public-hero{padding-inline:15px}.public-demo{padding:14px}.public-couple-grid{grid-template-columns:1fr}.public-couple{min-height:54px;display:flex;align-items:center;justify-content:center;gap:7px}.public-couple span{display:inline;margin:0}.lb-player{min-width:128px}.picks-recap-head{display:block}.picks-recap-head span{display:block;margin-top:3px}}
+@media(max-width:520px){.public-hero{padding-inline:15px}.public-demo{padding:14px}.public-couple-grid{grid-template-columns:1fr}.public-couple{min-height:54px;display:flex;align-items:center;justify-content:center;gap:7px}.public-couple span{display:inline;margin:0}.public-stake-value{min-width:68px;font-size:29px}.lb-player{min-width:128px}.picks-recap-head{display:block}.picks-recap-head span{display:block;margin-top:3px}}
 .pool-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);color:var(--ink);font:inherit;text-align:left;appearance:none;cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .pool-row:hover,.pool-row:focus-visible{border-color:color-mix(in srgb,var(--rose) 48%,var(--line));box-shadow:0 4px 16px rgba(110,31,59,.1)}
 .pool-row-copy{display:block;min-width:0}
@@ -4040,7 +4044,10 @@ function PredictionDemo() {
   </div>;
 }
 function PublicTaste() {
-  const [view,setView]=useState('pick'),[couple,setCouple]=useState('AD + Clay'),[stake,setStake]=useState(30),[called,setCalled]=useState(false);
+  const demoBudget=200;
+  const demoCouples=[['Avery + Rowan','💘'],['Ellis + Jules','✨'],['Nova + Sage','🫖']];
+  const [view,setView]=useState('pick'),[couple,setCouple]=useState(demoCouples[0][0]),[stake,setStake]=useState(30),[called,setCalled]=useState(false);
+  const heartsLeft=demoBudget-stake;
   const board=[['Maya',612],['Lex',574],['You',548],['Priya',521]];
   const openChemistry=()=>{const url=new URL(window.location.href);url.searchParams.delete('globalDemo');url.searchParams.set('chemistryPreview','pool');window.location.assign(url.toString());};
   return <React.Fragment>
@@ -4053,16 +4060,17 @@ function PublicTaste() {
         <button type="button" role="tab" aria-selected={view==='standings'} className={view==='standings'?'active':''} onClick={()=>setView('standings')}>See the payoff</button>
       </div>
       {view==='pick'?<div className="public-demo" role="tabpanel">
-        <div className="public-demo-head"><div><h3>Who gets engaged?</h3><p className="subtle" style={{margin:'3px 0 0'}}>Try a real prediction. Nothing is saved.</p></div><span>Pods demo</span></div>
-        <div className="public-couple-grid">{[['AD + Clay','💘'],['Amy + Johnny','✨'],['Chelsea + Jimmy','🫖']].map(([name,icon])=><button type="button" className={'public-couple '+(couple===name?'active':'')} aria-pressed={couple===name} onClick={()=>{setCouple(name);setCalled(false);}} key={name}><span>{icon}</span>{name}</button>)}</div>
-        <label className="demo-stake-label" htmlFor="public-stake">How sure are you? · {stake} Hearts</label>
-        <input id="public-stake" type="range" min="10" max="60" step="10" value={stake} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/>
+        <div className="public-demo-head"><div><h3>Who gets engaged?</h3><p className="subtle" style={{margin:'3px 0 0'}}>Try a real prediction with fictional names. Nothing is saved.</p></div><span>Spoiler-free demo</span></div>
+        <div className="public-couple-grid">{demoCouples.map(([name,icon])=><button type="button" className={'public-couple '+(couple===name?'active':'')} aria-pressed={couple===name} onClick={()=>{setCouple(name);setCalled(false);}} key={name}><span>{icon}</span>{name}</button>)}</div>
+        <div className="budget-card phase-pods public-demo-budget"><div className="budgetrow"><span>Pods budget</span><span aria-live="polite"><span className="n">{heartsLeft}</span> / {demoBudget} Hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(heartsLeft/demoBudget*100)+'%'}}/></div><span className="budget-note">Move the slider to see your budget change</span></div>
+        <label className="demo-stake-label" htmlFor="public-stake">How sure are you?</label>
+        <div className="stakebox public-stakebox"><input id="public-stake" type="range" min="5" max="60" step="5" value={stake} aria-valuetext={stake+' Hearts'} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/><span className="stakeval public-stake-value" aria-live="polite">{stake}♥</span></div>
         <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Call it →</button>
         {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you’re right, early timing and a contrarian pick can multiply your score. That’s where the bragging rights live.</div>}
       </div>:<div className="public-demo" role="tabpanel">
         <div className="public-demo-head"><div><h3>After the reveal</h3><p className="subtle" style={{margin:'3px 0 0'}}>Every checkpoint turns predictions into live standings.</p></div><span>Global demo</span></div>
         <div className="public-mini-board">{board.map(([name,score],index)=><div className={'public-mini-row '+(name==='You'?'you':'')} key={name}><span className="public-mini-rank">#{index+1}</span><span className="public-mini-avatar">{initialsFor(name)}</span><strong>{name}{name==='You'&&<span className="player-badge gold" style={{marginLeft:6}}>🔥 2 streak</span>}</strong><span className="public-mini-score">{score}</span></div>)}</div>
-        <div className="public-demo-result"><strong>Your best call: AD + Clay</strong>Only 12% of the pool called it. Share the “I called it” card, then let the group chat cope.</div>
+        <div className="public-demo-result"><strong>Your best call: Avery + Rowan</strong>Only 12% of the pool called it. Share the “I called it” card, then let the group chat cope.</div>
         <button type="button" className="btn-secondary" onClick={openChemistry}>Try the Heat Check preview</button>
       </div>}
     </section>
