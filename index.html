@@ -1035,16 +1035,9 @@ window._fb = {
   },
   joinGlobalPool: async (season,uid,rulesSnapshot) => {
     const ref=doc(db,'pools','global__'+season.id);
-    await runTransaction(db,async tx=>{
-      const existing=await tx.get(ref);
-      if(!existing.exists()) {
-        throw new Error('The Global Pool has not been opened by the administrator yet.');
-      } else {
-        if(existing.data().global!==true||existing.data().globalSeasonId!==season.id) throw new Error('The global pool is configured incorrectly.');
-        tx.update(ref,{members:arrayUnion(uid)});
-      }
-    });
+    await httpsCallable(functions,'openGlobalPool')({seasonId:season.id});
     const s=await getDoc(ref);
+    if(!s.exists())throw new Error('The Global Pool could not be opened.');
     return {id:s.id,...s.data()};
   },
   getPlayer: async (poolId,uid) => {
