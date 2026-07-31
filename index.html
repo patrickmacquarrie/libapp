@@ -542,15 +542,20 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .rating-overall strong{display:block;color:var(--rose);font:700 24px/1 'Playfair Display',Georgia,serif}
 .rating-overall span{color:var(--soft-text);font-size:9px;font-weight:800}
 .rating-rows{padding:7px 12px 11px}
-.rating-row{display:grid;grid-template-columns:92px 1fr 22px;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 62%,transparent)}
+.rating-row{display:grid;grid-template-columns:92px minmax(110px,1fr) 48px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid color-mix(in srgb,var(--line) 62%,transparent)}
 .rating-row:last-child{border-bottom:0}
 .rating-label{color:var(--ink);font-size:11px;font-weight:800}
 .rating-label span{margin-right:4px}
-.rating-dots{display:flex;gap:5px}
-.rating-dot{width:25px;height:25px;display:grid;place-items:center;padding:0;border:1px solid color-mix(in srgb,var(--rose) 28%,var(--line));border-radius:50%;background:var(--surface);color:var(--soft-text);font:900 10px/1 Inter,sans-serif;cursor:pointer}
-.rating-dot.selected{border-color:var(--rose);background:var(--rose);color:#fff;box-shadow:0 2px 7px color-mix(in srgb,var(--rose) 28%,transparent)}
-.rating-dot.preview{background:color-mix(in srgb,var(--rose) 12%,var(--surface));color:var(--rose)}
-.rating-value{color:var(--wine);font-size:11px;font-weight:900;text-align:right}
+.rating-slider{min-width:0}
+.rating-slider input{width:100%;height:22px;margin:0;appearance:none;-webkit-appearance:none;background:transparent;cursor:pointer}
+.rating-slider input::-webkit-slider-runnable-track{height:7px;border-radius:99px;background:linear-gradient(90deg,var(--rose) 0 var(--rating-progress),var(--blush-soft) var(--rating-progress) 100%);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rose) 18%,var(--line))}
+.rating-slider input::-moz-range-track{height:7px;border-radius:99px;background:linear-gradient(90deg,var(--rose) 0 var(--rating-progress),var(--blush-soft) var(--rating-progress) 100%);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--rose) 18%,var(--line))}
+.rating-slider input::-webkit-slider-thumb{width:21px;height:21px;margin-top:-7px;appearance:none;-webkit-appearance:none;border:3px solid var(--surface);border-radius:50%;background:var(--rose);box-shadow:0 2px 8px color-mix(in srgb,var(--rose) 38%,transparent)}
+.rating-slider input::-moz-range-thumb{width:17px;height:17px;border:3px solid var(--surface);border-radius:50%;background:var(--rose);box-shadow:0 2px 8px color-mix(in srgb,var(--rose) 38%,transparent)}
+.rating-slider input.unrated{opacity:.48}
+.rating-slider input:focus-visible{outline:3px solid color-mix(in srgb,var(--purple) 28%,transparent);outline-offset:3px;border-radius:99px}
+.rating-slider-scale{display:flex;justify-content:space-between;margin-top:-1px;color:var(--soft-text);font-size:7px;font-weight:800}
+.rating-value{display:grid;grid-template-columns:1fr auto;align-items:center;text-align:right}.rating-value strong{color:var(--rose);font:700 20px/1 'Playfair Display',Georgia,serif}.rating-value span{align-self:end;margin:0 0 2px 2px;color:var(--soft-text);font-size:7px;font-weight:900}.rating-value button{grid-column:1/-1;justify-self:end;margin-top:2px;padding:0;border:0;background:transparent;color:var(--soft-text);font-size:9px;font-weight:900;cursor:pointer}.rating-value button:hover{color:var(--rose)}
 .chemistry-privacy{display:flex;gap:11px;align-items:flex-start;margin:16px 0;padding:14px;border:1px solid color-mix(in srgb,var(--purple) 26%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--purple) 6%,var(--surface))}
 .chemistry-privacy-icon{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;border-radius:11px;background:color-mix(in srgb,var(--purple) 13%,var(--surface));color:var(--purple);font-size:17px}
 .chemistry-privacy strong{display:block;color:var(--wine);font-size:13px}
@@ -640,7 +645,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger,:root[data-theme="dark"] .danger-zone h3{color:#f0a5bc}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
-@media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 11px;font-size:11px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.step-icon svg{width:20px;height:20px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-slider-shell{grid-template-columns:92px minmax(0,1fr) 30px;gap:6px;padding:9px}.cast-slider-title{padding-right:8px}.cast-slider-title strong{font-size:14px}.cast-slider-title span{font-size:8px}.cast-slider-arrow.prev{display:none}.cast-slider-arrow{width:29px;height:29px}.cast-slider-track>[role="listitem"]{flex-basis:62px}.cast-reference-avatar{width:55px;height:55px}.cast-reference-status{width:18px;height:18px;right:-2px;border-width:2px}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}.rating-grid{grid-template-columns:1fr}.rating-card-head{grid-template-columns:64px 1fr auto}.rating-card-photo{width:64px;height:64px}.rating-row{grid-template-columns:76px 1fr 20px;gap:5px}.rating-dots{gap:3px}.rating-dot{width:23px;height:23px}.chemistry-hero{padding:23px 16px}.chemistry-tea-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.chemistry-podium{gap:5px}.podium-place{padding-inline:4px}.podium-photo{width:50px;height:50px}.podium-place strong{font-size:13px}.leaderboard-row{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:7px}.leaderboard-row.expandable{grid-template-columns:24px 40px minmax(0,1fr) auto 18px}.leaderboard-avatar{width:40px;height:40px}.leaderboard-breakdown{padding:11px 9px}.pool-score-row{grid-template-columns:minmax(85px,1fr) 46px;gap:7px}.pool-score-values{grid-column:1/-1;grid-row:2}.compare-controls{grid-template-columns:1fr 1fr}.compare-vs{display:none}.compare-row{grid-template-columns:40px minmax(0,1fr) 46px 46px;gap:6px}.compare-row .compare-delta{grid-column:2/-1;justify-self:start}.compare-score{font-size:16px}}
+@media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 11px;font-size:11px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.step-icon svg{width:20px;height:20px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-slider-shell{grid-template-columns:92px minmax(0,1fr) 30px;gap:6px;padding:9px}.cast-slider-title{padding-right:8px}.cast-slider-title strong{font-size:14px}.cast-slider-title span{font-size:8px}.cast-slider-arrow.prev{display:none}.cast-slider-arrow{width:29px;height:29px}.cast-slider-track>[role="listitem"]{flex-basis:62px}.cast-reference-avatar{width:55px;height:55px}.cast-reference-status{width:18px;height:18px;right:-2px;border-width:2px}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}.rating-grid{grid-template-columns:1fr}.rating-card-head{grid-template-columns:64px 1fr auto}.rating-card-photo{width:64px;height:64px}.rating-row{grid-template-columns:72px minmax(100px,1fr) 44px;gap:7px}.rating-value strong{font-size:18px}.chemistry-hero{padding:23px 16px}.chemistry-tea-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.chemistry-podium{gap:5px}.podium-place{padding-inline:4px}.podium-photo{width:50px;height:50px}.podium-place strong{font-size:13px}.leaderboard-row{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:7px}.leaderboard-row.expandable{grid-template-columns:24px 40px minmax(0,1fr) auto 18px}.leaderboard-avatar{width:40px;height:40px}.leaderboard-breakdown{padding:11px 9px}.pool-score-row{grid-template-columns:minmax(85px,1fr) 46px;gap:7px}.pool-score-values{grid-column:1/-1;grid-row:2}.compare-controls{grid-template-columns:1fr 1fr}.compare-vs{display:none}.compare-row{grid-template-columns:40px minmax(0,1fr) 46px 46px;gap:6px}.compare-row .compare-delta{grid-column:2/-1;justify-self:start}.compare-score{font-size:16px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -670,7 +675,7 @@ const cleanCastRatings = ratings => (Array.isArray(ratings)?ratings:[]).slice(0,
   const values={};
   CAST_RATING_CATEGORIES.forEach(category=>{
     const value=Number(entry?.values?.[category]);
-    if(Number.isInteger(value)&&value>=0&&value<=5) values[category]=value;
+    if(Number.isInteger(value)&&value>=0&&value<=10) values[category]=value;
   });
   return {
     name:String(entry?.name||'').trim().slice(0,80),
@@ -683,7 +688,7 @@ const ratingMetrics = entry => {
   const metrics={};
   CAST_RATING_CATEGORIES.forEach(category=>{
     const value=Number(values[category]);
-    if(Number.isInteger(value)&&value>=0&&value<=5) metrics[category]=value;
+    if(Number.isInteger(value)&&value>=0&&value<=10) metrics[category]=value;
   });
   if(CAST_RATING_CATEGORIES.every(category=>Number.isInteger(metrics[category]))) {
     metrics.overall=CAST_RATING_CATEGORIES.reduce((sum,category)=>sum+metrics[category],0);
@@ -2636,7 +2641,7 @@ const RATING_CATEGORIES = [
   {id:'intelligence',label:'Intelligence',short:'Smarts',icon:'🧠'},
   {id:'vibes',label:'Vibes',short:'Vibes',icon:'✨'},
 ];
-const RATING_SORTS=[{id:'overall',label:'Overall · /20'},...RATING_CATEGORIES.map(category=>({id:category.id,label:category.label+' · /5'}))];
+const RATING_SORTS=[{id:'overall',label:'Overall · /40'},...RATING_CATEGORIES.map(category=>({id:category.id,label:category.label+' · /10'}))];
 const castInitials = name => String(name||'').split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase();
 const completeRating = values => RATING_CATEGORIES.every(category=>Number.isInteger(values?.[category.id]));
 const overallRating = values => completeRating(values)?RATING_CATEGORIES.reduce((sum,category)=>sum+values[category.id],0):null;
@@ -2932,20 +2937,18 @@ function CastRatingCard({person,values,onChange}) {
     <div className="rating-card-head">
       <RatingPhoto person={person} className="rating-card-photo"/>
       <div><div className="rating-card-name">{person.name}</div><div className="rating-card-meta">{person.gender==='M'?'Men':'Women'} · cast chemistry</div></div>
-      <div className="rating-overall"><strong>{overall??'—'}</strong><span>of 20</span></div>
+      <div className="rating-overall"><strong>{overall??'—'}</strong><span>of 40</span></div>
     </div>
     <div className="rating-rows">{RATING_CATEGORIES.map(category=>{
       const hasValue=Object.prototype.hasOwnProperty.call(values||{},category.id);
       const value=hasValue?values[category.id]:null;
       return <div className="rating-row" key={category.id}>
         <span className="rating-label"><span aria-hidden="true">{category.icon}</span>{category.short}</span>
-        <div className="rating-dots" role="group" aria-label={category.label+' rating for '+person.name}>
-          {[0,1,2,3,4,5].map(score=>{
-            const selected=hasValue&&(score===0?value===0:(value>0&&score<=value));
-            return <button type="button" className={'rating-dot '+(selected?'selected':'')} aria-label={score+' out of 5'} aria-pressed={score===value} onClick={()=>onChange(category.id,score===value?null:score)} key={score}>{score}</button>;
-          })}
+        <div className="rating-slider">
+          <input type="range" min="0" max="10" step="1" value={hasValue?value:5} className={hasValue?'':'unrated'} style={{'--rating-progress':`${(hasValue?value:5)*10}%`}} aria-label={category.label+' rating for '+person.name} aria-valuetext={hasValue?value+' out of 10':'Not rated. Move the slider to rate.'} onPointerDown={()=>{if(!hasValue)onChange(category.id,5);}} onChange={event=>onChange(category.id,Number(event.target.value))}/>
+          <div className="rating-slider-scale"><span>0</span><span>5</span><span>10</span></div>
         </div>
-        <span className="rating-value">{hasValue?value:'—'}</span>
+        <div className="rating-value"><strong>{hasValue?value:'—'}</strong><span>/10</span>{hasValue&&<button type="button" aria-label={'Clear '+category.label+' rating for '+person.name} onClick={()=>onChange(category.id,null)}>×</button>}</div>
       </div>;
     })}</div>
   </article>;
@@ -3041,7 +3044,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     return {person,a,b,delta:Number.isFinite(a)&&Number.isFinite(b)?a-b:null};
   }).filter(row=>(gender==='all'||row.person.gender===gender)&&row.delta!=null)
     .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||alphaByName(a.person.name,b.person.name));
-  const scoreLabel=value=>value==null?'—':(sort==='overall'?value.toFixed(1)+'/20':value.toFixed(1)+'/5');
+  const scoreLabel=value=>value==null?'—':(sort==='overall'?value.toFixed(1)+'/40':value.toFixed(1)+'/10');
   const shareLeaderboard=async kind=>{
     const leaders=(kind==='mine'?myRanked.slice(0,3).map(row=>row.person.name):filteredCommunity.slice(0,3).map(row=>row.name));
     if(!leaders.length)return;
@@ -3094,13 +3097,13 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
         </div>
         <div className="chemistry-progress">
           <div className="chemistry-progress-ring" style={{'--progress':progress}}><span>{progress}%</span></div>
-          <div><strong>{completeCount} of {visibleCast.length} complete</strong><small>A complete scorecard has all four ratings. Zero is fair game. Tap a selected number again to clear it.</small></div>
+          <div><strong>{completeCount} of {visibleCast.length} complete</strong><small>A complete scorecard has all four ratings. Zero is fair game. Use × to clear a rating.</small></div>
         </div>
         <div className="rating-grid">{visibleCast.map(person=><CastRatingCard person={person} values={draft[person.name]||{}} onChange={(category,value)=>changeRating(person,category,value)} key={person.name}/>)}</div>
-        {showPersonalPodium&&<section className="personal-podium"><h3>🏆 Your podium</h3><p>Everyone in this filter is scored. Nothing locks—you can revise it anytime.</p><div className="chemistry-podium">{visibleMyRanked.slice(0,3).map((row,index)=><div className={'podium-place '+(index===0?'first':index===1?'second':'third')} key={row.person.name}><div className="podium-medal">{index===0?'👑':index===1?'🥈':'🥉'}</div><RatingPhoto person={row.person} className="podium-photo"/><strong>{row.person.name}</strong><small>{row.score}/20</small></div>)}</div></section>}
+        {showPersonalPodium&&<section className="personal-podium"><h3>🏆 Your podium</h3><p>Everyone in this filter is scored. Nothing locks—you can revise it anytime.</p><div className="chemistry-podium">{visibleMyRanked.slice(0,3).map((row,index)=><div className={'podium-place '+(index===0?'first':index===1?'second':'third')} key={row.person.name}><div className="podium-medal">{index===0?'👑':index===1?'🥈':'🥉'}</div><RatingPhoto person={row.person} className="podium-photo"/><strong>{row.person.name}</strong><small>{row.score}/40</small></div>)}</div></section>}
         {globalPool?<div className="chemistry-privacy"><div className="chemistry-privacy-icon">◉</div><div><strong>Your picks stay private in the Global Pool</strong><p>Other players see only combined averages and rating counts—not your name or individual scorecard.</p></div></div>:<label className="chemistry-toggle"><input type="checkbox" checked={shareWithFriends} onChange={event=>{setShareWithFriends(event.target.checked);setDirty(true);}}/><span><strong>Let this friend pool see my picks</strong><span>When on, friends can open your scorecard in “The tea.” Turn it off anytime to remove your individual ratings from this pool.</span></span></label>}
         <div className="chemistry-privacy"><div className="chemistry-privacy-icon">↻</div><div><strong>Changed your mind? Come back later.</strong><p>Ratings never lock. Save what you have now, then revise any score whenever the vibes shift.</p></div></div>
-        {myRanked.length>0&&<div className="chemistry-fingerprint"><h3>{fingerprintCategory.icon} Your chemistry fingerprint: {fingerprintCategory.label}</h3><p>Your highest average category is {fingerprintCategory.label.toLowerCase()}. Right now, {myRanked[0].person.name} tops your complete scorecards with {myRanked[0].score}/20.</p><button className="btn-secondary" onClick={()=>shareLeaderboard('mine')}>Share my top three</button>{shareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{shareFeedback}</p>}</div>}
+        {myRanked.length>0&&<div className="chemistry-fingerprint"><h3>{fingerprintCategory.icon} Your chemistry fingerprint: {fingerprintCategory.label}</h3><p>Your highest average category is {fingerprintCategory.label.toLowerCase()}. Right now, {myRanked[0].person.name} tops your complete scorecards with {myRanked[0].score}/40.</p><button className="btn-secondary" onClick={()=>shareLeaderboard('mine')}>Share my top three</button>{shareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{shareFeedback}</p>}</div>}
       </div>
       <div className="chemistry-savebar"><button className="btn-primary" disabled={saving||!dirty} onClick={save}>{saving?'Saving the tea…':dirty?'Save my ratings':feedback||'No changes to save'}</button></div>
     </React.Fragment>:<React.Fragment>
@@ -3120,7 +3123,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
           <div className="chemistry-segmented three" style={{flex:'1 1 290px',margin:0}}>{[{id:'all',label:'Both'},{id:'M',label:'Men'},{id:'F',label:'Women'}].map(option=><button type="button" className={gender===option.id?'active':''} onClick={()=>setGender(option.id)} key={option.id}>{option.label}</button>)}</div>
           <div className="field"><label className="small" htmlFor="chemistry-sort">Sort by</label><select id="chemistry-sort" value={sort} onChange={event=>setSort(event.target.value)}>{RATING_SORTS.map(option=><option value={option.id} key={option.id}>{option.label}</option>)}</select></div>
         </div>
-        {(!globalPool&&teaView==='leaderboard'&&outlier)&&<div className="chemistry-outlier"><span className="chemistry-outlier-kicker">The biggest beautiful outlier</span><h3>I love that for you…</h3><p>You gave <strong>{outlier.rating.name}</strong> {outlier.score}/20 while everyone else averaged {outlier.peerAverage.toFixed(1)}/20. That’s {outlier.delta.toFixed(1)} points above the room.</p></div>}
+        {(!globalPool&&teaView==='leaderboard'&&outlier)&&<div className="chemistry-outlier"><span className="chemistry-outlier-kicker">The biggest beautiful outlier</span><h3>I love that for you…</h3><p>You rated <strong>{outlier.rating.name}</strong> {outlier.score}/40, but everyone else averaged {outlier.peerAverage.toFixed(1)}/40. 😬</p></div>}
         {teaView==='compare'?<React.Fragment>
           <div className="compare-controls">
             <div className="field"><label className="small" htmlFor="compare-source-a">Perspective A</label><select id="compare-source-a" value={sourceA?.id||''} onChange={event=>setCompareA(event.target.value)}>{compareSources.map(source=><option value={source.id} key={source.id}>{source.label}</option>)}</select></div>
@@ -3131,7 +3134,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
         </React.Fragment>:(!globalPool&&teaView==='friends')?<React.Fragment>
           {otherFriends.length?<React.Fragment>
             <div className="friend-scorecard-head"><div className="field"><label className="small" htmlFor="friend-scorecard-player">Whose picks?</label><select id="friend-scorecard-player" value={selectedFriend} onChange={event=>setSelectedFriend(event.target.value)}>{otherFriends.map(entry=><option value={entry.uid} key={entry.uid}>{memberLabels[entry.uid]||entry.username||'Player'}</option>)}</select></div></div>
-            <div className="mini-score-grid">{selectedFriendRatings.map(rating=><div className="mini-score-card" key={rating.name}><div className="mini-score-card-head"><strong>{rating.name}</strong><span>{overallRating(rating.values)??'—'}/20</span></div><div className="mini-score-values">{RATING_CATEGORIES.map(category=><span key={category.id}>{category.icon}<b>{rating.values?.[category.id]??'—'}</b></span>)}</div></div>)}</div>
+            <div className="mini-score-grid">{selectedFriendRatings.map(rating=><div className="mini-score-card" key={rating.name}><div className="mini-score-card-head"><strong>{rating.name}</strong><span>{overallRating(rating.values)??'—'}/40</span></div><div className="mini-score-values">{RATING_CATEGORIES.map(category=><span key={category.id}>{category.icon}<b>{rating.values?.[category.id]??'—'}/10</b></span>)}</div></div>)}</div>
           </React.Fragment>:<div className="chemistry-empty"><div className="chemistry-empty-icon">🤐</div><h3>No friends have spilled yet</h3><p>When someone turns on sharing, their scorecard will appear here. Your pool averages only use shared ratings.</p></div>}
         </React.Fragment>:filteredCommunity.length?<React.Fragment>
           <div className="chemistry-podium">{filteredCommunity.slice(0,3).map((row,index)=><div className={'podium-place '+(index===0?'first':index===1?'second':'third')} key={row.name}><div className="podium-medal">{index===0?'👑':index===1?'🥈':'🥉'}</div><RatingPhoto person={castByName[row.name]||{name:row.name}} className="podium-photo"/><strong>{row.name}</strong><small>{scoreLabel(row.scores[sort])}</small></div>)}</div>
@@ -3141,14 +3144,14 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
             const open=canExpand&&expandedCast===row.name;
             return <React.Fragment key={row.name}>
               <div className={'leaderboard-row '+(canExpand?'expandable ':'')+(open?'open':'')} role={canExpand?'button':undefined} tabIndex={canExpand?0:undefined} aria-expanded={canExpand?open:undefined} aria-label={canExpand?`${row.name}: ${scoreLabel(row.scores[sort])}. ${open?'Hide':'Show'} pool scorecards`:undefined} onClick={canExpand?()=>setExpandedCast(current=>current===row.name?'':row.name):undefined} onKeyDown={canExpand?event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setExpandedCast(current=>current===row.name?'':row.name);}}:undefined}>
-                <span className="leaderboard-rank">{index+1}</span><RatingPhoto person={castByName[row.name]||{name:row.name}} className="leaderboard-avatar"/><div className="leaderboard-name"><strong>{row.name}</strong><span>{row.counts[sort]||0} rating{row.counts[sort]===1?'':'s'}</span></div><div className="leaderboard-score">{scoreLabel(row.scores[sort]).split('/')[0]}<span>of {sort==='overall'?'20':'5'}</span></div>{canExpand&&<span className="leaderboard-expand-icon" aria-hidden="true">⌄</span>}
+                <span className="leaderboard-rank">{index+1}</span><RatingPhoto person={castByName[row.name]||{name:row.name}} className="leaderboard-avatar"/><div className="leaderboard-name"><strong>{row.name}</strong><span>{row.counts[sort]||0} rating{row.counts[sort]===1?'':'s'}</span></div><div className="leaderboard-score">{scoreLabel(row.scores[sort]).split('/')[0]}<span>of {sort==='overall'?'40':'10'}</span></div>{canExpand&&<span className="leaderboard-expand-icon" aria-hidden="true">⌄</span>}
               </div>
               {open&&<section className="leaderboard-breakdown" aria-label={'Pool scorecards for '+row.name}>
                 <div className="leaderboard-breakdown-head"><div><h4>{row.name}: the receipts</h4><p>Every scorecard shared with this friend pool.</p></div><span>{expandedScores.length} player{expandedScores.length===1?'':'s'}</span></div>
                 <div className="pool-score-list">{visibleExpandedScores.map(scorecard=><div className="pool-score-row" key={scorecard.uid}>
                   <div className="pool-score-player"><strong>{scorecard.label}</strong><span>{sort==='overall'?'Overall':RATING_SORTS.find(metric=>metric.id===sort)?.label}: {sort==='overall'?(scorecard.overall??'—'):(scorecard.values[sort]??'—')}</span></div>
-                  <div className="pool-score-values">{RATING_CATEGORIES.map(category=><span key={category.id}>{category.icon} {category.short}<b>{scorecard.values[category.id]??'—'}</b></span>)}</div>
-                  <div className="pool-score-overall">{scorecard.overall??'—'}<span>of 20</span></div>
+                  <div className="pool-score-values">{RATING_CATEGORIES.map(category=><span key={category.id}>{category.icon} {category.short}<b>{scorecard.values[category.id]??'—'}/10</b></span>)}</div>
+                  <div className="pool-score-overall">{scorecard.overall??'—'}<span>of 40</span></div>
                 </div>)}</div>
                 {breakdownPages>1&&<div className="breakdown-pagination"><button type="button" disabled={safeExpandedPage===0} onClick={()=>setExpandedPage(page=>Math.max(0,page-1))}>Previous</button><span>Page {safeExpandedPage+1} of {breakdownPages}</span><button type="button" disabled={safeExpandedPage>=breakdownPages-1} onClick={()=>setExpandedPage(page=>Math.min(breakdownPages-1,page+1))}>Next</button></div>}
               </section>}
@@ -3187,10 +3190,10 @@ function ChemistryPreview() {
       name:person.name,
       gender:person.gender,
       values:{
-        hotness:(3+index+playerIndex)%6,
-        humour:(4+index*2+playerIndex)%6,
-        intelligence:(5+index+playerIndex*2)%6,
-        vibes:(2+index*3+playerIndex)%6,
+        hotness:(6+index+playerIndex)%11,
+        humour:(8+index*2+playerIndex)%11,
+        intelligence:(9+index+playerIndex*2)%11,
+        vibes:(5+index*3+playerIndex)%11,
       },
     })),
   }));
