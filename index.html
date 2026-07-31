@@ -834,6 +834,7 @@ window._fb = {
     httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
   leavePool: poolId => httpsCallable(functions,'leavePool')({poolId}),
   deleteMyAccount: () => httpsCallable(functions,'deleteMyAccount')({}),
+  openGlobalPool: seasonId => httpsCallable(functions,'openGlobalPool')({seasonId}),
   acceptInvite: async (invite, uid) => {
     await runTransaction(db, async tx => {
       const inviteRef = doc(db,'invites',invite.id);
@@ -1464,9 +1465,10 @@ const SEASON_BANK = [
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
-// There is one universal pool at a time: prioritize the current live season,
-// then show the next upcoming one until it begins.
-const GLOBAL_POOL_SEASON = SEASON_BANK.find(season=>season.available&&season.status==='live')||SEASON_BANK.find(season=>season.available&&season.status==='upcoming')||null;
+// Friends-test global pool: use a completed season with a populated cast so
+// Cast Chemistry and its anonymous aggregate can be exercised end to end.
+// Switch this back to the live/upcoming selector when the UK S3 cast is ready.
+const GLOBAL_POOL_SEASON = SEASON_BANK.find(season=>season.id==='love-is-blind-us-6')||null;
 // Safe visual preview: append ?globalDemo=1 to the app URL. Sample players
 // exist only in memory and are never written to Firebase.
 const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('globalDemo')==='1';
@@ -4193,7 +4195,14 @@ function App() {
       globalLinks.current=links;
       setPools(availablePools); setInvites(is);
       const publicGlobalPools=GLOBAL_POOL_SEASON?[await (async()=>{
-        try { return [GLOBAL_POOL_SEASON.id,await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id)]; }
+        try {
+          let pool=await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id);
+          if(!pool&&String(user.email||'').toLowerCase()==='patrick@blxckmarketing.com'){
+            await window._fb.openGlobalPool(GLOBAL_POOL_SEASON.id);
+            pool=await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id);
+          }
+          return [GLOBAL_POOL_SEASON.id,pool];
+        }
         catch(e) { console.info('The global pool is unavailable until its Firestore rules are published.',e); return [GLOBAL_POOL_SEASON.id,null]; }
       })()]:[];
       setGlobalPools(Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool])));
