@@ -1,6 +1,6 @@
 # Through the Wall
 
-An unofficial social prediction-pool app for friends watching *Love Is Blind*. It includes asynchronous checkpoints, spoiler-aware standings, historical seasons, and optional Cast Chemistry ratings.
+An unofficial social prediction-pool app for friends watching *Love Is Blind*. It includes asynchronous checkpoints, spoiler-aware standings, historical seasons, and optional Heat Check ratings.
 
 ## Local build
 
@@ -13,7 +13,7 @@ The deployable static site is written to `dist/`. GitHub Actions publishes that 
 
 ## Firebase deployment
 
-The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, and global Chemistry aggregation use Firebase Functions.
+The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, and global Heat Check aggregation use Firebase Functions.
 
 ```sh
 cd functions
