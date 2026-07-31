@@ -1,0 +1,18 @@
+{
+  "name": "Through the Wall",
+  "short_name": "The Wall",
+  "description": "Social prediction pools and Cast Chemistry for reality-TV watch groups.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f3ef",
+  "theme_color": "#431127",
+  "icons": [
+    {
+      "src": "images/through-the-wall-app-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

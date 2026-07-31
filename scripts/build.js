@@ -17,4 +17,12 @@ const output=withoutBabelCdn.replace(babelScript,`<script>\n${compiled}\n</scrip
 
 fs.mkdirSync(path.dirname(outputPath),{recursive:true});
 fs.writeFileSync(outputPath,output);
+const imagesPath=path.join(root,'images');
+if(fs.existsSync(imagesPath)) {
+  fs.cpSync(imagesPath,path.join(root,'dist','images'),{recursive:true});
+}
+['manifest.webmanifest','privacy.html','terms.html'].forEach(file=>{
+  const sourceFile=path.join(root,file);
+  if(fs.existsSync(sourceFile))fs.copyFileSync(sourceFile,path.join(root,'dist',file));
+});
 console.log('Built dist/index.html');

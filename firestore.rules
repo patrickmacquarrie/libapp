@@ -1,0 +1,601 @@
+rules_version = '2';
+
+// COMPLETE REPLACEMENT RULESET FOR THROUGH THE WALL / LIBAPP
+// Back up the currently published rules before replacing them with this file.
+// This ruleset covers profiles, seasons, pools, invitations, prediction
+// privacy, phase completion, friend Cast Chemistry, and Global Pool averages.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // Shared helpers
+    // ============================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function authEmail() {
+      return signedIn()
+        ? request.auth.token.get('email', '').lower()
+        : '';
+    }
+
+    function validPhase(phase) {
+      return phase in ['pods', 'dating', 'weddings', 'reunion'];
+    }
+
+    function poolExists(poolId) {
+      return exists(/databases/$(database)/documents/pools/$(poolId));
+    }
+
+    function poolData(poolId) {
+      return get(/databases/$(database)/documents/pools/$(poolId)).data;
+    }
+
+    function poolMember(poolId) {
+      return signedIn() &&
+        poolExists(poolId) &&
+        request.auth.uid in poolData(poolId).members;
+    }
+
+    function poolOwner(poolId) {
+      return signedIn() &&
+        poolExists(poolId) &&
+        poolData(poolId).ownerUid == request.auth.uid;
+    }
+
+    function globalPoolMember(seasonId) {
+      return poolMember('global__' + seasonId) &&
+        poolData('global__' + seasonId).global == true &&
+        poolData('global__' + seasonId).globalSeasonId == seasonId;
+    }
+
+    function phaseCompleted(poolId, phase, uid) {
+      return exists(
+        /databases/$(database)/documents/pools/$(poolId)/phaseStatus/$(phase)
+      ) &&
+        uid in get(
+          /databases/$(database)/documents/pools/$(poolId)/phaseStatus/$(phase)
+        ).data.get('completedMembers', []);
+    }
+
+    function reunionLocked(poolId, uid) {
+      return exists(
+        /databases/$(database)/documents/pools/$(poolId)/players/$(uid)
+      ) &&
+        get(
+          /databases/$(database)/documents/pools/$(poolId)/players/$(uid)
+        ).data.get('phase', '') == 'reunion' &&
+        get(
+          /databases/$(database)/documents/pools/$(poolId)/players/$(uid)
+        ).data.get('screen', '') in ['watch', 'close', 'final'];
+    }
+
+    function pendingInviteFor(poolId) {
+      return authEmail() != '' &&
+        exists(
+          /databases/$(database)/documents/invites/$(poolId + '__' + authEmail())
+        ) &&
+        get(
+          /databases/$(database)/documents/invites/$(poolId + '__' + authEmail())
+        ).data.status == 'pending' &&
+        get(
+          /databases/$(database)/documents/invites/$(poolId + '__' + authEmail())
+        ).data.toEmail == authEmail();
+    }
+
+    // ============================================================
+    // User profiles
+    // Public profile data contains only the in-app username.
+    // ============================================================
+
+    match /users/{userId} {
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create, update: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['username', 'createdAt']) &&
+        request.resource.data.username is string &&
+        request.resource.data.username.size() >= 1 &&
+        request.resource.data.username.size() <= 40 &&
+        request.resource.data.createdAt is number;
+
+      allow delete: if false;
+    }
+
+    // ============================================================
+    // Published season data
+    // Browser clients may read it; only trusted admin tooling writes it.
+    // ============================================================
+
+    match /seasons/{seasonId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // Pools
+    // ============================================================
+
+    match /pools/{poolId} {
+
+      function onlyMembersChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['members']);
+      }
+
+      function membersAreOldMembersPlusViewer() {
+        return request.resource.data.members is list &&
+          resource.data.members is list &&
+          request.resource.data.members.toSet() ==
+            resource.data.members.toSet().union([request.auth.uid].toSet());
+      }
+
+      function canJoinGlobalPool() {
+        return signedIn() &&
+          resource.data.get('global', false) == true &&
+          resource.data.get('globalSeasonId', '') is string &&
+          poolId == 'global__' + resource.data.globalSeasonId &&
+          onlyMembersChanged() &&
+          membersAreOldMembersPlusViewer();
+      }
+
+      function canAcceptFriendInvite() {
+        return signedIn() &&
+          resource.data.get('global', false) != true &&
+          resource.data.get('membershipClosed', false) != true &&
+          onlyMembersChanged() &&
+          membersAreOldMembersPlusViewer() &&
+          pendingInviteFor(poolId);
+      }
+
+      function canJoinFriendPoolWithCode() {
+        return signedIn() &&
+          resource.data.get('global', false) != true &&
+          resource.data.get('membershipClosed', false) != true &&
+          resource.data.get('joinCode', '') is string &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'members',
+            'lastJoinUid',
+            'lastJoinProof'
+          ]) &&
+          membersAreOldMembersPlusViewer() &&
+          request.resource.data.lastJoinUid == request.auth.uid &&
+          request.resource.data.lastJoinProof == resource.data.joinCode;
+      }
+
+      function canOwnerSetInitialJoinCode() {
+        return poolOwner(poolId) &&
+          resource.data.get('global', false) != true &&
+          resource.data.get('joinCode', '') == '' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['joinCode']) &&
+          request.resource.data.joinCode is string &&
+          request.resource.data.joinCode.size() >= 12 &&
+          request.resource.data.joinCode.size() <= 80;
+      }
+
+      function canFreezeRules() {
+        return poolOwner(poolId) &&
+          resource.data.get('rulesSnapshot', null) == null &&
+          validRulesSnapshot(request.resource.data.get('rulesSnapshot', null)) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['rulesSnapshot']);
+      }
+
+      function validRulesSnapshot(snapshot) {
+        return snapshot is map &&
+          snapshot.keys().hasAll([
+            'version',
+            'RULES',
+            'PH_SPAN',
+            'PH_STARTW',
+            'DATING_MULT',
+            'WED_MULT',
+            'REU_MULT',
+            'RACE_MULT'
+          ]) &&
+          snapshot.keys().hasOnly([
+            'version',
+            'RULES',
+            'PH_SPAN',
+            'PH_STARTW',
+            'DATING_MULT',
+            'WED_MULT',
+            'REU_MULT',
+            'RACE_MULT'
+          ]) &&
+          snapshot.version == 3 &&
+          snapshot.RULES is map &&
+          snapshot.PH_SPAN is map &&
+          snapshot.PH_STARTW is map &&
+          snapshot.DATING_MULT is map &&
+          snapshot.WED_MULT is map &&
+          snapshot.REU_MULT is map &&
+          snapshot.RACE_MULT is number;
+      }
+
+      function canOwnerChangeMembershipSetting() {
+        return poolOwner(poolId) &&
+          resource.data.get('global', false) != true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'membershipClosed',
+            'membershipUpdatedAt',
+            'membershipClosedAt'
+          ]) &&
+          request.resource.data.membershipClosed is bool &&
+          request.resource.data.membershipUpdatedAt is number &&
+          (
+            request.resource.data.membershipClosedAt == null ||
+            request.resource.data.membershipClosedAt is number
+          );
+      }
+
+      allow get: if signedIn() &&
+        (
+          resource.data.get('global', false) == true ||
+          request.auth.uid in resource.data.members
+        );
+
+      // The app queries pools with:
+      // where('members', 'array-contains', request.auth.uid)
+      allow list: if signedIn() &&
+        request.auth.uid in resource.data.members;
+
+      // Ordinary users create friend pools only. Global pools are created
+      // through trusted administrator tooling.
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly([
+          'name',
+          'ownerUid',
+          'members',
+          'rulesSnapshot',
+          'joinCode',
+          'membershipClosed',
+          'season',
+          'createdAt'
+        ]) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 1 &&
+        request.resource.data.name.size() <= 100 &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.members == [request.auth.uid] &&
+        request.resource.data.joinCode is string &&
+        request.resource.data.joinCode.size() >= 12 &&
+        request.resource.data.joinCode.size() <= 80 &&
+        request.resource.data.membershipClosed == false &&
+        request.resource.data.season is map &&
+        request.resource.data.createdAt is number &&
+        (
+          request.resource.data.rulesSnapshot == null ||
+          validRulesSnapshot(request.resource.data.rulesSnapshot)
+        );
+
+      allow update: if
+        canJoinGlobalPool() ||
+        canAcceptFriendInvite() ||
+        canJoinFriendPoolWithCode() ||
+        canOwnerSetInitialJoinCode() ||
+        canFreezeRules() ||
+        canOwnerChangeMembershipSetting();
+
+      allow delete: if poolOwner(poolId);
+
+      // ----------------------------------------------------------
+      // Public player progress. Prediction picks are never stored
+      // in these documents.
+      // ----------------------------------------------------------
+
+      match /players/{userId} {
+        function validPublicPlayerState() {
+          return !request.resource.data.keys().hasAny(['picks']);
+        }
+
+        allow read: if poolMember(poolId);
+
+        allow create, update: if poolMember(poolId) &&
+          request.auth.uid == userId &&
+          validPublicPlayerState();
+
+        allow delete: if poolOwner(poolId);
+      }
+
+      // ----------------------------------------------------------
+      // Phase completion status
+      // Each member may add or remove only their own uid.
+      // ----------------------------------------------------------
+
+      match /phaseStatus/{phase} {
+        function validStatusShape() {
+          return validPhase(phase) &&
+            request.resource.data.keys().hasOnly([
+              'completedMembers',
+              'revealed',
+              'updatedAt'
+            ]) &&
+            request.resource.data.completedMembers is list &&
+            request.resource.data.revealed == false &&
+            request.resource.data.updatedAt is number;
+        }
+
+        function viewerOnlyAddedOwnCompletion() {
+          return request.resource.data.completedMembers.toSet() ==
+              resource.data.get('completedMembers', []).toSet()
+                .union([request.auth.uid].toSet());
+        }
+
+        allow read: if poolMember(poolId);
+
+        allow create: if poolMember(poolId) &&
+          validStatusShape() &&
+          request.resource.data.completedMembers == [request.auth.uid];
+
+        allow update: if poolMember(poolId) &&
+          validStatusShape() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'completedMembers',
+            'revealed',
+            'updatedAt'
+          ]) &&
+          viewerOnlyAddedOwnCompletion();
+
+        allow delete: if poolOwner(poolId);
+      }
+
+      // ----------------------------------------------------------
+      // Immutable-by-checkpoint prediction documents
+      // ----------------------------------------------------------
+
+      match /phasePicks/{pickId} {
+        function viewerOwnsPickId() {
+          return signedIn() &&
+            pickId.matches(
+              '^(pods|dating|weddings|reunion)__' + request.auth.uid + '$'
+            );
+        }
+
+        function validPickWrite() {
+          return poolMember(poolId) &&
+            request.resource.data.keys().hasOnly([
+              'uid',
+              'phase',
+              'picks',
+              'updatedAt'
+            ]) &&
+            request.resource.data.uid == request.auth.uid &&
+            request.resource.data.phase is string &&
+            validPhase(request.resource.data.phase) &&
+            pickId ==
+              request.resource.data.phase + '__' + request.auth.uid &&
+            request.resource.data.picks is list &&
+            request.resource.data.picks.size() <= 40 &&
+            request.resource.data.updatedAt is number &&
+            !phaseCompleted(
+              poolId,
+              request.resource.data.phase,
+              request.auth.uid
+            ) &&
+            !(
+              request.resource.data.phase == 'reunion' &&
+              reunionLocked(poolId, request.auth.uid)
+            );
+        }
+
+        function viewerMayReadAnotherPick() {
+          let targetUid = resource.data.uid;
+          let targetPhase = resource.data.phase;
+          let bothCompleted =
+            phaseCompleted(poolId, targetPhase, request.auth.uid) &&
+            phaseCompleted(poolId, targetPhase, targetUid);
+          let bothLockedReunion =
+            targetPhase == 'reunion' &&
+            reunionLocked(poolId, request.auth.uid) &&
+            reunionLocked(poolId, targetUid);
+          return poolMember(poolId) &&
+            (bothCompleted || bothLockedReunion);
+        }
+
+        allow read: if viewerOwnsPickId() ||
+          viewerMayReadAnotherPick();
+
+        allow create, update: if validPickWrite();
+
+        allow delete: if poolOwner(poolId);
+      }
+
+      // ----------------------------------------------------------
+      // Opt-in friend-pool Cast Chemistry snapshots
+      // A non-shared document contains no rating values.
+      // ----------------------------------------------------------
+
+      match /castRatings/{userId} {
+        function validFriendRatingDocument() {
+          let data = request.resource.data;
+          return data.keys().hasOnly([
+              'uid',
+              'username',
+              'shared',
+              'ratings',
+              'updatedAt'
+            ]) &&
+            data.uid == userId &&
+            data.shared is bool &&
+            data.updatedAt is number &&
+            (
+              (
+                data.shared == false &&
+                !data.keys().hasAny(['username', 'ratings'])
+              ) ||
+              (
+                data.shared == true &&
+                data.username is string &&
+                data.username.size() >= 1 &&
+                data.username.size() <= 40 &&
+                data.ratings is list &&
+                data.ratings.size() <= 80
+              )
+            );
+        }
+
+        // Collection reads are allowed for pool members because Firestore
+        // rules are not filters. Unshared documents contain no ratings.
+        allow read: if poolMember(poolId);
+
+        allow create, update: if poolMember(poolId) &&
+          request.auth.uid == userId &&
+          validFriendRatingDocument();
+
+        allow delete: if poolOwner(poolId);
+      }
+    }
+
+    // ============================================================
+    // Invitations
+    // ============================================================
+
+    match /invites/{inviteId} {
+      function validInviteDocument() {
+        let data = request.resource.data;
+        return data.keys().hasOnly([
+            'poolId',
+            'poolName',
+            'seasonLabel',
+            'fromUid',
+            'fromUsername',
+            'toEmail',
+            'status',
+            'createdAt'
+          ]) &&
+          data.poolId is string &&
+          data.poolName is string &&
+          data.seasonLabel is string &&
+          data.fromUid is string &&
+          data.fromUsername is string &&
+          data.toEmail is string &&
+          data.toEmail == data.toEmail.lower() &&
+          data.status == 'pending' &&
+          data.createdAt is number &&
+          inviteId == data.poolId + '__' + data.toEmail;
+      }
+
+      function viewerIsRecipient() {
+        return signedIn() &&
+          authEmail() != '' &&
+          resource.data.toEmail == authEmail();
+      }
+
+      allow read: if viewerIsRecipient() ||
+        poolMember(resource.data.poolId);
+
+      allow create: if signedIn() &&
+        validInviteDocument() &&
+        request.resource.data.fromUid == request.auth.uid &&
+        poolOwner(request.resource.data.poolId);
+
+      // Pool members may resend/replace a deterministic invitation.
+      allow update: if
+        (
+          signedIn() &&
+          resource.data.status == 'pending' &&
+          validInviteDocument() &&
+          request.resource.data.fromUid == request.auth.uid &&
+          poolOwner(request.resource.data.poolId)
+        ) ||
+        (
+          viewerIsRecipient() &&
+          resource.data.status == 'pending' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status']) &&
+          request.resource.data.status in ['accepted', 'declined']
+        );
+
+      allow delete: if poolOwner(resource.data.poolId);
+    }
+
+    // ============================================================
+    // Private Cast Chemistry scorecards
+    // ============================================================
+
+    match /castRatingProfiles/{userId}/seasons/{seasonId} {
+      function validPrivateRatingDocument() {
+        let data = request.resource.data;
+        return data.keys().hasOnly([
+            'seasonId',
+            'ratings',
+            'globalRatings',
+            'updatedAt'
+          ]) &&
+          data.seasonId == seasonId &&
+          data.ratings is list &&
+          data.ratings.size() <= 80 &&
+          data.get('globalRatings', []) is list &&
+          data.get('globalRatings', []).size() <= 80 &&
+          data.updatedAt is number;
+      }
+
+      allow read: if signedIn() &&
+        request.auth.uid == userId;
+
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        validPrivateRatingDocument() &&
+        (
+          !request.resource.data.keys().hasAny(['globalRatings']) ||
+          globalPoolMember(seasonId)
+        );
+
+      allow update: if signedIn() &&
+        request.auth.uid == userId &&
+        validPrivateRatingDocument() &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['globalRatings']) ||
+          globalPoolMember(seasonId)
+        );
+
+      allow delete: if signedIn() &&
+        request.auth.uid == userId;
+    }
+
+    // ============================================================
+    // Anonymous Global Pool Cast Chemistry aggregates
+    // These documents contain only cast names, sums, and counts.
+    // They never contain a player uid, username, or scorecard.
+    // A trusted Cloud Function maintains these non-scoring aggregates from
+    // private per-user scorecards. Browser clients cannot modify them.
+    // ============================================================
+
+    match /castRatingAggregates/{seasonId} {
+      function validAggregateDocument() {
+        let data = request.resource.data;
+        return data.keys().hasOnly([
+            'seasonId',
+            'cast',
+            'participantCount',
+            'updatedAt'
+          ]) &&
+          data.seasonId == seasonId &&
+          data.cast is list &&
+          data.cast.size() <= 80 &&
+          data.participantCount is int &&
+          data.participantCount >= 0 &&
+          data.updatedAt is number;
+      }
+
+      allow read: if signedIn();
+
+      allow write: if false;
+    }
+
+    // ============================================================
+    // Everything not explicitly listed above is denied.
+    // ============================================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -8,10 +8,12 @@
 <meta property="og:title" content="Through the Wall | Love Is Blind prediction pool">
 <meta property="og:description" content="A social prediction pool for friends playing Love Is Blind seasons together.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="images/through-the-wall-social-card.png">
+<meta property="og:url" content="https://patrickmacquarrie.github.io/libapp/">
+<meta property="og:image" content="https://patrickmacquarrie.github.io/libapp/images/through-the-wall-social-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://patrickmacquarrie.github.io/libapp/images/through-the-wall-social-card.png">
 <link rel="apple-touch-icon" href="images/through-the-wall-app-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#431127">
@@ -657,10 +659,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 <div id="root"></div>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch, deleteField, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
+import { getFunctions, httpsCallable }
+  from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-functions.js';
 const firebaseConfig = {
   apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
   authDomain: "lib-oauth.firebaseapp.com",
@@ -672,8 +676,10 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
+const functions = getFunctions(fbApp);
 const GAME_PHASES = ['pods','dating','weddings','reunion'];
 const inviteDocId = (poolId,email) => poolId+'__'+email.toLowerCase();
+const newPoolJoinCode = () => Array.from(crypto.getRandomValues(new Uint8Array(18)),value=>value.toString(36).padStart(2,'0')).join('').slice(0,24);
 const CAST_RATING_CATEGORIES = ['hotness','humour','intelligence','vibes'];
 const cleanCastRatings = ratings => (Array.isArray(ratings)?ratings:[]).slice(0,80).map(entry=>{
   const values={};
@@ -727,6 +733,24 @@ const updateCastAggregate = (aggregate,previousRatings,nextRatings) => {
 };
 window._fb = {
   signIn:  () => signInWithPopup(auth, new GoogleAuthProvider()),
+  signInApple: () => {
+    const provider=new OAuthProvider('apple.com');provider.addScope('email');provider.addScope('name');
+    return signInWithPopup(auth,provider);
+  },
+  sendEmailSignInLink: async email => {
+    const returnUrl=window.location.origin==='null'?window.location.href.split('?')[0]:window.location.origin+window.location.pathname;
+    await sendSignInLinkToEmail(auth,email,{url:returnUrl,handleCodeInApp:true});
+    localStorage.setItem('through-the-wall-email-signin',email);
+  },
+  completeEmailSignIn: async () => {
+    if(!isSignInWithEmailLink(auth,window.location.href))return false;
+    const email=localStorage.getItem('through-the-wall-email-signin')||window.prompt('Confirm the email address that received this sign-in link:');
+    if(!email)return false;
+    await signInWithEmailLink(auth,email,window.location.href);
+    localStorage.removeItem('through-the-wall-email-signin');
+    history.replaceState({},'',window.location.origin+window.location.pathname);
+    return true;
+  },
   signOut: () => signOut(auth),
   onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
   getProfile: async (uid) => {
@@ -766,7 +790,7 @@ window._fb = {
   },
   createPool: async (name, ownerUid, rulesSnapshot, season) => {
     const ref = await addDoc(collection(db,'pools'), {
-      name, ownerUid, members:[ownerUid], rulesSnapshot, membershipClosed:false,
+      name, ownerUid, members:[ownerUid], rulesSnapshot, joinCode:newPoolJoinCode(), membershipClosed:false,
       season:{
         id:season.id,label:season.label,country:season.country,countryCode:season.countryCode,
         seasonNumber:season.seasonNumber,locationLabel:season.locationLabel||null
@@ -776,6 +800,16 @@ window._fb = {
     return ref.id;
   },
   freezePoolRules: (poolId, rulesSnapshot) => updateDoc(doc(db,'pools',poolId), {rulesSnapshot}),
+  ensurePoolJoinCode: async poolId => {
+    const joinCode=newPoolJoinCode();
+    await updateDoc(doc(db,'pools',poolId),{joinCode});
+    return joinCode;
+  },
+  joinPoolByCode: async (poolId,joinCode,uid) => {
+    await updateDoc(doc(db,'pools',poolId),{members:arrayUnion(uid),lastJoinUid:uid,lastJoinProof:joinCode});
+    const joined=await getDoc(doc(db,'pools',poolId));
+    return joined.exists()?{id:joined.id,...joined.data()}:null;
+  },
   getPool: async (poolId) => {
     const s = await getDoc(doc(db,'pools',poolId));
     return s.exists() ? {id:s.id, ...s.data()} : null;
@@ -797,7 +831,9 @@ window._fb = {
     } catch(e) { console.warn('Could not load pending invitations.', e); return []; }
   },
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
-    setDoc(doc(db,'invites',inviteDocId(poolId,toEmail)), {poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail:toEmail.toLowerCase(), status:'pending', createdAt:Date.now()}),
+    httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
+  leavePool: poolId => httpsCallable(functions,'leavePool')({poolId}),
+  deleteMyAccount: () => httpsCallable(functions,'deleteMyAccount')({}),
   acceptInvite: async (invite, uid) => {
     await runTransaction(db, async tx => {
       const inviteRef = doc(db,'invites',invite.id);
@@ -865,7 +901,7 @@ window._fb = {
   },
   savePlayer: async (poolId, uid, data) => {
     const batch = writeBatch(db);
-    const {picks={},predictionPhases,...publicState} = data;
+    const {picks={},predictionPhases,skipPickWriteFor=[], ...publicState} = data;
     // Public status never contains picks. Replacing the document also removes legacy embedded picks.
     batch.set(doc(db,'pools',poolId,'players',uid), {...publicState,picks:deleteField()},{merge:true});
     const activePhase = GAME_PHASES.includes(publicState.phase) ? publicState.phase : 'pods';
@@ -874,7 +910,7 @@ window._fb = {
       : [activePhase];
     // A completed player checkpoint is immutable. Its picks were saved when the
     // player locked them, so close/final-screen saves update only public status.
-    editablePhases.forEach(phase=>{
+    editablePhases.filter(phase=>!skipPickWriteFor.includes(phase)).forEach(phase=>{
       if (publicState.completed?.[phase]) return;
       batch.set(
         doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),
@@ -934,7 +970,7 @@ window._fb = {
         const phaseStatusData = statusSnap.exists() ? statusSnap.data() : null;
         const completedMembers=phaseStatusData?.completedMembers||[];
         const viewerCompleted=completedMembers.includes(currentUid);
-        if ((globalPool||viewerCompleted) && completedMembers.length) {
+        if (viewerCompleted && completedMembers.length) {
           // Live checkpoints use only immutable picks belonging to players who
           // individually locked them. In friend pools, those picks stay hidden
           // until the viewer completes the same phase.
@@ -1032,33 +1068,21 @@ window._fb = {
   saveCastRatings: async ({poolId,seasonId,uid,username,ratings,shareWithFriends,globalPool=false}) => {
     const safeRatings=cleanCastRatings(ratings);
     const profileRef=doc(db,'castRatingProfiles',uid,'seasons',seasonId);
-    const communityRef=globalPool
-      ? doc(db,'castRatingAggregates',seasonId)
-      : doc(db,'pools',poolId,'castRatings',uid);
-    await runTransaction(db,async tx=>{
-      const profileSnapshot=await tx.get(profileRef);
-      const previous=profileSnapshot.exists()?profileSnapshot.data():{};
-      if(globalPool) {
-        const aggregateSnapshot=await tx.get(communityRef);
-        const aggregate=aggregateSnapshot.exists()?aggregateSnapshot.data():{};
-        const wasParticipant=Array.isArray(previous.globalRatings)&&previous.globalRatings.length>0;
-        const isParticipant=safeRatings.length>0;
-        tx.set(communityRef,{
-          seasonId,
-          cast:updateCastAggregate(aggregate,previous.globalRatings||[],safeRatings),
-          participantCount:Math.max(0,(Number(aggregate.participantCount)||0)+(isParticipant?1:0)-(wasParticipant?1:0)),
-          updatedAt:Date.now(),
-        });
-        tx.set(profileRef,{
-          seasonId,ratings:safeRatings,globalRatings:safeRatings,updatedAt:Date.now(),
-        },{merge:true});
-      } else {
-        tx.set(profileRef,{seasonId,ratings:safeRatings,updatedAt:Date.now()},{merge:true});
-        tx.set(communityRef,shareWithFriends===true
-          ? {uid,username:String(username||'Player').slice(0,40),shared:true,ratings:safeRatings,updatedAt:Date.now()}
-          : {uid,shared:false,updatedAt:Date.now()});
-      }
-    });
+    if(globalPool) {
+      // The trusted aggregate trigger observes globalRatings and updates the
+      // anonymous community totals. Browsers never write aggregate documents.
+      await setDoc(profileRef,{
+        seasonId,ratings:safeRatings,globalRatings:safeRatings,updatedAt:Date.now(),
+      },{merge:true});
+    } else {
+      const communityRef=doc(db,'pools',poolId,'castRatings',uid);
+      const batch=writeBatch(db);
+      batch.set(profileRef,{seasonId,ratings:safeRatings,updatedAt:Date.now()},{merge:true});
+      batch.set(communityRef,shareWithFriends===true
+        ? {uid,username:String(username||'Player').slice(0,40),shared:true,ratings:safeRatings,updatedAt:Date.now()}
+        : {uid,shared:false,updatedAt:Date.now()});
+      await batch.commit();
+    }
     return {seasonId,ratings:safeRatings,updatedAt:Date.now()};
   },
   savePhasePicks: (poolId,phase,uid,picks) => setDoc(
@@ -3929,7 +3953,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDeletePool,onSetPoolMembershipClosed,membershipUpdating=false}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -3965,6 +3989,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDe
           <button className="btn-secondary" disabled={deleting} onClick={()=>{setConfirmPool(null);setTypedName('');}}>Cancel</button>
         </div>}
       </div>}
+      {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Chemistry ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
+      <div className="danger-zone"><h3>Delete account</h3><p>Permanently remove your profile, pool activity, predictions, and private Cast Chemistry scorecards.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onDeleteAccount}>Delete my account</button><p className="subtle"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p></div>
       <button className="btn-primary" disabled={deleting} onClick={onClose}>Done</button>
     </div>
   </div>;
@@ -4014,6 +4040,9 @@ function App() {
   const [usernameInput, setUsernameInput] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
+  const [emailAuthEmail,setEmailAuthEmail]=useState('');
+  const [emailAuthSending,setEmailAuthSending]=useState(false);
+  const [emailAuthSent,setEmailAuthSent]=useState(false);
   // Config
   const [cfg, setCfg] = useState(null);
   const [err, setErr] = useState('');
@@ -4039,6 +4068,7 @@ function App() {
   const [sendingPoolInvite, setSendingPoolInvite] = useState(false);
   const [globalShareFeedback, setGlobalShareFeedback] = useState('');
   const [updatingPoolMembership, setUpdatingPoolMembership] = useState(false);
+  const [destructiveActionPending,setDestructiveActionPending]=useState(false);
   // Active pool + game
   const [activePool, setActivePool] = useState(null);
   const [poolPlayers, setPoolPlayers] = useState(null);  // {uid: playerDoc}
@@ -4124,6 +4154,7 @@ function App() {
   },[replayPendingSave]);
   /* ── Auth ── */
   useEffect(() => {
+    window._fb.completeEmailSignIn().catch(error=>{console.error(error);setErr('That email sign-in link could not be completed. Request a new one.');});
     return window._fb.onAuthStateChanged(u => {
       if (u) loadAuthenticatedProfile(u);
       else {
@@ -4142,14 +4173,25 @@ function App() {
         window._fb.myPools(user.uid),
         window._fb.myInvites(user.email),
       ]);
-      const links=(await Promise.all(ps.filter(pool=>pool.global===true).map(async pool=>{
+      let availablePools=ps;
+      const joinToken=new URL(window.location.href).searchParams.get('join')||'';
+      const separator=joinToken.indexOf('.');
+      if(separator>0){
+        const poolId=joinToken.slice(0,separator),joinCode=joinToken.slice(separator+1);
+        if(!availablePools.some(pool=>pool.id===poolId)){
+          const joined=await window._fb.joinPoolByCode(poolId,joinCode,user.uid);
+          if(joined)availablePools=[...availablePools,joined];
+        }
+        const cleanUrl=new URL(window.location.href);cleanUrl.searchParams.delete('join');history.replaceState({},'',cleanUrl.toString());
+      }
+      const links=(await Promise.all(availablePools.filter(pool=>pool.global===true).map(async pool=>{
         try {
           const player=await window._fb.getPlayer(pool.id,user.uid);
           return player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
         } catch(e) { console.info('A global-pool link could not be loaded.',e); return null; }
       }))).filter(Boolean);
       globalLinks.current=links;
-      setPools(ps); setInvites(is);
+      setPools(availablePools); setInvites(is);
       const publicGlobalPools=GLOBAL_POOL_SEASON?[await (async()=>{
         try { return [GLOBAL_POOL_SEASON.id,await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id)]; }
         catch(e) { console.info('The global pool is unavailable until its Firestore rules are published.',e); return [GLOBAL_POOL_SEASON.id,null]; }
@@ -4172,13 +4214,18 @@ function App() {
       setSeenRetroNotices([]);setSessionRetroNotices([]);
       const liveCfg=await loadConfig(seasonForPool(pool).id);
       let enteredPool=pool;
-      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
+      if(pool.global!==true&&!pool.joinCode&&pool.ownerUid===user.uid){
+        const joinCode=await window._fb.ensurePoolJoinCode(pool.id);
+        enteredPool={...enteredPool,joinCode};
+      }
+      if(liveCfg.PLAYABLE&&!enteredPool.rulesSnapshot) {
+        if(enteredPool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
-          await window._fb.freezePoolRules(pool.id,frozenRules);
-          enteredPool={...pool,rulesSnapshot:frozenRules};
+          await window._fb.freezePoolRules(enteredPool.id,frozenRules);
+          enteredPool={...enteredPool,rulesSnapshot:frozenRules};
         } catch(freezeError) {
-          const refetched=await window._fb.getPool(pool.id);
+          const refetched=await window._fb.getPool(enteredPool.id);
           if(!refetched?.rulesSnapshot) throw freezeError;
           enteredPool=refetched;
         }
@@ -4340,7 +4387,8 @@ function App() {
     clearTimeout(saveTimer.current);
     setSaveState('saving');
     const {seenRetroNotices:localRetroNotices,...persistedState}=state;
-    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
+    const skipPickWriteFor=phase==='reunion'&&['watch','close','final'].includes(screen)?['reunion']:[];
+    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
     pendingSave.current=snapshot;
     if (immediate) return flushSave();
@@ -4387,6 +4435,16 @@ function App() {
   };
   /* ── Handlers ── */
   const handleSignIn  = () => window._fb.signIn().catch(e=>setErr(e.message));
+  const handleAppleSignIn = () => window._fb.signInApple().catch(e=>setErr(e.message));
+  const handleEmailSignIn = async event => {
+    event.preventDefault();
+    const email=emailAuthEmail.trim().toLowerCase();
+    if(!email||emailAuthSending)return;
+    setEmailAuthSending(true);setErr('');
+    try{await window._fb.sendEmailSignInLink(email);setEmailAuthSent(true);}
+    catch(e){console.error(e);setErr(e?.message||'The sign-in link could not be sent.');}
+    finally{setEmailAuthSending(false);}
+  };
   const handleSignOut = async () => { if(!await confirmExitWithUnsavedChanges())return;setErr('');setShowSettings(false);await window._fb.signOut();setActivePool(null);resetRuntimeConfig(); };
   const saveUsername = async () => {
     if(savingUsername) return;
@@ -4469,6 +4527,26 @@ function App() {
     if (pool.ownerUid!==user.uid) return;
     try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else await loadLobby(); }
     catch(e) { console.error(e); setErr('Could not delete this pool. Please try again.'); throw e; }
+  };
+  const doLeavePool = async pool => {
+    if(!pool||pool.ownerUid===user.uid||destructiveActionPending)return;
+    if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:'Your predictions, progress, and shared Cast Chemistry ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
+    setDestructiveActionPending(true);setErr('');
+    try{
+      await flushSave();
+      await window._fb.leavePool(pool.id);
+      setShowSettings(false);setActivePool(null);setPoolPlayers(null);setPoolUsers(null);setPoolStatus({});resetRuntimeConfig();
+      await loadLobby();
+    }catch(e){console.error(e);setErr(e?.message||'This pool could not be left. Please try again.');}
+    finally{setDestructiveActionPending(false);}
+  };
+  const doDeleteAccount = async () => {
+    if(destructiveActionPending)return;
+    if(!await requestConfirmation({title:'Permanently delete your account?',body:'This removes your profile, predictions, Cast Chemistry ratings, and pool history. Pools you own will also be deleted. This cannot be undone.',confirmLabel:'Delete my account',cancelLabel:'Keep my account'}))return;
+    setDestructiveActionPending(true);setErr('');
+    try{await window._fb.deleteMyAccount();setShowSettings(false);setActivePool(null);resetRuntimeConfig();}
+    catch(e){console.error(e);setErr(e?.message||'Your account could not be deleted. Please try again.');}
+    finally{setDestructiveActionPending(false);}
   };
   const doSendPoolInvite = async () => {
     if (!activePool || sendingPoolInvite) return;
@@ -4710,6 +4788,7 @@ function App() {
       if (!pool) throw new Error('Pool not found');
       const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,pool.global===true),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id,{force:forceSeasonData})]);
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
+        if(pool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
           await window._fb.freezePoolRules(pool.id,frozenRules);
@@ -4723,6 +4802,19 @@ function App() {
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);setActivePool(pool);setPoolPlayers(players);setPoolUsers(users);setPoolStatus(status);setPendingPoolInvites(pending);setEng(makeEngine(poolCfg,pool.members.length));
     } catch(e) { console.error(e); setErr(playerSeasonError(e,'Could not refresh the standings.')); }
+  };
+  const shareFriendPool = async () => {
+    if(!activePool?.joinCode)return;
+    const url=new URL(window.location.origin==='null'?window.location.href:window.location.origin+window.location.pathname);
+    url.searchParams.set('join',activePool.id+'.'+activePool.joinCode);
+    const shareData={title:'Join '+activePool.name,text:'Join my Through the Wall prediction pool.',url:url.toString()};
+    setPoolInviteFeedback('');setPoolInviteError(false);
+    if(typeof navigator.share==='function'){
+      try{await navigator.share(shareData);setPoolInviteFeedback('Pool link shared.');return;}
+      catch(e){if(e?.name==='AbortError')return;}
+    }
+    try{await navigator.clipboard.writeText(url.toString());setPoolInviteFeedback('Pool link copied.');}
+    catch(e){window.prompt('Copy this pool link:',url.toString());}
   };
   const refreshStandings=()=>{lastStandingsRefresh.current=Date.now();return refreshPool();};
   const refreshChemistry=async()=>{
@@ -4848,11 +4940,15 @@ function App() {
     <div className="card login-card">
       <div className="heart-hero">♥</div>
       <h2>Welcome</h2>
-      <p className="lede">Sign in with Google to join a prediction pool with your friends.</p>
+      <p className="lede">Sign in to join a prediction pool with your friends.</p>
       <button className="btn-google" onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         Sign in with Google
       </button>
+      <button className="btn-secondary" onClick={handleAppleSignIn}>Sign in with Apple</button>
+      <div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>
+      {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on this device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className="btn-secondary" type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
+      <p className="subtle" style={{marginTop:14}}>By continuing, you agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p>
       {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     </div>
   </div>;
@@ -4970,7 +5066,7 @@ function App() {
       {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={HISTORICAL_SEASON_BANK.length>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_BANK.map(season=><div className="pool-row season-library-row" key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div><button type="button" className="btn-small filled" onClick={()=>startPoolFromLibrary(season.id)}>Start a new pool</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool}/>} 
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} membershipUpdating={destructiveActionPending}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
@@ -5043,7 +5139,9 @@ function App() {
       {!activePool.global&&<div className="card">
         <h3>{activePool.membershipClosed===true?'Pool membership is closed':'Invite someone'}</h3>
         <p className="lede">{activePool.membershipClosed===true?'Existing members can keep watching and predicting at their own pace.':'Friends can join at any time and begin their own game from Episode 1.'}</p>
-        {activePool.membershipClosed!==true&&<React.Fragment>
+        {activePool.membershipClosed!==true&&activePool.joinCode&&<button className="btn-secondary" onClick={shareFriendPool}>Share pool link</button>}
+        {activePool.membershipClosed!==true&&activePool.ownerUid===user.uid&&<React.Fragment>
+          <p className="subtle" style={{marginTop:10}}>Or send up to 10 email invitations per day.</p>
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
               <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
@@ -5133,7 +5231,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership}/>} 
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership||destructiveActionPending}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
 }
