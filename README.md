@@ -13,7 +13,7 @@ The deployable static site is written to `dist/`. GitHub Actions publishes that 
 
 ## Firebase deployment
 
-The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, and global Heat Check aggregation use Firebase Functions.
+The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, global Heat Check aggregation, and opt-in comeback nudges use Firebase Functions.
 
 ```sh
 cd functions
@@ -21,6 +21,13 @@ npm install
 cd ..
 firebase deploy --only firestore:rules,functions
 ```
+
+Email nudges use the official Firebase **Trigger Email** extension. Install the extension in the `lib-oauth` project, configure its SMTP provider, and keep its mail collection set to `mail`. The app never grants browser access to that collection: trusted Functions create duplicate-safe delivery documents only for users who enable **Email me when the tea moves** in Settings.
+
+Two notification events are currently queued:
+
+- a friend locks a Pods, Retreats, Weddings, or Reunion checkpoint;
+- a published season snapshot increases `AVAILABLE_THROUGH_EP`.
 
 Before testing Apple or email-link sign-in, enable those providers in Firebase Authentication and add `patrickmacquarrie.github.io` to Authorized domains. Apple also requires its service ID, team ID, key ID, and private key.
 

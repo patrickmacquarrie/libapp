@@ -3,7 +3,7 @@ rules_version = '2';
 // COMPLETE REPLACEMENT RULESET FOR THROUGH THE WALL / LIBAPP
 // Back up the currently published rules before replacing them with this file.
 // This ruleset covers profiles, seasons, pools, invitations, prediction
-// privacy, phase completion, friend Cast Chemistry, and Global Pool averages.
+// privacy, phase completion, friend Heat Check, and Global Pool averages.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -237,7 +237,8 @@ service cloud.firestore {
       allow get: if signedIn() &&
         (
           resource.data.get('global', false) == true ||
-          request.auth.uid in resource.data.members
+          request.auth.uid in resource.data.members ||
+          pendingInviteFor(poolId)
         );
 
       // The app queries pools with:
@@ -407,7 +408,7 @@ service cloud.firestore {
       }
 
       // ----------------------------------------------------------
-      // Opt-in friend-pool Cast Chemistry snapshots
+      // Opt-in friend-pool Heat Check snapshots
       // A non-shared document contains no rating values.
       // ----------------------------------------------------------
 
@@ -516,7 +517,7 @@ service cloud.firestore {
     }
 
     // ============================================================
-    // Private Cast Chemistry scorecards
+    // Private Heat Check scorecards
     // ============================================================
 
     match /castRatingProfiles/{userId}/seasons/{seasonId} {
@@ -561,7 +562,7 @@ service cloud.firestore {
     }
 
     // ============================================================
-    // Anonymous Global Pool Cast Chemistry aggregates
+    // Anonymous Global Pool Heat Check aggregates
     // These documents contain only cast names, sums, and counts.
     // They never contain a player uid, username, or scorecard.
     // A trusted Cloud Function maintains these non-scoring aggregates from
@@ -588,6 +589,32 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow write: if false;
+    }
+
+    // ============================================================
+    // Private comeback-nudge preferences
+    // Delivery documents are written only by trusted Functions.
+    // ============================================================
+
+    match /notificationPreferences/{userId} {
+      function validNotificationPreferences() {
+        return request.resource.data.keys().hasOnly([
+            'emailNudges',
+            'updatedAt'
+          ]) &&
+          request.resource.data.emailNudges is bool &&
+          request.resource.data.updatedAt is number;
+      }
+
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow create, update: if signedIn() &&
+        request.auth.uid == userId &&
+        validNotificationPreferences();
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /mail/{messageId} {
+      allow read, write: if false;
     }
 
     // ============================================================

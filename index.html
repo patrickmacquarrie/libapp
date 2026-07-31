@@ -410,6 +410,29 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 @media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}.phase-guide-hero{padding-inline:18px}.phase-guide-hero h2{font-size:27px}.phase-guide-body{padding-inline:14px}.danger-row{align-items:flex-start;flex-wrap:wrap}.pool-management-actions{width:100%}}
 .login-card{text-align:center}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
+.public-hero{position:relative;overflow:hidden;padding:26px 22px;text-align:center;border-color:color-mix(in srgb,var(--rose) 35%,var(--line));background:radial-gradient(circle at 88% 8%,color-mix(in srgb,var(--purple) 16%,transparent),transparent 34%),radial-gradient(circle at 8% 94%,color-mix(in srgb,var(--rose) 14%,transparent),transparent 38%),linear-gradient(135deg,var(--blush-soft),var(--card))}
+.public-hero::after{content:'\2726';position:absolute;right:22px;top:16px;color:var(--gold);font-size:25px;animation:howSparkle 2.8s ease-in-out infinite}
+.public-kicker{color:var(--rose);font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}
+.public-hero h2{max-width:570px;margin:7px auto;color:var(--wine);font:700 clamp(31px,7vw,47px)/1.02 'Playfair Display',Georgia,serif}
+.public-hero>p{max-width:540px;margin:0 auto;color:var(--muted);font-size:14px;line-height:1.55}
+.public-demo-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:19px 0 13px;padding:5px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--surface) 78%,var(--blush-soft))}
+.public-demo-tabs button{min-height:42px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:800 12px Inter,sans-serif;cursor:pointer}
+.public-demo-tabs button.active{background:var(--card);color:var(--wine);box-shadow:0 3px 12px rgba(67,17,39,.09)}
+.public-demo{padding:18px;text-align:left;border:1px solid var(--line);border-radius:17px;background:var(--card);box-shadow:0 10px 25px rgba(67,17,39,.07)}
+.public-demo-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:13px}.public-demo-head h3{margin:0}.public-demo-head span{padding:5px 8px;border-radius:999px;background:var(--blush-soft);color:var(--rose);font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.public-couple-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.public-couple{min-height:72px;padding:10px 7px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface);color:var(--ink);font:700 12px/1.35 Inter,sans-serif;cursor:pointer;text-align:center}.public-couple:hover{border-color:var(--rose)}.public-couple.active{border-color:var(--rose);background:var(--blush-soft);color:var(--wine);box-shadow:0 0 0 3px color-mix(in srgb,var(--rose) 10%,transparent)}
+.public-couple span{display:block;margin-bottom:5px;font-size:21px}
+.public-demo-result{margin-top:13px;padding:13px 14px;border:1px solid color-mix(in srgb,#3f9360 38%,var(--line));border-radius:12px;background:color-mix(in srgb,#3f9360 8%,var(--surface));color:var(--muted);font-size:12px;line-height:1.45}.public-demo-result strong{display:block;margin-bottom:3px;color:#247344;font-family:'Playfair Display',Georgia,serif;font-size:18px}
+.public-mini-board{display:grid;gap:7px}.public-mini-row{display:grid;grid-template-columns:30px 38px minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.public-mini-row.you{border-color:color-mix(in srgb,var(--rose) 46%,var(--line));background:var(--blush-soft)}.public-mini-rank{color:var(--soft-text);font-size:11px;font-weight:900}.public-mini-avatar,.avatar-initials{display:grid;place-items:center;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;font-weight:900}.public-mini-avatar{width:38px;height:38px;font-size:11px}.public-mini-row strong{font-size:12px}.public-mini-score{color:var(--wine);font:700 18px 'Playfair Display',Georgia,serif}
+.public-how{display:grid;gap:0;padding:8px 6px 3px;text-align:left}.public-how-line{position:relative;display:grid;grid-template-columns:35px 1fr;gap:11px;align-items:center;padding:10px 0}.public-how-line:not(:last-child)::after{content:'';position:absolute;left:17px;top:42px;bottom:-9px;width:2px;background:linear-gradient(var(--rose),var(--purple))}.public-how-line span{position:relative;z-index:1;width:35px;height:35px;display:grid;place-items:center;border:2px solid var(--rose);border-radius:50%;background:var(--card);color:var(--rose);font-weight:900}.public-how-line:nth-child(2) span{border-color:var(--purple);color:var(--purple)}.public-how-line:nth-child(3) span{border-color:var(--gold);color:#966d12}.public-how-line p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.public-how-line strong{color:var(--wine)}
+.signin-divider{display:flex;align-items:center;gap:12px;margin:23px 0 5px;color:var(--soft-text);font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.signin-divider::before,.signin-divider::after{content:'';height:1px;flex:1;background:var(--line)}
+.share-moment{position:relative;overflow:hidden;margin:18px 0 3px;padding:17px;border:1px solid color-mix(in srgb,var(--rose) 38%,var(--line));border-radius:15px;background:linear-gradient(135deg,color-mix(in srgb,var(--rose) 10%,var(--surface)),color-mix(in srgb,var(--purple) 8%,var(--surface)))}.share-moment::after{content:'\2726';position:absolute;right:15px;top:8px;color:var(--gold);font-size:23px}.share-moment-kicker{color:var(--rose);font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.share-moment h3{margin:4px 28px 4px}.share-moment p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}.share-moment .btn-secondary{margin-top:12px}.share-feedback{margin:8px 0 0;color:var(--muted);font-size:11px;font-weight:700}
+.picks-recap{margin:15px 0;padding:16px;border:1px solid color-mix(in srgb,var(--purple) 34%,var(--line));border-radius:15px;background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 7%,var(--surface)),var(--surface))}.picks-recap-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.picks-recap-head h3{margin:0}.picks-recap-head span{color:var(--rose);font-size:10px;font-weight:900;text-transform:uppercase}.picks-recap-grid{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}.picks-recap-chip{padding:7px 9px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--ink);font-size:10px;font-weight:750}
+.badge-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.player-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:999px;background:var(--blush-soft);color:var(--rose);font-size:8px;font-weight:900;letter-spacing:.02em;white-space:nowrap}.player-badge.purple{background:color-mix(in srgb,var(--purple) 10%,var(--surface));color:var(--purple)}.player-badge.gold{background:color-mix(in srgb,var(--gold) 18%,var(--surface));color:#8a6116}.lb-player{display:flex;align-items:center;gap:8px;min-width:145px}.lb-avatar{width:31px;height:31px;flex:0 0 auto;font-size:9px}.lb-player-copy{min-width:0}
+.lock-rally{margin:12px 0 0;text-align:center;color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700}.lock-rally span{display:block;margin-top:3px;color:var(--muted);font:500 11px/1.4 Inter,sans-serif}
+.user-avatar-fallback{width:28px;height:28px;font-size:9px;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line)}
+@media(max-width:520px){.public-hero{padding-inline:15px}.public-demo{padding:14px}.public-couple-grid{grid-template-columns:1fr}.public-couple{min-height:54px;display:flex;align-items:center;justify-content:center;gap:7px}.public-couple span{display:inline;margin:0}.lb-player{min-width:128px}.picks-recap-head{display:block}.picks-recap-head span{display:block;margin-top:3px}}
 .pool-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);color:var(--ink);font:inherit;text-align:left;appearance:none;cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .pool-row:hover,.pool-row:focus-visible{border-color:color-mix(in srgb,var(--rose) 48%,var(--line));box-shadow:0 4px 16px rgba(110,31,59,.1)}
 .pool-row-copy{display:block;min-width:0}
@@ -805,6 +828,11 @@ window._fb = {
     await updateDoc(doc(db,'pools',poolId),{joinCode});
     return joinCode;
   },
+  getNotificationPreferences: async uid => {
+    const snapshot=await getDoc(doc(db,'notificationPreferences',uid));
+    return snapshot.exists()?snapshot.data():{emailNudges:false};
+  },
+  setNotificationPreferences: (uid,emailNudges) => setDoc(doc(db,'notificationPreferences',uid),{emailNudges:emailNudges===true,updatedAt:Date.now()}),
   joinPoolByCode: async (poolId,joinCode,uid) => {
     await updateDoc(doc(db,'pools',poolId),{members:arrayUnion(uid),lastJoinUid:uid,lastJoinProof:joinCode});
     const joined=await getDoc(doc(db,'pools',poolId));
@@ -842,7 +870,7 @@ window._fb = {
       const [inviteSnap,poolSnap] = await Promise.all([tx.get(inviteRef),tx.get(poolRef)]);
       if (!inviteSnap.exists() || inviteSnap.data().status !== 'pending') throw new Error('This invitation is no longer available.');
       if (!poolSnap.exists()) throw new Error('This pool is no longer available.');
-      if (poolSnap.data().membershipClosed===true) throw new Error('This pool is closed to new players.');
+      if (poolSnap.data().membershipClosed===true) throw new Error('This pool is locked for new players.');
       tx.update(poolRef, {members: arrayUnion(uid)});
       tx.update(inviteRef, {status:'accepted'});
     });
@@ -2762,7 +2790,59 @@ function ResultsBreakdown({entries=[],events=[],eng,meId,memberLabels}) {
     </details>}
   </React.Fragment>;
 }
-function RevealSummary({reveal,heading,eng,meId,memberLabels,extraEntries=[]}) {
+const APP_SHARE_URL='https://patrickmacquarrie.github.io/libapp/';
+const initialsFor=value=>String(value||'Player').trim().split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'P';
+const wrapCanvasText=(ctx,text,maxWidth)=>{
+  const words=String(text||'').split(/\s+/),lines=[];let line='';
+  words.forEach(word=>{const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word;}else line=test;});
+  if(line)lines.push(line);return lines;
+};
+const createShareCardBlob=({kind='result',eyebrow,title,highlight,rank,total,score,playerName,poolName,seasonLabel,details=[]})=>new Promise((resolve,reject)=>{
+  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;
+  const ctx=canvas.getContext('2d');
+  const bg=ctx.createLinearGradient(0,0,1080,1920);bg.addColorStop(0,'#fff7fa');bg.addColorStop(.52,'#f8f3ef');bg.addColorStop(1,'#f1e8ff');ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);
+  const glow=ctx.createRadialGradient(910,160,20,910,160,500);glow.addColorStop(0,'rgba(123,46,229,.23)');glow.addColorStop(1,'rgba(123,46,229,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,1080,720);
+  const rose=ctx.createRadialGradient(120,1700,20,120,1700,520);rose.addColorStop(0,'rgba(237,12,114,.20)');rose.addColorStop(1,'rgba(237,12,114,0)');ctx.fillStyle=rose;ctx.fillRect(0,1220,700,700);
+  ctx.fillStyle='#ed0c72';ctx.beginPath();ctx.arc(128,126,42,0,Math.PI*2);ctx.fill();ctx.fillStyle='#7b2ee5';ctx.beginPath();ctx.arc(174,126,42,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f8f3ef';ctx.fillRect(148,84,7,84);
+  ctx.fillStyle='#431127';ctx.font='700 58px Georgia, serif';ctx.fillText('Through the Wall',236,146);
+  ctx.fillStyle='#9a7482';ctx.font='800 22px Inter, Arial, sans-serif';ctx.letterSpacing='4px';ctx.fillText('A SOCIAL PREDICTION POOL',238,184);ctx.letterSpacing='0px';
+  ctx.fillStyle='#ed0c72';ctx.font='900 25px Inter, Arial, sans-serif';ctx.fillText(String(eyebrow||'I CALLED IT').toUpperCase(),90,350);
+  ctx.fillStyle='#431127';ctx.font='700 92px Georgia, serif';let y=475;
+  wrapCanvasText(ctx,title||'I called it.',900).slice(0,3).forEach(line=>{ctx.fillText(line,90,y);y+=105;});
+  ctx.fillStyle='#fff';ctx.strokeStyle='rgba(110,31,59,.10)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(70,760,940,520,38);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#9a7482';ctx.font='900 22px Inter, Arial, sans-serif';ctx.fillText(kind==='wrapped'?'SEASON HIGHLIGHT':'BEST HIT',115,840);
+  ctx.fillStyle='#431127';ctx.font='700 55px Georgia, serif';let highlightY=925;
+  wrapCanvasText(ctx,highlight||'The vibes were right.',820).slice(0,4).forEach(line=>{ctx.fillText(line,115,highlightY);highlightY+=66;});
+  if(rank){ctx.fillStyle='#ed0c72';ctx.font='700 82px Georgia, serif';ctx.fillText('#'+rank,115,1210);ctx.fillStyle='#9a7482';ctx.font='800 22px Inter, Arial, sans-serif';ctx.fillText('OF '+(total||'?')+(kind==='wrapped'?' · FINAL RANK':' · LIVE RANK'),250,1208);}
+  if(score!=null){ctx.textAlign='right';ctx.fillStyle='#431127';ctx.font='700 65px Georgia, serif';ctx.fillText(String(Math.round(score))+' pts',950,1210);ctx.textAlign='left';}
+  const safeDetails=(details||[]).filter(Boolean).slice(0,4);ctx.font='700 28px Inter, Arial, sans-serif';
+  safeDetails.forEach((detail,index)=>{const detailY=1385+index*76;ctx.fillStyle=index%2?'#7b2ee5':'#ed0c72';ctx.fillText('✦',100,detailY);ctx.fillStyle='#6e4657';ctx.fillText(String(detail).slice(0,58),145,detailY);});
+  ctx.fillStyle='#431127';ctx.font='700 34px Georgia, serif';ctx.fillText(playerName||'A Through the Wall player',90,1740);
+  ctx.fillStyle='#9a7482';ctx.font='600 23px Inter, Arial, sans-serif';ctx.fillText([poolName,seasonLabel].filter(Boolean).join(' · ').slice(0,72),90,1784);
+  ctx.fillStyle='#ed0c72';ctx.font='900 25px Inter, Arial, sans-serif';ctx.fillText('PLAY AT  PATRICKMACQUARRIE.GITHUB.IO/LIBAPP',90,1845);
+  canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('The share card could not be created.')),'image/png',.96);
+});
+const shareGeneratedCard=async options=>{
+  const blob=await createShareCardBlob(options);
+  const filename='through-the-wall-'+(options.kind==='wrapped'?'wrapped':'i-called-it')+'.png';
+  const file=new File([blob],filename,{type:'image/png'});
+  const text=(options.kind==='wrapped'?'My Through the Wall season wrapped':'I called it on Through the Wall')+'. '+APP_SHARE_URL;
+  if(typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:'Through the Wall',text,files:[file]});return 'Share menu opened — send it to the group chat.';}
+  const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);return 'Card downloaded — drop it in the group chat.';
+};
+function ShareMoment({kind='result',phaseLabel,bestHit,rank,total,score,playerName,poolName,seasonLabel,details=[]}) {
+  const [feedback,setFeedback]=useState(''),[sharing,setSharing]=useState(false);
+  const wrapped=kind==='wrapped';
+  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');try{setFeedback(await shareGeneratedCard({kind,eyebrow:wrapped?'Season wrapped':phaseLabel+' reveal',title:wrapped?'My season, through the wall.':'I called it.',highlight:bestHit,rank,total,score,playerName,poolName,seasonLabel,details}));}catch(error){if(error?.name!=='AbortError')setFeedback('The card hit a wall. Try again.');}finally{setSharing(false);}};
+  return <section className="share-moment" aria-label={wrapped?'Share your season recap':'Share your result'}>
+    <span className="share-moment-kicker">{wrapped?'Your season wrapped':'Group chat material'}</span>
+    <h3>{wrapped?'Turn the whole season into a victory lap.':'You called it. Bring receipts.'}</h3>
+    <p>{bestHit}{rank?` · #${rank} of ${total}`:''}{score!=null?` · ${Math.round(score)} points`:''}</p>
+    <button className="btn-secondary" type="button" disabled={sharing} onClick={share}>{sharing?'Making the card…':wrapped?'Share my wrapped':'Share my “I called it” card'}</button>
+    {feedback&&<p className="share-feedback" role="status">{feedback}</p>}
+  </section>;
+}
+function RevealSummary({reveal,heading,eng,meId,memberLabels,extraEntries=[],shareData=null}) {
   const events=reveal?.events||[];
   const entries=[...(reveal?.entries||[]),...extraEntries];
   if(!reveal&&entries.length===0) return null;
@@ -2770,6 +2850,7 @@ function RevealSummary({reveal,heading,eng,meId,memberLabels,extraEntries=[]}) {
     <h2 style={{marginBottom:10}}>{heading}</h2>
     {events.length===0&&entries.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
     <ResultsBreakdown entries={entries} events={events} eng={eng} meId={meId} memberLabels={memberLabels}/>
+    {shareData&&<ShareMoment {...shareData}/>}
   </div>;
 }
 function PersistentRetroReveals({events,globalPool}) {
@@ -2781,22 +2862,22 @@ function PersistentRetroReveals({events,globalPool}) {
     </div>)}
   </div>;
 }
-function ErrorCard({message,onDismiss,title='Something went wrong',children=null}) {
+function ErrorCard({message,onDismiss,title='The vibes hit a wall',children=null}) {
   return <div className="errcard" role="alert">
     {onDismiss&&<button className="errcard-close" onClick={onDismiss} aria-label="Dismiss error">×</button>}
     <h3>{title}</h3><p>{message}</p>{children}
   </div>;
 }
-function LockedPicks({phase,picks,eng}) {
-  const labelFor=p=>{
-    if(phase==='pods')return eng.nameOf(p.c);
-    if(phase==='dating')return (p.m==='flirt'?p.p:eng.nameOf(p.c))+' - '+(p.m==='breakup'?'Breaks up during the retreat':p.m==='sex'?'Sleep together':FLIRT_SHORT);
-    if(phase==='weddings')return eng.nameOf(p.c)+' - '+WED_LABEL[p.o]+(p.who?' ('+eng.whoNm(p.c,p.who)+')':'');
-    return eng.reunionPickLabel(p);
-  };
-  return <div className="locked-picks" aria-label="Your locked predictions">
-    <div className="locked-picks-title">Your locked picks</div>
-    {picks.length===0?<p className="subtle">You did not make any predictions for this phase.</p>:picks.map((pick,index)=><div className="pickchip" key={index}><div><div className="nm">{labelFor(pick)} - {pick.s}♥</div><div className="subtle">locked</div></div></div>)}
+const pickLabelFor=(phase,p,eng)=>{
+  if(phase==='pods')return eng.nameOf(p.c);
+  if(phase==='dating')return (p.m==='flirt'?p.p:eng.nameOf(p.c))+' - '+(p.m==='breakup'?'Breaks up during the retreat':p.m==='sex'?'Sleep together':FLIRT_SHORT);
+  if(phase==='weddings')return eng.nameOf(p.c)+' - '+WED_LABEL[p.o]+(p.who?' ('+eng.whoNm(p.c,p.who)+')':'');
+  return eng.reunionPickLabel(p);
+};
+function LockedPicks({phase,picks,eng,title='Your locked picks',status='locked'}) {
+  return <div className="locked-picks" aria-label={title}>
+    <div className="locked-picks-title">{title}</div>
+    {picks.length===0?<p className="subtle">No predictions on this board.</p>:picks.map((pick,index)=><div className="pickchip" key={index}><div><div className="nm">{pickLabelFor(phase,pick,eng)} - {pick.s}♥</div><div className="subtle">{status}</div></div></div>)}
   </div>;
 }
 const navigationPhaseLabel = (phase,RULES) => phase==='weddings'?'Wedding Predictions':RULES.phases[phase].label;
@@ -3536,6 +3617,47 @@ function AgainstTheGrainSpotlight({spotlight,globalPool}) {
     <p className="atg-spotlight-copy">{globalPool?percent+'% of active '+spotlight.phaseLabel+' players predicted this.':spotlight.owners+' of '+spotlight.poolSize+' active players predicted this.'}</p>
   </section>;
 }
+const derivePlayerAwards=({phaseEntries={},phaseMembers={},scoredPhases=[]})=>{
+  const ids=[...new Set(scoredPhases.flatMap(phase=>phaseMembers[phase]||[]))],awards=Object.fromEntries(ids.map(id=>[id,[]]));
+  const hitIn=(id,phase)=>(phaseEntries[phase]||[]).some(entry=>entry.member===id&&entry.ok&&!entry.pending);
+  ids.forEach(id=>{
+    let hot=0,cold=0;
+    for(let index=scoredPhases.length-1;index>=0;index--){if(hitIn(id,scoredPhases[index])){if(cold===0)hot++;else break;}else{if(hot===0)cold++;else break;}}
+    if(hot>=2)awards[id].push({label:'🔥 '+hot+'-phase streak',tone:'gold'});
+    if(cold>=2)awards[id].push({label:'🧊 Cold streak',tone:'purple'});
+    if(hitIn(id,'weddings'))awards[id].push({label:'💍 Called the Wedding',tone:'gold'});
+  });
+  const contrarian=[];scoredPhases.forEach(phase=>(phaseEntries[phase]||[]).forEach(entry=>{if(entry.ok&&!entry.pending&&entry.member&&Number(entry.owners)>0&&Number(entry.poolSize)>0)contrarian.push(entry);}));
+  contrarian.sort((a,b)=>(a.owners/a.poolSize)-(b.owners/b.poolSize)||b.points-a.points);
+  if(contrarian[0]?.member)awards[contrarian[0].member]?.unshift({label:'✦ Most Contrarian',tone:''});
+  return awards;
+};
+function PlayerBadges({items=[]}) {return items.length?<span className="badge-row">{items.slice(0,3).map((item,index)=><span className={'player-badge '+(item.tone||'')} key={item.label+index}>{item.label}</span>)}</span>:null;}
+const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPicks=null})=>{
+  if(!eng||!meId)return null;const memberIds=Object.keys(playersById),totals=Object.fromEntries(memberIds.map(id=>[id,0])),entries=[],phaseBestHits={};
+  PH_ORDER.forEach(phase=>{
+    if(!eng.RESULTS_READY[phase]&&phase!=='dating')return;
+    const completed=memberIds.filter(id=>(statusDocs[phase]?.completedMembers||[]).includes(id)||playersById[id]?.completed?.[phase]);
+    if(!completed.includes(meId))return;
+    const picksBy={};completed.forEach(id=>{picksBy[id]=id===meId&&currentPicks?(currentPicks[phase]||[]):(playersById[id]?.picks?.[phase]||[]);});
+    const result=eng.scorePhase(phase,picksBy);completed.forEach(id=>{totals[id]+=(result.totals[id]||0);});entries.push(...result.entries);
+    phaseBestHits[phase]=result.entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points)[0]?.label||null;
+  });
+  const ranked=memberIds.filter(id=>totals[id]>0||id===meId).sort((a,b)=>totals[b]-totals[a]||String(a).localeCompare(String(b)));
+  const index=ranked.indexOf(meId),hits=entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points);
+  return {rank:index>=0?index+1:null,total:ranked.length,score:totals[meId]||0,bestHit:hits[0]?.label||'The receipts are in.',hitCount:hits.length,phaseBestHits};
+};
+function PicksRecapCard({eng,picks,rank,total,score,playerName,poolName,seasonLabel}) {
+  const [feedback,setFeedback]=useState(''),[sharing,setSharing]=useState(false);
+  const rows=PH_ORDER.flatMap(phase=>(picks?.[phase]||[]).map(pick=>({phase,label:pickLabelFor(phase,pick,eng),stake:pick.s}))).slice(-10);
+  if(!rows.length)return null;
+  const share=async()=>{setSharing(true);setFeedback('');try{setFeedback(await shareGeneratedCard({kind:'board',eyebrow:'My picks board',title:'Here are my calls.',highlight:rows[rows.length-1].label,rank,total,score,playerName,poolName,seasonLabel,details:rows.slice(-4).map(row=>`${eng.RULES.phases[row.phase].label}: ${row.label}`)}));}catch(error){if(error?.name!=='AbortError')setFeedback('The board would not export. Try again.');}finally{setSharing(false);}};
+  return <section className="picks-recap" aria-label="Your picks recap">
+    <div className="picks-recap-head"><div><h3>Your picks, one screen</h3><p className="subtle" style={{margin:'3px 0 0'}}>A compact board built for screenshots and group-chat debates.</p></div><span>{rows.length} active call{rows.length===1?'':'s'}</span></div>
+    <div className="picks-recap-grid">{rows.map((row,index)=><span className="picks-recap-chip" key={row.phase+row.label+index}>{eng.RULES.phases[row.phase].label} · {row.label} · {row.stake}♥</span>)}</div>
+    <button type="button" className="btn-secondary" disabled={sharing} onClick={share}>{sharing?'Making your board…':'Share my picks board'}</button>{feedback&&<p className="share-feedback" role="status">{feedback}</p>}
+  </section>;
+}
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, membershipClosed=false, demoMode=false, presetPhaseScores=EMPTY_PHASE_SCORES}) {
   const {RULES,RESULTS_READY:configuredResultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const resultsReady=demoMode?Object.fromEntries(PH_ORDER.map(ph=>[ph,true])):configuredResultsReady;
@@ -3635,9 +3757,11 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     const phases=PH_ORDER.filter(ph=>(phaseMembers[ph]||[]).includes(id));
     return phases.length?RULES.phases[phases[phases.length-1]].label:'Not scored yet';
   };
-  return {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough};
+  const playerAwards=derivePlayerAwards({phaseEntries,phaseMembers,scoredPhases});
+  const bestHitsById={};memberIds.forEach(id=>{bestHitsById[id]=scoredPhases.flatMap(ph=>phaseEntries[ph]||[]).filter(entry=>entry.member===id&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points)[0]||null;});
+  return {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough,playerAwards,bestHitsById};
   },[playersById,statusDocs,eng,globalPool,membershipClosed,demoMode,presetPhaseScores,meId]);
-  const {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough}=scoring;
+  const {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough,playerAwards,bestHitsById}=scoring;
   useEffect(()=>{
     if(globalPool&&globalView!=='overall'&&!scoredPhases.includes(globalView))setGlobalView('overall');
   },[globalPool,globalView,scoredPhases.join('|')]);
@@ -3701,6 +3825,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} liveStandings={!seasonFinalized} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized} showLiveShiftNote={globalPool}/>}
       {!globalPool&&!membershipClosed&&scoredPhases.length>0&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete. Positions can shift as more players complete each checkpoint.</div>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&<PersonalRaceCard rank={raceRankById[meId]} total={raceRanked.length} playerCount={raceRanked.length} score={raceScore(meId)} nextName={nextRaceId?playerName(nextRaceId):''} nextGap={nextRaceGap} leader={raceRankById[meId]===1} globalPool={globalPool} liveStandings={!seasonFinalized}/>}
+      {scoredPhases.length>0&&raceRanked.includes(meId)&&!demoMode&&<PicksRecapCard eng={eng} picks={playersById[meId]?.picks||{}} rank={raceRankById[meId]} total={raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName={globalPool?'Global Pool':'Friend pool'} seasonLabel={scoredThrough(meId)}/>}
+      {seasonFinalized&&raceRanked.includes(meId)&&<ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={bestHitsById[meId]?.label||'You survived the pods, retreats, weddings, and reunion.'} rank={raceRankById[meId]} total={raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName="Through the Wall" seasonLabel="Season complete" details={(playerAwards[meId]||[]).map(item=>item.label)}/>}
       <CheckpointLeaderCards cards={checkpointCards} activePhase={globalPool&&globalView!=='overall'?globalView:openPhase} onSelect={selectCheckpoint}/>
       <AgainstTheGrainSpotlight spotlight={atgSpotlight} globalPool={globalPool}/>
       {scoredPhases.length>0&&!globalPool&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>} 
@@ -3712,7 +3838,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
         <div className="lb"><table>
           <thead><tr><th>Player</th><th>{globalViewLabel}</th></tr></thead>
           <tbody key={globalView+'|'+globalTop.map(id=>id+':'+globalViewScore(id)).join('|')}>{globalTop.map(id=><tr key={id} className={id===meId?'you':''}>
-            <td><span className="lb-name"><span className="subtle">#{globalRankById[id]} </span>{playerName(id)}</span><div className="subtle">Scored through {scoredThrough(id)}</div></td>
+            <td><div className="lb-player"><span className="avatar-initials lb-avatar">{initialsFor(playerName(id))}</span><span className="lb-player-copy"><span className="lb-name"><span className="subtle">#{globalRankById[id]} </span>{playerName(id)}</span><span className="subtle">Scored through {scoredThrough(id)}</span><PlayerBadges items={playerAwards[id]}/></span></div></td>
             <td className="tot">{globalViewScore(id)}</td>
           </tr>)}</tbody>
         </table></div>
@@ -3720,7 +3846,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       </React.Fragment>:<div className="lb"><table>
         <thead><tr><th>Player</th>{scoredPhases.map(p=><th key={p}>{RULES.phases[p].label}{p==='dating'&&!resultsReady.dating?'*':p==='reunion'&&reunionScoresPartial?'*':''}</th>)}{hasRetro&&<th title="Points from retroactive scoring changes — see the card below.">Retro</th>}<th>Total</th></tr></thead>
         <tbody key={ranked.map(id=>id+':'+grandTotals[id]).join('|')}>{ranked.map(id=><tr key={id} className={(id===meId?'you ':'')+(seasonFinalized&&rankById[id]===1?'champion':'')}>
-          <td><span className="lb-name">{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</span></td>
+          <td><div className="lb-player"><span className="avatar-initials lb-avatar">{initialsFor(playerName(id))}</span><span className="lb-player-copy"><span className="lb-name">{seasonFinalized&&rankById[id]===1&&<span aria-hidden="true">🏆 </span>}<span className="subtle">#{rankById[id]} </span>{playerName(id)}</span><PlayerBadges items={playerAwards[id]}/></span></div></td>
           {scoredPhases.map(p=><td key={p}>{phaseMembers[p].includes(id)?(phaseTotals[p][id]||0):'—'}</td>)}
           {hasRetro&&<td>{retroSpoilerHidden?'—':(retro.totals[id]||0)}</td>}
           <td className="tot">{grandTotals[id]}</td>
@@ -3913,6 +4039,43 @@ function PredictionDemo() {
     <span className="demo-finger" aria-hidden="true">👈</span>
   </div>;
 }
+function PublicTaste() {
+  const [view,setView]=useState('pick'),[couple,setCouple]=useState('AD + Clay'),[stake,setStake]=useState(30),[called,setCalled]=useState(false);
+  const board=[['Maya',612],['Lex',574],['You',548],['Priya',521]];
+  const openChemistry=()=>{const url=new URL(window.location.href);url.searchParams.delete('globalDemo');url.searchParams.set('chemistryPreview','pool');window.location.assign(url.toString());};
+  return <React.Fragment>
+    <section className="card public-hero">
+      <span className="public-kicker">Love Is Blind is better with receipts</span>
+      <h2>Predict the mess before it happens.</h2>
+      <p>Call the engagements, breakups, weddings, and reunion chaos. Wager Hearts, beat your friends, and own every “I knew it” moment.</p>
+      <div className="public-demo-tabs" role="tablist" aria-label="Try the app">
+        <button type="button" role="tab" aria-selected={view==='pick'} className={view==='pick'?'active':''} onClick={()=>setView('pick')}>Make a pick</button>
+        <button type="button" role="tab" aria-selected={view==='standings'} className={view==='standings'?'active':''} onClick={()=>setView('standings')}>See the payoff</button>
+      </div>
+      {view==='pick'?<div className="public-demo" role="tabpanel">
+        <div className="public-demo-head"><div><h3>Who gets engaged?</h3><p className="subtle" style={{margin:'3px 0 0'}}>Try a real prediction. Nothing is saved.</p></div><span>Pods demo</span></div>
+        <div className="public-couple-grid">{[['AD + Clay','💘'],['Amy + Johnny','✨'],['Chelsea + Jimmy','🫖']].map(([name,icon])=><button type="button" className={'public-couple '+(couple===name?'active':'')} aria-pressed={couple===name} onClick={()=>{setCouple(name);setCalled(false);}} key={name}><span>{icon}</span>{name}</button>)}</div>
+        <label className="demo-stake-label" htmlFor="public-stake">How sure are you? · {stake} Hearts</label>
+        <input id="public-stake" type="range" min="10" max="60" step="10" value={stake} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/>
+        <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Call it →</button>
+        {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you’re right, early timing and a contrarian pick can multiply your score. That’s where the bragging rights live.</div>}
+      </div>:<div className="public-demo" role="tabpanel">
+        <div className="public-demo-head"><div><h3>After the reveal</h3><p className="subtle" style={{margin:'3px 0 0'}}>Every checkpoint turns predictions into live standings.</p></div><span>Global demo</span></div>
+        <div className="public-mini-board">{board.map(([name,score],index)=><div className={'public-mini-row '+(name==='You'?'you':'')} key={name}><span className="public-mini-rank">#{index+1}</span><span className="public-mini-avatar">{initialsFor(name)}</span><strong>{name}{name==='You'&&<span className="player-badge gold" style={{marginLeft:6}}>🔥 2 streak</span>}</strong><span className="public-mini-score">{score}</span></div>)}</div>
+        <div className="public-demo-result"><strong>Your best call: AD + Clay</strong>Only 12% of the pool called it. Share the “I called it” card, then let the group chat cope.</div>
+        <button type="button" className="btn-secondary" onClick={openChemistry}>Try the Heat Check preview</button>
+      </div>}
+    </section>
+    <section className="card" aria-labelledby="public-how-title">
+      <span className="public-kicker">Three beats. Zero homework.</span><h2 id="public-how-title" style={{marginTop:5}}>How it works</h2>
+      <div className="public-how">
+        <div className="public-how-line"><span>1</span><p><strong>Pick before you watch.</strong> Call the moments you think are coming next.</p></div>
+        <div className="public-how-line"><span>2</span><p><strong>Wager Hearts.</strong> Bet bigger, predict earlier, and score extra for going against the crowd.</p></div>
+        <div className="public-how-line"><span>3</span><p><strong>Reveal and roast.</strong> Watch your rank move, share the receipts, and settle the group chat.</p></div>
+      </div>
+    </section>
+  </React.Fragment>;
+}
 function HowItWorksModal({onClose,rules=null,poolSize=null}) {
   const modalRef=useModalLifecycle(onClose);
   const podsBudget=rules?.phases?.pods?.budget;
@@ -3948,7 +4111,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',notificationPreferences={emailNudges:false},onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -3972,6 +4135,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,onDe
         <button className={'theme-choice '+(theme==='light'?'active':'')} aria-pressed={theme==='light'} onClick={()=>onThemeChange('light')}><span aria-hidden="true">☀</span>Light mode</button>
         <button className={'theme-choice '+(theme==='dark'?'active':'')} aria-pressed={theme==='dark'} onClick={()=>onThemeChange('dark')}><span aria-hidden="true">☾</span>Dark mode</button>
       </div>
+      <h3>Comeback nudges</h3>
+      <label className="chemistry-toggle"><input type="checkbox" checked={notificationPreferences.emailNudges===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(event.target.checked)}/><span><strong>{notificationSaving?'Saving your nudge settings…':'Email me when the tea moves'}</strong><span>Get “new episodes are out” reminders and a heads-up when a friend locks a phase.{userEmail?` Sent to ${userEmail}.`:''} You can turn these off anytime.</span></span></label>
       {ownedPools.length>0&&<div className="danger-zone">
         <h3>Pool management</h3>
         <p>Pool owners can control new membership or permanently delete a pool. Existing members can keep playing after membership closes.</p>
@@ -4038,6 +4203,8 @@ function App() {
   const [emailAuthEmail,setEmailAuthEmail]=useState('');
   const [emailAuthSending,setEmailAuthSending]=useState(false);
   const [emailAuthSent,setEmailAuthSent]=useState(false);
+  const [notificationPreferences,setNotificationPreferences]=useState({emailNudges:false});
+  const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
   const [cfg, setCfg] = useState(null);
   const [err, setErr] = useState('');
@@ -4122,6 +4289,13 @@ function App() {
     if(themeMeta)themeMeta.setAttribute('content',next==='dark'?'#170a11':'#431127');
     try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
   };
+  const saveNotificationPreference=async emailNudges=>{
+    if(!user?.uid||notificationSaving)return;
+    const previous=notificationPreferences;setNotificationPreferences({emailNudges});setNotificationSaving(true);
+    try{await window._fb.setNotificationPreferences(user.uid,emailNudges);}
+    catch(error){console.error('Notification preferences could not be saved.',error);setNotificationPreferences(previous);setErr('Your nudge setting did not save. Give it another tap.');}
+    finally{setNotificationSaving(false);}
+  };
   const replayPendingSave = useCallback(async uid=>{
     try {
       const stored=JSON.parse(localStorage.getItem(PENDING_SAVE_STORAGE_KEY)||'null');
@@ -4135,9 +4309,10 @@ function App() {
   const loadAuthenticatedProfile = useCallback(async u=>{
     setUser(u);setAuthState('checking');setAuthError('');
     try {
-      const p=await window._fb.getProfile(u.uid);
+      const [p,preferences]=await Promise.all([window._fb.getProfile(u.uid),window._fb.getNotificationPreferences(u.uid).catch(()=>({emailNudges:false}))]);
       await replayPendingSave(u.uid);
       setProfile(p);
+      setNotificationPreferences({emailNudges:preferences?.emailNudges===true});
       setUsernameInput(p?.username || (u.displayName||'').split(' ')[0] || '');
       setAuthState('signedin');
     } catch(e) {
@@ -4562,7 +4737,7 @@ function App() {
     const email=poolInviteEmail.trim().toLowerCase();
     setPoolInviteFeedback('');setPoolInviteError(false);
     if (!email || !email.includes('@')) { setPoolInviteFeedback('Enter a valid email address.');setPoolInviteError(true);return; }
-    if (activePool.membershipClosed===true) { setPoolInviteFeedback('This pool is closed to new players.');setPoolInviteError(true);return; }
+    if (activePool.membershipClosed===true) { setPoolInviteFeedback('This pool is locked for new players. Reopen it when the group chat grows.');setPoolInviteError(true);return; }
     if (email===(user.email||'').toLowerCase()) { setPoolInviteFeedback('You are already in this pool.');setPoolInviteError(true);return; }
     if (pendingPoolInvites.some(inv=>inv.toEmail===email)) { setPoolInviteFeedback('That person already has a pending invitation.');setPoolInviteError(true);return; }
     setSendingPoolInvite(true);
@@ -4687,7 +4862,7 @@ function App() {
       rolling:phaseId!=='reunion',
     }));
     const lockBody=<div className="lock-summary">
-      <p>These predictions are for after Episode {w} and before Episode {w+1}. Once locked, they cannot be changed.</p>
+      <p className="lock-rally" style={{marginTop:0}}>Lock it in. No take-backs — that’s the game.<span>These picks cover the window after Episode {w} and before Episode {w+1}.</span></p>
       <div className="lock-phase-list">{phaseStates.map(({phaseId,left,label,final,rolling})=>{
         const expiring=left>0&&(final||!rolling);
         const detail=expiring
@@ -4697,10 +4872,10 @@ function App() {
             : 'All Hearts have been allocated';
         return <div className={'lock-phase-row'+(expiring?' expiring':'')} key={phaseId}><strong>{label}</strong><span>{detail}</span></div>;
       })}</div>
+      {predictionPhases.map(phaseId=><LockedPicks key={phaseId} phase={phaseId} picks={picks[phaseId]} eng={eng} title={RULES.phases[phaseId].label+' picks'} status="ready to lock"/>)}
       <div className="lock-watch-range">{range?'Next: watch '+range+'.':'No new episodes are available yet. You can return when they are.'}</div>
     </div>;
-    const noHeartsRemaining=phaseStates.every(({left})=>left<=0);
-    if(!noHeartsRemaining&&!await requestConfirmation({title:'Lock these predictions?',body:lockBody,confirmLabel:'Lock predictions',cancelLabel:'Keep editing'})) return;
+    if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
     setGating(true);
     try {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
@@ -4764,7 +4939,7 @@ function App() {
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
       writeSeenRetroNotices(activePool.id,user.uid,nextSeenRetroNotices);
       setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
-      if(canClose) await registerPhaseCompletion(activePool.id,phase,user.uid);
+      if(canClose){const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();}
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
     finally { setGating(false); }
   };
@@ -4776,7 +4951,7 @@ function App() {
       const closing=eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]});
       await savePlayer({picks,phase,predictionPhases:[phase],screen:'close',w,watchThrough:w,completed:nc},true);
       setCompleted(nc);setScreen('close');setReveal(null);setCloseInfo({closing});
-      await registerPhaseCompletion(activePool.id,phase,user.uid);
+      const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();
     } catch(e) { setErr('This phase could not be finalized. Please refresh and try again.'); }
     finally { setGating(false); }
   };
@@ -4922,6 +5097,7 @@ function App() {
     return {playersById:nextPlayers,memberLabels:nextLabels};
   },[activePool,poolPlayers,poolUsers,user?.uid,picks,completed,meName,phase,screen,w,watchThrough]);
   const globalDemoData=useMemo(()=>activePool?.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user?.uid,meName):null,[activePool?.id,user?.uid,meName]);
+  const shareStandings=useMemo(()=>calculateShareStandings({eng,playersById,poolStatus,statusDocs:poolStatus,meId:user?.uid,currentPicks:picks}),[eng,playersById,poolStatus,user?.uid,picks]);
   const retroDisplayContext=activePool?activePool.id+':'+screen+':'+w:'';
   useEffect(()=>{
     setSessionRetroNotices([]);
@@ -4946,10 +5122,11 @@ function App() {
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
   if (authState==='signedout') return <div className="app">
     <BrandHeader/>
+    <PublicTaste/>
     <div className="card login-card">
-      <div className="heart-hero">♥</div>
-      <h2>Welcome</h2>
-      <p className="lede">Sign in to join a prediction pool with your friends.</p>
+      <div className="signin-divider">Ready to play for real?</div>
+      <h2>Save your picks and join the chat</h2>
+      <p className="lede">Sign in to create a friend pool, join the Global Pool, and keep every prediction on the record.</p>
       <button className="btn-google" onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         Sign in with Google
@@ -4979,7 +5156,7 @@ function App() {
     </div>
   </div>;
   const userBar = <div className="user-bar">
-    {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
+    {user.photoURL?<img className="user-avatar" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback" aria-hidden="true">{initialsFor(profile.username)}</span>}
     <span className="user-name">{profile.username}</span>
     <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
     <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
@@ -5069,13 +5246,13 @@ function App() {
     </div>
     <div className="card">
       <div className="library-head">
-        <div><h2>Historical season library</h2>{HISTORICAL_SEASON_BANK.length>1&&<p className="subtle">{HISTORICAL_SEASON_BANK.length} seasons ready to play</p>}</div>
+        <div><h2>Play past seasons</h2>{HISTORICAL_SEASON_BANK.length>1&&<p className="subtle">{HISTORICAL_SEASON_BANK.length} seasons ready to play</p>}</div>
         {HISTORICAL_SEASON_BANK.length>1&&<button type="button" className="btn-small" aria-expanded={historicalLibraryOpen} aria-controls="historical-season-list" onClick={()=>setHistoricalLibraryOpen(open=>!open)}>{historicalLibraryOpen?'Hide seasons':'Show seasons'}</button>}
       </div>
       {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={HISTORICAL_SEASON_BANK.length>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_BANK.map(season=><div className="pool-row season-library-row" key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div><button type="button" className="btn-small filled" onClick={()=>startPoolFromLibrary(season.id)}>Start a new pool</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} membershipUpdating={destructiveActionPending}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} membershipUpdating={destructiveActionPending}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
@@ -5111,6 +5288,13 @@ function App() {
     : crossoverLabels.join(' and ')+' predictions are both open.';
   const lockedPhaseLabel=predictionPhases.map(phaseId=>RULES.phases[phaseId].label).join(' and ');
   const lockedPickCards=predictionPhases.map(phaseId=><LockedPicks key={phaseId} phase={phaseId} picks={picks[phaseId]} eng={eng}/>);
+  const phaseShareData=screen==='close'?{
+    kind:'result',phaseLabel:RULES.phases[phase].label,
+    bestHit:shareStandings?.phaseBestHits?.[phase]||'The checkpoint is in. The group chat can decide how prophetic that was.',
+    rank:shareStandings?.rank,total:shareStandings?.total,score:shareStandings?.score,
+    playerName:meName,poolName:activePool.name,seasonLabel:seasonLabelForPool(activePool),
+    details:[`${(picks[phase]||[]).length} ${RULES.phases[phase].label} call${(picks[phase]||[]).length===1?'':'s'}`,shareStandings?.hitCount!=null?`${shareStandings.hitCount} season hit${shareStandings.hitCount===1?'':'s'} so far`:null],
+  }:null;
   const availablePoolTabs=[
     ...(!globalDemoData?[{id:'play',label:'Play'}]:[]),
     {id:'standings',label:'Standings'},
@@ -5125,7 +5309,7 @@ function App() {
       <div className="user-bar">
         <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
         <button className="backlink" onClick={exitPool}>← All pools</button>
-        {user.photoURL && <img className="user-avatar" src={user.photoURL} alt=""/>}
+        {user.photoURL?<img className="user-avatar" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback" aria-hidden="true">{initialsFor(meName)}</span>}
         <span className="user-name">{meName}</span>
         <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
         <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
@@ -5146,7 +5330,7 @@ function App() {
         {globalShareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{globalShareFeedback}</p>}
       </div>}
       {!activePool.global&&<div className="card">
-        <h3>{activePool.membershipClosed===true?'Pool membership is closed':'Invite someone'}</h3>
+        <h3>{activePool.membershipClosed===true?'This pool is locked for new players':'Invite someone'}</h3>
         <p className="lede">{activePool.membershipClosed===true?'Existing members can keep watching and predicting at their own pace.':'Friends can join at any time and begin their own game from Episode 1.'}</p>
         {activePool.membershipClosed!==true&&activePool.joinCode&&<button className="btn-secondary" onClick={shareFriendPool}>Share pool link</button>}
         {activePool.membershipClosed!==true&&activePool.ownerUid===user.uid&&<React.Fragment>
@@ -5194,7 +5378,7 @@ function App() {
         {predictionPhases.includes('weddings')&&<WeddingsBoard w={w} picks={picks.weddings} add={p=>addPick('weddings',p)} remove={i=>removePick('weddings',i)} spent={eng.spentBy(picks.weddings)} eng={eng} finalWindow={finalPredictionWindowFor('weddings')}/>}
         {predictionPhases.includes('reunion')&&<ReunionBoard w={w} picks={picks.reunion} add={p=>addPick('reunion',p)} remove={i=>removePick('reunion',i)} spent={eng.spentBy(picks.reunion)} eng={eng}/>}
         <ContestantReferenceBoard eng={eng} w={w} phase={phase}/>
-        <p className="subtle" style={{textAlign:'center',marginBottom:8}}><b>Important:</b> locking is permanent. You will not be able to edit these predictions afterward.</p>
+        <p className="lock-rally">Ready to call it?<span>You’ll recap every pick on the next screen before anything locks.</span></p>
         <button className="btn-primary" disabled={gating} onClick={lockPredictions}>{lockLabel} →</button>
         {predictionPhases.includes('pods')&&pendingPodsPrediction&&<div className="notice" role="status" style={{margin:'14px 0 0'}}><b>This prediction hasn't been added yet - confirm it to lock it in.</b> <button className="btn-secondary" style={{display:'inline-block',width:'auto',padding:'6px 10px',margin:'8px 0 0'}} onClick={()=>pendingPodsSkip.current()}>Skip this prediction</button></div>}
         <p className="subtle" style={{textAlign:'center'}}>Your predictions are saved and locked before you watch.</p>
@@ -5220,7 +5404,7 @@ function App() {
         </React.Fragment>}
       </div>}
       {screen==='close'&&closeInfo&&<React.Fragment>
-        <RevealSummary reveal={reveal} heading={revealHeading} eng={eng} meId={user.uid} memberLabels={memberLabels} extraEntries={closeInfo.closing}/>
+        <RevealSummary reveal={reveal} heading={revealHeading} eng={eng} meId={user.uid} memberLabels={memberLabels} extraEntries={closeInfo.closing} shareData={phaseShareData}/>
         <div className="card">
           <h2>{navigationPhaseLabel(phase,RULES)} complete</h2>
           {closeInfo.closing.length>0&&<p className="lede">{phase==='dating'&&!RESULTS_READY.dating?'Retreats results are still being confirmed.':'Your checkpoint is locked.'}</p>}
@@ -5235,12 +5419,13 @@ function App() {
         <div className="crown">👑</div>
         <div className="winner">Season complete!</div>
         <p className="lede" style={{marginBottom:12}}>Your full score is live. Standings and Against-the-Grain bonuses continue updating as more pool members finish.</p>
+        <ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={shareStandings?.bestHit||'You made it through every reveal.'} rank={shareStandings?.rank} total={shareStandings?.total} score={shareStandings?.score} playerName={meName} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)} details={[`${shareStandings?.hitCount||0} calls hit`,`${Object.values(picks).flat().length} total predictions`]}/>
         <button className="btn-primary" onClick={()=>switchPoolTab('standings')}>View Standings</button>
       </div>}
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership||destructiveActionPending}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership||destructiveActionPending}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
 }

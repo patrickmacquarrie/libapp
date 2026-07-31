@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "lib-oauth"
+  },
+  "targets": {},
+  "etags": {
+    "lib-oauth": {
+      "extensionInstances": {
+        "firestore-send-email": "557210d34ffc2ce198912c9c7ab93f6626c1178104648b09e3ca98350d2f30b7"
+      }
+    }
   }
 }

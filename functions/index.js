@@ -8,10 +8,55 @@ initializeApp();
 const db=getFirestore();
 const PHASES=['pods','dating','weddings','reunion'];
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
+const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
+const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
+const APP_URL='https://patrickmacquarrie.github.io/libapp/';
+const GLOBAL_POOL_SEASONS={
+  'love-is-blind-us-6':{
+    id:'love-is-blind-us-6',label:'Love Is Blind US: Season 6',country:'United States',countryCode:'US',
+    seasonNumber:6,locationLabel:'Charlotte',
+  },
+};
 
 function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
   return request.auth.uid;
+}
+
+function escapeHtml(value){
+  return String(value||'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+}
+
+async function queueNudge(uid,messageId,subject,text){
+  const preferences=await db.doc(`notificationPreferences/${uid}`).get();
+  if(!preferences.exists||preferences.data().emailNudges!==true)return false;
+  const user=await getAuth().getUser(uid).catch(()=>null);
+  if(!user?.email)return false;
+  const safeText=String(text||'');
+  await db.doc(`mail/${messageId}`).set({
+    to:[user.email],
+    message:{
+      subject,
+      text:safeText+`\n\nOpen Through the Wall: ${APP_URL}`,
+      html:`<p>${escapeHtml(safeText)}</p><p><a href="${APP_URL}">Open Through the Wall</a></p>`,
+    },
+  });
+  return true;
+}
+
+function publishedSetting(snapshot,key){
+  if(!snapshot||typeof snapshot!=='object')return null;
+  const containers=[snapshot.Settings,snapshot.settings,snapshot.tabs?.Settings,snapshot.tabs?.settings,snapshot.sheets?.Settings,snapshot.data?.Settings].filter(Boolean);
+  for(const rawValue of containers){
+    const raw=rawValue?.rows||rawValue?.values||rawValue?.data||rawValue;
+    if(Array.isArray(raw)){
+      for(const row of raw){
+        if(Array.isArray(row)&&String(row[0]||'').trim()===key)return row[1];
+        if(row&&typeof row==='object'&&String(row.key||'').trim()===key)return row.value;
+      }
+    }else if(raw&&typeof raw==='object'&&raw[key]!=null)return raw[key];
+  }
+  return snapshot[key]??null;
 }
 
 function cleanRatings(value){
@@ -53,7 +98,7 @@ function updateAggregate(current,previousRatings,nextRatings){
   return [...rows.values()].filter(row=>Object.values(row.counts).some(count=>count>0)).sort((a,b)=>a.name.localeCompare(b.name));
 }
 
-exports.aggregateCastRatings=onDocumentWritten('castRatingProfiles/{uid}/seasons/{seasonId}',async event=>{
+exports.aggregateCastRatings=onDocumentWritten({...FUNCTION_LIMITS,document:'castRatingProfiles/{uid}/seasons/{seasonId}'},async event=>{
   const before=event.data?.before.exists?event.data.before.data():{};
   const after=event.data?.after.exists?event.data.after.data():{};
   const previous=cleanRatings(before.globalRatings);
@@ -68,6 +113,46 @@ exports.aggregateCastRatings=onDocumentWritten('castRatingProfiles/{uid}/seasons
   });
 });
 
+exports.sendPhaseLockNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'pools/{poolId}/phaseStatus/{phase}'},async event=>{
+  const after=event.data?.after.exists?event.data.after.data():null;
+  if(!after)return;
+  const beforeMembers=new Set(event.data?.before.exists?(event.data.before.data().completedMembers||[]):[]);
+  const newlyLocked=(after.completedMembers||[]).filter(uid=>!beforeMembers.has(uid));
+  if(!newlyLocked.length)return;
+  const poolSnapshot=await db.doc(`pools/${event.params.poolId}`).get();
+  if(!poolSnapshot.exists||poolSnapshot.data().global===true)return;
+  const pool=poolSnapshot.data(),phase=event.params.phase;
+  const phaseLabel={pods:'Pods',dating:'Retreats',weddings:'Weddings',reunion:'Reunion'}[phase]||phase;
+  for(const lockerUid of newlyLocked){
+    const profile=await db.doc(`users/${lockerUid}`).get();
+    const lockerName=profile.data()?.username||'A friend';
+    const recipients=(Array.isArray(pool.members)?pool.members:[]).filter(uid=>uid!==lockerUid);
+    await Promise.all(recipients.map(uid=>queueNudge(
+      uid,
+      `phase_${event.params.poolId}_${phase}_${lockerUid}_${uid}`,
+      `${lockerName} locked their ${phaseLabel} picks`,
+      `${lockerName} just locked their ${phaseLabel} picks in ${pool.name}. The tea is moving.`,
+    )));
+  }
+});
+
+exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{
+  if(!event.data?.after.exists)return;
+  const before=event.data?.before.exists?event.data.before.data():{};
+  const after=event.data.after.data();
+  const beforeEpisode=Number(publishedSetting(before,'AVAILABLE_THROUGH_EP'))||0;
+  const afterEpisode=Number(publishedSetting(after,'AVAILABLE_THROUGH_EP'))||0;
+  if(afterEpisode<=beforeEpisode)return;
+  const pools=await db.collection('pools').where('season.id','==',event.params.seasonId).get();
+  const recipients=new Set();pools.docs.forEach(pool=>{(pool.data().members||[]).forEach(uid=>recipients.add(uid));});
+  await Promise.all([...recipients].map(uid=>queueNudge(
+    uid,
+    `episodes_${event.params.seasonId}_${afterEpisode}_${uid}`,
+    'New episodes are out — your picks are waiting',
+    `New episodes are out through Episode ${afterEpisode}. Your picks are waiting before you watch.`,
+  )));
+});
+
 async function removeMemberData(poolRef,uid){
   const batch=db.batch();
   batch.delete(poolRef.collection('players').doc(uid));
@@ -79,7 +164,7 @@ async function removeMemberData(poolRef,uid){
   await batch.commit();
 }
 
-exports.leavePool=onCall(async request=>{
+exports.leavePool=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
   if(!poolId)throw new HttpsError('invalid-argument','Choose a pool to leave.');
@@ -99,7 +184,7 @@ exports.leavePool=onCall(async request=>{
   return {ok:true};
 });
 
-exports.sendPoolInvite=onCall(async request=>{
+exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
   const toEmail=String(request.data?.toEmail||'').trim().toLowerCase();
@@ -107,7 +192,7 @@ exports.sendPoolInvite=onCall(async request=>{
   const poolRef=db.doc(`pools/${poolId}`);
   const poolSnap=await poolRef.get();
   if(!poolSnap.exists||poolSnap.data().ownerUid!==uid)throw new HttpsError('permission-denied','Only the pool owner can email invitations.');
-  if(poolSnap.data().membershipClosed===true)throw new HttpsError('failed-precondition','This pool is closed to new players.');
+  if(poolSnap.data().membershipClosed===true)throw new HttpsError('failed-precondition','This pool is locked for new players.');
   const day=new Date().toISOString().slice(0,10);
   const limitRef=db.doc(`inviteRateLimits/${uid}__${day}`);
   const profileSnap=await db.doc(`users/${uid}`).get();
@@ -125,7 +210,31 @@ exports.sendPoolInvite=onCall(async request=>{
   return {ok:true};
 });
 
-exports.deleteMyAccount=onCall(async request=>{
+exports.openGlobalPool=onCall(FUNCTION_LIMITS,async request=>{
+  const uid=requireUser(request);
+  const email=String(request.auth.token?.email||'').trim().toLowerCase();
+  const seasonId=String(request.data?.seasonId||'');
+  const season=GLOBAL_POOL_SEASONS[seasonId];
+  if(!season)throw new HttpsError('invalid-argument','That season is not approved for the global pool.');
+  const ref=db.doc(`pools/global__${seasonId}`);
+  await db.runTransaction(async tx=>{
+    const snapshot=await tx.get(ref);
+    if(snapshot.exists){
+      const current=snapshot.data();
+      if(current.global!==true||current.globalSeasonId!==seasonId)throw new HttpsError('failed-precondition','The global pool document is configured incorrectly.');
+      if(!Array.isArray(current.members)||!current.members.includes(uid))tx.update(ref,{members:FieldValue.arrayUnion(uid)});
+      return;
+    }
+    if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','The app administrator needs to open this global pool first.');
+    tx.create(ref,{
+      name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
+      membershipClosed:false,season,rulesSnapshot:null,createdAt:Date.now(),
+    });
+  });
+  return {ok:true,poolId:ref.id};
+});
+
+exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
   const pools=await db.collection('pools').where('members','array-contains',uid).get();
   for(const poolDoc of pools.docs){
@@ -138,6 +247,7 @@ exports.deleteMyAccount=onCall(async request=>{
   const globalMemberships=await db.collectionGroup('members').where('uid','==',uid).get();
   await Promise.all(globalMemberships.docs.map(member=>member.ref.delete()));
   await db.recursiveDelete(db.doc(`castRatingProfiles/${uid}`));
+  await db.doc(`notificationPreferences/${uid}`).delete().catch(()=>{});
   await db.doc(`users/${uid}`).delete().catch(()=>{});
   await getAuth().deleteUser(uid);
   return {ok:true};

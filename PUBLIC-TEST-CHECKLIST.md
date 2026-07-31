@@ -5,20 +5,23 @@
 - Global and friend-pool picks require the viewer to complete/lock the matching checkpoint before another player's picks can be read.
 - Reunion picks become immutable as soon as the player's public state enters the locked watch flow.
 - Only the pool owner can freeze a validated scoring-rules snapshot.
-- Global Cast Chemistry aggregates are written by a trusted Firestore trigger; browser aggregate writes are denied.
+- Global Heat Check aggregates are written by a trusted Firestore trigger; browser aggregate writes are denied.
 - Email invitations are owner-only, capped at 10 per owner per UTC day, and answered invites cannot be reset to pending.
 - Shareable friend-pool join links avoid exact email matching.
 - Members can leave pools and users can delete their account through trusted callable functions.
 - Google, Apple, and email-link authentication UI is present.
 - Firestore season snapshots are the primary live data source.
 - PWA manifest, app icon, absolute social-preview image, privacy page, terms page, and repository README are included.
+- Signed-out visitors can play a local prediction taste and inspect a sample reveal before authentication.
+- Opt-in email nudge preferences and duplicate-safe notification triggers are implemented.
 
 ## Console activation required
 
 1. Deploy `firestore.rules` and `functions/` together.
-2. Enable Apple and Email link providers in Firebase Authentication. Add the GitHub Pages domain to Authorized domains.
-3. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
-4. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Chemistry saved/shared, and return visit.
+2. Install Firebase's Trigger Email extension, point it at the `mail` collection, and configure the production SMTP sender.
+3. Enable Apple and Email link providers in Firebase Authentication. Add the GitHub Pages domain to Authorized domains.
+4. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
+5. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Heat Check saved/shared, result card shared, and return visit.
 
 ## Required before a large Global Pool
 
