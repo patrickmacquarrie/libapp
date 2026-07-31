@@ -608,10 +608,13 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .mini-score-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.mini-score-values span{text-align:center;padding:6px 2px;border-radius:8px;background:var(--blush-soft);color:var(--ink);font-size:9px;font-weight:800}.mini-score-values b{display:block;margin-top:2px;color:var(--wine);font-size:12px}
 .personal-podium{margin:18px 0;padding:17px;border:1px solid color-mix(in srgb,#c39229 35%,var(--line));border-radius:17px;background:linear-gradient(140deg,color-mix(in srgb,#f2c85f 9%,var(--surface)),var(--surface))}
 .personal-podium h3{margin:0 0 3px}.personal-podium>p{margin:0;color:var(--muted);font-size:11.5px;line-height:1.45}
-.chemistry-outlier{position:relative;overflow:hidden;margin:14px 0 18px;padding:16px 17px;border:1px solid color-mix(in srgb,var(--purple) 34%,var(--line));border-radius:17px;background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 10%,var(--surface)),color-mix(in srgb,var(--rose) 8%,var(--surface)))}
-.chemistry-outlier::after{content:"💅";position:absolute;right:12px;bottom:-10px;font-size:54px;opacity:.13;transform:rotate(-12deg)}
+.chemistry-outlier{position:relative;overflow:hidden;margin:14px 0 18px;padding:16px 104px 14px 17px;border:1px solid color-mix(in srgb,var(--purple) 34%,var(--line));border-radius:17px;background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 10%,var(--surface)),color-mix(in srgb,var(--rose) 8%,var(--surface)))}
+.chemistry-highlight-copy{position:relative;z-index:2;animation:chemistry-highlight-in .28s ease}
 .chemistry-outlier-kicker{color:var(--purple);font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
-.chemistry-outlier h3{margin:4px 48px 5px 0;color:var(--wine);font-size:19px}.chemistry-outlier p{position:relative;z-index:1;margin:0;max-width:600px;color:var(--muted);font-size:12px;line-height:1.5}
+.chemistry-outlier h3{margin:4px 0 5px;color:var(--wine);font-size:19px}.chemistry-outlier p{margin:0;max-width:600px;color:var(--muted);font-size:12px;line-height:1.5}
+.chemistry-highlight-emoji{position:absolute;z-index:1;right:21px;top:50%;transform:translateY(-52%);font-size:64px;line-height:1;pointer-events:none;filter:drop-shadow(0 5px 9px color-mix(in srgb,var(--purple) 18%,transparent))}
+.chemistry-highlight-controls{position:relative;z-index:2;display:flex;align-items:center;gap:6px;margin-top:10px}.chemistry-highlight-controls button{width:27px;height:24px;display:grid;place-items:center;padding:0;border:1px solid color-mix(in srgb,var(--purple) 26%,var(--line));border-radius:8px;background:color-mix(in srgb,var(--surface) 72%,transparent);color:var(--purple);font-size:13px;font-weight:900;cursor:pointer}.chemistry-highlight-controls button:hover{background:var(--surface)}.chemistry-highlight-controls span{color:var(--soft-text);font-size:9px;font-weight:800}
+@keyframes chemistry-highlight-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
 .compare-controls{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:end;gap:10px;margin:14px 0}
 .compare-vs{padding-bottom:12px;color:var(--rose);font:900 11px/1 Inter,sans-serif;text-transform:uppercase}
 .compare-list{display:grid;gap:8px}
@@ -646,6 +649,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .btn-danger:hover{background:#3a1b29}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
 @media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 11px;font-size:11px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.step-icon svg{width:20px;height:20px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-slider-shell{grid-template-columns:92px minmax(0,1fr) 30px;gap:6px;padding:9px}.cast-slider-title{padding-right:8px}.cast-slider-title strong{font-size:14px}.cast-slider-title span{font-size:8px}.cast-slider-arrow.prev{display:none}.cast-slider-arrow{width:29px;height:29px}.cast-slider-track>[role="listitem"]{flex-basis:62px}.cast-reference-avatar{width:55px;height:55px}.cast-reference-status{width:18px;height:18px;right:-2px;border-width:2px}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}.rating-grid{grid-template-columns:1fr}.rating-card-head{grid-template-columns:64px 1fr auto}.rating-card-photo{width:64px;height:64px}.rating-row{grid-template-columns:72px minmax(100px,1fr) 44px;gap:7px}.rating-value strong{font-size:18px}.chemistry-hero{padding:23px 16px}.chemistry-tea-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.chemistry-podium{gap:5px}.podium-place{padding-inline:4px}.podium-photo{width:50px;height:50px}.podium-place strong{font-size:13px}.leaderboard-row{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:7px}.leaderboard-row.expandable{grid-template-columns:24px 40px minmax(0,1fr) auto 18px}.leaderboard-avatar{width:40px;height:40px}.leaderboard-breakdown{padding:11px 9px}.pool-score-row{grid-template-columns:minmax(85px,1fr) 46px;gap:7px}.pool-score-values{grid-column:1/-1;grid-row:2}.compare-controls{grid-template-columns:1fr 1fr}.compare-vs{display:none}.compare-row{grid-template-columns:40px minmax(0,1fr) 46px 46px;gap:6px}.compare-row .compare-delta{grid-column:2/-1;justify-self:start}.compare-score{font-size:16px}}
+@media (max-width:480px){.chemistry-outlier{padding:15px 70px 13px 14px}.chemistry-highlight-emoji{right:12px;font-size:48px}.chemistry-outlier h3{font-size:18px}.chemistry-outlier p{font-size:11px}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -2963,6 +2967,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   const [compareB,setCompareB]=useState(globalPool?'global':'pool');
   const [expandedCast,setExpandedCast]=useState('');
   const [expandedPage,setExpandedPage]=useState(0);
+  const [highlightIndex,setHighlightIndex]=useState(0);
   const [draft,setDraft]=useState(()=>valuesByCast(myRatingDoc?.ratings));
   const [shareWithFriends,setShareWithFriends]=useState(false);
   const [dirty,setDirty]=useState(false);
@@ -3015,19 +3020,45 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
       const bValue=sort==='overall'?overallRating(b.values):b.values?.[sort];
       return (bValue??-1)-(aValue??-1)||alphaByName(a.name,b.name);
     });
-  const outlier=useMemo(()=>{
-    let winner=null;
+  const chemistryHighlights=useMemo(()=>{
+    let highOutlier=null,lowOutlier=null;
+    const castScores={};
     friendEntries.forEach(entry=>(entry.ratings||[]).forEach(rating=>{
+      if(gender!=='all'&&rating.gender!==gender)return;
       const score=overallRating(rating.values);
       if(score==null)return;
+      const scoreRow=castScores[rating.name]||(castScores[rating.name]={name:rating.name,scores:[]});
+      scoreRow.scores.push(score);
       const peerScores=friendEntries.filter(peer=>peer.uid!==entry.uid).map(peer=>overallRating((peer.ratings||[]).find(item=>item.name===rating.name)?.values)).filter(value=>value!=null);
       if(!peerScores.length)return;
       const peerAverage=peerScores.reduce((sum,value)=>sum+value,0)/peerScores.length;
       const delta=score-peerAverage;
-      if(delta>0&&(!winner||delta>winner.delta))winner={entry,rating,score,peerAverage,delta};
+      if(delta>0&&(!highOutlier||delta>highOutlier.delta))highOutlier={entry,rating,score,peerAverage,delta};
+      if(delta<0&&(!lowOutlier||delta<lowOutlier.delta))lowOutlier={entry,rating,score,peerAverage,delta};
     }));
-    return winner;
-  },[community?.loadedAt]);
+    const distributions=Object.values(castScores).filter(row=>row.scores.length>=3).map(row=>{
+      const min=Math.min(...row.scores),max=Math.max(...row.scores);
+      return {...row,min,max,range:max-min,average:row.scores.reduce((sum,value)=>sum+value,0)/row.scores.length};
+    });
+    const debate=[...distributions].sort((a,b)=>b.range-a.range||alphaByName(a.name,b.name))[0];
+    const consensus=[...distributions].filter(row=>row.name!==debate?.name).sort((a,b)=>a.range-b.range||alphaByName(a.name,b.name))[0]||distributions[0];
+    return [
+      highOutlier&&{type:'high',kicker:'The biggest beautiful outlier',title:'I love that for you…',emoji:'💖',...highOutlier},
+      lowOutlier&&{type:'low',kicker:'The boldest dissent',title:'Hear me out…',emoji:'🤔',...lowOutlier},
+      debate&&{type:'debate',kicker:'The most divisive scorecard',title:'The group chat needs a meeting…',emoji:'🫖',distribution:debate},
+      consensus&&{type:'consensus',kicker:'The rare agreement',title:'Wait… we all agree?',emoji:'🤝',distribution:consensus},
+    ].filter(Boolean);
+  },[community?.loadedAt,gender]);
+  useEffect(()=>setHighlightIndex(0),[community?.loadedAt,gender]);
+  useEffect(()=>{
+    if(chemistryHighlights.length<2||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+    const timer=setInterval(()=>setHighlightIndex(index=>(index+1)%chemistryHighlights.length),7000);
+    return ()=>clearInterval(timer);
+  },[chemistryHighlights.length]);
+  const activeHighlight=chemistryHighlights.length?chemistryHighlights[highlightIndex%chemistryHighlights.length]:null;
+  const activeHighlightPlayer=activeHighlight?.entry
+    ? activeHighlight.entry.uid===currentUid?'You':memberLabels[activeHighlight.entry.uid]||activeHighlight.entry.username||'A player'
+    : '';
   const sourceValuesFromRatings=ratings=>Object.fromEntries((ratings||[]).map(rating=>[rating.name,{...rating.values,overall:overallRating(rating.values)}]));
   const sourceValuesFromRows=rows=>Object.fromEntries(rows.map(row=>[row.name,{...row.scores}]));
   const compareSources=[
@@ -3123,7 +3154,19 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
           <div className="chemistry-segmented three" style={{flex:'1 1 290px',margin:0}}>{[{id:'all',label:'Both'},{id:'M',label:'Men'},{id:'F',label:'Women'}].map(option=><button type="button" className={gender===option.id?'active':''} onClick={()=>setGender(option.id)} key={option.id}>{option.label}</button>)}</div>
           <div className="field"><label className="small" htmlFor="chemistry-sort">Sort by</label><select id="chemistry-sort" value={sort} onChange={event=>setSort(event.target.value)}>{RATING_SORTS.map(option=><option value={option.id} key={option.id}>{option.label}</option>)}</select></div>
         </div>
-        {(!globalPool&&teaView==='leaderboard'&&outlier)&&<div className="chemistry-outlier"><span className="chemistry-outlier-kicker">The biggest beautiful outlier</span><h3>I love that for you…</h3><p>You rated <strong>{outlier.rating.name}</strong> {outlier.score}/40, but everyone else averaged {outlier.peerAverage.toFixed(1)}/40. 😬</p></div>}
+        {(!globalPool&&teaView==='leaderboard'&&activeHighlight)&&<section className="chemistry-outlier" aria-label="Pool Chemistry highlight">
+          <div className="chemistry-highlight-copy" key={activeHighlight.type+'-'+(activeHighlight.rating?.name||activeHighlight.distribution?.name)}>
+            <span className="chemistry-outlier-kicker">{activeHighlight.kicker}</span>
+            <h3>{activeHighlight.title}</h3>
+            {['high','low'].includes(activeHighlight.type)
+              ? <p>{activeHighlightPlayer} rated <strong>{activeHighlight.rating.name}</strong> {activeHighlight.score}/40, but everyone else averaged {activeHighlight.peerAverage.toFixed(1)}/40.</p>
+              : activeHighlight.type==='debate'
+                ? <p>Scores for <strong>{activeHighlight.distribution.name}</strong> run from {activeHighlight.distribution.min}/40 to {activeHighlight.distribution.max}/40—a {activeHighlight.distribution.range}-point spread.</p>
+                : <p>Your pool averaged {activeHighlight.distribution.average.toFixed(1)}/40 for <strong>{activeHighlight.distribution.name}</strong>, with only {activeHighlight.distribution.range} points between the highest and lowest score.</p>}
+          </div>
+          <span className="chemistry-highlight-emoji" aria-hidden="true">{activeHighlight.emoji}</span>
+          {chemistryHighlights.length>1&&<div className="chemistry-highlight-controls"><button type="button" aria-label="Previous pool highlight" onClick={()=>setHighlightIndex(index=>(index-1+chemistryHighlights.length)%chemistryHighlights.length)}>‹</button><span>{highlightIndex%chemistryHighlights.length+1} of {chemistryHighlights.length}</span><button type="button" aria-label="Next pool highlight" onClick={()=>setHighlightIndex(index=>(index+1)%chemistryHighlights.length)}>›</button></div>}
+        </section>}
         {teaView==='compare'?<React.Fragment>
           <div className="compare-controls">
             <div className="field"><label className="small" htmlFor="compare-source-a">Perspective A</label><select id="compare-source-a" value={sourceA?.id||''} onChange={event=>setCompareA(event.target.value)}>{compareSources.map(source=><option value={source.id} key={source.id}>{source.label}</option>)}</select></div>
