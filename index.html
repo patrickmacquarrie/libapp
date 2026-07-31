@@ -4216,18 +4216,20 @@ function App() {
   };
   /* ── Enter a pool ── */
   const enterPool = async (pool, duplicateFromPoolId='') => {
+    let entryStep='starting the pool';
     try {
       setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab(pool.global===true&&GLOBAL_POOL_DEMO_MODE?'standings':'play');
       setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
       setPhaseCompletionError(''); phaseCompletionAttempted.current='';
       setSeenRetroNotices([]);setSessionRetroNotices([]);
+      entryStep='loading the season';
       const liveCfg=await loadConfig(seasonForPool(pool).id);
       let enteredPool=pool;
       if(pool.global!==true&&!pool.joinCode&&pool.ownerUid===user.uid){
         const joinCode=await window._fb.ensurePoolJoinCode(pool.id);
         enteredPool={...enteredPool,joinCode};
       }
-      if(liveCfg.PLAYABLE&&!enteredPool.rulesSnapshot) {
+      if(liveCfg.PLAYABLE&&!enteredPool.rulesSnapshot&&enteredPool.global!==true) {
         if(enteredPool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
@@ -4243,10 +4245,11 @@ function App() {
       setCfg(liveCfg);
       const engine = makeEngine(poolCfg, enteredPool.members.length);
       setEng(engine);
+      entryStep='loading the pool data';
       const [{players, status}, users, pending] = await Promise.all([
         window._fb.loadAllPlayers(pool.id,user.uid,enteredPool.global===true),
         window._fb.getUsers(enteredPool.members),
-        window._fb.poolInvites(pool.id),
+        enteredPool.global===true?Promise.resolve([]):window._fb.poolInvites(pool.id),
       ]);
       setPoolPlayers(players); setPoolUsers(users); setPoolStatus(status); setPendingPoolInvites(pending);
       // Load my state
@@ -4330,6 +4333,7 @@ function App() {
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
         setDuplicateFromPoolId(duplicateFrom);
         setCompleted(completed0); setSeenRetroNotices([]); setSessionRetroNotices([]); setReveal(null); setCloseInfo(null);
+        entryStep='creating your player profile';
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
         if(duplicateFrom) {
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
@@ -4340,7 +4344,10 @@ function App() {
       // Do not leave the lobby until the engine, players, and saved state are ready.
       setActivePool(enteredPool);
     } catch(e) {
-      console.error(e); setErr(playerSeasonError(e,'Could not open this pool. Please try again.'));
+      console.error(e);
+      const message=playerSeasonError(e,'Could not open this pool. Please try again.');
+      const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/insufficient permissions/i.test(String(e?.message||''));
+      setErr(permissionDenied?`The Global Pool was blocked while ${entryStep}. Missing or insufficient permissions.`:message);
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({});
     } finally { setLobbyLoading(false); setEnteringPool(false); }
   };
