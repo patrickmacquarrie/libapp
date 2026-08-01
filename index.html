@@ -323,8 +323,8 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .demo-select-control{display:flex;align-items:center;justify-content:space-between;min-height:50px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font-size:15px;font-weight:500;box-shadow:none}
 .demo-select-control-a{animation:demoSelectA 9.6s ease-in-out infinite}
 .demo-select-control-b{animation:demoSelectB 9.6s ease-in-out infinite}
-.demo-select-value{position:relative;display:block;height:18px;min-width:0;flex:1}
-.demo-select-value span{position:absolute;inset:0 auto auto 0;white-space:nowrap}
+.demo-select-value{position:relative;display:block;height:18px;min-width:0;flex:1;overflow:hidden}
+.demo-select-value span{position:absolute;inset:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .demo-placeholder{color:var(--soft-text);font-weight:650}
 .demo-placeholder-a{animation:demoPlaceholderA 9.6s linear infinite}
 .demo-placeholder-b{animation:demoPlaceholderB 9.6s linear infinite}
@@ -4114,7 +4114,7 @@ function PublicTaste() {
         <label className="demo-stake-label" htmlFor="public-stake">How sure are you?</label>
         <div className="stakebox public-stakebox"><input id="public-stake" type="range" min="5" max="60" step="5" value={stake} aria-valuetext={stake+' Hearts'} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/><span className="stakeval public-stake-value" aria-live="polite">{stake}♥</span></div>
         <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Call it →</button>
-        {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you’re right, early timing and a contrarian pick can multiply your score. That’s where the bragging rights live.</div>}
+        {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you're right, you win points. You get bonus points for predictions that are early and/or unique</div>}
       </div>:<div className="public-demo" role="tabpanel">
         <div className="public-demo-head"><div><h3>After the reveal</h3><p className="subtle" style={{margin:'3px 0 0'}}>Every checkpoint turns predictions into live standings.</p></div><span>Global demo</span></div>
         <div className="public-mini-board">{board.map(([name,score],index)=><div className={'public-mini-row '+(name==='You'?'you':'')} key={name}><span className="public-mini-rank">#{index+1}</span><span className="public-mini-avatar">{initialsFor(name)}</span><strong>{name}{name==='You'&&<span className="player-badge gold" style={{marginLeft:6}}>🔥 2 streak</span>}</strong><span className="public-mini-score">{score}</span></div>)}</div>
@@ -5573,3 +5573,4 @@ else window.addEventListener('firebase-ready',mountApp,{once:true});
 </script>
 </body>
 </html>
+
