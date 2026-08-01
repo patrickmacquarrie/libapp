@@ -294,7 +294,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .btn-danger{padding:7px 10px;border:1px solid #d58a99;border-radius:9px;background:var(--surface);color:#b93356;font-weight:700;font-size:12px;cursor:pointer;font-family:Inter,sans-serif}
 .btn-danger:hover{background:#fff0f3}
 .modal-backdrop{position:fixed;inset:0;background:rgba(43,18,32,.42);display:flex;align-items:center;justify-content:center;padding:18px;z-index:20}
-.modal{width:min(610px,100%);max-height:88vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(43,18,32,.28)}
+.modal{width:min(724px,100%);max-height:88vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(43,18,32,.28)}
 .modal h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:26px;margin:0 0 6px}
 .modal h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:18px 0 6px}
 .modal p,.modal li{color:var(--ink);font-size:14px;line-height:1.55}
@@ -4962,13 +4962,13 @@ function App() {
       rolling:phaseId!=='reunion',
     }));
     const lockBody=<div className="lock-summary">
-      <p className="lock-rally" style={{marginTop:0}}>Lock it in. No take-backs — that’s the game.<span>These picks cover the window after Episode {w} and before Episode {w+1}.</span></p>
+      <p className="lock-rally" style={{marginTop:0}}>No take-backs.<span>You can watch episode {w+1} once you lock in these picks.</span></p>
       <div className="lock-phase-list">{phaseStates.map(({phaseId,left,label,final,rolling})=>{
         const expiring=left>0&&(final||!rolling);
         const detail=expiring
           ? left+' unspent Hearts will be lost'
           : rolling
-            ? left+' Hearts remain for later windows'
+            ? left+' Hearts remain for the rest of the '+label.toLowerCase()
             : 'All Hearts have been allocated';
         return <div className={'lock-phase-row'+(expiring?' expiring':'')} key={phaseId}><strong>{label}</strong><span>{detail}</span></div>;
       })}</div>
@@ -5573,4 +5573,3 @@ else window.addEventListener('firebase-ready',mountApp,{once:true});
 </script>
 </body>
 </html>
-
