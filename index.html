@@ -4215,9 +4215,33 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
 }
 function ConfirmModal({title,body,confirmLabel='Confirm',cancelLabel='Cancel',onConfirm,onCancel}) {
   const titleId=useId(), modalRef=useModalLifecycle(onCancel);
+  const readVisibleViewport=()=>{
+    const viewport=window.visualViewport;
+    return {
+      left:Math.max(0,viewport?.offsetLeft||0),
+      width:Math.max(0,viewport?.width||document.documentElement.clientWidth||window.innerWidth),
+    };
+  };
+  const [visibleViewport,setVisibleViewport]=useState(readVisibleViewport);
+  useEffect(()=>{
+    const viewport=window.visualViewport;
+    const syncViewport=()=>{
+      const next=readVisibleViewport();
+      setVisibleViewport(current=>current.left===next.left&&current.width===next.width?current:next);
+    };
+    viewport?.addEventListener('resize',syncViewport);
+    viewport?.addEventListener('scroll',syncViewport);
+    window.addEventListener('resize',syncViewport);
+    syncViewport();
+    return()=>{
+      viewport?.removeEventListener('resize',syncViewport);
+      viewport?.removeEventListener('scroll',syncViewport);
+      window.removeEventListener('resize',syncViewport);
+    };
+  },[]);
   const structuredBody=React.isValidElement(body);
   const paragraphs=structuredBody?[]:String(body||'').split(/\n\s*\n/).filter(Boolean);
-  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onCancel();}}>
+  return <div className="modal-backdrop" style={{left:visibleViewport.left,right:'auto',width:visibleViewport.width}} role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onCancel();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <h2 id={titleId}>{title}</h2>
       {structuredBody?body:paragraphs.map((paragraph,index)=><p key={index}>{paragraph}</p>)}
