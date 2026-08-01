@@ -266,8 +266,14 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .notice{border:1px dashed #e3cd93;background:#fdf8ec;border-radius:12px;padding:11px 14px;font-size:13px;color:#6d5324;line-height:1.5;margin:10px 0}
 .loading{text-align:center;padding:60px 20px;color:var(--soft-text);font-size:15px}
 .loading .spinner{font-size:28px;animation:spin 1.2s linear infinite;display:block;margin-bottom:12px}
+.app-loading-state{position:fixed;z-index:80;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:calc(100vw - 28px);padding:10px 15px;border:1px solid color-mix(in srgb,var(--rose) 38%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--card) 94%,transparent);box-shadow:0 10px 32px rgba(67,17,39,.18);color:var(--wine);font-size:12px;font-weight:800;line-height:1.2;text-align:left;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.app-loading-heart{display:inline-grid;place-items:center;width:22px;height:22px;flex:0 0 auto;border-radius:50%;background:var(--blush-soft);color:var(--rose);font-size:15px;animation:loading-heart 1s ease-in-out infinite}
+.app-loading-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes loading-heart{0%,100%{transform:scale(.82);opacity:.62}50%{transform:scale(1.08);opacity:1}}
+@media(prefers-reduced-motion:reduce){.loading .spinner,.app-loading-heart{animation:none}}
 .errcard{position:relative;border:1px solid #f4b8c4;background:#fff5f7;border-radius:16px;padding:20px 48px 20px 20px;margin:14px 0;color:var(--wine-deep)}
+.errcard:focus,[role="alert"]:focus{outline:3px solid color-mix(in srgb,var(--rose) 52%,transparent);outline-offset:3px}
 .errcard h3{color:var(--wine);margin:0 0 8px;font-family:'Playfair Display',serif}
 .errcard-close{position:absolute;top:10px;right:10px;border:none;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:6px;border-radius:8px}
 .errcard-close:hover{background:var(--blush-soft)}
@@ -2835,15 +2841,15 @@ const shareGeneratedCard=async options=>{
   const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);return 'Card downloaded — drop it in the group chat.';
 };
 function ShareMoment({kind='result',phaseLabel,bestHit,rank,total,score,playerName,poolName,seasonLabel,details=[]}) {
-  const [feedback,setFeedback]=useState(''),[sharing,setSharing]=useState(false);
+  const [feedback,setFeedback]=useState(''),[feedbackError,setFeedbackError]=useState(false),[sharing,setSharing]=useState(false);
   const wrapped=kind==='wrapped';
-  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');try{setFeedback(await shareGeneratedCard({kind,eyebrow:wrapped?'Season wrapped':phaseLabel+' reveal',title:wrapped?'My season, through the wall.':'I called it.',highlight:bestHit,rank,total,score,playerName,poolName,seasonLabel,details}));}catch(error){if(error?.name!=='AbortError')setFeedback('The card hit a wall. Try again.');}finally{setSharing(false);}};
+  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');setFeedbackError(false);try{setFeedback(await shareGeneratedCard({kind,eyebrow:wrapped?'Season wrapped':phaseLabel+' reveal',title:wrapped?'My season, through the wall.':'I called it.',highlight:bestHit,rank,total,score,playerName,poolName,seasonLabel,details}));}catch(error){if(error?.name!=='AbortError'){setFeedbackError(true);setFeedback('The card hit a wall. Try again.');}}finally{setSharing(false);}};
   return <section className="share-moment" aria-label={wrapped?'Share your season recap':'Share your result'}>
     <span className="share-moment-kicker">{wrapped?'Your season wrapped':'Group chat material'}</span>
     <h3>{wrapped?'Turn the whole season into a victory lap.':'You called it. Bring receipts.'}</h3>
     <p>{bestHit}{rank?` · #${rank} of ${total}`:''}{score!=null?` · ${Math.round(score)} points`:''}</p>
     <button className="btn-secondary" type="button" disabled={sharing} onClick={share}>{sharing?'Making the card…':wrapped?'Share my wrapped':'Share my “I called it” card'}</button>
-    {feedback&&<p className="share-feedback" role="status">{feedback}</p>}
+    {feedback&&<p className="share-feedback" role={feedbackError?'alert':'status'}>{feedback}</p>}
   </section>;
 }
 function RevealSummary({reveal,heading,eng,meId,memberLabels,extraEntries=[],shareData=null}) {
@@ -2866,8 +2872,45 @@ function PersistentRetroReveals({events,globalPool}) {
     </div>)}
   </div>;
 }
+function AppLoadingState({label}) {
+  if(!label)return null;
+  return <div className="app-loading-state" role="status" aria-live="polite" aria-atomic="true">
+    <span className="app-loading-heart" aria-hidden="true">♥</span>
+    <span className="app-loading-label">{label}</span>
+  </div>;
+}
+function ErrorScrollManager() {
+  const lastError=useRef({node:null,text:''});
+  useEffect(()=>{
+    const root=document.getElementById('root');
+    if(!root)return;
+    let frame=0;
+    const revealLatestError=()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>{
+        const visibleErrors=[...root.querySelectorAll('[role="alert"]')].filter(node=>{
+          const style=window.getComputedStyle(node);
+          return style.display!=='none'&&style.visibility!=='hidden'&&node.getClientRects().length>0;
+        });
+        const error=visibleErrors.at(-1);
+        if(!error)return;
+        const text=error.textContent?.trim()||'';
+        if(lastError.current.node===error&&lastError.current.text===text)return;
+        lastError.current={node:error,text};
+        if(!error.hasAttribute('tabindex'))error.setAttribute('tabindex','-1');
+        error.scrollIntoView({behavior:'auto',block:'center',inline:'nearest'});
+        error.focus({preventScroll:true});
+      });
+    };
+    const observer=new MutationObserver(revealLatestError);
+    observer.observe(root,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['role']});
+    revealLatestError();
+    return()=>{cancelAnimationFrame(frame);observer.disconnect();};
+  },[]);
+  return null;
+}
 function ErrorCard({message,onDismiss,title='The vibes hit a wall',children=null}) {
-  return <div className="errcard" role="alert">
+  return <div className="errcard" role="alert" tabIndex="-1">
     {onDismiss&&<button className="errcard-close" onClick={onDismiss} aria-label="Dismiss error">×</button>}
     <h3>{title}</h3><p>{message}</p>{children}
   </div>;
@@ -3077,6 +3120,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   const [shareWithFriends,setShareWithFriends]=useState(false);
   const [dirty,setDirty]=useState(false);
   const [shareFeedback,setShareFeedback]=useState('');
+  const [shareFeedbackError,setShareFeedbackError]=useState(false);
+  const [sharingLeaderboard,setSharingLeaderboard]=useState(false);
   const friendEntries=community?.kind==='friends'?(community.entries||[]):[];
   useEffect(()=>{
     setDraft(valuesByCast(myRatingDoc?.ratings));
@@ -3184,6 +3229,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     .sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||alphaByName(a.person.name,b.person.name));
   const scoreLabel=value=>value==null?'—':(sort==='overall'?value.toFixed(1)+'/40':value.toFixed(1)+'/10');
   const shareLeaderboard=async kind=>{
+    if(sharingLeaderboard)return;
     const leaders=(kind==='mine'?myRanked.slice(0,3).map(row=>row.person.name):filteredCommunity.slice(0,3).map(row=>row.name));
     if(!leaders.length)return;
     const cleanUrl=window.location.origin==='null'?window.location.href.split('#')[0]:window.location.origin+window.location.pathname;
@@ -3191,14 +3237,16 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     const text=kind==='mine'
       ? `My Through the Wall Heat Check top ${leaders.length}: ${leaders.join(', ')}. Who tops yours?`
       : `${showingGlobal?'The global crowd':poolName||'Our pool'} has spoken: ${leaders.join(', ')} lead the Through the Wall Heat Check board.`;
-    setShareFeedback('');
-    if(typeof navigator.share==='function') {
-      try{await navigator.share({title,text,url:cleanUrl});setShareFeedback('Share menu opened.');}
-      catch(error){if(error?.name!=='AbortError')setShareFeedback('The share menu could not open.');}
-    } else {
-      try{await navigator.clipboard.writeText(text+' '+cleanUrl);setShareFeedback('Leaderboard copied — go stir the group chat.');}
-      catch(error){window.prompt('Copy your Heat Check result:',text+' '+cleanUrl);}
-    }
+    setSharingLeaderboard(true);setShareFeedback('');setShareFeedbackError(false);
+    try {
+      if(typeof navigator.share==='function') {
+        try{await navigator.share({title,text,url:cleanUrl});setShareFeedback('Share menu opened.');}
+        catch(error){if(error?.name!=='AbortError'){setShareFeedbackError(true);setShareFeedback('The share menu could not open.');}}
+      } else {
+        try{await navigator.clipboard.writeText(text+' '+cleanUrl);setShareFeedback('Leaderboard copied — go stir the group chat.');}
+        catch(error){window.prompt('Copy your Heat Check result:',text+' '+cleanUrl);}
+      }
+    } finally {setSharingLeaderboard(false);}
   };
   const showingGlobal=globalPool||teaView==='global';
   const audienceCount=showingGlobal?(Number(globalCommunity?.aggregate?.participantCount)||0):friendEntries.length;
@@ -3241,7 +3289,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
         <div className="rating-grid">{visibleCast.map(person=><CastRatingCard person={person} values={draft[person.name]||{}} onChange={(category,value)=>changeRating(person,category,value)} key={person.name}/>)}</div>
         {showPersonalPodium&&<section className="personal-podium"><h3>🏆 Your podium</h3><p>Everyone in this filter is scored. Nothing locks—you can revise it anytime.</p><div className="chemistry-podium">{visibleMyRanked.slice(0,3).map((row,index)=><div className={'podium-place '+(index===0?'first':index===1?'second':'third')} key={row.person.name}><div className="podium-medal">{index===0?'👑':index===1?'🥈':'🥉'}</div><RatingPhoto person={row.person} className="podium-photo"/><strong>{row.person.name}</strong><small>{row.score}/40</small></div>)}</div></section>}
         <div className="chemistry-privacy"><div className="chemistry-privacy-icon">↻</div><div><strong>Changed your mind? Come back later.</strong><p>Ratings never lock. Save what you have now, then revise any score whenever the vibes shift.</p></div></div>
-        {myRanked.length>0&&<div className="chemistry-fingerprint"><h3>{fingerprintCategory.icon} Your Heat Check fingerprint: {fingerprintCategory.label}</h3><p>Your highest average category is {fingerprintCategory.label.toLowerCase()}. Right now, {myRanked[0].person.name} tops your complete scorecards with {myRanked[0].score}/40.</p><button className="btn-secondary" onClick={()=>shareLeaderboard('mine')}>Share my top three</button>{shareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{shareFeedback}</p>}</div>}
+        {myRanked.length>0&&<div className="chemistry-fingerprint"><h3>{fingerprintCategory.icon} Your Heat Check fingerprint: {fingerprintCategory.label}</h3><p>Your highest average category is {fingerprintCategory.label.toLowerCase()}. Right now, {myRanked[0].person.name} tops your complete scorecards with {myRanked[0].score}/40.</p><button className="btn-secondary" disabled={sharingLeaderboard} onClick={()=>shareLeaderboard('mine')}>{sharingLeaderboard?'Getting the share ready…':'Share my top three'}</button>{shareFeedback&&<p className="subtle" role={shareFeedbackError?'alert':'status'} style={{marginTop:8}}>{shareFeedback}</p>}</div>}
       </div>
       <div className="chemistry-savebar"><button className="btn-primary" disabled={saving||!dirty} onClick={save}>{saving?'Saving the tea…':dirty?'Save my ratings':feedback||'No changes to save'}</button></div>
     </React.Fragment>:<React.Fragment>
@@ -3309,7 +3357,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
               </section>}
             </React.Fragment>;
           })}</div>
-          <button className="btn-secondary" onClick={()=>shareLeaderboard('community')}>Share this leaderboard</button>{shareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{shareFeedback}</p>}
+          <button className="btn-secondary" disabled={sharingLeaderboard} onClick={()=>shareLeaderboard('community')}>{sharingLeaderboard?'Getting the share ready…':'Share this leaderboard'}</button>{shareFeedback&&<p className="subtle" role={shareFeedbackError?'alert':'status'} style={{marginTop:8}}>{shareFeedback}</p>}
         </React.Fragment>:<div className="chemistry-empty"><div className="chemistry-empty-icon">🫖</div><h3>The tea is still steeping</h3><p>Be the first to rate the cast. This board wakes up as players save their picks.</p></div>}
       </div>
     </React.Fragment>}
@@ -3652,14 +3700,14 @@ const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPic
   return {rank:index>=0?index+1:null,total:ranked.length,score:totals[meId]||0,bestHit:hits[0]?.label||'The receipts are in.',hitCount:hits.length,phaseBestHits};
 };
 function PicksRecapCard({eng,picks,rank,total,score,playerName,poolName,seasonLabel}) {
-  const [feedback,setFeedback]=useState(''),[sharing,setSharing]=useState(false);
+  const [feedback,setFeedback]=useState(''),[feedbackError,setFeedbackError]=useState(false),[sharing,setSharing]=useState(false);
   const rows=PH_ORDER.flatMap(phase=>(picks?.[phase]||[]).map(pick=>({phase,label:pickLabelFor(phase,pick,eng),stake:pick.s}))).slice(-10);
   if(!rows.length)return null;
-  const share=async()=>{setSharing(true);setFeedback('');try{setFeedback(await shareGeneratedCard({kind:'board',eyebrow:'My picks board',title:'Here are my calls.',highlight:rows[rows.length-1].label,rank,total,score,playerName,poolName,seasonLabel,details:rows.slice(-4).map(row=>`${eng.RULES.phases[row.phase].label}: ${row.label}`)}));}catch(error){if(error?.name!=='AbortError')setFeedback('The board would not export. Try again.');}finally{setSharing(false);}};
+  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');setFeedbackError(false);try{setFeedback(await shareGeneratedCard({kind:'board',eyebrow:'My picks board',title:'Here are my calls.',highlight:rows[rows.length-1].label,rank,total,score,playerName,poolName,seasonLabel,details:rows.slice(-4).map(row=>`${eng.RULES.phases[row.phase].label}: ${row.label}`)}));}catch(error){if(error?.name!=='AbortError'){setFeedbackError(true);setFeedback('The board would not export. Try again.');}}finally{setSharing(false);}};
   return <section className="picks-recap" aria-label="Your picks recap">
     <div className="picks-recap-head"><div><h3>Your picks, one screen</h3><p className="subtle" style={{margin:'3px 0 0'}}>A compact board built for screenshots and group-chat debates.</p></div><span>{rows.length} active call{rows.length===1?'':'s'}</span></div>
     <div className="picks-recap-grid">{rows.map((row,index)=><span className="picks-recap-chip" key={row.phase+row.label+index}>{eng.RULES.phases[row.phase].label} · {row.label} · {row.stake}♥</span>)}</div>
-    <button type="button" className="btn-secondary" disabled={sharing} onClick={share}>{sharing?'Making your board…':'Share my picks board'}</button>{feedback&&<p className="share-feedback" role="status">{feedback}</p>}
+    <button type="button" className="btn-secondary" disabled={sharing} onClick={share}>{sharing?'Making your board…':'Share my picks board'}</button>{feedback&&<p className="share-feedback" role={feedbackError?'alert':'status'}>{feedback}</p>}
   </section>;
 }
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, membershipClosed=false, demoMode=false, presetPhaseScores=EMPTY_PHASE_SCORES}) {
@@ -4119,7 +4167,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',notificationPreferences={emailNudges:false},onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',notificationPreferences={emailNudges:false},onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4137,6 +4185,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
+      {error&&<ErrorCard message={error} onDismiss={onDismissError}/>}
       <p>Choose how the prediction pool looks on this device.</p>
       <h3>Appearance</h3>
       <div className="theme-options" role="group" aria-label="Colour mode">
@@ -4152,7 +4201,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         {confirmPool&&<div className="danger-confirm">
           <label htmlFor="delete-pool-name">Type <b>{confirmPool.name}</b> to confirm permanent deletion.</label>
           <input id="delete-pool-name" type="text" value={typedName} onChange={e=>setTypedName(e.target.value)} autoComplete="off"/>
-          {deleteError&&<p style={{color:'#b71f49',fontWeight:600}}>{deleteError}</p>}
+          {deleteError&&<p role="alert" style={{color:'#b71f49',fontWeight:600}}>{deleteError}</p>}
           <button className="btn-danger-wide" disabled={!deleteConfirmed||deleting} onClick={finishDelete}>{deleting?'Deleting...':'Permanently delete pool'}</button>
           <button className="btn-secondary" disabled={deleting} onClick={()=>{setConfirmPool(null);setTypedName('');}}>Cancel</button>
         </div>}
@@ -4211,6 +4260,8 @@ function App() {
   const [emailAuthEmail,setEmailAuthEmail]=useState('');
   const [emailAuthSending,setEmailAuthSending]=useState(false);
   const [emailAuthSent,setEmailAuthSent]=useState(false);
+  const [signingIn,setSigningIn]=useState(false);
+  const [signingOut,setSigningOut]=useState(false);
   const [notificationPreferences,setNotificationPreferences]=useState({emailNudges:false});
   const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
@@ -4226,7 +4277,10 @@ function App() {
   const [pendingPoolInvites, setPendingPoolInvites] = useState([]);
   const [lobbyLoading, setLobbyLoading] = useState(false);
   const [enteringPool, setEnteringPool] = useState(false);
+  const [leavingPool,setLeavingPool]=useState(false);
   const [creating, setCreating] = useState(false);
+  const [creatingPool,setCreatingPool]=useState(false);
+  const [inviteAction,setInviteAction]=useState('');
   const [historicalLibraryOpen,setHistoricalLibraryOpen] = useState(()=>HISTORICAL_SEASON_BANK.length<=1);
   const [newPoolName, setNewPoolName] = useState('');
   const [selectedSeasonId, setSelectedSeasonId] = useState(DEFAULT_SEASON_ID);
@@ -4237,6 +4291,7 @@ function App() {
   const [poolInviteError, setPoolInviteError] = useState(false);
   const [sendingPoolInvite, setSendingPoolInvite] = useState(false);
   const [globalShareFeedback, setGlobalShareFeedback] = useState('');
+  const [sharingPool,setSharingPool]=useState(false);
   const [updatingPoolMembership, setUpdatingPoolMembership] = useState(false);
   const [destructiveActionPending,setDestructiveActionPending]=useState(false);
   // Active pool + game
@@ -4265,6 +4320,8 @@ function App() {
   const [closeInfo, setCloseInfo] = useState(null);
   const [saveState, setSaveState] = useState(null);
   const [gating, setGating] = useState(false);
+  const [gatingLabel,setGatingLabel]=useState('');
+  const [refreshingPool,setRefreshingPool]=useState(false);
   const [pendingPodsPrediction, setPendingPodsPrediction] = useState(false);
   const pendingPodsSkip = useRef(()=>{});
   const newPoolFormRef = useRef(null);
@@ -4618,16 +4675,30 @@ function App() {
     });}
   };
   const exitPool = async () => {
-    if(!await confirmExitWithUnsavedChanges())return;
-    setErr('');
-    setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setDuplicateFromPoolId(''); setSeenRetroNotices([]);setSessionRetroNotices([]);setEng(null);
-    setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
-    resetRuntimeConfig();
-    loadLobby();
+    if(leavingPool||!await confirmExitWithUnsavedChanges())return;
+    setLeavingPool(true);setErr('');
+    try {
+      setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setDuplicateFromPoolId(''); setSeenRetroNotices([]);setSessionRetroNotices([]);setEng(null);
+      setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
+      resetRuntimeConfig();
+      await loadLobby();
+    } finally {setLeavingPool(false);}
   };
   /* ── Handlers ── */
-  const handleSignIn  = () => window._fb.signIn().catch(e=>setErr(e.message));
-  const handleAppleSignIn = () => window._fb.signInApple().catch(e=>setErr(e.message));
+  const handleSignIn  = async () => {
+    if(signingIn)return;
+    setSigningIn(true);setErr('');
+    try{await window._fb.signIn();}
+    catch(e){setErr(e?.message||'Google sign-in could not be completed.');}
+    finally{setSigningIn(false);}
+  };
+  const handleAppleSignIn = async () => {
+    if(signingIn)return;
+    setSigningIn(true);setErr('');
+    try{await window._fb.signInApple();}
+    catch(e){setErr(e?.message||'Apple sign-in could not be completed.');}
+    finally{setSigningIn(false);}
+  };
   const handleEmailSignIn = async event => {
     event.preventDefault();
     const email=emailAuthEmail.trim().toLowerCase();
@@ -4637,7 +4708,13 @@ function App() {
     catch(e){console.error(e);setErr(e?.message||'The sign-in link could not be sent.');}
     finally{setEmailAuthSending(false);}
   };
-  const handleSignOut = async () => { if(!await confirmExitWithUnsavedChanges())return;setErr('');setShowSettings(false);await window._fb.signOut();setActivePool(null);resetRuntimeConfig(); };
+  const handleSignOut = async () => {
+    if(signingOut||!await confirmExitWithUnsavedChanges())return;
+    setSigningOut(true);setErr('');setShowSettings(false);
+    try{await window._fb.signOut();setActivePool(null);resetRuntimeConfig();}
+    catch(e){setErr(e?.message||'You could not be signed out. Please try again.');}
+    finally{setSigningOut(false);}
+  };
   const saveUsername = async () => {
     if(savingUsername) return;
     const uname=cleanUsername(usernameInput);
@@ -4660,7 +4737,8 @@ function App() {
   const doCreatePool = async () => {
     const name = newPoolName.trim();
     const season = seasonById(selectedSeasonId);
-    if (!name||!season?.available) return;
+    if (!name||!season?.available||creatingPool) return;
+    setCreatingPool(true);
     try {
       setErr('');
       const seasonCfg = await loadConfig(season.id);
@@ -4673,8 +4751,9 @@ function App() {
         setErr('Your pool was created, but an invitation could not be sent. Publish the latest Firestore rules, then invite your friend from the Standings tab.');
       }
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setInviteList([]);
-      loadLobby();
+      await loadLobby();
     } catch(e) { console.error(e); setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
+    finally{setCreatingPool(false);}
   };
   const openGlobalPool = season => {
     const existing=globalPools[season.id];
@@ -4697,6 +4776,8 @@ function App() {
     finally { setJoiningGlobal(false); }
   };
   const doAccept = async (inv) => {
+    if(inviteAction)return;
+    setInviteAction(inv.id+':accept');
     try {
       setErr('');
       await window._fb.acceptInvite(inv, user.uid);
@@ -4713,8 +4794,15 @@ function App() {
         ? 'Firebase rejected this invitation. Publish the matching asynchronous-pool Firestore rules and try again.'
         : (e?.message||'Could not accept the invitation.'));
     }
+    finally{setInviteAction('');}
   };
-  const doDecline = async (inv) => { try { await window._fb.declineInvite(inv.id); loadLobby(); } catch(e) { setErr('Could not decline the invitation.'); } };
+  const doDecline = async (inv) => {
+    if(inviteAction)return;
+    setInviteAction(inv.id+':decline');setErr('');
+    try { await window._fb.declineInvite(inv.id);await loadLobby(); }
+    catch(e) { setErr('Could not decline the invitation.'); }
+    finally{setInviteAction('');}
+  };
   const doDeletePool = async pool => {
     if (pool.ownerUid!==user.uid) return;
     try { await window._fb.deletePool(pool); if(activePool?.id===pool.id) await exitPool(); else await loadLobby(); }
@@ -4758,6 +4846,9 @@ function App() {
     } finally { setSendingPoolInvite(false); }
   };
   const shareGlobalPool = async () => {
+    if(sharingPool)return;
+    setSharingPool(true);
+    try {
     const cleanUrl=window.location.origin==='null'
       ? window.location.href.split('#')[0]
       : window.location.origin+window.location.pathname;
@@ -4782,6 +4873,7 @@ function App() {
     } catch(e) {
       window.prompt('Copy this Global Pool link:',cleanUrl);
     }
+    } finally {setSharingPool(false);}
   };
   const doSetPoolMembershipClosed = async closed => {
     if(!activePool||activePool.global===true||activePool.ownerUid!==user.uid||updatingPoolMembership)return false;
@@ -4850,13 +4942,13 @@ function App() {
     : Math.min(PH_SPAN[phase].endEp,AVAILABLE_THROUGH_EP);
   const startPods = async () => {
     if(gating) return;
-    setGating(true);
+    setGatingLabel('Opening the prediction board…');setGating(true);
     const start=PH_STARTW.pods;
     try {
       await savePlayer({picks,phase:'pods',predictionPhases:['pods'],screen:'board',w:start,watchThrough:start,completed},true);
       setW(start);setWatchThrough(start);setScreen('board');setReveal(null);
     } catch(e) { setErr('Your progress could not be saved. Please try again.'); }
-    finally { setGating(false); }
+    finally { setGating(false);setGatingLabel(''); }
   };
   const lockPredictions = async () => {
     if (gating || completed[phase]) return;
@@ -4884,23 +4976,23 @@ function App() {
       <div className="lock-watch-range">{range?'Next: watch '+range+'.':'No new episodes are available yet. You can return when they are.'}</div>
     </div>;
     if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
-    setGating(true);
+    setGatingLabel('Locking in your predictions…');setGating(true);
     try {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
     } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
-    finally { setGating(false); }
+    finally { setGating(false);setGatingLabel(''); }
   };
   const beginNextBatch = async () => {
     if(gating) return;
     const target=nextAvailableEnd();
     if(target<=w) return;
-    setGating(true);
+    setGatingLabel('Opening the next watch-through…');setGating(true);
     try {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
       setWatchThrough(target);
     } catch(e) { setErr('The next watch-through could not be opened. Please try again.'); }
-    finally { setGating(false); }
+    finally { setGating(false);setGatingLabel(''); }
   };
   const registerPhaseCompletion = useCallback(async (poolId,phaseId,uid) => {
     const key=poolId+':'+phaseId;
@@ -4922,7 +5014,7 @@ function App() {
   },[]);
   const finishWatch = async () => {
     if(gating||watchThrough<=w) return;
-    setGating(true);
+    setGatingLabel('Saving your watch-through…');setGating(true);
     try {
       const start=w+1,target=watchThrough,endEp=PH_SPAN[phase].endEp;
       const canClose=target>=endEp&&BOUNDARIES_FINAL[phase]!==false;
@@ -4949,11 +5041,11 @@ function App() {
       setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
       if(canClose){const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();}
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
-    finally { setGating(false); }
+    finally { setGating(false);setGatingLabel(''); }
   };
   const finalizeCaughtUpPhase = async () => {
     if(gating||completed[phase]||BOUNDARIES_FINAL[phase]===false||w<PH_SPAN[phase].endEp) return;
-    setGating(true);
+    setGatingLabel('Finalizing this phase…');setGating(true);
     try {
       const nc={...completed,[phase]:true};
       const closing=eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]});
@@ -4961,19 +5053,25 @@ function App() {
       setCompleted(nc);setScreen('close');setReveal(null);setCloseInfo({closing});
       const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();
     } catch(e) { setErr('This phase could not be finalized. Please refresh and try again.'); }
-    finally { setGating(false); }
+    finally { setGating(false);setGatingLabel(''); }
   };
   const openNextPhase = async () => {
-    const next = NEXT_PH[phase];
-    if (!next) { setScreen('final'); await savePlayer({picks, phase, screen:'final', w, watchThrough, completed},true).catch(()=>setErr('The final screen could not be saved.')); return; }
-    // Overlap may mean the next board already opened during this checkpoint.
-    // Never rewind the watch position when advancing the primary phase.
-    const nextW=Math.max(w,PH_STARTW[next]);
-    setPhase(next); setW(nextW); setWatchThrough(nextW); setReveal(null); setCloseInfo(null); setPhaseCompletionError(''); setScreen('intro');
-    await savePlayer({picks,phase:next,predictionPhases:[next],screen:'intro',w:nextW,watchThrough:nextW,completed},true).catch(()=>setErr('The next phase could not be saved.'));
+    if(gating)return;
+    setGatingLabel('Opening the next phase…');setGating(true);
+    try {
+      const next = NEXT_PH[phase];
+      if (!next) { await savePlayer({picks, phase, screen:'final', w, watchThrough, completed},true);setScreen('final');return; }
+      // Overlap may mean the next board already opened during this checkpoint.
+      // Never rewind the watch position when advancing the primary phase.
+      const nextW=Math.max(w,PH_STARTW[next]);
+      await savePlayer({picks,phase:next,predictionPhases:[next],screen:'intro',w:nextW,watchThrough:nextW,completed},true);
+      setPhase(next); setW(nextW); setWatchThrough(nextW); setReveal(null); setCloseInfo(null); setPhaseCompletionError(''); setScreen('intro');
+    } catch(e) {setErr(NEXT_PH[phase]?'The next phase could not be saved.':'The final screen could not be saved.');}
+    finally{setGating(false);setGatingLabel('');}
   };
   const refreshPool = async (forceSeasonData=false) => {
     if (!activePool) return;
+    setRefreshingPool(true);
     try {
       setErr('');
       let pool = await window._fb.getPool(activePool.id);
@@ -4994,9 +5092,12 @@ function App() {
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,pool));
       setCfg(liveCfg);setActivePool(pool);setPoolPlayers(players);setPoolUsers(users);setPoolStatus(status);setPendingPoolInvites(pending);setEng(makeEngine(poolCfg,pool.members.length));
     } catch(e) { console.error(e); setErr(playerSeasonError(e,'Could not refresh the standings.')); }
+    finally{setRefreshingPool(false);}
   };
   const shareFriendPool = async () => {
-    if(!activePool?.joinCode)return;
+    if(!activePool?.joinCode||sharingPool)return;
+    setSharingPool(true);
+    try {
     const url=new URL(window.location.origin==='null'?window.location.href:window.location.origin+window.location.pathname);
     url.searchParams.set('join',activePool.id+'.'+activePool.joinCode);
     const shareData={title:'Join '+activePool.name,text:'Join my Through the Wall prediction pool.',url:url.toString()};
@@ -5007,6 +5108,7 @@ function App() {
     }
     try{await navigator.clipboard.writeText(url.toString());setPoolInviteFeedback('Pool link copied.');}
     catch(e){window.prompt('Copy this pool link:',url.toString());}
+    } finally {setSharingPool(false);}
   };
   const refreshStandings=()=>{lastStandingsRefresh.current=Date.now();return refreshPool();};
   const refreshChemistry=async()=>{
@@ -5125,21 +5227,46 @@ function App() {
     writeSeenRetroNotices(activePool.id,user.uid,nextSeen);
     setSeenRetroNotices(nextSeen);
   },[activePool?.id,eng,user?.uid,poolTab,screen,w,reveal,seenRetroNotices]);
+  const loadingMessage=
+    authState==='checking'?'Getting the pods ready…':
+    signingIn?'Opening sign-in…':
+    signingOut?'Signing you out…':
+    savingUsername?'Saving your username…':
+    creatingPool?'Building your new pool…':
+    inviteAction.endsWith(':accept')?'Accepting the invitation…':
+    inviteAction.endsWith(':decline')?'Declining the invitation…':
+    enteringPool?'Opening your pool…':
+    leavingPool?'Returning to your pools…':
+    joiningGlobal?'Joining the Global Pool…':
+    sendingPoolInvite?'Sending the invitation…':
+    sharingPool?'Getting the pool link ready…':
+    updatingPoolMembership?'Updating pool membership…':
+    destructiveActionPending?'Finishing that account change…':
+    gating?(gatingLabel||'Saving your progress…'):
+    retryingPhaseCompletion?'Registering your phase completion…':
+    refreshingPool?'Refreshing the pool…':
+    chemistrySaving?'Saving your Heat Check…':
+    chemistryLoading?'Mixing the latest Heat Check…':
+    notificationSaving?'Saving your nudge settings…':
+    emailAuthSending?'Sending your sign-in link…':
+    lobbyLoading?'Refreshing your pools…':
+    saveState==='saving'?'Saving your picks…':'';
   /* ── RENDER ── */
-  if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading"><span className="spinner">♥</span>Loading...</div></div>;
+  if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading" role="status"><span className="spinner">♥</span>Getting the pods ready…</div></div>;
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
   if (authState==='signedout') return <div className="app">
+    <AppLoadingState label={loadingMessage}/>
     <BrandHeader/>
     <PublicTaste/>
     <div className="card login-card">
       <div className="signin-divider">Ready to play for real?</div>
       <h2>Save your picks and join the chat</h2>
       <p className="lede">Sign in to create a friend pool, join the Global Pool, and keep every prediction on the record.</p>
-      <button className="btn-google" onClick={handleSignIn}>
+      <button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        Sign in with Google
+        {signingIn?'Opening sign-in…':'Sign in with Google'}
       </button>
-      <button className="btn-secondary" onClick={handleAppleSignIn}>Sign in with Apple</button>
+      <button className="btn-secondary" disabled={signingIn} onClick={handleAppleSignIn}>{signingIn?'Opening sign-in…':'Sign in with Apple'}</button>
       <div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>
       {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on this device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className="btn-secondary" type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
       <p className="subtle" style={{marginTop:14}}>By continuing, you agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p>
@@ -5148,6 +5275,7 @@ function App() {
   </div>;
   /* Username setup */
   if (!profile?.username) return <div className="app">
+    <AppLoadingState label={loadingMessage}/>
     <BrandHeader/>
     <div className="card">
       <h2>Choose a username</h2>
@@ -5159,7 +5287,7 @@ function App() {
         </div>
       </div>
       {usernameError&&<div id="username-error"><ErrorCard message={usernameError}/></div>}
-      <button className="btn-primary" type="submit" disabled={!usernameInput.trim()||savingUsername}>{savingUsername?'Saving...':'Continue'}</button>
+      <button className="btn-primary" type="submit" disabled={!usernameInput.trim()||savingUsername}>{savingUsername?'Saving…':'Continue'}</button>
       </form>
     </div>
   </div>;
@@ -5167,7 +5295,7 @@ function App() {
     {user.photoURL?<img className="user-avatar" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback" aria-hidden="true">{initialsFor(profile.username)}</span>}
     <span className="user-name">{profile.username}</span>
     <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
-    <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
+    <button className="btn-signout" disabled={signingOut} onClick={handleSignOut}>{signingOut?'Signing out…':'Sign out'}</button>
   </div>;
   const startPoolFromLibrary=seasonId=>{
     setSelectedSeasonId(seasonId);setCreating(true);
@@ -5191,6 +5319,7 @@ function App() {
   </div>;
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
+    <AppLoadingState label={loadingMessage}/>
     <BrandHeader season={seasonLibrarySummary}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       {userBar}
@@ -5203,8 +5332,8 @@ function App() {
         <div className="iname">{inv.poolName}</div>
         <div className="imeta">{inv.seasonLabel&&<React.Fragment>{inv.seasonLabel} · </React.Fragment>}Invited by {inv.fromUsername}</div>
         <div className="invite-actions">
-          <button className="btn-small filled" onClick={()=>doAccept(inv)}>Accept</button>
-          <button className="btn-small" onClick={()=>doDecline(inv)}>Decline</button>
+          <button className="btn-small filled" disabled={!!inviteAction} onClick={()=>doAccept(inv)}>{inviteAction===inv.id+':accept'?'Accepting…':'Accept'}</button>
+          <button className="btn-small" disabled={!!inviteAction} onClick={()=>doDecline(inv)}>{inviteAction===inv.id+':decline'?'Declining…':'Decline'}</button>
         </div>
       </div>)}
     </div>}
@@ -5218,7 +5347,7 @@ function App() {
     </section>}
     <div className="card">
       <h2>Your pools</h2>
-      {lobbyLoading && <p className="subtle">Loading...</p>}
+      {lobbyLoading && <div className="loading" role="status" style={{padding:'28px 12px'}}><span className="spinner">♥</span>Refreshing your pools…</div>}
       {!lobbyLoading && friendPools.length===0 && <p className="lede">You're not in any friend pools yet. Create one and invite your friends!</p>}
       {!lobbyLoading&&activeFriendPools.length>0&&<section aria-labelledby="active-pools-heading"><h3 id="active-pools-heading" style={{margin:'18px 0 8px'}}>Active pools</h3>{activeFriendPools.map(friendPoolRow)}</section>}
       {!lobbyLoading&&pastFriendPools.length>0&&<section aria-labelledby="past-pools-heading"><h3 id="past-pools-heading" style={{margin:'22px 0 8px'}}>Past pools</h3>{pastFriendPools.map(friendPoolRow)}</section>}
@@ -5248,8 +5377,8 @@ function App() {
         {inviteList.length>0 && <div style={{margin:'8px 0'}}>
           {inviteList.map(em=><span className="email-chip" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
         </div>}
-        <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId} onClick={doCreatePool}>Create pool{inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}</button>
-        <button className="btn-secondary" onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setInviteList([]);}}>Cancel</button>
+        <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId||creatingPool} onClick={doCreatePool}>{creatingPool?'Building your pool…':`Create pool${inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}`}</button>
+        <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setInviteList([]);}}>Cancel</button>
       </div>}
     </div>
     <div className="card">
@@ -5260,12 +5389,12 @@ function App() {
       {HISTORICAL_SEASON_BANK.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={HISTORICAL_SEASON_BANK.length>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_BANK.map(season=><div className="pool-row season-library-row" key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">Ready to play</div></div><button type="button" className="btn-small filled" onClick={()=>startPoolFromLibrary(season.id)}>Start a new pool</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} membershipUpdating={destructiveActionPending}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
   /* ── IN POOL ── */
-  if(!eng||!cfg) return <div className="app"><BrandHeader season={seasonLabelForPool(activePool)}/><div className="card"><h2>Loading pool</h2><p className="lede">Getting this season’s predictions and rules ready…</p></div></div>;
+  if(!eng||!cfg) return <div className="app"><BrandHeader season={seasonLabelForPool(activePool)}/><div className="loading" role="status"><span className="spinner">♥</span>Getting this season’s predictions and rules ready…</div></div>;
   const {RULES} = eng;
   const phaseIntro = PH_INTRO(phase,RULES,eng);
   const standingsPlayers=globalDemoData?.players||playersById;
@@ -5276,7 +5405,7 @@ function App() {
     url.searchParams.delete('globalDemo');
     window.location.assign(url.toString());
   };
-  const saveBadge = <div className="save-status" aria-live="polite" aria-atomic="true">{saveState&&<React.Fragment><span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving...':saveState==='saved'?'✓ saved':'! not saved'}</span>{saveState==='error'&&<button className="save-retry" onClick={()=>flushSave().catch(()=>{})}>Retry save</button>}</React.Fragment>}</div>;
+  const saveBadge = <div className="save-status" role={saveState==='error'?'alert':'status'} aria-live={saveState==='error'?'assertive':'polite'} aria-atomic="true">{saveState&&<React.Fragment><span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving…':saveState==='saved'?'✓ saved':'! not saved'}</span>{saveState==='error'&&<button className="save-retry" onClick={()=>flushSave().catch(()=>{})}>Retry save</button>}</React.Fragment>}</div>;
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
   const readyWatchEnd=nextAvailableEnd();
@@ -5310,17 +5439,18 @@ function App() {
     ...(!globalDemoData&&cfg.PLAYABLE?[{id:'rules',label:'Rules'},{id:'scoring',label:'Scoring'}]:[]),
   ];
   return <div className="app">
+    <AppLoadingState label={loadingMessage}/>
     <BrandHeader season={seasonLabelForPool(activePool)}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <h1>{activePool.name}</h1>
       {saveBadge}
       <div className="user-bar">
         <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
-        <button className="backlink" onClick={exitPool}>← All pools</button>
+        <button className="backlink" disabled={leavingPool} onClick={exitPool}>{leavingPool?'Returning…':'← All pools'}</button>
         {user.photoURL?<img className="user-avatar" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback" aria-hidden="true">{initialsFor(meName)}</span>}
         <span className="user-name">{meName}</span>
         <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
-        <button className="btn-signout" onClick={handleSignOut}>Sign out</button>
+        <button className="btn-signout" disabled={signingOut} onClick={handleSignOut}>{signingOut?'Signing out…':'Sign out'}</button>
       </div>
     </BrandHeader>
     {offline&&<div className="offline-banner" role="status">You’re offline. Changes will be saved automatically when your connection returns.</div>}
@@ -5329,25 +5459,25 @@ function App() {
     {poolTab==='standings' && poolPlayers && <div id="pool-panel-standings" role="tabpanel" aria-labelledby="pool-tab-standings">
       <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
         ? <button className="btn-small" style={{width:'auto'}} onClick={exitGlobalDemo}>Exit demo preview</button>
-        : <button className="btn-small" style={{width:'auto'}} onClick={refreshStandings}>Refresh standings</button>}</div>
+        : <button className="btn-small" style={{width:'auto'}} disabled={refreshingPool} onClick={refreshStandings}>{refreshingPool?'Refreshing…':'Refresh standings'}</button>}</div>
       <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||EMPTY_PHASE_SCORES}/>
       {activePool.global&&!globalDemoData&&<div className="card">
         <h3>Share the Global Pool</h3>
         <p className="lede">The Global Pool is open to everyone. Share the app with friends and they can join from their own account.</p>
-        <button className="btn-secondary" onClick={shareGlobalPool}>Share Global Pool</button>
-        {globalShareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{globalShareFeedback}</p>}
+        <button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Share Global Pool'}</button>
+        {globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}
       </div>}
       {!activePool.global&&<div className="card">
         <h3>{activePool.membershipClosed===true?'This pool is locked for new players':'Invite someone'}</h3>
         <p className="lede">{activePool.membershipClosed===true?'Existing members can keep watching and predicting at their own pace.':'Friends can join at any time and begin their own game from Episode 1.'}</p>
-        {activePool.membershipClosed!==true&&activePool.joinCode&&<button className="btn-secondary" onClick={shareFriendPool}>Share pool link</button>}
+        {activePool.membershipClosed!==true&&activePool.joinCode&&<button className="btn-secondary" disabled={sharingPool} onClick={shareFriendPool}>{sharingPool?'Getting the link…':'Share pool link'}</button>}
         {activePool.membershipClosed!==true&&activePool.ownerUid===user.uid&&<React.Fragment>
           <p className="subtle" style={{marginTop:10}}>Or send up to 10 email invitations per day.</p>
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
               <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>
             </div>
-            <button className="btn-add" disabled={sendingPoolInvite||!poolInviteEmail.trim()} onClick={doSendPoolInvite}>{sendingPoolInvite?'Sending...':'Send invitation'}</button>
+            <button className="btn-add" disabled={sendingPoolInvite||!poolInviteEmail.trim()} onClick={doSendPoolInvite}>{sendingPoolInvite?'Sending…':'Send invitation'}</button>
           </div>
         </React.Fragment>}
         {activePool.ownerUid===user.uid&&<div style={{marginTop:14}}>
@@ -5356,7 +5486,7 @@ function App() {
           </button>
           <p className="subtle" style={{marginTop:7}}>{activePool.membershipClosed===true?'Reopening makes existing pending invitations usable again.':'Closing membership is optional. It is required only if you want the completed leaderboard to become final.'}</p>
         </div>}
-        {poolInviteFeedback&&<p style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
+        {poolInviteFeedback&&<p role={poolInviteError?'alert':'status'} style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
       </div>}
     </div>}
     {poolTab==='chemistry'&&(chemistryLoading||!chemistryMine||!chemistryCommunity||!chemistryGlobalCommunity)
@@ -5368,8 +5498,8 @@ function App() {
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
       <div className="notice"><b>Season has not started.</b> {activePool.global===true?'The Global Pool is open to everyone. Share the app with friends and they can join from their own account.':'Use the Standings tab to invite your friends now.'} Predictions will open shortly after the first episodes drop.</div>
-      {activePool.global===true&&<React.Fragment><button className="btn-secondary" onClick={shareGlobalPool}>Share Global Pool</button>{globalShareFeedback&&<p className="subtle" role="status" style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
-      <button className="btn-secondary" onClick={()=>refreshPool(true)}>Check for season updates</button>
+      {activePool.global===true&&<React.Fragment><button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Share Global Pool'}</button>{globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
+      <button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Checking for updates…':'Check for season updates'}</button>
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <div id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
       <Stepper phase={phase} RULES={RULES}/>
@@ -5407,8 +5537,8 @@ function App() {
           {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
             ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
             : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
-              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" onClick={()=>refreshPool(true)}>Refresh season data</button></React.Fragment>
-              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><button className="btn-secondary" onClick={()=>refreshPool(true)}>Refresh season data</button></React.Fragment>}
+              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>
+              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>}
         </React.Fragment>}
       </div>}
       {screen==='close'&&closeInfo&&<React.Fragment>
@@ -5419,7 +5549,7 @@ function App() {
           <div className="notice">{RESULTS_READY[phase]||phase==='dating'
             ? 'Your predictions are permanently locked. Your live checkpoint score is now in Standings and may shift as more pool members finish this phase.'
             : 'Your predictions are permanently locked. This checkpoint will appear in the live standings when its results are confirmed.'}</div>
-          {phaseCompletionError&&<div className="errcard" role="alert" style={{marginTop:14}}><h3>Completion not registered</h3><p>{phaseCompletionError}</p><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying...':'Retry phase completion'}</button></div>}
+          {phaseCompletionError&&<ErrorCard title="Completion not registered" message={phaseCompletionError}><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying…':'Retry phase completion'}</button></ErrorCard>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+navigationPhaseLabel(NEXT_PH[phase],RULES)+' →':'Finish the season →'}</button>
         </div>
       </React.Fragment>}
@@ -5433,11 +5563,11 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>} 
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership||destructiveActionPending}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
 }
-const mountApp = () => ReactDOM.createRoot(document.getElementById('root')).render(CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>);
+const mountApp = () => ReactDOM.createRoot(document.getElementById('root')).render(<React.Fragment><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</React.Fragment>);
 if (window._fb) mountApp();
 else window.addEventListener('firebase-ready',mountApp,{once:true});
 </script>
