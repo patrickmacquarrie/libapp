@@ -286,6 +286,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .offline-banner{position:sticky;top:0;z-index:20;margin:0 0 12px;padding:10px 14px;border:1px solid #d88923;border-radius:10px;background:#fff2d9;color:#6e3d00;font:700 13px Inter,Arial,sans-serif;text-align:center}
 .locked-picks{text-align:left;margin:14px 0 2px}
 .locked-picks-title{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--soft-text);margin-bottom:6px}
+.locked-picks-current .locked-picks-title{color:var(--rose)}
+.locked-picks-current .pickchip{border-color:color-mix(in srgb,var(--rose) 42%,var(--line));border-left:4px solid var(--rose);background:color-mix(in srgb,var(--rose) 7%,var(--surface))}
+.locked-picks-current .pickchip .subtle{color:var(--rose);font-weight:800}
+.locked-picks-previous .pickchip{border-style:dashed;background:var(--surface-soft)}
+.locked-picks-previous .pickchip .nm{color:var(--muted)}
+.locked-picks-previous .pickchip .subtle{font-weight:700}
 .user-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:5px;flex-wrap:wrap}
 .user-avatar{width:28px;height:28px;border-radius:50%;border:2px solid var(--line)}
 .user-name{font-size:13px;font-weight:600;color:var(--muted)}
@@ -2922,10 +2928,10 @@ const pickLabelFor=(phase,p,eng)=>{
   if(phase==='weddings')return eng.nameOf(p.c)+' - '+WED_LABEL[p.o]+(p.who?' ('+eng.whoNm(p.c,p.who)+')':'');
   return eng.reunionPickLabel(p);
 };
-function LockedPicks({phase,picks,eng,title='Your locked picks',status='locked'}) {
-  return <div className="locked-picks" aria-label={title}>
+function LockedPicks({phase,picks,eng,title='Your locked picks',status='locked',variant=''}) {
+  return <div className={'locked-picks'+(variant?' locked-picks-'+variant:'')} aria-label={title}>
     <div className="locked-picks-title">{title}</div>
-    {picks.length===0?<p className="subtle">No predictions on this board.</p>:picks.map((pick,index)=><div className="pickchip" key={index}><div><div className="nm">{pickLabelFor(phase,pick,eng)} - {pick.s}♥</div><div className="subtle">{status}</div></div></div>)}
+    {picks.length===0?<p className="subtle">No predictions on this board.</p>:picks.map((pick,index)=>{const pickStatus=typeof status==='function'?status(pick):status;return <div className="pickchip" key={index}><div><div className="nm">{pickLabelFor(phase,pick,eng)} - {pick.s}♥</div><div className="subtle">{pickStatus}</div></div></div>;})}
   </div>;
 }
 const navigationPhaseLabel = (phase,RULES) => phase==='weddings'?'Wedding Predictions':RULES.phases[phase].label;
@@ -4997,7 +5003,17 @@ function App() {
             : 'All Hearts have been allocated';
         return <div className={'lock-phase-row'+(expiring?' expiring':'')} key={phaseId}><strong>{label}</strong><span>{detail}</span></div>;
       })}</div>
-      {predictionPhases.map(phaseId=><LockedPicks key={phaseId} phase={phaseId} picks={picks[phaseId]} eng={eng} title={RULES.phases[phaseId].label+' picks'} status="ready to lock"/>)}
+      {predictionPhases.map(phaseId=>{
+        const phasePicks=picks[phaseId]||[];
+        const lockingNow=phaseId==='reunion'?phasePicks:phasePicks.filter(pick=>Number(pick.w)===Number(w));
+        const previouslyLocked=phaseId==='reunion'?[]:phasePicks.filter(pick=>Number(pick.w)!==Number(w));
+        const label=RULES.phases[phaseId].label;
+        if(!phasePicks.length)return <LockedPicks key={phaseId} phase={phaseId} picks={phasePicks} eng={eng} title={label+' picks'}/>;
+        return <React.Fragment key={phaseId}>
+          {lockingNow.length>0&&<LockedPicks phase={phaseId} picks={lockingNow} eng={eng} title={label+' · Locking now'} status="Locking now" variant="current"/>}
+          {previouslyLocked.length>0&&<LockedPicks phase={phaseId} picks={previouslyLocked} eng={eng} title={label+' · Previously locked'} status={pick=>Number.isFinite(Number(pick.w))?'Previously locked after Episode '+pick.w:'Previously locked'} variant="previous"/>}
+        </React.Fragment>;
+      })}
       <div className="lock-watch-range">{range?'Next: watch '+range+'.':'No new episodes are available yet. You can return when they are.'}</div>
     </div>;
     if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
@@ -5006,17 +5022,6 @@ function App() {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
     } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
-    finally { setGating(false);setGatingLabel(''); }
-  };
-  const beginNextBatch = async () => {
-    if(gating) return;
-    const target=nextAvailableEnd();
-    if(target<=w) return;
-    setGatingLabel('Opening the next watch-through…');setGating(true);
-    try {
-      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
-      setWatchThrough(target);
-    } catch(e) { setErr('The next watch-through could not be opened. Please try again.'); }
     finally { setGating(false);setGatingLabel(''); }
   };
   const registerPhaseCompletion = useCallback(async (poolId,phaseId,uid) => {
@@ -5037,11 +5042,12 @@ function App() {
       return false;
     } finally { setRetryingPhaseCompletion(false); }
   },[]);
-  const finishWatch = async () => {
-    if(gating||watchThrough<=w) return;
+  const finishWatch = async (targetOverride=null) => {
+    const target=Number.isFinite(targetOverride)?targetOverride:watchThrough;
+    if(gating||target<=w) return;
     setGatingLabel('Saving your watch-through…');setGating(true);
     try {
-      const start=w+1,target=watchThrough,endEp=PH_SPAN[phase].endEp;
+      const start=w+1,endEp=PH_SPAN[phase].endEp;
       const canClose=target>=endEp&&BOUNDARIES_FINAL[phase]!==false;
       const recapStart=canClose&&phase==='dating'?PH_SPAN.dating.retreatStartEp:start;
       const rangeResults=[];
@@ -5552,12 +5558,12 @@ function App() {
           <p className="lede">You can now watch {watchRangeLabel(phase,w+1,watchThrough)}. Return here when you finish.</p>
           {lockedPickCards}
           <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/>
-          <button className="btn-primary" disabled={gating} onClick={finishWatch}>I've finished {watchRangeLabel(phase,w+1,watchThrough)} →</button>
+          <button className="btn-primary" disabled={gating} onClick={()=>finishWatch()}>I've finished {watchRangeLabel(phase,w+1,watchThrough)} →</button>
         </React.Fragment>:readyWatchEnd>w?<React.Fragment>
-          <p className="lede">New episodes are ready. Your predictions remain locked.</p>
+          <p className="lede">You can now watch {watchRangeLabel(phase,w+1,readyWatchEnd)}. Return here when you finish.</p>
           {lockedPickCards}
           <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/>
-          <button className="btn-primary" disabled={gating} onClick={beginNextBatch}>Watch {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
+          <button className="btn-primary" disabled={gating} onClick={()=>finishWatch(readyWatchEnd)}>I've finished {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
         </React.Fragment>:<React.Fragment>
           {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
             ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
