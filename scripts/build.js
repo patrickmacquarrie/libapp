@@ -12,8 +12,13 @@ const match=source.match(babelScript);
 if(!match) throw new Error('Could not find the editable text/babel script in index.html.');
 
 const compiled=Babel.transform(match[1],{presets:['react']}).code;
-const withoutBabelCdn=source.replace(/\s*<script[^>]+babel-standalone[^>]*><\/script>/,'');
-const output=withoutBabelCdn.replace(babelScript,`<script>\n${compiled}\n</script>`);
+const babelCdn=/\s*<script[^>]+babel-standalone[^>]*><\/script>/;
+if(!babelCdn.test(source))throw new Error('Could not find the browser-only Babel CDN script in index.html. Refusing to ship a duplicate compiler.');
+const withoutBabelCdn=source.replace(babelCdn,'');
+const buildTimestamp=new Date().toISOString();
+const output=withoutBabelCdn
+  .replace(babelScript,`<script>\n${compiled}\n</script>`)
+  .replaceAll('__APP_BUILD_TIMESTAMP__',buildTimestamp);
 
 fs.mkdirSync(path.dirname(outputPath),{recursive:true});
 fs.writeFileSync(outputPath,output);

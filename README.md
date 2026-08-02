@@ -22,7 +22,7 @@ cd ..
 firebase deploy --only firestore:rules,functions
 ```
 
-Email nudges use the official Firebase **Trigger Email** extension. Install the extension in the `lib-oauth` project, configure its SMTP provider, and keep its mail collection set to `mail`. The app never grants browser access to that collection: trusted Functions create duplicate-safe delivery documents only for users who enable **Email me when the tea moves** in Settings.
+Email nudges use the official Firebase **Trigger Email** extension. Install the extension in the `lib-oauth` project, configure its SMTP provider, and keep its mail collection set to `mail`. The app never grants browser access to that collection: trusted Functions atomically create each deterministic mail document once, so a retried trigger cannot replace it or send the same nudge twice.
 
 Two notification events are currently queued:
 

@@ -306,7 +306,8 @@ service cloud.firestore {
 
       // ----------------------------------------------------------
       // Phase completion status
-      // Each member may add or remove only their own uid.
+      // Each member may add or remove only their own uid. This is what lets a
+      // provisional live-season checkpoint reopen when its boundary moves.
       // ----------------------------------------------------------
 
       match /phaseStatus/{phase} {
@@ -328,6 +329,12 @@ service cloud.firestore {
                 .union([request.auth.uid].toSet());
         }
 
+        function viewerOnlyRemovedOwnCompletion() {
+          return request.resource.data.completedMembers.toSet() ==
+              resource.data.get('completedMembers', []).toSet()
+                .difference([request.auth.uid].toSet());
+        }
+
         allow read: if poolMember(poolId);
 
         allow create: if poolMember(poolId) &&
@@ -341,7 +348,8 @@ service cloud.firestore {
             'revealed',
             'updatedAt'
           ]) &&
-          viewerOnlyAddedOwnCompletion();
+          (viewerOnlyAddedOwnCompletion() ||
+            viewerOnlyRemovedOwnCompletion());
 
         allow delete: if poolOwner(poolId);
       }

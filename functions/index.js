@@ -11,12 +11,9 @@ const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
-const GLOBAL_POOL_SEASONS={
-  'love-is-blind-us-6':{
-    id:'love-is-blind-us-6',label:'Love Is Blind US: Season 6',country:'United States',countryCode:'US',
-    seasonNumber:6,locationLabel:'Charlotte',
-  },
-};
+// Private friends beta: public Global Pool creation stays disabled until the
+// live-season launch is ready for the much larger notification/scoring load.
+const GLOBAL_POOL_SEASONS={};
 
 function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
@@ -39,14 +36,20 @@ async function queueNudge(uid,messageId,subject,text,preferenceKey){
   const user=await getAuth().getUser(uid).catch(()=>null);
   if(!user?.email)return false;
   const safeText=String(text||'');
-  await db.doc(`mail/${messageId}`).set({
-    to:[user.email],
-    message:{
-      subject,
-      text:safeText+`\n\nOpen Through the Wall: ${APP_URL}`,
-      html:`<p>${escapeHtml(safeText)}</p><p><a href="${APP_URL}">Open Through the Wall</a></p>`,
-    },
-  });
+  try{
+    await db.doc(`mail/${messageId}`).create({
+      to:[user.email],
+      message:{
+        subject,
+        text:safeText+`\n\nOpen Through the Wall: ${APP_URL}`,
+        html:`<p>${escapeHtml(safeText)}</p><p><a href="${APP_URL}">Open Through the Wall</a></p>`,
+      },
+    });
+  }catch(error){
+    const code=String(error?.code??'').toLowerCase();
+    if(code==='6'||code==='already-exists'||code==='already_exists')return true;
+    throw error;
+  }
   return true;
 }
 

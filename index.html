@@ -266,6 +266,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .notice{border:1px dashed #e3cd93;background:#fdf8ec;border-radius:12px;padding:11px 14px;font-size:13px;color:#6d5324;line-height:1.5;margin:10px 0}
 .loading{text-align:center;padding:60px 20px;color:var(--soft-text);font-size:15px}
 .loading .spinner{font-size:28px;animation:spin 1.2s linear infinite;display:block;margin-bottom:12px}
+.root-boot{min-height:70vh;display:grid;place-content:center;justify-items:center;gap:12px;padding:32px 20px;text-align:center;color:var(--wine)}
+.root-boot-mark{width:76px;height:76px;display:block;filter:drop-shadow(0 9px 20px rgba(67,17,39,.16))}
+.root-boot h1{margin:0;font:700 30px/1.05 'Playfair Display',Georgia,serif}.root-boot p{max-width:420px;margin:0;color:var(--muted);line-height:1.55}
+.root-boot-heart{color:var(--rose);font-size:24px;animation:loading-heart 1s ease-in-out infinite}
+.root-boot-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin-top:5px}.root-boot-actions a{width:auto;min-width:132px;margin:0;text-decoration:none}
+.fatal-app .card{max-width:620px;margin:32px auto}.fatal-actions{display:grid;gap:10px;margin-top:18px}.fatal-copy-status{min-height:18px;margin:8px 0 0;color:var(--muted);font-size:12px;font-weight:700}
 .app-loading-state{position:fixed;z-index:80;top:max(12px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:calc(100vw - 28px);padding:10px 15px;border:1px solid color-mix(in srgb,var(--rose) 38%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--card) 94%,transparent);box-shadow:0 10px 32px rgba(67,17,39,.18);color:var(--wine);font-size:12px;font-weight:800;line-height:1.2;text-align:left;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .app-loading-heart{display:inline-grid;place-items:center;width:22px;height:22px;flex:0 0 auto;border-radius:50%;background:var(--blush-soft);color:var(--rose);font-size:15px;animation:loading-heart 1s ease-in-out infinite}
 .app-loading-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -699,7 +705,11 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root"><div class="root-boot" role="status" aria-live="polite">
+  <svg class="root-boot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/><path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/><path fill="#fff" d="M30 12h4v44h-4z"/><path fill="#f2c85f" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Zm-22 30 1.5 4L16 41l-4.5 2L10 47l-1.5-4L4 41l4.5-2Zm44-1 1.2 3.2L59 39l-3.8 1.8L54 44l-1.2-3.2L49 39l3.8-1.8Z"/></svg>
+  <h1>Through the Wall</h1><p>Getting the pods ready…</p><span class="root-boot-heart" aria-hidden="true">♥</span>
+</div></div>
+<noscript><div class="root-boot"><h1>JavaScript is turned off</h1><p>Through the Wall needs JavaScript to run. You can still visit the <a href="/welcome/">welcome page</a>.</p></div></noscript>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
@@ -802,7 +812,9 @@ window._fb = {
     if(!email)return false;
     await signInWithEmailLink(auth,email,window.location.href);
     localStorage.removeItem('through-the-wall-email-signin');
-    history.replaceState({},'',window.location.origin+window.location.pathname);
+    const cleanUrl=new URL(window.location.href);
+    ['apiKey','oobCode','mode','continueUrl','lang','tenantId'].forEach(key=>cleanUrl.searchParams.delete(key));
+    history.replaceState({},'',cleanUrl.toString());
     return true;
   },
   signOut: () => signOut(auth),
@@ -1148,9 +1160,12 @@ window.dispatchEvent(new Event('firebase-ready'));
 </script>
 <script crossorigin="anonymous" integrity="sha512-8Q6Y9XnTbOE+JNvjBQwJ2H8S+UV4uA6hiRykhdtIyDYZ2TprdNmWOUaKdGzOhyr4dCyk287OejbPvwl7lrfqrQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin="anonymous" integrity="sha512-MOCpqoRoisCTwJ8vQQiciZv0qcpROCidek3GTFS6KTk2+y7munJIlKCVkFCYY+p3ErYFXCjmFjnfTTRSC1OHWQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script crossorigin="anonymous" integrity="sha512-Y37Caenc5CZqwSMwWZj+5uxkB3Loc9yJNHvb+eSwEsT6nhURSrPZo39vTnb5g8UvOGCNXRbQ+xQvnqr2rR9nRw==" src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.5/babel.min.js"></script>
 <script type="text/babel" data-presets="react">
 const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid'];
 const initialAppParams=new URLSearchParams(window.location.search);
+const APP_BUILD_TIMESTAMP='__APP_BUILD_TIMESTAMP__'.startsWith('__APP_')?'development source · '+document.lastModified:'__APP_BUILD_TIMESTAMP__';
+window.__TTW_DIAGNOSTICS__={appBuildTimestamp:APP_BUILD_TIMESTAMP};
 const MARKETING_CREATE_INTENT=initialAppParams.get('start')==='create';
 const captureAcquisition=()=>{
   const acquisition=Object.fromEntries(ACQUISITION_KEYS.map(key=>[key,initialAppParams.get(key)]).filter(([,value])=>value));
@@ -1273,7 +1288,7 @@ const SEASON_BANK = [
     locationLabel:'Minneapolis',
     sheetId:'1L-_RrG5DDTIWLbEe17VnKy4xDGoYm61DFOw8mIExPQg',
     historical:true,
-    available:true,
+    available:false,
   },
   {
     id:'love-is-blind-us-9',
@@ -1538,10 +1553,8 @@ const SEASON_BANK = [
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
-// Friends-test global pool: use a completed season with a populated cast so
-// Heat Check and its anonymous aggregate can be exercised end to end.
-// Switch this back to the live/upcoming selector when the UK S3 cast is ready.
-const GLOBAL_POOL_SEASON = SEASON_BANK.find(season=>season.id==='love-is-blind-us-6')||null;
+// Private friends beta: keep every Global Pool entry point out of the UI.
+const GLOBAL_POOL_SEASON = null;
 // Safe visual preview: append ?globalDemo=1 to the app URL. Sample players
 // exist only in memory and are never written to Firebase.
 const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('globalDemo')==='1';
@@ -2720,7 +2733,7 @@ function makeEngine(cfg, poolSize) {
   return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,DATING_MULT:DATING_MARKET_MULT,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
           nameOf,membOf,coupleFor,sameCouple,whoNm,reunionPickLabel,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
-          resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,sanitizePhasePicks,spentBy};
+          pickIdentity,resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,sanitizePhasePicks,spentBy};
 }
 const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points are included in the live standings after you complete this reveal phase.';
 const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
@@ -2958,6 +2971,61 @@ function ErrorCard({message,onDismiss,title='The vibes hit a wall',children=null
     {onDismiss&&<button className="errcard-close" onClick={onDismiss} aria-label="Dismiss error">×</button>}
     <h3>{title}</h3><p>{message}</p>{children}
   </div>;
+}
+class AppErrorBoundary extends React.Component {
+  constructor(props){super(props);this.state={error:null,componentStack:'',copyStatus:''};}
+  static getDerivedStateFromError(error){return {error};}
+  componentDidCatch(error,info){
+    console.error('Through the Wall render failed.',error,info);
+    this.setState({componentStack:info?.componentStack||''});
+  }
+  diagnosticPayload=()=>{
+    const error=this.state.error;
+    return {
+      error:{message:String(error?.message||error||'Unknown render error'),stack:String(error?.stack||''),componentStack:this.state.componentStack},
+      ...(window.__TTW_DIAGNOSTICS__||{}),
+    };
+  };
+  copyDiagnostic=async()=>{
+    const text=JSON.stringify(this.diagnosticPayload(),null,2);
+    try{
+      if(!navigator.clipboard?.writeText)throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(text);
+      this.setState({copyStatus:'Diagnostic copied.'});
+    }catch(error){
+      try{
+        const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';
+        document.body.appendChild(field);field.select();document.execCommand('copy');field.remove();
+        this.setState({copyStatus:'Diagnostic copied.'});
+      }catch(copyError){this.setState({copyStatus:'Copy failed. Reload the page and try again.'});}
+    }
+  };
+  startOver=async()=>{
+    try{
+      for(let index=localStorage.length-1;index>=0;index--){
+        const key=localStorage.key(index)||'';
+        if(key.startsWith('prediction-pool-')||key.startsWith('through-the-wall-'))localStorage.removeItem(key);
+      }
+      await window._fb?.signOut?.();
+    }catch(error){console.warn('Sign-out cleanup was incomplete.',error);}
+    window.location.reload();
+  };
+  render(){
+    if(!this.state.error)return this.props.children;
+    return <main className="app fatal-app">
+      <div className="card" role="alert">
+        <div className="crown" aria-hidden="true">♥</div>
+        <h1 style={{fontFamily:"'Playfair Display',Georgia,serif",color:'var(--wine)',margin:'4px 0 8px'}}>The vibes hit a wall</h1>
+        <p className="lede">The app ran into an unexpected problem. Your saved predictions are still in your pool.</p>
+        <div className="fatal-actions">
+          <button className="btn-primary" onClick={()=>window.location.reload()}>Reload</button>
+          <button className="btn-secondary" onClick={this.copyDiagnostic}>Copy diagnostic</button>
+          <button className="btn-secondary" onClick={this.startOver}>Sign out and start over</button>
+        </div>
+        <p className="fatal-copy-status" role="status" aria-live="polite">{this.state.copyStatus}</p>
+      </div>
+    </main>;
+  }
 }
 const pickLabelFor=(phase,p,eng)=>{
   if(phase==='pods')return eng.nameOf(p.c);
@@ -4488,15 +4556,25 @@ function App() {
         window._fb.myInvites(user.email),
       ]);
       let availablePools=ps;
-      const joinToken=new URL(window.location.href).searchParams.get('join')||'';
-      const separator=joinToken.indexOf('.');
-      if(separator>0){
-        const poolId=joinToken.slice(0,separator),joinCode=joinToken.slice(separator+1);
-        if(!availablePools.some(pool=>pool.id===poolId)){
-          const joined=await window._fb.joinPoolByCode(poolId,joinCode,user.uid);
-          if(joined)availablePools=[...availablePools,joined];
+      const currentUrl=new URL(window.location.href);
+      const joinToken=currentUrl.searchParams.get('join')||'';
+      if(joinToken){
+        try{
+          const separator=joinToken.indexOf('.');
+          if(separator<=0||separator===joinToken.length-1)throw new Error('That pool invitation link is incomplete.');
+          const poolId=joinToken.slice(0,separator),joinCode=joinToken.slice(separator+1);
+          if(!availablePools.some(pool=>pool.id===poolId)){
+            const joined=await window._fb.joinPoolByCode(poolId,joinCode,user.uid);
+            if(joined)availablePools=[...availablePools,joined];
+            else throw new Error('That pool invitation could not be found.');
+          }
+        }catch(joinError){
+          console.warn('Pool invitation link could not be used.',joinError);
+          setErr('That invite link is no longer valid — ask for a new one. Your existing pools are still here.');
+        }finally{
+          currentUrl.searchParams.delete('join');
+          history.replaceState({},'',currentUrl.toString());
         }
-        const cleanUrl=new URL(window.location.href);cleanUrl.searchParams.delete('join');history.replaceState({},'',cleanUrl.toString());
       }
       const links=(await Promise.all(availablePools.filter(pool=>pool.global===true).map(async pool=>{
         try {
@@ -4596,7 +4674,12 @@ function App() {
           // was finalized. Their picks stay intact, but the phase is reopened.
           const reopenedCompleted={...(mine.completed||{})};
           delete reopenedCompleted[minePhase];
-          await window._fb.reopenPhase(pool.id,minePhase,user.uid);
+          try{
+            await window._fb.reopenPhase(pool.id,minePhase,user.uid);
+          }catch(reopenError){
+            console.error('The provisional checkpoint could not be reopened.',reopenError);
+            throw new Error('We could not reopen your provisional checkpoint. Your saved predictions were not changed. Please refresh and try again.');
+          }
           await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted});
           mine={...mine,screen:'watch',completed:reopenedCompleted};
           players[user.uid]=mine;
@@ -4667,7 +4750,7 @@ function App() {
       console.error(e);
       const message=playerSeasonError(e,'Could not open this pool. Please try again.');
       const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/insufficient permissions/i.test(String(e?.message||''));
-      setErr(permissionDenied?`The Global Pool was blocked while ${entryStep}. Missing or insufficient permissions.`:message);
+      setErr(permissionDenied&&pool.global===true?`The Global Pool was blocked while ${entryStep}. Missing or insufficient permissions.`:message);
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({});
     } finally { setLobbyLoading(false); setEnteringPool(false); }
   };
@@ -5294,6 +5377,32 @@ function App() {
     }
     return {playersById:nextPlayers,memberLabels:nextLabels};
   },[activePool,poolPlayers,poolUsers,user?.uid,picks,completed,meName,phase,screen,w,watchThrough]);
+  useEffect(()=>{
+    const lockedPicks=[];
+    if(activePool&&eng&&user?.uid){
+      PH_ORDER.forEach(lockedPhase=>{
+        const locked=completed?.[lockedPhase]===true||(poolStatus[lockedPhase]?.completedMembers||[]).includes(user.uid);
+        if(!locked)return;
+        const picksBy=Object.fromEntries((activePool.members||[]).map(uid=>[
+          uid,normalizePicks(playersById[uid]?.picks||freshPicks())[lockedPhase],
+        ]));
+        const activePlayers=Object.keys(picksBy).filter(uid=>picksBy[uid].length>0);
+        const activePoolSize=Math.max(activePlayers.length,1);
+        (normalizePicks(picks)[lockedPhase]||[]).forEach((pick,pickIndex)=>{
+          const identity=eng.pickIdentity(lockedPhase,pick);
+          const owners=activePlayers.filter(uid=>picksBy[uid].some(candidate=>eng.pickIdentity(lockedPhase,candidate)===identity)).length;
+          lockedPicks.push({phase:lockedPhase,pickIndex,identity,owners,activePoolSize,contraV:eng.contraV(owners,activePoolSize)});
+        });
+      });
+    }
+    window.__TTW_DIAGNOSTICS__={
+      appBuildTimestamp:APP_BUILD_TIMESTAMP,
+      activePool:activePool?{id:activePool.id,season:{id:seasonForPool(activePool).id}}:null,
+      phase,screen,w,watchThrough,completed:{...(completed||{})},
+      poolSize:activePool?.members?.length||0,
+      scoringContext:{lockedPicks},
+    };
+  },[activePool,eng,user?.uid,playersById,poolStatus,picks,completed,phase,screen,w,watchThrough]);
   const globalDemoData=useMemo(()=>activePool?.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user?.uid,meName):null,[activePool?.id,user?.uid,meName]);
   const shareStandings=useMemo(()=>calculateShareStandings({eng,playersById,poolStatus,statusDocs:poolStatus,meId:user?.uid,currentPicks:picks}),[eng,playersById,poolStatus,user?.uid,picks]);
   const retroDisplayContext=activePool?activePool.id+':'+screen+':'+w:'';
@@ -5656,7 +5765,22 @@ function App() {
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>} 
   </div>;
 }
-const mountApp = () => ReactDOM.createRoot(document.getElementById('root')).render(<React.Fragment><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</React.Fragment>);
+let appMounted=false;
+const firebaseFallbackTimer=window.setTimeout(()=>{
+  if(appMounted||window._fb)return;
+  const root=document.getElementById('root');
+  if(!root)return;
+  root.innerHTML=`<div class="root-boot" role="alert">
+    <svg class="root-boot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/><path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/><path fill="#fff" d="M30 12h4v44h-4z"/><path fill="#f2c85f" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/></svg>
+    <h1>We couldn’t reach the pods</h1><p>Through the Wall could not load its Firebase connection. Check your connection, then try again.</p>
+    <div class="root-boot-actions"><a class="btn-primary" href="">Reload</a><a class="btn-secondary" href="/welcome/">Visit the welcome page</a></div>
+  </div>`;
+},8000);
+const mountApp = () => {
+  if(appMounted)return;
+  appMounted=true;window.clearTimeout(firebaseFallbackTimer);
+  ReactDOM.createRoot(document.getElementById('root')).render(<AppErrorBoundary><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</AppErrorBoundary>);
+};
 if (window._fb) mountApp();
 else window.addEventListener('firebase-ready',mountApp,{once:true});
 </script>
