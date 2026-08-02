@@ -3570,15 +3570,16 @@ function StakeSlider({value,onChange,max,multiplier=1,pointsPerHeart=1,previewNo
 /*  Pods, Retreats & Weddings: rolling windows. Reunion: single lock.  */
 /* ================================================================== */
 function PodsBoard({w,picks,add,remove,spent,eng,finalWindow,onPendingChange,pendingRef}) {
-  const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,pairKeyFor,leadM,fmt}=eng;
+  const {MEN,WOMEN,COUPLES,RULES,nameOf,membOf,coupleFor,pairKeyFor,personKey,leadM,fmt}=eng;
   const [him,setHim]=useState(''),[her,setHer]=useState(''),[stake,setStake]=useState(30);
   const [adding,setAdding]=useState(picks.length===0);
-  const engaged=COUPLES.filter(c=>c.podsEligible&&Number.isFinite(c.engagedEp)&&c.engagedEp<=w).flatMap(c=>[c.him,c.her]);
-  const used=picks.flatMap(p=>membOf(p.c));
+  const engaged=new Set(COUPLES.filter(c=>c.podsEligible&&Number.isFinite(c.engagedEp)&&c.engagedEp<=w).flatMap(c=>[c.him,c.her]).map(personKey));
+  const used=new Set(picks.flatMap(p=>membOf(p.c)).map(personKey));
+  const predictedPairs=new Set(picks.map(p=>pairKeyFor(p.c)));
   const neverEngagedPairs=new Set(COUPLES.filter(c=>!Number.isFinite(c.engagedEp)).map(c=>pairKeyFor(c.id)));
-  const pairAvailable=(man,woman)=>!man||!woman||!neverEngagedPairs.has(pairKeyFor(man+'|'+woman));
-  const menA=MEN.filter(n=>!engaged.includes(n)&&!used.includes(n)&&pairAvailable(n,her));
-  const womA=WOMEN.filter(n=>!engaged.includes(n)&&!used.includes(n)&&pairAvailable(him,n));
+  const pairAvailable=(man,woman)=>!man||!woman||(!predictedPairs.has(pairKeyFor(man+'|'+woman))&&neverEngagedPairs.has(pairKeyFor(man+'|'+woman)));
+  const menA=MEN.filter(n=>!engaged.has(personKey(n))&&!used.has(personKey(n))&&pairAvailable(n,her));
+  const womA=WOMEN.filter(n=>!engaged.has(personKey(n))&&!used.has(personKey(n))&&pairAvailable(him,n));
   const left=RULES.phases.pods.budget-spent, maxS=Math.min(RULES.phases.pods.cap,left);
   const doAdd=()=>{add({c:him+'|'+her,s:Math.min(stake,maxS),w});setHim('');setHer('');setAdding(false);};
   const startAnother=()=>{setHim('');setHer('');setAdding(true);};
