@@ -10,7 +10,7 @@ const PHASES=['pods','dating','weddings','reunion'];
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
-const APP_URL='https://patrickmacquarrie.github.io/libapp/';
+const APP_URL='https://throughthewall.ca/';
 const GLOBAL_POOL_SEASONS={
   'love-is-blind-us-6':{
     id:'love-is-blind-us-6',label:'Love Is Blind US: Season 6',country:'United States',countryCode:'US',
@@ -206,6 +206,59 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
     if(existing.exists&&existing.data().status!=='pending')throw new HttpsError('already-exists','That invitation was already answered. Share the pool link instead.');
     tx.set(inviteRef,{poolId,poolName:pool.name,seasonLabel:pool.season?.label||'',fromUid:uid,fromUsername:profileSnap.data()?.username||'A friend',toEmail,status:'pending',createdAt:Date.now()});
     tx.set(limitRef,{uid,day,count:count+1,updatedAt:Date.now()},{merge:true});
+  });
+  const pool=poolSnap.data();
+  const inviter=String(profileSnap.data()?.username||'A friend').trim()||'A friend';
+  const inviteUrl=new URL(APP_URL);
+  inviteUrl.searchParams.set('join',poolId+'.'+String(pool.joinCode||''));
+  const logoUrl=new URL('images/through-the-wall-app-icon.png',APP_URL).href;
+  const logoUrlWithVersion=logoUrl+'?v=2';
+  const seasonLabel=String(pool.season?.label||'Love Is Blind');
+  const subject=`${inviter} invited you to ${pool.name}`;
+  const text=`${inviter} invited you to join their Through the Wall prediction pool, “${pool.name},” for ${seasonLabel}.\n\nJoin the pool: ${inviteUrl}`;
+  const inviteHtml=`<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:#f7f4ff;font-family:Arial,Helvetica,sans-serif;color:#211a37;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(inviter)} wants you in their unofficial Love Is Blind prediction pool. Your pod is waiting.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;padding:28px 12px;background:#f7f4ff;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 10px 30px rgba(52,31,98,.13);">
+          <tr><td style="padding:28px 32px;background:linear-gradient(135deg,#351263 0%,#7b2cbf 55%,#ef5da8 100%);color:#ffffff;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+              <td width="50" valign="middle"><img src="${escapeHtml(logoUrlWithVersion)}" width="42" height="42" alt="Through the Wall" style="display:block;width:42px;height:42px;border:0;"></td>
+              <td valign="middle" style="padding-left:11px;"><div style="font-size:13px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;opacity:.9;">Through the Wall</div><div style="margin-top:5px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.78;">An unofficial Love Is Blind predictions pool</div></td>
+            </tr></table>
+            <div style="margin-top:14px;font-size:32px;line-height:1.12;font-weight:800;">You’re in the pods. 💜</div>
+            <div style="margin-top:10px;font-size:16px;line-height:1.5;color:#f6ecff;">${escapeHtml(inviter)} is building their pod squad. You’re on the list.</div>
+          </td></tr>
+          <tr><td style="padding:32px;">
+            <p style="margin:0 0 22px;font-size:17px;line-height:1.55;">Make your predictions, lock them in, and earn your group-chat bragging rights.</p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 26px;background:#f7f1ff;border:1px solid #eadcff;border-radius:16px;">
+              <tr><td style="padding:18px 20px;">
+                <div style="font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#7b2cbf;">Your pool</div>
+                <div style="margin-top:6px;font-size:21px;line-height:1.25;font-weight:800;color:#211a37;">${escapeHtml(pool.name)}</div>
+                <div style="margin-top:7px;font-size:14px;line-height:1.4;color:#625675;">${escapeHtml(seasonLabel)}</div>
+              </td></tr>
+            </table>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto;">
+              <tr><td align="center" style="border-radius:999px;background:#e94e9b;">
+                <a href="${escapeHtml(inviteUrl)}" style="display:inline-block;padding:15px 28px;border-radius:999px;color:#ffffff;font-size:16px;font-weight:800;text-decoration:none;">Join the pool →</a>
+              </td></tr>
+            </table>
+          </td></tr>
+          <tr><td style="padding:19px 32px;background:#211a37;text-align:center;color:#d9d1e7;font-size:12px;line-height:1.5;">Through the Wall · Watch. Predict. Brag.</td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+  await db.collection('mail').add({
+    to:[toEmail],
+    message:{
+      subject,
+      text,
+      html:inviteHtml,
+    },
   });
   return {ok:true};
 });
