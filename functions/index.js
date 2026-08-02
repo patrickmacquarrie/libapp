@@ -231,7 +231,7 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   await db.runTransaction(async tx=>{
     const limitSnap=await tx.get(limitRef);
     const count=Number(limitSnap.data()?.count)||0;
-    if(count>=10)throw new HttpsError('resource-exhausted','You have reached today’s invitation limit. Share the pool link instead.');
+    if(count>=20)throw new HttpsError('resource-exhausted','You have reached today’s invitation limit. Share the pool link instead.');
     const pool=poolSnap.data();
     const inviteRef=db.doc(`invites/${poolId}__${toEmail}`);
     const existing=await tx.get(inviteRef);
