@@ -2329,9 +2329,10 @@ function makeEngine(cfg, poolSize) {
   const coupleFor = value => byId[value]||COUPLES.find(c=>pairKey(c.him,c.her)===pairKeyFor(value));
   const sameCouple = (value,couple) => value===couple.id||pairKeyFor(value)===pairKey(couple.him,couple.her);
   const isReal  = k=>!!coupleFor(k);
-  const nameOf  = k=>{const c=coupleFor(k);return c?(c.him+' & '+c.her):String(k).split('|').join(' & ');};
+  const displayName = value => String(value||'').trim().split(/\s+/).map(part=>part?part.charAt(0).toUpperCase()+part.slice(1):part).join(' ');
+  const nameOf  = k=>{const c=coupleFor(k);return c?(displayName(c.him)+' & '+displayName(c.her)):String(k).split('|').map(displayName).join(' & ');};
   const membOf  = k=>{const c=coupleFor(k);return c?[c.him,c.her]:String(k).split('|');};
-  const whoNm   = (k,w)=>w==='both'?'both':(w==='him'?membOf(k)[0]:membOf(k)[1]);
+  const whoNm   = (k,w)=>w==='both'?'both':displayName(w==='him'?membOf(k)[0]:membOf(k)[1]);
   const reunionPickLabel = p => {
     const outcome=relationshipOutcome(p);
     return outcome==='still'?nameOf(p.c)+' still together'
