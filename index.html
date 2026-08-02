@@ -792,7 +792,7 @@ window._fb = {
     return signInWithPopup(auth,provider);
   },
   sendEmailSignInLink: async email => {
-    const returnUrl=window.location.origin==='null'?window.location.href.split('?')[0]:window.location.origin+window.location.pathname;
+    const returnUrl=window.location.origin==='null'?window.location.href:window.location.origin+window.location.pathname+window.location.search;
     await sendSignInLinkToEmail(auth,email,{url:returnUrl,handleCodeInApp:true});
     localStorage.setItem('through-the-wall-email-signin',email);
   },
@@ -1149,6 +1149,24 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script crossorigin="anonymous" integrity="sha512-8Q6Y9XnTbOE+JNvjBQwJ2H8S+UV4uA6hiRykhdtIyDYZ2TprdNmWOUaKdGzOhyr4dCyk287OejbPvwl7lrfqrQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin="anonymous" integrity="sha512-MOCpqoRoisCTwJ8vQQiciZv0qcpROCidek3GTFS6KTk2+y7munJIlKCVkFCYY+p3ErYFXCjmFjnfTTRSC1OHWQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script type="text/babel" data-presets="react">
+const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid'];
+const initialAppParams=new URLSearchParams(window.location.search);
+const MARKETING_CREATE_INTENT=initialAppParams.get('start')==='create';
+const captureAcquisition=()=>{
+  const acquisition=Object.fromEntries(ACQUISITION_KEYS.map(key=>[key,initialAppParams.get(key)]).filter(([,value])=>value));
+  if(!Object.keys(acquisition).length)return {};
+  try{localStorage.setItem('through-the-wall-acquisition',JSON.stringify({...acquisition,capturedAt:Date.now()}));}catch(e){}
+  return acquisition;
+};
+const capturedAcquisition=captureAcquisition();
+const trackTtwEvent=(event,details={})=>{
+  let acquisition=capturedAcquisition;
+  if(!Object.keys(acquisition).length){try{acquisition=JSON.parse(localStorage.getItem('through-the-wall-acquisition')||'{}');}catch(e){acquisition={};}}
+  const payload={event,...details,...acquisition};
+  window.dataLayer=window.dataLayer||[];window.dataLayer.push(payload);
+  window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));
+};
+if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_landing');
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
 const SEASON_BANK = [
@@ -4333,7 +4351,7 @@ function App() {
   const [lobbyLoading, setLobbyLoading] = useState(false);
   const [enteringPool, setEnteringPool] = useState(false);
   const [leavingPool,setLeavingPool]=useState(false);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(MARKETING_CREATE_INTENT);
   const [creatingPool,setCreatingPool]=useState(false);
   const [inviteAction,setInviteAction]=useState('');
   const [historicalLibraryOpen,setHistoricalLibraryOpen] = useState(()=>HISTORICAL_SEASON_BANK.length<=1);
@@ -4500,6 +4518,14 @@ function App() {
     finally { setLobbyLoading(false); }
   }, [user]);
   useEffect(() => { if (authState==='signedin' && profile?.username) loadLobby(); }, [authState, profile, loadLobby]);
+  useEffect(()=>{
+    if(authState!=='signedin'||!profile?.username||activePool||!creating)return;
+    const timer=setTimeout(()=>newPoolFormRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),120);
+    if(MARKETING_CREATE_INTENT){
+      const cleanUrl=new URL(window.location.href);cleanUrl.searchParams.delete('start');history.replaceState({},'',cleanUrl.toString());
+    }
+    return ()=>clearTimeout(timer);
+  },[authState,profile?.username,activePool,creating]);
   const closeHowItWorks = () => {
     try{localStorage.setItem('prediction-pool-how-it-works-seen','true');}catch(e){}
     setShowHowItWorks(false);
@@ -4744,14 +4770,14 @@ function App() {
   /* ── Handlers ── */
   const handleSignIn  = async () => {
     if(signingIn)return;
-    setSigningIn(true);setErr('');
+    setSigningIn(true);setErr('');trackTtwEvent('sign_in_started',{method:'google'});
     try{await window._fb.signIn();}
     catch(e){setErr(e?.message||'Google sign-in could not be completed.');}
     finally{setSigningIn(false);}
   };
   const handleAppleSignIn = async () => {
     if(signingIn)return;
-    setSigningIn(true);setErr('');
+    setSigningIn(true);setErr('');trackTtwEvent('sign_in_started',{method:'apple'});
     try{await window._fb.signInApple();}
     catch(e){setErr(e?.message||'Apple sign-in could not be completed.');}
     finally{setSigningIn(false);}
@@ -4760,7 +4786,7 @@ function App() {
     event.preventDefault();
     const email=emailAuthEmail.trim().toLowerCase();
     if(!email||emailAuthSending)return;
-    setEmailAuthSending(true);setErr('');
+    setEmailAuthSending(true);setErr('');trackTtwEvent('sign_in_started',{method:'email_link'});
     try{await window._fb.sendEmailSignInLink(email);setEmailAuthSent(true);}
     catch(e){console.error(e);setErr(e?.message||'The sign-in link could not be sent.');}
     finally{setEmailAuthSending(false);}
@@ -4801,6 +4827,7 @@ function App() {
       const seasonCfg = await loadConfig(season.id);
       const initialRules = seasonCfg.PLAYABLE ? rulesSnapshotFrom(seasonCfg) : null;
       const poolId = await window._fb.createPool(name, user.uid, initialRules, season);
+      trackTtwEvent('pool_created',{seasonId:season.id,invitationCount:inviteList.length});
       try {
         await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
       } catch(inviteError) {

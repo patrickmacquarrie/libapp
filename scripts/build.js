@@ -21,6 +21,10 @@ const imagesPath=path.join(root,'images');
 if(fs.existsSync(imagesPath)) {
   fs.cpSync(imagesPath,path.join(root,'dist','images'),{recursive:true});
 }
+const welcomePath=path.join(root,'welcome');
+if(fs.existsSync(welcomePath)) {
+  fs.cpSync(welcomePath,path.join(root,'dist','welcome'),{recursive:true});
+}
 ['manifest.webmanifest','privacy.html','terms.html'].forEach(file=>{
   const sourceFile=path.join(root,file);
   if(fs.existsSync(sourceFile))fs.copyFileSync(sourceFile,path.join(root,'dist',file));
