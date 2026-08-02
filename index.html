@@ -710,6 +710,17 @@ input[type=range]{width:100%;accent-color:var(--rose)}
   <h1>Through the Wall</h1><p>Getting the pods ready…</p><span class="root-boot-heart" aria-hidden="true">♥</span>
 </div></div>
 <noscript><div class="root-boot"><h1>JavaScript is turned off</h1><p>Through the Wall needs JavaScript to run. You can still visit the <a href="/welcome/">welcome page</a>.</p></div></noscript>
+<script>
+window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
+  if(window._fb)return;
+  var root=document.getElementById('root');
+  if(!root)return;
+  root.innerHTML='<div class="root-boot" role="alert">'+
+    '<svg class="root-boot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/><path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/><path fill="#fff" d="M30 12h4v44h-4z"/><path fill="#f2c85f" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/></svg>'+
+    '<h1>We couldn’t reach the pods</h1><p>Through the Wall could not load its Firebase connection. Check your connection, then try again.</p>'+
+    '<div class="root-boot-actions"><a class="btn-primary" href="">Reload</a><a class="btn-secondary" href="/welcome/">Visit the welcome page</a></div></div>';
+},8000);
+</script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
@@ -5766,19 +5777,9 @@ function App() {
   </div>;
 }
 let appMounted=false;
-const firebaseFallbackTimer=window.setTimeout(()=>{
-  if(appMounted||window._fb)return;
-  const root=document.getElementById('root');
-  if(!root)return;
-  root.innerHTML=`<div class="root-boot" role="alert">
-    <svg class="root-boot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/><path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/><path fill="#fff" d="M30 12h4v44h-4z"/><path fill="#f2c85f" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/></svg>
-    <h1>We couldn’t reach the pods</h1><p>Through the Wall could not load its Firebase connection. Check your connection, then try again.</p>
-    <div class="root-boot-actions"><a class="btn-primary" href="">Reload</a><a class="btn-secondary" href="/welcome/">Visit the welcome page</a></div>
-  </div>`;
-},8000);
 const mountApp = () => {
   if(appMounted)return;
-  appMounted=true;window.clearTimeout(firebaseFallbackTimer);
+  appMounted=true;window.clearTimeout(window.__ttwFirebaseFallbackTimer);
   ReactDOM.createRoot(document.getElementById('root')).render(<AppErrorBoundary><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</AppErrorBoundary>);
 };
 if (window._fb) mountApp();
