@@ -2349,10 +2349,10 @@ function makeEngine(cfg, poolSize) {
   const contraV = (o,p=POOL)=>1+RULES.K*(1-o/p);
   const owTxt   = (o,p=POOL)=>o===1?'only prediction':(o===p?'everyone who played this phase predicted it':o+' of '+p+' players who played this phase predicted it');
   const calcPts = (s,m,o,t,p=POOL)=>Math.round(RULES.POINTS_PER_HEART*s*m*contraV(o,p)*(t||1));
-  function mk({member,phase,ok,label,stake,mult,multLabel,owners,poolSize=POOL,tag,tagLabel,note,placeholder,pending,retro,retroPhase,retroEventId}) {
+  function mk({member,phase,ok,label,stake,mult,multLabel,owners,poolSize=POOL,tag,tagLabel,note,placeholder,pending,retro,retroPhase,retroEventId,predictionAfterEp}) {
     const contra=Number.isFinite(owners)?contraV(owners,poolSize):1;
     return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,poolSize,contra,tag:tag||1,tagLabel,note,
-            placeholder:!!placeholder,pending:!!pending,retro:!!retro,retroPhase,retroEventId,points:ok&&!pending?calcPts(stake,mult,owners,tag,poolSize):0};
+            placeholder:!!placeholder,pending:!!pending,retro:!!retro,retroPhase,retroEventId,predictionAfterEp:Number.isFinite(predictionAfterEp)?predictionAfterEp:null,points:ok&&!pending?calcPts(stake,mult,owners,tag,poolSize):0};
   }
   const flirtResultFor = person => Object.entries(DATING_RESULTS.flirt).find(([name])=>personKey(name)===personKey(person))?.[1];
   const knownPerson = value => CAST.some(person=>personKey(person.name)===personKey(value));
@@ -2436,7 +2436,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:nameOf(c.id)+' got engaged',sub:ep===START.pods?'Episode '+START.pods+' - unavailable for predictions by design; no one scores it.':'Against-the-Grain bonus stays live as more pool members finish Pods.'});
         MEMBERS.forEach(m=>all[m].filter(p=>sameCouple(p.c,c)).forEach(p=>{
           const fore=ep-p.w-1;
-          entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners}));
+          entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' get engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners,predictionAfterEp:p.w}));
         }));
       });
     }
@@ -2446,7 +2446,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:'Sleep together: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='sex'&&p.c===id).forEach(p=>{
           const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.sex;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' sleep-together x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
+          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' sleep-together x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
         }));
       });
       Object.entries(DATING_RESULTS.flirt).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([person,r])=>{
@@ -2454,7 +2454,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:FLIRT_SHORT+': '+person+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='flirt'&&flirtResultFor(p.p)===r).forEach(p=>{
           const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.flirt;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:FLIRT_SHORT+': '+person,stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' flirt x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
+          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:FLIRT_SHORT+': '+person,stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' flirt x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
         }));
       });
       Object.entries(DATING_RESULTS.breakup).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
@@ -2462,7 +2462,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:'Breaks up during the retreat: '+nameOf(id),sub:'Both members must clearly understand their relationship is over. The Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='breakup'&&p.c===id).forEach(p=>{
           const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.breakup;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Breaks up during the retreat: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' breakup x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null}));
+          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Breaks up during the retreat: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' breakup x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
         }));
       });
     }
@@ -2494,7 +2494,7 @@ function makeEngine(cfg, poolSize) {
             const notes=[];
             if(whoBonusOutcome&&!timingCorrect) notes.push('Timing predicted '+WED_LABEL[p.o]+'; actual '+WED_LABEL[out]+' - base result points still awarded');
             if(whoBonusOutcome&&p.who&&!whoCorrect) notes.push(outcomeAfterPick?'Person predicted '+whoNm(c.id,p.who)+'; actual '+whoNm(c.id,c.who):'Who-ended-it bonus unavailable because the outcome was not after this prediction');
-            entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' - '+(out==='married'?'Get married':'Do not get married')+' · Predicted '+predictedLabel,stake:p.s,mult:base*clock,multLabel:'x'+fmt(base)+' '+(out==='married'?'Get married':'Not married base')+' x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes of foresight)',owners,tag:timingBonus*whoBonus,tagLabel:bonusLabels.length?bonusLabels.join(' x '):null,note:notes.length?notes.join(' · '):null}));
+            entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' - '+(out==='married'?'Get married':'Do not get married')+' · Predicted '+predictedLabel,stake:p.s,mult:base*clock,multLabel:'x'+fmt(base)+' '+(out==='married'?'Get married':'Not married base')+' x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes of foresight)',owners,tag:timingBonus*whoBonus,tagLabel:bonusLabels.length?bonusLabels.join(' x '):null,note:notes.length?notes.join(' · '):null,predictionAfterEp:p.w}));
           } else {
             entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(c.id)+' - predicted '+predictedLabel,stake:p.s,note:'Actual: '+actualLabel}));
           }
@@ -2849,7 +2849,8 @@ const wrapCanvasText=(ctx,text,maxWidth)=>{
   words.forEach(word=>{const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word;}else line=test;});
   if(line)lines.push(line);return lines;
 };
-const createShareCardBlob=({kind='result',eyebrow,title,highlight,rank,total,score,playerName,poolName,seasonLabel,details=[]})=>new Promise((resolve,reject)=>{
+const predictionTimingLabel=entry=>entry?(Number.isFinite(entry.predictionAfterEp)?'Predicted after episode '+entry.predictionAfterEp:entry.phase==='reunion'?'Predicted before the reunion':''):'';
+const createShareCardBlob=({kind='result',eyebrow,title,highlight,predictedAt,rank,total,score,playerName,poolName,seasonLabel,details=[]})=>new Promise((resolve,reject)=>{
   const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;
   const ctx=canvas.getContext('2d');
   const bg=ctx.createLinearGradient(0,0,1080,1920);bg.addColorStop(0,'#fff7fa');bg.addColorStop(.52,'#f8f3ef');bg.addColorStop(1,'#f1e8ff');ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);
@@ -2864,14 +2865,15 @@ const createShareCardBlob=({kind='result',eyebrow,title,highlight,rank,total,sco
   ctx.fillStyle='#fff';ctx.strokeStyle='rgba(110,31,59,.10)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(70,760,940,520,38);ctx.fill();ctx.stroke();
   ctx.fillStyle='#9a7482';ctx.font='900 22px Inter, Arial, sans-serif';ctx.fillText(kind==='wrapped'?'SEASON HIGHLIGHT':'BEST HIT',115,840);
   ctx.fillStyle='#431127';ctx.font='700 55px Georgia, serif';let highlightY=925;
-  wrapCanvasText(ctx,highlight||'The vibes were right.',820).slice(0,4).forEach(line=>{ctx.fillText(line,115,highlightY);highlightY+=66;});
+  wrapCanvasText(ctx,highlight||'The vibes were right.',820).slice(0,3).forEach(line=>{ctx.fillText(line,115,highlightY);highlightY+=66;});
+  if(predictedAt){ctx.fillStyle='#9a7482';ctx.font='800 25px Inter, Arial, sans-serif';ctx.fillText(String(predictedAt),115,1160);}
   if(rank){ctx.fillStyle='#ed0c72';ctx.font='700 82px Georgia, serif';ctx.fillText('#'+rank,115,1210);ctx.fillStyle='#9a7482';ctx.font='800 22px Inter, Arial, sans-serif';ctx.fillText('OF '+(total||'?')+(kind==='wrapped'?' · FINAL RANK':' · LIVE RANK'),250,1208);}
   if(score!=null){ctx.textAlign='right';ctx.fillStyle='#431127';ctx.font='700 65px Georgia, serif';ctx.fillText(String(Math.round(score))+' pts',950,1210);ctx.textAlign='left';}
   const safeDetails=(details||[]).filter(Boolean).slice(0,4);ctx.font='700 28px Inter, Arial, sans-serif';
   safeDetails.forEach((detail,index)=>{const detailY=1385+index*76;ctx.fillStyle=index%2?'#7b2ee5':'#ed0c72';ctx.fillText('✦',100,detailY);ctx.fillStyle='#6e4657';ctx.fillText(String(detail).slice(0,58),145,detailY);});
   ctx.fillStyle='#431127';ctx.font='700 34px Georgia, serif';ctx.fillText(playerName||'A Through the Wall player',90,1740);
   ctx.fillStyle='#9a7482';ctx.font='600 23px Inter, Arial, sans-serif';ctx.fillText([poolName,seasonLabel].filter(Boolean).join(' · ').slice(0,72),90,1784);
-  ctx.fillStyle='#ed0c72';ctx.font='900 25px Inter, Arial, sans-serif';ctx.fillText('PLAY AT  PATRICKMACQUARRIE.GITHUB.IO/LIBAPP',90,1845);
+  ctx.fillStyle='#ed0c72';ctx.font='900 25px Inter, Arial, sans-serif';ctx.fillText('PLAY AT  THROUGHTHEWALL.CA',90,1845);
   canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('The share card could not be created.')),'image/png',.96);
 });
 const shareGeneratedCard=async options=>{
@@ -2882,14 +2884,14 @@ const shareGeneratedCard=async options=>{
   if(typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:'Through the Wall',text,files:[file]});return 'Share menu opened — send it to the group chat.';}
   const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);return 'Card downloaded — drop it in the group chat.';
 };
-function ShareMoment({kind='result',phaseLabel,bestHit,rank,total,score,playerName,poolName,seasonLabel,details=[]}) {
+function ShareMoment({kind='result',phaseLabel,bestHit,predictedAt,rank,total,score,playerName,poolName,seasonLabel,details=[]}) {
   const [feedback,setFeedback]=useState(''),[feedbackError,setFeedbackError]=useState(false),[sharing,setSharing]=useState(false);
   const wrapped=kind==='wrapped';
-  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');setFeedbackError(false);try{setFeedback(await shareGeneratedCard({kind,eyebrow:wrapped?'Season wrapped':phaseLabel+' reveal',title:wrapped?'My season, through the wall.':'I called it.',highlight:bestHit,rank,total,score,playerName,poolName,seasonLabel,details}));}catch(error){if(error?.name!=='AbortError'){setFeedbackError(true);setFeedback('The card hit a wall. Try again.');}}finally{setSharing(false);}};
+  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');setFeedbackError(false);try{setFeedback(await shareGeneratedCard({kind,eyebrow:wrapped?'Season wrapped':phaseLabel+' reveal',title:wrapped?'My season, through the wall.':'I called it.',highlight:bestHit,predictedAt,rank,total,score,playerName,poolName,seasonLabel,details}));}catch(error){if(error?.name!=='AbortError'){setFeedbackError(true);setFeedback('The card hit a wall. Try again.');}}finally{setSharing(false);}};
   return <section className="share-moment" aria-label={wrapped?'Share your season recap':'Share your result'}>
     <span className="share-moment-kicker">{wrapped?'Your season wrapped':'Group chat material'}</span>
-    <h3>{wrapped?'Turn the whole season into a victory lap.':'You called it. Bring receipts.'}</h3>
-    <p>{bestHit}{rank?` · #${rank} of ${total}`:''}{score!=null?` · ${Math.round(score)} points`:''}</p>
+    <h3>{wrapped?'Turn the whole season into a victory lap.':'You predicted it. Bring receipts.'}</h3>
+    <p>{bestHit}{predictedAt?<React.Fragment><br/><small>{predictedAt}</small></React.Fragment>:null}{rank?` · #${rank} of ${total}`:''}{score!=null?` · ${Math.round(score)} points`:''}</p>
     <button className="btn-secondary" type="button" disabled={sharing} onClick={share}>{sharing?'Making the card…':wrapped?'Share my wrapped':'Share my “I called it” card'}</button>
     {feedback&&<p className="share-feedback" role={feedbackError?'alert':'status'}>{feedback}</p>}
   </section>;
@@ -3719,7 +3721,7 @@ const derivePlayerAwards=({phaseEntries={},phaseMembers={},scoredPhases=[]})=>{
     for(let index=scoredPhases.length-1;index>=0;index--){if(hitIn(id,scoredPhases[index])){if(cold===0)hot++;else break;}else{if(hot===0)cold++;else break;}}
     if(hot>=2)awards[id].push({label:'🔥 '+hot+'-phase streak',tone:'gold'});
     if(cold>=2)awards[id].push({label:'🧊 Cold streak',tone:'purple'});
-    if(hitIn(id,'weddings'))awards[id].push({label:'💍 Called the Wedding',tone:'gold'});
+    if(hitIn(id,'weddings'))awards[id].push({label:'💍 Predicted the Wedding',tone:'gold'});
   });
   const contrarian=[];scoredPhases.forEach(phase=>(phaseEntries[phase]||[]).forEach(entry=>{if(entry.ok&&!entry.pending&&entry.member&&Number(entry.owners)>0&&Number(entry.poolSize)>0)contrarian.push(entry);}));
   contrarian.sort((a,b)=>(a.owners/a.poolSize)-(b.owners/b.poolSize)||b.points-a.points);
@@ -3728,26 +3730,28 @@ const derivePlayerAwards=({phaseEntries={},phaseMembers={},scoredPhases=[]})=>{
 };
 function PlayerBadges({items=[]}) {return items.length?<span className="badge-row">{items.slice(0,3).map((item,index)=><span className={'player-badge '+(item.tone||'')} key={item.label+index}>{item.label}</span>)}</span>:null;}
 const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPicks=null})=>{
-  if(!eng||!meId)return null;const memberIds=Object.keys(playersById),totals=Object.fromEntries(memberIds.map(id=>[id,0])),entries=[],phaseBestHits={};
+  if(!eng||!meId)return null;const memberIds=Object.keys(playersById),totals=Object.fromEntries(memberIds.map(id=>[id,0])),entries=[],phaseBestHits={},phaseBestHitTimings={};
   PH_ORDER.forEach(phase=>{
     if(!eng.RESULTS_READY[phase]&&phase!=='dating')return;
     const completed=memberIds.filter(id=>(statusDocs[phase]?.completedMembers||[]).includes(id)||playersById[id]?.completed?.[phase]);
     if(!completed.includes(meId))return;
     const picksBy={};completed.forEach(id=>{picksBy[id]=id===meId&&currentPicks?(currentPicks[phase]||[]):(playersById[id]?.picks?.[phase]||[]);});
     const result=eng.scorePhase(phase,picksBy);completed.forEach(id=>{totals[id]+=(result.totals[id]||0);});entries.push(...result.entries);
-    phaseBestHits[phase]=result.entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points)[0]?.label||null;
+    const phaseBest=result.entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points)[0]||null;
+    phaseBestHits[phase]=phaseBest?.label||null;
+    phaseBestHitTimings[phase]=predictionTimingLabel(phaseBest);
   });
   const ranked=memberIds.filter(id=>totals[id]>0||id===meId).sort((a,b)=>totals[b]-totals[a]||String(a).localeCompare(String(b)));
   const index=ranked.indexOf(meId),hits=entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points);
-  return {rank:index>=0?index+1:null,total:ranked.length,score:totals[meId]||0,bestHit:hits[0]?.label||'The receipts are in.',hitCount:hits.length,phaseBestHits};
+  return {rank:index>=0?index+1:null,total:ranked.length,score:totals[meId]||0,bestHit:hits[0]?.label||'The receipts are in.',bestHitTiming:predictionTimingLabel(hits[0]),hitCount:hits.length,phaseBestHits,phaseBestHitTimings};
 };
 function PicksRecapCard({eng,picks,rank,total,score,playerName,poolName,seasonLabel}) {
   const [feedback,setFeedback]=useState(''),[feedbackError,setFeedbackError]=useState(false),[sharing,setSharing]=useState(false);
   const rows=PH_ORDER.flatMap(phase=>(picks?.[phase]||[]).map(pick=>({phase,label:pickLabelFor(phase,pick,eng),stake:pick.s}))).slice(-10);
   if(!rows.length)return null;
-  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');setFeedbackError(false);try{setFeedback(await shareGeneratedCard({kind:'board',eyebrow:'My picks board',title:'Here are my calls.',highlight:rows[rows.length-1].label,rank,total,score,playerName,poolName,seasonLabel,details:rows.slice(-4).map(row=>`${eng.RULES.phases[row.phase].label}: ${row.label}`)}));}catch(error){if(error?.name!=='AbortError'){setFeedbackError(true);setFeedback('The board would not export. Try again.');}}finally{setSharing(false);}};
+  const share=async()=>{if(sharing)return;setSharing(true);setFeedback('');setFeedbackError(false);try{setFeedback(await shareGeneratedCard({kind:'board',eyebrow:'My picks board',title:'Here are my predictions.',highlight:rows[rows.length-1].label,rank,total,score,playerName,poolName,seasonLabel,details:rows.slice(-4).map(row=>`${eng.RULES.phases[row.phase].label}: ${row.label}`)}));}catch(error){if(error?.name!=='AbortError'){setFeedbackError(true);setFeedback('The board would not export. Try again.');}}finally{setSharing(false);}};
   return <section className="picks-recap" aria-label="Your picks recap">
-    <div className="picks-recap-head"><div><h3>Your picks, one screen</h3><p className="subtle" style={{margin:'3px 0 0'}}>A compact board built for screenshots and group-chat debates.</p></div><span>{rows.length} active call{rows.length===1?'':'s'}</span></div>
+    <div className="picks-recap-head"><div><h3>Your picks, one screen</h3><p className="subtle" style={{margin:'3px 0 0'}}>A compact board built for screenshots and group-chat debates.</p></div><span>{rows.length} active prediction{rows.length===1?'':'s'}</span></div>
     <div className="picks-recap-grid">{rows.map((row,index)=><span className="picks-recap-chip" key={row.phase+row.label+index}>{eng.RULES.phases[row.phase].label} · {row.label} · {row.stake}♥</span>)}</div>
     <button type="button" className="btn-secondary" disabled={sharing} onClick={share}>{sharing?'Making your board…':'Share my picks board'}</button>{feedback&&<p className="share-feedback" role={feedbackError?'alert':'status'}>{feedback}</p>}
   </section>;
@@ -3903,7 +3907,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   });
   const spotlightCandidates=Array.from(spotlightMap.values()).sort((a,b)=>(a.owners/a.poolSize)-(b.owners/b.poolSize)||b.points-a.points||String(a.label).localeCompare(String(b.label)));
   const atgSpotlight=demoMode
-    ? {label:'A bold Pods engagement call',owners:4,poolSize:126,phaseLabel:RULES.phases.pods.label}
+    ? {label:'A bold Pods engagement prediction',owners:4,poolSize:126,phaseLabel:RULES.phases.pods.label}
     : (spotlightCandidates[0]||null);
   return <React.Fragment>
     {!globalPool&&<SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>}
@@ -3920,7 +3924,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       {!globalPool&&!membershipClosed&&scoredPhases.length>0&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete. Positions can shift as more players complete each checkpoint.</div>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&<PersonalRaceCard rank={raceRankById[meId]} total={raceRanked.length} playerCount={raceRanked.length} score={raceScore(meId)} nextName={nextRaceId?playerName(nextRaceId):''} nextGap={nextRaceGap} leader={raceRankById[meId]===1} globalPool={globalPool} liveStandings={!seasonFinalized}/>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&!demoMode&&<PicksRecapCard eng={eng} picks={playersById[meId]?.picks||{}} rank={raceRankById[meId]} total={raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName={globalPool?'Global Pool':'Friend pool'} seasonLabel={scoredThrough(meId)}/>}
-      {seasonFinalized&&raceRanked.includes(meId)&&<ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={bestHitsById[meId]?.label||'You survived the pods, retreats, weddings, and reunion.'} rank={raceRankById[meId]} total={raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName="Through the Wall" seasonLabel="Season complete" details={(playerAwards[meId]||[]).map(item=>item.label)}/>}
+      {seasonFinalized&&raceRanked.includes(meId)&&<ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={bestHitsById[meId]?.label||'You survived the pods, retreats, weddings, and reunion.'} predictedAt={predictionTimingLabel(bestHitsById[meId])} rank={raceRankById[meId]} total={raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName="Through the Wall" seasonLabel="Season complete" details={(playerAwards[meId]||[]).map(item=>item.label)}/>}
       <CheckpointLeaderCards cards={checkpointCards} activePhase={globalPool&&globalView!=='overall'?globalView:openPhase} onSelect={selectCheckpoint}/>
       <AgainstTheGrainSpotlight spotlight={atgSpotlight} globalPool={globalPool}/>
       {scoredPhases.length>0&&!globalPool&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>} 
@@ -4144,7 +4148,7 @@ function PublicTaste() {
     <section className="card public-hero">
       <span className="public-kicker">Love Is Blind is better with receipts</span>
       <h2>Predict the mess before it happens.</h2>
-      <p>Call the engagements, breakups, weddings, and reunion chaos. Wager Hearts, beat your friends, and own every “I knew it” moment.</p>
+      <p>Predict the engagements, breakups, weddings, and reunion chaos. Wager Hearts, beat your friends, and own every “I knew it” moment.</p>
       <div className="public-demo-tabs" role="tablist" aria-label="Try the app">
         <button type="button" role="tab" aria-selected={view==='pick'} className={view==='pick'?'active':''} onClick={()=>setView('pick')}>Make a pick</button>
         <button type="button" role="tab" aria-selected={view==='standings'} className={view==='standings'?'active':''} onClick={()=>setView('standings')}>See the payoff</button>
@@ -4155,19 +4159,19 @@ function PublicTaste() {
         <div className="budget-card phase-pods public-demo-budget"><div className="budgetrow"><span>Pods budget</span><span aria-live="polite"><span className="n">{heartsLeft}</span> / {demoBudget} Hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(heartsLeft/demoBudget*100)+'%'}}/></div><span className="budget-note">Move the slider to see your budget change</span></div>
         <label className="demo-stake-label" htmlFor="public-stake">How sure are you?</label>
         <div className="stakebox public-stakebox"><input id="public-stake" type="range" min="5" max="60" step="5" value={stake} aria-valuetext={stake+' Hearts'} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/><span className="stakeval public-stake-value" aria-live="polite">{stake}♥</span></div>
-        <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Call it →</button>
+        <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Lock prediction →</button>
         {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you're right, you win points. You get bonus points for predictions that are early and/or unique</div>}
       </div>:<div className="public-demo" role="tabpanel">
         <div className="public-demo-head"><div><h3>After the reveal</h3><p className="subtle" style={{margin:'3px 0 0'}}>Every checkpoint turns predictions into live standings.</p></div><span>Global demo</span></div>
         <div className="public-mini-board">{board.map(([name,score],index)=><div className={'public-mini-row '+(name==='You'?'you':'')} key={name}><span className="public-mini-rank">#{index+1}</span><span className="public-mini-avatar">{initialsFor(name)}</span><strong>{name}{name==='You'&&<span className="player-badge gold" style={{marginLeft:6}}>🔥 2 streak</span>}</strong><span className="public-mini-score">{score}</span></div>)}</div>
-        <div className="public-demo-result"><strong>Your best call: Avery + Rowan</strong>Only 12% of the pool called it. Share the “I called it” card, then let the group chat cope.</div>
+        <div className="public-demo-result"><strong>Your best prediction: Avery + Rowan get engaged</strong>Predicted after episode 1. Only 12% of the pool predicted it. Share the “I called it” card, then let the group chat cope.</div>
         <button type="button" className="btn-secondary" onClick={openChemistry}>Try the Heat Check preview</button>
       </div>}
     </section>
     <section className="card" aria-labelledby="public-how-title">
       <span className="public-kicker">Three beats. Zero homework.</span><h2 id="public-how-title" style={{marginTop:5}}>How it works</h2>
       <div className="public-how">
-        <div className="public-how-line"><span>1</span><p><strong>Pick before you watch.</strong> Call the moments you think are coming next.</p></div>
+        <div className="public-how-line"><span>1</span><p><strong>Pick before you watch.</strong> Predict the moments you think are coming next.</p></div>
         <div className="public-how-line"><span>2</span><p><strong>Wager Hearts.</strong> Bet bigger, predict earlier, and score extra for going against the crowd.</p></div>
         <div className="public-how-line"><span>3</span><p><strong>Reveal and roast.</strong> Watch your rank move, share the receipts, and settle the group chat.</p></div>
       </div>
@@ -5505,16 +5509,17 @@ function App() {
   const crossover=predictionPhases.length>1;
   const crossoverLabels=predictionPhases.map(phaseId=>RULES.phases[phaseId]?.label).filter(Boolean);
   const crossoverMessage=phase==='pods'&&predictionPhases.includes('dating')
-    ? 'Last call on engagements, first call on the retreat.'
+    ? 'Final engagement predictions are open, along with your first retreat predictions.'
     : crossoverLabels.join(' and ')+' predictions are both open.';
   const lockedPhaseLabel=predictionPhases.map(phaseId=>RULES.phases[phaseId].label).join(' and ');
   const lockedPickCards=predictionPhases.map(phaseId=><LockedPicks key={phaseId} phase={phaseId} picks={picks[phaseId]} eng={eng}/>);
   const phaseShareData=screen==='close'?{
     kind:'result',phaseLabel:RULES.phases[phase].label,
     bestHit:shareStandings?.phaseBestHits?.[phase]||'The checkpoint is in. The group chat can decide how prophetic that was.',
+    predictedAt:shareStandings?.phaseBestHitTimings?.[phase]||'',
     rank:shareStandings?.rank,total:shareStandings?.total,score:shareStandings?.score,
     playerName:meName,poolName:activePool.name,seasonLabel:seasonLabelForPool(activePool),
-    details:[`${(picks[phase]||[]).length} ${RULES.phases[phase].label} call${(picks[phase]||[]).length===1?'':'s'}`,shareStandings?.hitCount!=null?`${shareStandings.hitCount} season hit${shareStandings.hitCount===1?'':'s'} so far`:null],
+    details:[`${(picks[phase]||[]).length} ${RULES.phases[phase].label} prediction${(picks[phase]||[]).length===1?'':'s'}`,shareStandings?.hitCount!=null?`${shareStandings.hitCount} season hit${shareStandings.hitCount===1?'':'s'} so far`:null],
   }:null;
   const availablePoolTabs=[
     ...(!globalDemoData?[{id:'play',label:'Play'}]:[]),
@@ -5600,7 +5605,7 @@ function App() {
         {predictionPhases.includes('weddings')&&<WeddingsBoard w={w} picks={picks.weddings} add={p=>addPick('weddings',p)} remove={i=>removePick('weddings',i)} spent={eng.spentBy(picks.weddings)} eng={eng} finalWindow={finalPredictionWindowFor('weddings')}/>}
         {predictionPhases.includes('reunion')&&<ReunionBoard w={w} picks={picks.reunion} add={p=>addPick('reunion',p)} remove={i=>removePick('reunion',i)} spent={eng.spentBy(picks.reunion)} eng={eng}/>}
         <ContestantReferenceBoard eng={eng} w={w} phase={phase}/>
-        <p className="lock-rally">Ready to call it?<span>You’ll recap every pick on the next screen before anything locks.</span></p>
+        <p className="lock-rally">Ready to lock your predictions?<span>You’ll recap every pick on the next screen before anything locks.</span></p>
         <button className="btn-primary" disabled={gating} onClick={lockPredictions}>{lockLabel} →</button>
         {predictionPhases.includes('pods')&&pendingPodsPrediction&&<div className="notice" role="status" style={{margin:'14px 0 0'}}><b>This prediction hasn't been added yet - confirm it to lock it in.</b> <button className="btn-secondary" style={{display:'inline-block',width:'auto',padding:'6px 10px',margin:'8px 0 0'}} onClick={()=>pendingPodsSkip.current()}>Skip this prediction</button></div>}
         <p className="subtle" style={{textAlign:'center'}}>Your predictions are saved and locked before you watch.</p>
@@ -5641,7 +5646,7 @@ function App() {
         <div className="crown">👑</div>
         <div className="winner">Season complete!</div>
         <p className="lede" style={{marginBottom:12}}>Your full score is live. Standings and Against-the-Grain bonuses continue updating as more pool members finish.</p>
-        <ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={shareStandings?.bestHit||'You made it through every reveal.'} rank={shareStandings?.rank} total={shareStandings?.total} score={shareStandings?.score} playerName={meName} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)} details={[`${shareStandings?.hitCount||0} calls hit`,`${Object.values(picks).flat().length} total predictions`]}/>
+        <ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={shareStandings?.bestHit||'You made it through every reveal.'} predictedAt={shareStandings?.bestHitTiming||''} rank={shareStandings?.rank} total={shareStandings?.total} score={shareStandings?.score} playerName={meName} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)} details={[`${shareStandings?.hitCount||0} predictions hit`,`${Object.values(picks).flat().length} total predictions`]}/>
         <button className="btn-primary" onClick={()=>switchPoolTab('standings')}>View Standings</button>
       </div>}
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>} 
