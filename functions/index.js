@@ -27,9 +27,15 @@ function escapeHtml(value){
   return String(value||'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 }
 
-async function queueNudge(uid,messageId,subject,text){
+function nudgePreferenceEnabled(preferences,key){
+  if(preferences?.[key]===true)return true;
+  if(preferences?.[key]===false)return false;
+  return preferences?.emailNudges===true&&['newEpisodes','friendPhaseLocks'].includes(key);
+}
+
+async function queueNudge(uid,messageId,subject,text,preferenceKey){
   const preferences=await db.doc(`notificationPreferences/${uid}`).get();
-  if(!preferences.exists||preferences.data().emailNudges!==true)return false;
+  if(!preferences.exists||!nudgePreferenceEnabled(preferences.data(),preferenceKey))return false;
   const user=await getAuth().getUser(uid).catch(()=>null);
   if(!user?.email)return false;
   const safeText=String(text||'');
@@ -123,15 +129,17 @@ exports.sendPhaseLockNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'pool
   if(!poolSnapshot.exists||poolSnapshot.data().global===true)return;
   const pool=poolSnapshot.data(),phase=event.params.phase;
   const phaseLabel={pods:'Pods',dating:'Retreats',weddings:'Weddings',reunion:'Reunion'}[phase]||phase;
+  const completedPool=phase==='reunion';
   for(const lockerUid of newlyLocked){
     const profile=await db.doc(`users/${lockerUid}`).get();
     const lockerName=profile.data()?.username||'A friend';
     const recipients=(Array.isArray(pool.members)?pool.members:[]).filter(uid=>uid!==lockerUid);
     await Promise.all(recipients.map(uid=>queueNudge(
       uid,
-      `phase_${event.params.poolId}_${phase}_${lockerUid}_${uid}`,
-      `${lockerName} locked their ${phaseLabel} picks`,
-      `${lockerName} just locked their ${phaseLabel} picks in ${pool.name}. The tea is moving.`,
+      `${completedPool?'complete':'phase'}_${event.params.poolId}_${phase}_${lockerUid}_${uid}`,
+      completedPool?`${lockerName} completed ${pool.name}`:`${lockerName} locked their ${phaseLabel} picks`,
+      completedPool?`${lockerName} made it through every phase in ${pool.name}. See how the final standings look.`:`${lockerName} just locked their ${phaseLabel} picks in ${pool.name}. The tea is moving.`,
+      completedPool?'friendPoolCompletions':'friendPhaseLocks',
     )));
   }
 });
@@ -142,14 +150,35 @@ exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'sea
   const after=event.data.after.data();
   const beforeEpisode=Number(publishedSetting(before,'AVAILABLE_THROUGH_EP'))||0;
   const afterEpisode=Number(publishedSetting(after,'AVAILABLE_THROUGH_EP'))||0;
+  const normalizeStatus=value=>String(value||'').trim().toLowerCase().replace(/[^a-z]/g,'');
+  const liveStatuses=new Set(['live','active','started','airing']);
+  const beforeStatus=normalizeStatus(publishedSetting(before,'SEASON_STATUS')||before.status);
+  const afterStatus=normalizeStatus(publishedSetting(after,'SEASON_STATUS')||after.status);
+  const seasonBecameLive=liveStatuses.has(afterStatus)&&!liveStatuses.has(beforeStatus);
+  const seasonNotified=new Set();
+  if(seasonBecameLive){
+    const preferenceDocs=await db.collection('notificationPreferences').where('newSeasons','==',true).get();
+    const seasonLabel=String(after.label||after.seasonLabel||publishedSetting(after,'SEASON_LABEL')||publishedSetting(after,'TITLE')||'A new Love Is Blind season');
+    await Promise.all(preferenceDocs.docs.map(async preferenceDoc=>{
+      const sent=await queueNudge(
+        preferenceDoc.id,
+        `season_${event.params.seasonId}_${preferenceDoc.id}`,
+        `${seasonLabel} just dropped`,
+        `${seasonLabel} is open for predictions. Build your pool before the group chat starts calling it.`,
+        'newSeasons',
+      );
+      if(sent)seasonNotified.add(preferenceDoc.id);
+    }));
+  }
   if(afterEpisode<=beforeEpisode)return;
   const pools=await db.collection('pools').where('season.id','==',event.params.seasonId).get();
   const recipients=new Set();pools.docs.forEach(pool=>{(pool.data().members||[]).forEach(uid=>recipients.add(uid));});
-  await Promise.all([...recipients].map(uid=>queueNudge(
+  await Promise.all([...recipients].filter(uid=>!seasonNotified.has(uid)).map(uid=>queueNudge(
     uid,
     `episodes_${event.params.seasonId}_${afterEpisode}_${uid}`,
     'New episodes are out — your picks are waiting',
     `New episodes are out through Episode ${afterEpisode}. Your picks are waiting before you watch.`,
+    'newEpisodes',
   )));
 });
 

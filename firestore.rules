@@ -599,10 +599,16 @@ service cloud.firestore {
     match /notificationPreferences/{userId} {
       function validNotificationPreferences() {
         return request.resource.data.keys().hasOnly([
-            'emailNudges',
+            'newEpisodes',
+            'newSeasons',
+            'friendPhaseLocks',
+            'friendPoolCompletions',
             'updatedAt'
           ]) &&
-          request.resource.data.emailNudges is bool &&
+          request.resource.data.newEpisodes is bool &&
+          request.resource.data.newSeasons is bool &&
+          request.resource.data.friendPhaseLocks is bool &&
+          request.resource.data.friendPoolCompletions is bool &&
           request.resource.data.updatedAt is number;
       }
 

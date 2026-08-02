@@ -606,6 +606,9 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .chemistry-toggle input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--rose);flex:0 0 auto}
 .chemistry-toggle strong{display:block;color:var(--wine);font-size:13px}
 .chemistry-toggle span{display:block;margin-top:3px;color:var(--muted);font-size:11.5px;line-height:1.45}
+.notification-options{display:grid;gap:9px;margin:12px 0 6px}
+.notification-options .chemistry-toggle{margin:0;padding:12px 14px}
+.notification-destination{margin:9px 0 18px;color:var(--muted);font-size:11.5px;line-height:1.45}
 .chemistry-savebar{position:sticky;z-index:4;bottom:12px;margin:18px 0 4px;padding:10px;border:1px solid color-mix(in srgb,var(--rose) 26%,var(--line));border-radius:17px;background:color-mix(in srgb,var(--card) 92%,transparent);box-shadow:0 12px 34px rgba(67,17,39,.15);backdrop-filter:blur(12px)}
 .chemistry-savebar .btn-primary{margin:0}
 .chemistry-empty{padding:30px 20px;text-align:center;border:1px dashed var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 72%,var(--blush-soft))}
@@ -721,6 +724,17 @@ const GAME_PHASES = ['pods','dating','weddings','reunion'];
 const inviteDocId = (poolId,email) => poolId+'__'+email.toLowerCase();
 const newPoolJoinCode = () => Array.from(crypto.getRandomValues(new Uint8Array(18)),value=>value.toString(36).padStart(2,'0')).join('').slice(0,24);
 const CAST_RATING_CATEGORIES = ['hotness','humour','intelligence','vibes'];
+const NOTIFICATION_DEFAULTS = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
+const normalizeNotificationPreferences = value => {
+  const stored=value&&typeof value==='object'?value:{};
+  const legacy=stored.emailNudges===true;
+  return {
+    newEpisodes:stored.newEpisodes===true||(legacy&&stored.newEpisodes==null),
+    newSeasons:stored.newSeasons===true,
+    friendPhaseLocks:stored.friendPhaseLocks===true||(legacy&&stored.friendPhaseLocks==null),
+    friendPoolCompletions:stored.friendPoolCompletions===true,
+  };
+};
 const cleanCastRatings = ratings => (Array.isArray(ratings)?ratings:[]).slice(0,80).map(entry=>{
   const values={};
   CAST_RATING_CATEGORIES.forEach(category=>{
@@ -847,9 +861,11 @@ window._fb = {
   },
   getNotificationPreferences: async uid => {
     const snapshot=await getDoc(doc(db,'notificationPreferences',uid));
-    return snapshot.exists()?snapshot.data():{emailNudges:false};
+    return normalizeNotificationPreferences(snapshot.exists()?snapshot.data():NOTIFICATION_DEFAULTS);
   },
-  setNotificationPreferences: (uid,emailNudges) => setDoc(doc(db,'notificationPreferences',uid),{emailNudges:emailNudges===true,updatedAt:Date.now()}),
+  setNotificationPreferences: (uid,preferences) => setDoc(doc(db,'notificationPreferences',uid),{
+    ...normalizeNotificationPreferences(preferences),updatedAt:Date.now(),
+  }),
   joinPoolByCode: async (poolId,joinCode,uid) => {
     await updateDoc(doc(db,'pools',poolId),{members:arrayUnion(uid),lastJoinUid:uid,lastJoinProof:joinCode});
     const joined=await getDoc(doc(db,'pools',poolId));
@@ -1134,6 +1150,7 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script crossorigin="anonymous" integrity="sha512-MOCpqoRoisCTwJ8vQQiciZv0qcpROCidek3GTFS6KTk2+y7munJIlKCVkFCYY+p3ErYFXCjmFjnfTTRSC1OHWQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script type="text/babel" data-presets="react">
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
+const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
 const SEASON_BANK = [
   // ── Live season ──────────────────────────────────────────────
   {
@@ -4174,7 +4191,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',notificationPreferences={emailNudges:false},onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4182,6 +4199,12 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const modalRef=useModalLifecycle(onClose,!deleting);
   const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
+  const notificationOptions=[
+    {key:'newEpisodes',label:'New episodes drop',description:'Know when a season you are playing has fresh episodes.'},
+    {key:'newSeasons',label:'A new season drops',description:'Get a heads-up when a new Love Is Blind season opens for play.'},
+    {key:'friendPhaseLocks',label:'A friend locks a phase',description:'See when someone in one of your pools locks their latest picks.'},
+    {key:'friendPoolCompletions',label:'A friend completes their pool',description:'Celebrate when a friend makes it through every phase.'},
+  ];
   const finishDelete=async()=>{
     if(!deleteConfirmed||deleting)return;
     setDeleting(true);
@@ -4200,7 +4223,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         <button className={'theme-choice '+(theme==='dark'?'active':'')} aria-pressed={theme==='dark'} onClick={()=>onThemeChange('dark')}><span aria-hidden="true">☾</span>Dark mode</button>
       </div>
       <h3>Comeback nudges</h3>
-      <label className="chemistry-toggle"><input type="checkbox" checked={notificationPreferences.emailNudges===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(event.target.checked)}/><span><strong>{notificationSaving?'Saving your nudge settings…':'Email me when the tea moves'}</strong><span>Get “new episodes are out” reminders and a heads-up when a friend locks a phase.{userEmail?` Sent to ${userEmail}.`:''} You can turn these off anytime.</span></span></label>
+      <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
+      <p className="notification-destination" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
       {ownedPools.length>0&&<div className="danger-zone">
         <h3>Pool management</h3>
         <p>Pool owners can control new membership or permanently delete a pool. Existing members can keep playing after membership closes.</p>
@@ -4293,7 +4317,7 @@ function App() {
   const [emailAuthSent,setEmailAuthSent]=useState(false);
   const [signingIn,setSigningIn]=useState(false);
   const [signingOut,setSigningOut]=useState(false);
-  const [notificationPreferences,setNotificationPreferences]=useState({emailNudges:false});
+  const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
   const [cfg, setCfg] = useState(null);
@@ -4385,10 +4409,12 @@ function App() {
     if(themeMeta)themeMeta.setAttribute('content',next==='dark'?'#170a11':'#431127');
     try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
   };
-  const saveNotificationPreference=async emailNudges=>{
+  const saveNotificationPreference=async (key,enabled)=>{
     if(!user?.uid||notificationSaving)return;
-    const previous=notificationPreferences;setNotificationPreferences({emailNudges});setNotificationSaving(true);
-    try{await window._fb.setNotificationPreferences(user.uid,emailNudges);}
+    const previous=notificationPreferences;
+    const next={...DEFAULT_NOTIFICATION_PREFERENCES,...notificationPreferences,[key]:enabled===true};
+    setNotificationPreferences(next);setNotificationSaving(true);
+    try{await window._fb.setNotificationPreferences(user.uid,next);}
     catch(error){console.error('Notification preferences could not be saved.',error);setNotificationPreferences(previous);setErr('Your nudge setting did not save. Give it another tap.');}
     finally{setNotificationSaving(false);}
   };
@@ -4405,10 +4431,10 @@ function App() {
   const loadAuthenticatedProfile = useCallback(async u=>{
     setUser(u);setAuthState('checking');setAuthError('');
     try {
-      const [p,preferences]=await Promise.all([window._fb.getProfile(u.uid),window._fb.getNotificationPreferences(u.uid).catch(()=>({emailNudges:false}))]);
+      const [p,preferences]=await Promise.all([window._fb.getProfile(u.uid),window._fb.getNotificationPreferences(u.uid).catch(()=>DEFAULT_NOTIFICATION_PREFERENCES)]);
       await replayPendingSave(u.uid);
       setProfile(p);
-      setNotificationPreferences({emailNudges:preferences?.emailNudges===true});
+      setNotificationPreferences({...DEFAULT_NOTIFICATION_PREFERENCES,...preferences});
       setUsernameInput(p?.username || (u.displayName||'').split(' ')[0] || '');
       setAuthState('signedin');
     } catch(e) {
