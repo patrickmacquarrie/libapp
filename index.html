@@ -3577,7 +3577,11 @@ function PodsBoard({w,picks,add,remove,spent,eng,finalWindow,onPendingChange,pen
   const used=new Set(picks.flatMap(p=>membOf(p.c)).map(personKey));
   const predictedPairs=new Set(picks.map(p=>pairKeyFor(p.c)));
   const neverEngagedPairs=new Set(COUPLES.filter(c=>!Number.isFinite(c.engagedEp)).map(c=>pairKeyFor(c.id)));
-  const pairAvailable=(man,woman)=>!man||!woman||(!predictedPairs.has(pairKeyFor(man+'|'+woman))&&neverEngagedPairs.has(pairKeyFor(man+'|'+woman)));
+  const pairAvailable=(man,woman)=>{
+    if(!man||!woman)return true;
+    const pairKey=pairKeyFor(man+'|'+woman);
+    return !predictedPairs.has(pairKey)&&!neverEngagedPairs.has(pairKey);
+  };
   const menA=MEN.filter(n=>!engaged.has(personKey(n))&&!used.has(personKey(n))&&pairAvailable(n,her));
   const womA=WOMEN.filter(n=>!engaged.has(personKey(n))&&!used.has(personKey(n))&&pairAvailable(him,n));
   const left=RULES.phases.pods.budget-spent, maxS=Math.min(RULES.phases.pods.cap,left);
