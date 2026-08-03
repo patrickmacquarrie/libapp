@@ -2879,28 +2879,38 @@ const predictionTimingLabel=entry=>entry?(Number.isFinite(entry.predictionAfterE
 const createShareCardBlob=({kind='result',eyebrow,title,highlight,predictedAt,rank,total,score,playerName,poolName,seasonLabel,details=[]})=>new Promise((resolve,reject)=>{
   const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;
   const ctx=canvas.getContext('2d');
-  const bg=ctx.createLinearGradient(0,0,1080,1920);bg.addColorStop(0,'#fff7fa');bg.addColorStop(.52,'#f8f3ef');bg.addColorStop(1,'#f1e8ff');ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);
-  const glow=ctx.createRadialGradient(910,160,20,910,160,500);glow.addColorStop(0,'rgba(123,46,229,.23)');glow.addColorStop(1,'rgba(123,46,229,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,1080,720);
-  const rose=ctx.createRadialGradient(120,1700,20,120,1700,520);rose.addColorStop(0,'rgba(237,12,114,.20)');rose.addColorStop(1,'rgba(237,12,114,0)');ctx.fillStyle=rose;ctx.fillRect(0,1220,700,700);
-  ctx.fillStyle='#ed0c72';ctx.beginPath();ctx.arc(128,126,42,0,Math.PI*2);ctx.fill();ctx.fillStyle='#7b2ee5';ctx.beginPath();ctx.arc(174,126,42,0,Math.PI*2);ctx.fill();ctx.fillStyle='#f8f3ef';ctx.fillRect(148,84,7,84);
-  ctx.fillStyle='#431127';ctx.font='700 58px Georgia, serif';ctx.fillText('Through the Wall',236,146);
-  ctx.fillStyle='#9a7482';ctx.font='800 22px Inter, Arial, sans-serif';ctx.letterSpacing='4px';ctx.fillText('A SOCIAL PREDICTION POOL',238,184);ctx.letterSpacing='0px';
-  ctx.fillStyle='#ed0c72';ctx.beginPath();ctx.roundRect(90,314,272,54,27);ctx.fill();ctx.fillStyle='#fff';ctx.font='900 24px Inter, Arial, sans-serif';ctx.fillText(kind==='wrapped'?String(eyebrow||'SEASON WRAPPED').toUpperCase():'I CALLED IT',116,350);
-  if(kind!=='wrapped'){ctx.fillStyle='#9a7482';ctx.font='800 20px Inter, Arial, sans-serif';ctx.fillText(String(eyebrow||'RESULTS REVEAL').toUpperCase(),90,410);}
-  ctx.fillStyle='#431127';ctx.font='700 92px Georgia, serif';let y=505;
-  wrapCanvasText(ctx,title||'I called it.',900).slice(0,3).forEach(line=>{ctx.fillText(line,90,y);y+=105;});
-  ctx.fillStyle='#fff';ctx.strokeStyle='rgba(110,31,59,.10)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(70,760,940,520,38);ctx.fill();ctx.stroke();
-  ctx.fillStyle='#9a7482';ctx.font='900 22px Inter, Arial, sans-serif';ctx.fillText(kind==='wrapped'?'SEASON HIGHLIGHT':'BEST HIT',115,840);
-  ctx.fillStyle='#431127';ctx.font='700 55px Georgia, serif';let highlightY=925;
-  wrapCanvasText(ctx,highlight||'The vibes were right.',820).slice(0,3).forEach(line=>{ctx.fillText(line,115,highlightY);highlightY+=66;});
-  if(predictedAt){ctx.fillStyle='#9a7482';ctx.font='800 25px Inter, Arial, sans-serif';ctx.fillText(String(predictedAt),115,1160);}
-  if(rank){ctx.fillStyle='#ed0c72';ctx.font='700 82px Georgia, serif';ctx.fillText('#'+rank,115,1210);ctx.fillStyle='#9a7482';ctx.font='800 22px Inter, Arial, sans-serif';ctx.fillText('OF '+(total||'?')+(kind==='wrapped'?' · FINAL RANK':' · LIVE RANK'),250,1208);}
-  if(score!=null){ctx.textAlign='right';ctx.fillStyle='#431127';ctx.font='700 65px Georgia, serif';ctx.fillText(String(Math.round(score))+' pts',950,1210);ctx.textAlign='left';}
-  const safeDetails=(details||[]).filter(Boolean).slice(0,4);ctx.font='700 28px Inter, Arial, sans-serif';
-  safeDetails.forEach((detail,index)=>{const detailY=1385+index*76;ctx.fillStyle=index%2?'#7b2ee5':'#ed0c72';ctx.fillText('✦',100,detailY);ctx.fillStyle='#6e4657';ctx.fillText(String(detail).slice(0,58),145,detailY);});
-  ctx.fillStyle='#431127';ctx.font='700 34px Georgia, serif';ctx.fillText(playerName||'A Through the Wall player',90,1740);
-  ctx.fillStyle='#9a7482';ctx.font='600 23px Inter, Arial, sans-serif';ctx.fillText([poolName,seasonLabel].filter(Boolean).join(' · ').slice(0,72),90,1784);
-  ctx.fillStyle='#ed0c72';ctx.font='900 25px Inter, Arial, sans-serif';ctx.fillText('PLAY AT  THROUGHTHEWALL.CA',90,1845);
+  const safeDetails=(details||[]).filter(Boolean).slice(0,4);
+  const wrongDetail=safeDetails.find(detail=>/^who got it wrong:/i.test(String(detail)))||'';
+  const hitPoints=safeDetails.find(detail=>/points won/i.test(String(detail)))||'';
+  const bg=ctx.createLinearGradient(0,0,1080,1920);bg.addColorStop(0,'#fffafb');bg.addColorStop(.55,'#f8f3ef');bg.addColorStop(1,'#f5edff');ctx.fillStyle=bg;ctx.fillRect(0,0,1080,1920);
+  const glow=ctx.createRadialGradient(950,90,30,950,90,460);glow.addColorStop(0,'rgba(123,46,229,.16)');glow.addColorStop(1,'rgba(123,46,229,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,1080,620);
+  const rose=ctx.createRadialGradient(120,1780,20,120,1780,470);rose.addColorStop(0,'rgba(237,12,114,.14)');rose.addColorStop(1,'rgba(237,12,114,0)');ctx.fillStyle=rose;ctx.fillRect(0,1260,700,660);
+  // A small standalone heart-and-sparkle mark keeps the brand present without
+  // competing with the prediction.
+  ctx.fillStyle='#ed0c72';ctx.beginPath();ctx.arc(118,120,30,0,Math.PI*2);ctx.fill();ctx.fillStyle='#7b2ee5';ctx.beginPath();ctx.arc(152,120,30,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fffafb';ctx.fillRect(132,88,6,64);
+  ctx.fillStyle='#f2c85f';ctx.font='700 29px Georgia, serif';ctx.fillText('✦',174,95);
+  ctx.fillStyle='#431127';ctx.font='700 43px Georgia, serif';ctx.fillText('Through the Wall',210,132);
+  ctx.fillStyle='#9a7482';ctx.font='800 16px Inter, Arial, sans-serif';ctx.letterSpacing='2.6px';ctx.fillText('A SOCIAL PREDICTION POOL',212,164);ctx.letterSpacing='0px';
+  ctx.fillStyle=kind==='wrapped'?'#7b2ee5':'#ed0c72';ctx.font='900 43px Inter, Arial, sans-serif';ctx.fillText(kind==='wrapped'?'SEASON WRAPPED':'I CALLED IT',88,295);
+  ctx.fillStyle='#9a7482';ctx.font='900 18px Inter, Arial, sans-serif';ctx.letterSpacing='1.6px';ctx.fillText(String(eyebrow||'RESULTS RECEIPT').toUpperCase(),90,337);ctx.letterSpacing='0px';
+  ctx.fillStyle='#fff';ctx.strokeStyle='rgba(110,31,59,.12)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(70,390,940,670,34);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#9a7482';ctx.font='900 18px Inter, Arial, sans-serif';ctx.fillText(kind==='wrapped'?'SEASON HIGHLIGHT':'THE PREDICTION',115,460);
+  ctx.fillStyle='#431127';ctx.font='700 64px Georgia, serif';let highlightY=550;
+  wrapCanvasText(ctx,highlight||'The vibes were right.',820).slice(0,3).forEach(line=>{ctx.fillText(line,115,highlightY);highlightY+=76;});
+  const timingY=Math.max(765,highlightY+20);
+  if(predictedAt){ctx.fillStyle='#9a7482';ctx.font='800 23px Inter, Arial, sans-serif';ctx.fillText(String(predictedAt),115,timingY);}
+  ctx.strokeStyle='rgba(110,31,59,.12)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(115,timingY+42);ctx.lineTo(965,timingY+42);ctx.stroke();
+  if(rank){ctx.fillStyle='#ed0c72';ctx.font='700 58px Georgia, serif';ctx.fillText('#'+rank,115,timingY+120);ctx.fillStyle='#9a7482';ctx.font='900 17px Inter, Arial, sans-serif';ctx.fillText((kind==='wrapped'?'FINAL':'LIVE')+' RANK · OF '+(total||'?'),205,timingY+114);}
+  const rightStat=hitPoints||((score!=null)?Math.round(score)+' total pts':'');
+  if(rightStat){ctx.textAlign='right';ctx.fillStyle='#431127';ctx.font='800 30px Inter, Arial, sans-serif';ctx.fillText(String(rightStat).replace(/^\+?/,'+'),950,timingY+112);ctx.textAlign='left';}
+  if(wrongDetail){
+    ctx.fillStyle='#ed0c72';ctx.font='900 18px Inter, Arial, sans-serif';ctx.letterSpacing='1.5px';ctx.fillText('WHO GOT IT WRONG',90,1175);ctx.letterSpacing='0px';
+    ctx.fillStyle='#431127';ctx.font='700 37px Georgia, serif';let wrongY=1235;
+    wrapCanvasText(ctx,String(wrongDetail).replace(/^who got it wrong:\s*/i,''),850).slice(0,2).forEach(line=>{ctx.fillText(line,90,wrongY);wrongY+=48;});
+  }
+  ctx.fillStyle='#431127';ctx.font='700 31px Georgia, serif';ctx.fillText(playerName||'A Through the Wall player',90,1690);
+  ctx.fillStyle='#9a7482';ctx.font='600 19px Inter, Arial, sans-serif';ctx.fillText([poolName,seasonLabel].filter(Boolean).join(' · ').slice(0,80),90,1730);
+  ctx.fillStyle='#ed0c72';ctx.font='900 22px Inter, Arial, sans-serif';ctx.letterSpacing='1px';ctx.fillText('THROUGHTHEWALL.CA',90,1815);ctx.letterSpacing='0px';
   canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('The share card could not be created.')),'image/png',.96);
 });
 const shareGeneratedCard=async options=>{
