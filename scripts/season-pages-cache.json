@@ -1,0 +1,3554 @@
+{
+  "love-is-blind-us-2": {
+    "cast": [
+      {
+        "name": "Iyanna",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Iyanna.png"
+      },
+      {
+        "name": "Jarrette",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-2/Jarrette.png"
+      },
+      {
+        "name": "Mallory",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Mallory.png"
+      },
+      {
+        "name": "Salvador",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-2/Salvador.png"
+      },
+      {
+        "name": "Nick",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-2/Nick.png"
+      },
+      {
+        "name": "Danielle",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Danielle.png"
+      },
+      {
+        "name": "Kyle",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-2/Kyle.png"
+      },
+      {
+        "name": "Kara",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Kara.png"
+      },
+      {
+        "name": "Shayne",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-2/Shayne.png"
+      },
+      {
+        "name": "Shake",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-2/Shake.png"
+      },
+      {
+        "name": "Hope",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Hope.png"
+      },
+      {
+        "name": "Chassidy",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Chassidy.png"
+      },
+      {
+        "name": "Deepti",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Deepti.png"
+      },
+      {
+        "name": "Natalie",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Natalie.png"
+      },
+      {
+        "name": "Shaina",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Shaina.png"
+      },
+      {
+        "name": "Trisha",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-2/Trisha.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "nick-danielle",
+        "him": "Nick",
+        "her": "Danielle",
+        "engaged_ep": "1",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "shake-deepti",
+        "him": "Shake",
+        "her": "Deepti",
+        "engaged_ep": "2",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "kyle-shaina",
+        "him": "Kyle",
+        "her": "Shaina",
+        "engaged_ep": "2",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "6",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "shayne-natalie",
+        "him": "Shayne",
+        "her": "Natalie",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "sal-mal",
+        "him": "Salvador",
+        "her": "Mallory",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "jarrette-iyanna",
+        "him": "Jarrette",
+        "her": "Iyanna",
+        "engaged_ep": "3",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "11"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "11"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-10": {
+    "cast": [
+      {
+        "name": "Jordan",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Jordan.png"
+      },
+      {
+        "name": "Amber",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Amber.png"
+      },
+      {
+        "name": "Vic",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Vic.png"
+      },
+      {
+        "name": "Christine",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Christine.png"
+      },
+      {
+        "name": "Chris",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Chris.png"
+      },
+      {
+        "name": "Jessica",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Jessica.png"
+      },
+      {
+        "name": "Bri",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Bri.png"
+      },
+      {
+        "name": "Connor",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Connor.png"
+      },
+      {
+        "name": "Emma",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Emma.png"
+      },
+      {
+        "name": "Steven",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Steven.png"
+      },
+      {
+        "name": "Keya",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Keya.png"
+      },
+      {
+        "name": "Kevan",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Kevan.png"
+      },
+      {
+        "name": "Tyler",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Tyler.png"
+      },
+      {
+        "name": "Ashley",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Ashley.png"
+      },
+      {
+        "name": "Alex",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Alex.png"
+      },
+      {
+        "name": "Mike",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Mike.png"
+      },
+      {
+        "name": "Devonta",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Devonta.png"
+      },
+      {
+        "name": "Brittany",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Brittany.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "vic-christine",
+        "him": "Vic",
+        "her": "Christine",
+        "engaged_ep": "1",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": "FALSE"
+      },
+      {
+        "id": "jordan-amber",
+        "him": "Jordan",
+        "her": "Amber",
+        "engaged_ep": "2",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": ""
+      },
+      {
+        "id": "alex-ashley",
+        "him": "Alex",
+        "her": "Ashley",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": ""
+      },
+      {
+        "id": "chris-jessica",
+        "him": "Chris",
+        "her": "Jessica",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "9",
+        "settled_ep": "9",
+        "together_now": "",
+        "lock_ep": "9",
+        "dating_eligible": ""
+      },
+      {
+        "id": "connor-bri",
+        "him": "Connor",
+        "her": "Bri",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "11",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": "11",
+        "dating_eligible": ""
+      },
+      {
+        "id": "devonta-brittany",
+        "him": "Devonta",
+        "her": "Brittany",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": ""
+      },
+      {
+        "id": "mike-emma",
+        "him": "Mike",
+        "her": "Emma",
+        "engaged_ep": "5",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "11",
+        "dating_eligible": ""
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-uk-3": {
+    "cast": [],
+    "couples": [],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200",
+        "notes": "Baseline multiplier — a correct pick at least doubles its hearts"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60",
+        "notes": "Contrarian coefficient — try 1.25 for bigger solo bonuses"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1",
+        "notes": "+X per episode of foresight in the pods and dating phase"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "5",
+        "notes": "Bonus for correctly tagging who says no / who criticizes"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "150",
+        "notes": "Total number of players (You + opponents)"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40",
+        "notes": "Hearts budget for the Pods phase"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "5",
+        "notes": "Max hearts per pick in Pods"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "7",
+        "notes": "Hearts budget for the Dating phase"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "150",
+        "notes": "Max hearts per pick in Dating"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80",
+        "notes": "Hearts budget for the Weddings phase"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "7",
+        "notes": "Max hearts per pick in Weddings"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "11",
+        "notes": "Hearts budget for the Reunion phase"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100",
+        "notes": "Max hearts per pick in Reunion"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40",
+        "notes": ""
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "11",
+        "notes": ""
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "12",
+        "notes": ""
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "0",
+        "notes": ""
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75",
+        "notes": ""
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "7",
+        "notes": ""
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": "",
+        "notes": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "5",
+        "notes": ""
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1",
+        "notes": ""
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2",
+        "notes": ""
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3",
+        "notes": ""
+      }
+    ]
+  },
+  "love-is-blind-us-7": {
+    "cast": [
+      {
+        "name": "Ashley",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Ashley.png"
+      },
+      {
+        "name": "Tyler",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Tyler.png"
+      },
+      {
+        "name": "Nick",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Nick.png"
+      },
+      {
+        "name": "Katie",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Katie.png"
+      },
+      {
+        "name": "Hannah",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Hannah.png"
+      },
+      {
+        "name": "Leo",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Leo.png"
+      },
+      {
+        "name": "Brittany",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Brittany.png"
+      },
+      {
+        "name": "Garrett",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Garrett.png"
+      },
+      {
+        "name": "Taylor",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Taylor.png"
+      },
+      {
+        "name": "Tim",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Tim.png"
+      },
+      {
+        "name": "Alex",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Alex.png"
+      },
+      {
+        "name": "Monica",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Monica.png"
+      },
+      {
+        "name": "Stephen",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Stephen.png"
+      },
+      {
+        "name": "Marissa",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Marissa.png"
+      },
+      {
+        "name": "Bohdan",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Bohdan.png"
+      },
+      {
+        "name": "Ramses",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Ramses.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "garrett-taylor",
+        "him": "Garrett",
+        "her": "Taylor",
+        "engaged_ep": "2",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": "",
+        "weddings_eligible": "",
+        "reunion_eligible": ""
+      },
+      {
+        "id": "tyler-ashley",
+        "him": "Tyler",
+        "her": "Ashley",
+        "engaged_ep": "3",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": "",
+        "weddings_eligible": "",
+        "reunion_eligible": ""
+      },
+      {
+        "id": "stephen-monica",
+        "him": "Stephen",
+        "her": "Monica",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "8",
+        "settled_ep": "8",
+        "together_now": "",
+        "lock_ep": "8",
+        "dating_eligible": "",
+        "weddings_eligible": "",
+        "reunion_eligible": ""
+      },
+      {
+        "id": "tim-alex",
+        "him": "Tim",
+        "her": "Alex",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": "10",
+        "dating_eligible": "",
+        "weddings_eligible": "",
+        "reunion_eligible": ""
+      },
+      {
+        "id": "nick-hannah",
+        "him": "Nick",
+        "her": "Hannah",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "11",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": "11",
+        "dating_eligible": "",
+        "weddings_eligible": "",
+        "reunion_eligible": ""
+      },
+      {
+        "id": "ramses-marissa",
+        "him": "Ramses",
+        "her": "Marissa",
+        "engaged_ep": "5",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12",
+        "dating_eligible": "",
+        "weddings_eligible": "",
+        "reunion_eligible": ""
+      },
+      {
+        "id": "leo-brittany",
+        "him": "Leo",
+        "her": "Brittany",
+        "engaged_ep": "5",
+        "wedding": "notShown",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "",
+        "together_now": "",
+        "lock_ep": "5",
+        "dating_eligible": "FALSE",
+        "weddings_eligible": "FALSE",
+        "reunion_eligible": "FALSE"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-5": {
+    "cast": [
+      {
+        "name": "Lydia",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Lydia.png"
+      },
+      {
+        "name": "Milton",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Milton.png"
+      },
+      {
+        "name": "Izzy",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Izzy.png"
+      },
+      {
+        "name": "Stacy",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Stacy.png"
+      },
+      {
+        "name": "Johnie",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Johnie.png"
+      },
+      {
+        "name": "Chris",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Chris.png"
+      },
+      {
+        "name": "Taylor",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Taylor.png"
+      },
+      {
+        "name": "JP",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/JP.png"
+      },
+      {
+        "name": "Uche",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Uche.png"
+      },
+      {
+        "name": "Miriam",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Miriam.png"
+      },
+      {
+        "name": "Aaliyah",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Aaliyah.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "lydia-milton",
+        "him": "Milton",
+        "her": "Lydia",
+        "engaged_ep": "4",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "10",
+        "together_now": "FALSE",
+        "lock_ep": "10",
+        "reunion_status_eligible": "",
+        "dating_eligible": ""
+      },
+      {
+        "id": "stacy-izzy",
+        "him": "Izzy",
+        "her": "Stacy",
+        "engaged_ep": "4",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "FALSE",
+        "lock_ep": "10",
+        "reunion_status_eligible": "",
+        "dating_eligible": ""
+      },
+      {
+        "id": "taylor-jp",
+        "him": "JP",
+        "her": "Taylor",
+        "engaged_ep": "2",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "6",
+        "settled_ep": "6",
+        "together_now": "FALSE",
+        "lock_ep": "6",
+        "reunion_status_eligible": "",
+        "dating_eligible": ""
+      },
+      {
+        "id": "chris-johnie",
+        "him": "Chris",
+        "her": "Johnie",
+        "engaged_ep": "",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "",
+        "together_now": "",
+        "lock_ep": "",
+        "reunion_status_eligible": "TRUE",
+        "dating_eligible": "FALSE"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "160"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "6"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "11"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "11"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-1": {
+    "cast": [
+      {
+        "name": "Barnett",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Barnett.png"
+      },
+      {
+        "name": "Lauren",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/Lauren.png"
+      },
+      {
+        "name": "Carlton",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Carlton.png"
+      },
+      {
+        "name": "Jessica",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/Jessica.png"
+      },
+      {
+        "name": "Mark",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Mark.png"
+      },
+      {
+        "name": "Cameron",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Cameron.png"
+      },
+      {
+        "name": "Jon",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Jon.png"
+      },
+      {
+        "name": "Amber",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/Amber.png"
+      },
+      {
+        "name": "Diamond",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/Diamond.png"
+      },
+      {
+        "name": "Kelly",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/Kelly.png"
+      },
+      {
+        "name": "LC",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/LC.png"
+      },
+      {
+        "name": "Damian",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Damian.png"
+      },
+      {
+        "name": "Giannina",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-1/Giannina.png"
+      },
+      {
+        "name": "Kenny",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-1/Kenny.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "cameron-lauren",
+        "him": "Cameron",
+        "her": "Lauren",
+        "engaged_ep": "1",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "carlton-diamond",
+        "him": "Carlton",
+        "her": "Diamond",
+        "engaged_ep": "2",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "5",
+        "settled_ep": "",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "kenny-kelly",
+        "him": "Kenny",
+        "her": "Kelly",
+        "engaged_ep": "2",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "damian-gia",
+        "him": "Damian",
+        "her": "Giannina",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "mark-jessica",
+        "him": "Mark",
+        "her": "Jessica",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "barnett-amber",
+        "him": "Barnett",
+        "her": "Amber",
+        "engaged_ep": "3",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "11"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "11"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      }
+    ]
+  },
+  "love-is-blind-us-9": {
+    "cast": [
+      {
+        "name": "Kacie",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Kacie.png"
+      },
+      {
+        "name": "Patrick",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Patrick.png"
+      },
+      {
+        "name": "Anna",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Anna.png"
+      },
+      {
+        "name": "Blake",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Blake.png"
+      },
+      {
+        "name": "Megan",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Megan.png"
+      },
+      {
+        "name": "Mike",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Mike.png"
+      },
+      {
+        "name": "Jordan",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Jordan.png"
+      },
+      {
+        "name": "Ali",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Ali.png"
+      },
+      {
+        "name": "Anton",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Anton.png"
+      },
+      {
+        "name": "Kalybriah",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Kalybriah.png"
+      },
+      {
+        "name": "Edmond",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Edmond.png"
+      },
+      {
+        "name": "Madison",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Madison.png"
+      },
+      {
+        "name": "Joe",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Joe.png"
+      },
+      {
+        "name": "Nick",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Nick.png"
+      },
+      {
+        "name": "Kait",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Kait.png"
+      },
+      {
+        "name": "Annie",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Annie.png"
+      },
+      {
+        "name": "Brenden",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Brenden.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "anton-ali",
+        "him": "Anton",
+        "her": "Ali",
+        "engaged_ep": "1",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12"
+      },
+      {
+        "id": "joe-madison",
+        "him": "Joe",
+        "her": "Madison",
+        "engaged_ep": "2",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "11",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": "11"
+      },
+      {
+        "id": "edmond-kalybriah",
+        "him": "Edmond",
+        "her": "Kalybriah",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12"
+      },
+      {
+        "id": "patrick-kacie",
+        "him": "Patrick",
+        "her": "Kacie",
+        "engaged_ep": "4",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "6",
+        "settled_ep": "6",
+        "together_now": "",
+        "lock_ep": "6"
+      },
+      {
+        "id": "nick-annie",
+        "him": "Nick",
+        "her": "Annie",
+        "engaged_ep": "5",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": "10"
+      },
+      {
+        "id": "jordan-megan",
+        "him": "Jordan",
+        "her": "Megan",
+        "engaged_ep": "5",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-uk-1": {
+    "cast": [
+      {
+        "name": "Freddie",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Freddie.png"
+      },
+      {
+        "name": "Catherine",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Catherine.png"
+      },
+      {
+        "name": "Ollie",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Ollie.png"
+      },
+      {
+        "name": "Demi",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Demi.png"
+      },
+      {
+        "name": "Sabrina",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Sabrina.png"
+      },
+      {
+        "name": "Steven",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Steven.png"
+      },
+      {
+        "name": "Sam",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Sam.png"
+      },
+      {
+        "name": "Jasmine",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Jasmine.png"
+      },
+      {
+        "name": "Nicole",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Nicole.png"
+      },
+      {
+        "name": "Benaiah",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Benaiah.png"
+      },
+      {
+        "name": "Bobby",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Bobby.png"
+      },
+      {
+        "name": "Maria",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Maria.png"
+      },
+      {
+        "name": "Tom",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Tom.png"
+      },
+      {
+        "name": "Natasha",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Natasha.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "steven-sabrina",
+        "him": "Steven",
+        "her": "Sabrina",
+        "engaged_ep": "2",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": "10",
+        "dating_eligible": ""
+      },
+      {
+        "id": "bobby-jasmine",
+        "him": "Bobby",
+        "her": "Jasmine",
+        "engaged_ep": "2",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": ""
+      },
+      {
+        "id": "freddie-catherine",
+        "him": "Freddie",
+        "her": "Catherine",
+        "engaged_ep": "3",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": ""
+      },
+      {
+        "id": "sam-nicole",
+        "him": "Sam",
+        "her": "Nicole",
+        "engaged_ep": "3",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "4",
+        "settled_ep": "4",
+        "together_now": "",
+        "lock_ep": "4",
+        "dating_eligible": ""
+      },
+      {
+        "id": "tom-maria",
+        "him": "Tom",
+        "her": "Maria",
+        "engaged_ep": "4",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": "10",
+        "dating_eligible": ""
+      },
+      {
+        "id": "benaiah-nicole",
+        "him": "Benaiah",
+        "her": "Nicole",
+        "engaged_ep": "5",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": ""
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "6"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-8": {
+    "cast": [
+      {
+        "name": "Daniel",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Daniel.png"
+      },
+      {
+        "name": "Taylor",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Taylor.png"
+      },
+      {
+        "name": "Brittany",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Brittany.png"
+      },
+      {
+        "name": "Devin",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Devin.png"
+      },
+      {
+        "name": "Virginia",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Virginia.png"
+      },
+      {
+        "name": "Joey",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Joey.png"
+      },
+      {
+        "name": "Monica",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Monica.png"
+      },
+      {
+        "name": "Dave",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Dave.png"
+      },
+      {
+        "name": "Lauren",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Lauren.png"
+      },
+      {
+        "name": "Molly",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Molly.png"
+      },
+      {
+        "name": "Alex",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Alex.png"
+      },
+      {
+        "name": "Madison",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Madison.png"
+      },
+      {
+        "name": "Mason",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Mason.png"
+      },
+      {
+        "name": "Meg",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Meg.png"
+      },
+      {
+        "name": "Sara",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Sara.png"
+      },
+      {
+        "name": "Ben",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Ben.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "joey-monica",
+        "him": "Joey",
+        "her": "Monica",
+        "engaged_ep": "2",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "13",
+        "settled_ep": "13",
+        "together_now": "",
+        "lock_ep": "13"
+      },
+      {
+        "id": "ben-sara",
+        "him": "Ben",
+        "her": "Sara",
+        "engaged_ep": "5",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "13",
+        "settled_ep": "13",
+        "together_now": "",
+        "lock_ep": "13"
+      },
+      {
+        "id": "dave-lauren",
+        "him": "Dave",
+        "her": "Lauren",
+        "engaged_ep": "5",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "11",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": "11"
+      },
+      {
+        "id": "daniel-taylor",
+        "him": "Daniel",
+        "her": "Taylor",
+        "engaged_ep": "6",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "13",
+        "together_now": "",
+        "lock_ep": "13"
+      },
+      {
+        "id": "devin-virginia",
+        "him": "Devin",
+        "her": "Virginia",
+        "engaged_ep": "6",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "13",
+        "settled_ep": "13",
+        "together_now": "",
+        "lock_ep": "13"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "6"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "8"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "8"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "13"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "14"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "14"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "8"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "6"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-6": {
+    "cast": [
+      {
+        "name": "Trevor",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Trevor.png"
+      },
+      {
+        "name": "Chelsea",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Chelsea.png"
+      },
+      {
+        "name": "Jimmy",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Jimmy.png"
+      },
+      {
+        "name": "Jessica",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Jessica.png"
+      },
+      {
+        "name": "Matthew",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Matthew.png"
+      },
+      {
+        "name": "Sarah Ann",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Sarah-Ann.png"
+      },
+      {
+        "name": "AD",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/AD.png"
+      },
+      {
+        "name": "Clay",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Clay.png"
+      },
+      {
+        "name": "Amy",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Amy.png"
+      },
+      {
+        "name": "Johnny",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Johnny.png"
+      },
+      {
+        "name": "Jeramey",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Jeramey.png"
+      },
+      {
+        "name": "Laura",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Laura.png"
+      },
+      {
+        "name": "Amber",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Amber.png"
+      },
+      {
+        "name": "Kenneth",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Kenneth.png"
+      },
+      {
+        "name": "Brittany",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Brittany.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "johnny-amy",
+        "him": "Johnny",
+        "her": "Amy",
+        "engaged_ep": "2",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12"
+      },
+      {
+        "id": "kenneth-brittany",
+        "him": "Kenneth",
+        "her": "Brittany",
+        "engaged_ep": "3",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "8",
+        "settled_ep": "8",
+        "together_now": "",
+        "lock_ep": "8"
+      },
+      {
+        "id": "clay-ad",
+        "him": "Clay",
+        "her": "AD",
+        "engaged_ep": "4",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12"
+      },
+      {
+        "id": "jimmy-chelsea",
+        "him": "Jimmy",
+        "her": "Chelsea",
+        "engaged_ep": "5",
+        "wedding": "calledOff",
+        "who_says_no": "him",
+        "breakup_ep": "12",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "12"
+      },
+      {
+        "id": "jeramey-laura",
+        "him": "Jeramey",
+        "her": "Laura",
+        "engaged_ep": "5",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "9",
+        "settled_ep": "9",
+        "together_now": "",
+        "lock_ep": "9"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "7"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "7"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-3": {
+    "cast": [
+      {
+        "name": "Bartise",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-3/Bartise.png"
+      },
+      {
+        "name": "Nancy",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-3/Nancy.png"
+      },
+      {
+        "name": "Raven",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-3/Raven.png"
+      },
+      {
+        "name": "SK",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-3/SK.png"
+      },
+      {
+        "name": "Colleen",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-3/Colleen.png"
+      },
+      {
+        "name": "Andrew",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-3/Andrew.png"
+      },
+      {
+        "name": "Cole",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-3/Cole.png"
+      },
+      {
+        "name": "Alexa",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-3/Alexa.png"
+      },
+      {
+        "name": "Brennon",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-3/Brennon.png"
+      },
+      {
+        "name": "Zanab",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-3/Zanab.png"
+      },
+      {
+        "name": "Matt",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-3/Matt.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "brennon-alexa",
+        "him": "Brennon",
+        "her": "Alexa",
+        "engaged_ep": "1",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "cole-zanab",
+        "him": "Cole",
+        "her": "Zanab",
+        "engaged_ep": "2",
+        "wedding": "saysNo",
+        "who_says_no": "her",
+        "breakup_ep": "11",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "sk-raven",
+        "him": "SK",
+        "her": "Raven",
+        "engaged_ep": "2",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "bartise-nancy",
+        "him": "Bartise",
+        "her": "Nancy",
+        "engaged_ep": "3",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "11",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": ""
+      },
+      {
+        "id": "matt-colleen",
+        "him": "Matt",
+        "her": "Colleen",
+        "engaged_ep": "3",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "11",
+        "together_now": "",
+        "lock_ep": ""
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "11"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "11"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "12"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-us-4": {
+    "cast": [
+      {
+        "name": "Chelsea",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Chelsea.png"
+      },
+      {
+        "name": "Kwame",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-4/Kwame.png"
+      },
+      {
+        "name": "Micah",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Micah.png"
+      },
+      {
+        "name": "Paul",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-4/Paul.png"
+      },
+      {
+        "name": "Amber",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Amber.png"
+      },
+      {
+        "name": "Jackelina",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Jackelina.png"
+      },
+      {
+        "name": "Bliss",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Bliss.png"
+      },
+      {
+        "name": "Zack",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-4/Zack.png"
+      },
+      {
+        "name": "Tiffany",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Tiffany.png"
+      },
+      {
+        "name": "Brett",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-4/Brett.png"
+      },
+      {
+        "name": "Irina",
+        "gender": "F",
+        "photo_url": "images/cast/love-is-blind-us-4/Irina.png"
+      },
+      {
+        "name": "Marshall",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-4/Marshall.png"
+      },
+      {
+        "name": "Josh",
+        "gender": "M",
+        "photo_url": "images/cast/love-is-blind-us-4/Josh.png"
+      }
+    ],
+    "couples": [
+      {
+        "id": "brett-tiffany",
+        "him": "Brett",
+        "her": "Tiffany",
+        "engaged_ep": "2",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": "",
+        "pods_eligible": ""
+      },
+      {
+        "id": "paul-micah",
+        "him": "Paul",
+        "her": "Micah",
+        "engaged_ep": "2",
+        "wedding": "saysNo",
+        "who_says_no": "him",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": "",
+        "pods_eligible": ""
+      },
+      {
+        "id": "marshall-jack",
+        "him": "Marshall",
+        "her": "Jackelina",
+        "engaged_ep": "3",
+        "wedding": "calledOff",
+        "who_says_no": "her",
+        "breakup_ep": "10",
+        "settled_ep": "10",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": "",
+        "pods_eligible": ""
+      },
+      {
+        "id": "kwame-chelsea",
+        "him": "Kwame",
+        "her": "Chelsea",
+        "engaged_ep": "3",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "11",
+        "dating_eligible": "",
+        "pods_eligible": ""
+      },
+      {
+        "id": "zack-irina",
+        "him": "Zack",
+        "her": "Irina",
+        "engaged_ep": "3",
+        "wedding": "",
+        "who_says_no": "",
+        "breakup_ep": "5",
+        "settled_ep": "5",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": "",
+        "pods_eligible": ""
+      },
+      {
+        "id": "zack-bliss",
+        "him": "Zack",
+        "her": "Bliss",
+        "engaged_ep": "6",
+        "wedding": "married",
+        "who_says_no": "",
+        "breakup_ep": "",
+        "settled_ep": "12",
+        "together_now": "",
+        "lock_ep": "",
+        "dating_eligible": "No",
+        "pods_eligible": "No"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "12"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "13"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  }
+}

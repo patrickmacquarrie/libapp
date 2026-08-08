@@ -208,7 +208,9 @@ service cloud.firestore {
             'REU_MULT',
             'RACE_MULT'
           ]) &&
-          snapshot.version == 3 &&
+          // Keep this range aligned with rulesSnapshotFrom in index.html.
+          snapshot.version >= 3 &&
+          snapshot.version <= 4 &&
           snapshot.RULES is map &&
           snapshot.PH_SPAN is map &&
           snapshot.PH_STARTW is map &&
@@ -232,6 +234,19 @@ service cloud.firestore {
             request.resource.data.membershipClosedAt == null ||
             request.resource.data.membershipClosedAt is number
           );
+      }
+
+      function canOwnerRenamePool() {
+        return poolOwner(poolId) &&
+          resource.data.get('global', false) != true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'nameUpdatedAt'
+          ]) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() >= 1 &&
+          request.resource.data.name.size() <= 100 &&
+          request.resource.data.nameUpdatedAt is number;
       }
 
       allow get: if signedIn() &&
@@ -281,7 +296,8 @@ service cloud.firestore {
         canJoinFriendPoolWithCode() ||
         canOwnerSetInitialJoinCode() ||
         canFreezeRules() ||
-        canOwnerChangeMembershipSetting();
+        canOwnerChangeMembershipSetting() ||
+        canOwnerRenamePool();
 
       allow delete: if poolOwner(poolId);
 

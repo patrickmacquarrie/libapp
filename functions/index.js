@@ -11,6 +11,14 @@ const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
+// Resend lets us use these clear sender identities because throughthewall.ca
+// is a verified sending domain. Replies route to Patrick's personal inbox.
+const MAIL_SENDERS={
+  invites:'Through the Wall Invites <invites@throughthewall.ca>',
+  updates:'Through the Wall Updates <updates@throughthewall.ca>',
+  support:'Through the Wall Support <support@throughthewall.ca>',
+};
+const MAIL_REPLY_TO='patrick.macquarrie@gmail.com';
 // Private friends beta: public Global Pool creation stays disabled until the
 // live-season launch is ready for the much larger notification/scoring load.
 const GLOBAL_POOL_SEASONS={};
@@ -22,6 +30,9 @@ function requireUser(request){
 
 function escapeHtml(value){
   return String(value||'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+}
+function safeHeaderText(value,maxLength=100){
+  return String(value||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
 }
 
 function nudgePreferenceEnabled(preferences,key){
@@ -40,6 +51,8 @@ async function queueNudge(uid,messageId,subject,text,preferenceKey){
     await db.doc(`mail/${messageId}`).create({
       to:[user.email],
       message:{
+        from:MAIL_SENDERS.updates,
+        replyTo:MAIL_REPLY_TO,
         subject,
         text:safeText+`\n\nOpen Through the Wall: ${APP_URL}`,
         html:`<p>${escapeHtml(safeText)}</p><p><a href="${APP_URL}">Open Through the Wall</a></p>`,
@@ -75,8 +88,9 @@ function cleanRatings(value){
       const score=Number(entry?.values?.[category]);
       if(Number.isInteger(score)&&score>=0&&score<=10)values[category]=score;
     });
-    return {name:String(entry?.name||'').trim().slice(0,80),gender:['M','F'].includes(entry?.gender)?entry.gender:'',values};
-  }).filter(entry=>entry.name&&Object.keys(entry.values).length);
+    const flag=['red','green'].includes(entry?.flag)?entry.flag:'';
+    return {name:String(entry?.name||'').trim().slice(0,80),gender:['M','F'].includes(entry?.gender)?entry.gender:'',values,flag};
+  }).filter(entry=>entry.name&&(Object.keys(entry.values).length||entry.flag));
 }
 
 function ratingMetrics(entry){
@@ -86,6 +100,8 @@ function ratingMetrics(entry){
     if(Number.isInteger(value)&&value>=0&&value<=10)metrics[category]=value;
   });
   if(RATING_CATEGORIES.every(category=>Number.isInteger(metrics[category])))metrics.overall=RATING_CATEGORIES.reduce((sum,category)=>sum+metrics[category],0);
+  if(entry?.flag==='red')metrics.redFlag=1;
+  if(entry?.flag==='green')metrics.greenFlag=1;
   return metrics;
 }
 
@@ -240,13 +256,14 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
     tx.set(limitRef,{uid,day,count:count+1,updatedAt:Date.now()},{merge:true});
   });
   const pool=poolSnap.data();
-  const inviter=String(profileSnap.data()?.username||'A friend').trim()||'A friend';
+  const inviter=safeHeaderText(profileSnap.data()?.username||'A friend',40)||'A friend';
   const inviteUrl=new URL(APP_URL);
   inviteUrl.searchParams.set('join',poolId+'.'+String(pool.joinCode||''));
   const logoUrl=new URL('images/through-the-wall-app-icon.png',APP_URL).href;
   const logoUrlWithVersion=logoUrl+'?v=2';
   const seasonLabel=String(pool.season?.label||'Love Is Blind');
-  const subject=`${inviter} invited you to ${pool.name}`;
+  const safePoolName=safeHeaderText(pool.name,100)||'a Through the Wall pool';
+  const subject=`${inviter} invited you to ${safePoolName}`;
   const text=`${inviter} invited you to join their Through the Wall prediction pool, “${pool.name},” for ${seasonLabel}.\n\nJoin the pool: ${inviteUrl}`;
   const inviteHtml=`<!doctype html>
 <html lang="en">
@@ -287,6 +304,8 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   await db.collection('mail').add({
     to:[toEmail],
     message:{
+      from:MAIL_SENDERS.invites,
+      replyTo:MAIL_REPLY_TO,
       subject,
       text,
       html:inviteHtml,
@@ -321,6 +340,10 @@ exports.openGlobalPool=onCall(FUNCTION_LIMITS,async request=>{
 
 exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
+  // Read the email before deleting Authentication so recipient-addressed
+  // invitation documents can be included in the erasure pass.
+  const authUser=await getAuth().getUser(uid);
+  const email=String(authUser.email||'').trim().toLowerCase();
   const pools=await db.collection('pools').where('members','array-contains',uid).get();
   for(const poolDoc of pools.docs){
     if(poolDoc.data().ownerUid===uid&&poolDoc.data().global!==true)await db.recursiveDelete(poolDoc.ref);
@@ -332,6 +355,16 @@ exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
   const globalMemberships=await db.collectionGroup('members').where('uid','==',uid).get();
   await Promise.all(globalMemberships.docs.map(member=>member.ref.delete()));
   await db.recursiveDelete(db.doc(`castRatingProfiles/${uid}`));
+  const inviteQueries=[db.collection('invites').where('fromUid','==',uid)];
+  if(email)inviteQueries.push(db.collection('invites').where('toEmail','==',email));
+  const inviteSnapshots=await Promise.all(inviteQueries.map(query=>query.get()));
+  const inviteRefs=new Map();
+  inviteSnapshots.forEach(snapshot=>snapshot.docs.forEach(invite=>inviteRefs.set(invite.ref.path,invite.ref)));
+  const rateLimits=await db.collection('inviteRateLimits').where('uid','==',uid).get();
+  await Promise.all([
+    ...inviteRefs.values(),
+    ...rateLimits.docs.map(limit=>limit.ref),
+  ].map(ref=>ref.delete()));
   await db.doc(`notificationPreferences/${uid}`).delete().catch(()=>{});
   await db.doc(`users/${uid}`).delete().catch(()=>{});
   await getAuth().deleteUser(uid);
