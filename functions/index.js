@@ -81,6 +81,12 @@ function publishedSetting(snapshot,key){
   return snapshot[key]??null;
 }
 
+function publishedBool(value,fallback=false){
+  if(value==null||value==='')return fallback;
+  if(typeof value==='boolean')return value;
+  return ['true','1','yes','y'].includes(String(value).trim().toLowerCase());
+}
+
 function cleanRatings(value){
   return (Array.isArray(value)?value:[]).slice(0,80).map(entry=>{
     const values={};
@@ -229,6 +235,36 @@ exports.leavePool=onCall(FUNCTION_LIMITS,async request=>{
     await poolRef.update({members:FieldValue.arrayRemove(uid)});
   }
   await removeMemberData(poolRef,uid);
+  return {ok:true};
+});
+
+exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
+  const uid=requireUser(request);
+  const poolId=String(request.data?.poolId||'');
+  const phase=String(request.data?.phase||'');
+  if(!poolId||!PHASES.includes(phase))throw new HttpsError('invalid-argument','Choose a valid phase to reopen.');
+  const poolRef=db.doc(`pools/${poolId}`);
+  const statusRef=poolRef.collection('phaseStatus').doc(phase);
+  await db.runTransaction(async tx=>{
+    const poolSnapshot=await tx.get(poolRef);
+    if(!poolSnapshot.exists)throw new HttpsError('not-found','This pool no longer exists.');
+    const pool=poolSnapshot.data();
+    if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','You are not a member of this pool.');
+    const seasonId=String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'');
+    if(!seasonId)throw new HttpsError('failed-precondition','This pool has no season configured.');
+    const [seasonSnapshot,statusSnapshot]=await Promise.all([
+      tx.get(db.doc(`seasons/${seasonId}`)),
+      tx.get(statusRef),
+    ]);
+    if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+    if(!statusSnapshot.exists||!(statusSnapshot.data().completedMembers||[]).includes(uid))throw new HttpsError('failed-precondition','This phase is not locked for you.');
+    const season=seasonSnapshot.data();
+    const seasonStatus=String(publishedSetting(season,'SEASON_STATUS')||season.status||'').trim().toLowerCase().replace(/[^a-z]/g,'');
+    if(!['live','active','started','airing'].includes(seasonStatus))throw new HttpsError('failed-precondition','Only a live season phase can reopen.');
+    const boundaryKey=`${phase.toUpperCase()}_BOUNDARY_FINAL`;
+    if(publishedBool(publishedSetting(season,boundaryKey),false))throw new HttpsError('failed-precondition','This phase boundary is final and cannot reopen.');
+    tx.update(statusRef,{completedMembers:FieldValue.arrayRemove(uid),revealed:false,updatedAt:Date.now()});
+  });
   return {ok:true};
 });
 

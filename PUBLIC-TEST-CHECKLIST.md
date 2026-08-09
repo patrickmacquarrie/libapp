@@ -6,7 +6,7 @@
 - Reunion picks become immutable as soon as the player's public state enters the locked watch flow.
 - Only the pool owner can freeze a validated scoring-rules snapshot.
 - Global Heat Check aggregates are written by a trusted Firestore trigger; browser aggregate writes are denied.
-- Email invitations are owner-only, capped at 10 per owner per UTC day, and answered invites cannot be reset to pending.
+- Email invitations are owner-only, capped at 20 per owner per UTC day, and answered invites cannot be reset to pending.
 - Shareable friend-pool join links avoid exact email matching.
 - Members can leave pools and users can delete their account through trusted callable functions.
 - Google, Apple, and email-link authentication UI is present.

@@ -289,9 +289,9 @@ async function build() {
 
   const rules=fs.readFileSync(path.join(root,'firestore.rules'),'utf8');
   const client=fs.readFileSync(path.join(root,'index.html'),'utf8');
-  if(!/snapshot\.version\s*>=\s*3\s*&&\s*snapshot\.version\s*<=\s*4/.test(rules)) throw new Error('Firestore rules do not accept snapshots 3–4.');
+  if(!/snapshot\.version\s*>=\s*3\s*&&\s*snapshot\.version\s*<=\s*5/.test(rules)) throw new Error('Firestore rules do not accept snapshots 3–5.');
   const snapshotFactory=client.slice(client.indexOf('const rulesSnapshotFrom'),client.indexOf('const configForPool'));
-  if(!/version\s*:\s*4/.test(snapshotFactory)) throw new Error('Client rules snapshot version is not 4.');
+  if(!/version\s*:\s*5/.test(snapshotFactory)) throw new Error('Client rules snapshot version is not 5.');
 
   console.log(`Built app, ${available.length} static season pages, and ${optimizedCount} optimized cast images.`);
 }
