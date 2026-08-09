@@ -1360,8 +1360,10 @@ const SEASON_BANK = [
     countryCode:'UK',
     seasonNumber:2,
     locationLabel:null,
-    sheetId:'',
+    sheetId:'1ZzwsCIemhE5ByHl9Uo7TGTGE-LEoY_QnongHbBeWQD4',
     historical:true,
+    // The sheet is connected, but results still need to be entered before this
+    // completed season can be safely opened for new prediction pools.
     available:false,
   },
 
@@ -1648,6 +1650,9 @@ const SHEET_TAB_GIDS = {
   },
   '1wkfKzx1Y9vb2ApifZeWcUji59kvsrSRJmrrFoe05kEA': {
     Cast:'697730328',Couples:'1800897350','Dating Results':'2106136792','Reunion Results':'1820193206',Settings:'1735744000',
+  },
+  '1ZzwsCIemhE5ByHl9Uo7TGTGE-LEoY_QnongHbBeWQD4': {
+    Cast:'697730328',Couples:'1800897350','Retro Events':'881349224','Dating Results':'2106136792','Reunion Results':'1820193206',Settings:'1735744000',
   },
 };
 const csvUrl = (t,sheetId) => {
@@ -4756,6 +4761,7 @@ function App() {
   const [creatingPool,setCreatingPool]=useState(false);
   const [inviteAction,setInviteAction]=useState('');
   const [historicalLibraryOpen,setHistoricalLibraryOpen] = useState(()=>HISTORICAL_SEASON_BANK.length<=1);
+  const [pastPoolsOpen,setPastPoolsOpen] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
   const [selectedSeasonId, setSelectedSeasonId] = useState(MARKETING_SEASON_ID);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -5893,11 +5899,11 @@ function App() {
       {lobbyLoading && <div className="loading" role="status" style={{padding:'28px 12px'}}><span className="spinner">♥</span>Refreshing your pools…</div>}
       {!lobbyLoading && friendPools.length===0 && <p className="lede">You're not in any friend pools yet. Create one and invite your friends!</p>}
       {!lobbyLoading&&activeFriendPools.length>0&&<section aria-labelledby="active-pools-heading"><h3 id="active-pools-heading" style={{margin:'18px 0 8px'}}>Active pools</h3>{activeFriendPools.map(friendPoolRow)}</section>}
-      {!lobbyLoading&&pastFriendPools.length>0&&<section aria-labelledby="past-pools-heading"><h3 id="past-pools-heading" style={{margin:'22px 0 8px'}}>Past pools</h3>{pastFriendPools.map(friendPoolRow)}</section>}
-      {!creating && <button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button>}
+      <section aria-labelledby="new-pool-heading" style={{marginTop:activeFriendPools.length>0?18:0}}>
+      {!creating && <><h3 id="new-pool-heading" style={{margin:'0 0 8px'}}>Start a new pool</h3><button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button></>}
       {creating && <div ref={newPoolFormRef} style={{marginTop:14}}>
         <hr className="divider"/>
-        <h3>New pool</h3>
+        <h3 id="new-pool-heading">New pool</h3>
         <div className="row">
           <div className="field"><label className="small">Pool name</label>
             <input type="text" value={newPoolName} onChange={e=>setNewPoolName(e.target.value)} maxLength={40} placeholder="e.g. MacQuarrie Family Pool"/>
@@ -5923,6 +5929,8 @@ function App() {
         <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId||creatingPool} onClick={doCreatePool}>{creatingPool?'Building your pool…':`Create pool${inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}`}</button>
         <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setInviteList([]);}}>Cancel</button>
       </div>}
+      </section>
+      {!lobbyLoading&&pastFriendPools.length>0&&<section aria-labelledby="past-pools-heading" style={{marginTop:22}}><div className="library-head"><h3 id="past-pools-heading" style={{margin:0}}>Past pools</h3><button type="button" className="btn-small" aria-expanded={pastPoolsOpen} aria-controls="past-pools-list" onClick={()=>setPastPoolsOpen(open=>!open)}>{pastPoolsOpen?'Hide pools':'Show pools'}</button></div><div id="past-pools-list" hidden={!pastPoolsOpen}>{pastFriendPools.map(friendPoolRow)}</div></section>}
     </div>
     <div className="card">
       <div className="library-head">
