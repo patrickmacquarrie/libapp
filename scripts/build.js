@@ -95,14 +95,13 @@ function readCache() {
 }
 
 async function loadSeasonData(season,cache) {
-  if(!season.sheetId) return cache[season.id]||{cast:[],couples:[],settings:[]};
+  if(!season.sheetId) return cache[season.id]||{cast:[],settings:[]};
   try {
-    const [cast,couples,settings]=await Promise.all([
+    const [cast,settings]=await Promise.all([
       fetchSheetTab(season.sheetId,'Cast'),
-      fetchSheetTab(season.sheetId,'Couples'),
       fetchSheetTab(season.sheetId,'Settings'),
     ]);
-    cache[season.id]={cast,couples,settings};
+    cache[season.id]={cast,settings};
     return cache[season.id];
   } catch(error) {
     if(cache[season.id]) {
@@ -110,7 +109,7 @@ async function loadSeasonData(season,cache) {
       return cache[season.id];
     }
     console.warn(`No sheet data for ${season.id}: ${error.message}`);
-    return {cast:[],couples:[],settings:[]};
+    return {cast:[],settings:[]};
   }
 }
 
@@ -190,10 +189,13 @@ const seasonIntro={
 
 function settingMap(data) {return Object.fromEntries((data.settings||[]).map(row=>[row.key,row.value]));}
 
-function seasonPage(season,data) {
+const seasonMenuOptions=(seasons,currentId='')=>seasons.map(item=>
+  `<option value="/seasons/${encodeURIComponent(item.id)}/"${item.id===currentId?' selected':''}>${esc(item.label)}</option>`
+).join('');
+
+function seasonPage(season,data,availableSeasons) {
   const settings=settingMap(data);
   const cast=(data.cast||[]).filter(row=>row.name);
-  const couples=(data.couples||[]).filter(row=>row.person_a||row.person_b||row.him||row.her||row.couple||row.id);
   const place=season.locationLabel||season.country;
   const intro=seasonIntro[season.id]||`${season.label} brings a fresh group of singles into the pods in ${place}.`;
   const castNames=cast.map(row=>row.name);
@@ -204,18 +206,9 @@ function seasonPage(season,data) {
       : '';
     return `<li>${image?`<img loading="lazy" width="72" height="72" src="${image}" alt="${esc(person.name)}">`:''}<span>${esc(person.name)}</span></li>`;
   }).join(''):'<li><span>Cast details are being prepared.</span></li>';
-  const coupleList=couples.length?couples.slice(0,12).map(row=>{
-    const names=row.couple||[row.person_a||row.him,row.person_b||row.her].filter(Boolean).join(' + ')||titleCase(row.id);
-    const outcome=row.outcome||row.result||row.status||row.wedding||(row.breakup_ep?'Broke up':'');
-    return `<li><strong>${esc(names)}</strong>${outcome?`<span>${esc(titleCase(outcome))}</span>`:''}</li>`;
-  }).join(''):'<li><strong>Predictions open in the app</strong><span>Call the connections before outcomes are revealed.</span></li>';
   const castSentence=castNames.length
-    ? `This season page follows ${castNames.slice(0,4).map(esc).join(', ')}${castNames.length>4?`, and ${castNames.length-4} more singles`:''}.`
+    ? `Meet ${castNames.slice(0,4).map(esc).join(', ')}${castNames.length>4?`, and ${castNames.length-4} more singles`:''}. No story results are shown here.`
     : `Cast information for ${esc(season.label)} will appear as the season data is published.`;
-  const featuredCouples=couples.slice(0,3).map(row=>row.couple||[row.person_a||row.him,row.person_b||row.her].filter(Boolean).join(' and ')||titleCase(row.id)).filter(Boolean);
-  const outcomeSentence=featuredCouples.length
-    ? `${esc(season.label)} tracks connections including ${featuredCouples.map(esc).join(', ')} as they move from the pods toward their final decisions.`
-    : `${esc(season.label)} outcomes will be organized here as engagements and real-world relationship decisions become available.`;
   const release=settings.RELEASE_LABEL||season.releaseLabel||'Available now';
   const canonical=`https://throughthewall.ca/seasons/${season.id}/`;
   const schema={
@@ -223,23 +216,24 @@ function seasonPage(season,data) {
     seasonNumber:season.seasonNumber,url:canonical,
     partOfSeries:{'@type':'TVSeries',name:'Love Is Blind'},
     countryOfOrigin:{'@type':'Country',name:season.country},
-    description:`Fantasy predictions and cast guide for ${season.label}.`,
+    description:`Spoiler-free fantasy predictions and cast guide for ${season.label}.`,
   };
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(season.label)} fantasy predictions | Through the Wall</title>
-<meta name="description" content="Explore the ${esc(season.label)} cast and outcomes, then create a free fantasy prediction pool with friends.">
+<meta name="description" content="Meet the ${esc(season.label)} cast and create a free, spoiler-free fantasy prediction pool with friends.">
 <link rel="canonical" href="${canonical}"><meta property="og:title" content="${esc(season.label)} fantasy predictions">
 <meta property="og:description" content="Make your Love Is Blind calls, compare picks, and climb the standings with friends.">
 <meta property="og:image" content="https://throughthewall.ca/images/through-the-wall-social-card.png">
 <meta property="og:url" content="${canonical}"><meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="/images/through-the-wall-app-icon.png"><link rel="apple-touch-icon" href="/images/through-the-wall-app-icon.png">
 <script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script>
 <script defer data-domain="throughthewall.ca" src="https://plausible.io/js/script.js"></script>
-<style>:root{color-scheme:light;--wine:#4c1930;--pink:#ff8db7;--cream:#fff8f2;--ink:#24141c}*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:var(--ink);background:var(--cream);line-height:1.55}header,main,footer{max-width:1040px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;align-items:center}.brand{font-weight:900;color:var(--wine);text-decoration:none}.hero{padding:72px 24px 44px}.eyebrow{color:#9b3f67;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.hero h1{font-size:clamp(2.5rem,8vw,5rem);line-height:.95;max-width:850px;margin:.2em 0}.hero p{max-width:680px;font-size:1.15rem}.cta{display:inline-block;margin-top:18px;background:var(--wine);color:white;text-decoration:none;padding:14px 22px;border-radius:999px;font-weight:850}.grid{display:grid;grid-template-columns:1.1fr .9fr;gap:28px}.card{background:white;border:1px solid #ead9df;border-radius:22px;padding:26px;box-shadow:0 14px 40px #4c19300c}.cast{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));list-style:none;padding:0;gap:12px}.cast li{display:flex;align-items:center;gap:10px;font-weight:750}.cast img{border-radius:50%;object-fit:cover;background:#f0e2e7}.couples{list-style:none;padding:0}.couples li{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #eee;padding:12px 0}.couples span{color:#735864;text-align:right}footer{color:#735864}footer a{color:inherit}@media(max-width:720px){.grid{grid-template-columns:1fr}.hero{padding-top:48px}}</style></head>
-<body><header><a class="brand" href="/">Through the Wall</a><a href="/welcome/">How it works</a></header>
+<style>:root{color-scheme:light;--wine:#431127;--rose:#ed0c72;--purple:#7b2ee5;--gold:#f2c85f;--cream:#fff9f6;--ink:#351323;--muted:#806b70;--line:#efd6df}*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:var(--ink);background:radial-gradient(circle at 88% 2%,rgba(123,46,229,.16),transparent 28rem),radial-gradient(circle at 4% 30%,rgba(237,12,114,.13),transparent 24rem),var(--cream);line-height:1.55}a{color:inherit}.site-nav,main,footer{width:min(1080px,calc(100% - 36px));margin:auto}.site-nav{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:20px 0}.brand{display:flex;align-items:center;gap:10px;font:800 20px Georgia,serif;color:var(--wine);text-decoration:none}.brand img{width:40px;height:40px}.nav-tools{display:flex;align-items:center;gap:12px}.season-select{max-width:275px;padding:10px 35px 10px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--wine);font:750 13px Inter,sans-serif}.nav-link{font-size:13px;font-weight:800;text-decoration:none}.hero{position:relative;overflow:hidden;margin-top:24px;padding:76px clamp(24px,6vw,72px) 62px;border:1px solid rgba(123,46,229,.15);border-radius:34px;background:linear-gradient(145deg,#431127,#6a153e 58%,#7b2ee5);color:white;box-shadow:0 28px 80px rgba(67,17,39,.19)}.hero:before{content:'';position:absolute;width:390px;height:390px;right:-160px;top:-180px;border-radius:50%;background:rgba(237,12,114,.33)}.hero:after{content:'✦';position:absolute;right:9%;top:13%;color:var(--gold);font-size:58px}.eyebrow{position:relative;z-index:1;color:#ffb9d4;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.13em}.hero h1{position:relative;z-index:1;font:700 clamp(2.7rem,7vw,5.6rem)/.93 Georgia,serif;letter-spacing:-.04em;max-width:850px;margin:.2em 0}.hero p{position:relative;z-index:1;max-width:670px;color:#f3dbe5;font-size:1.15rem}.cta{position:relative;z-index:1;display:inline-block;margin-top:18px;background:linear-gradient(135deg,var(--rose),#c50c68);color:white;text-decoration:none;padding:14px 22px;border-radius:999px;font-weight:850;box-shadow:0 12px 28px rgba(237,12,114,.25);transition:transform .18s}.cta:hover{transform:translateY(-2px)}.grid{display:grid;grid-template-columns:1.22fr .78fr;gap:24px;margin-top:28px}.card{background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:24px;padding:28px;box-shadow:0 16px 45px rgba(67,17,39,.07)}.card h2{margin:0 0 7px;color:var(--wine);font:700 30px Georgia,serif}.card p{color:var(--muted)}.cast{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));list-style:none;padding:0;gap:11px}.cast li{display:flex;align-items:center;gap:10px;min-width:0;padding:9px;border:1px solid #f4e3e9;border-radius:999px;background:#fff;font-weight:800}.cast img{width:52px;height:52px;flex:0 0 auto;border-radius:50%;object-fit:cover;background:#f0e2e7}.cast span{overflow:hidden;text-overflow:ellipsis}.how-card{background:linear-gradient(160deg,#fff,#fff5fa)}.checkpoints{display:grid;gap:12px;margin-top:20px}.checkpoint{display:grid;grid-template-columns:38px 1fr;gap:12px;align-items:center;padding:13px;border-radius:16px;background:#fff;border:1px solid #f1dbe4}.checkpoint b{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--purple));color:white}.checkpoint strong{display:block;color:var(--wine)}.checkpoint span{display:block;color:var(--muted);font-size:12px}.lower-cta{text-align:center;padding:80px 24px}.lower-cta h2{margin:0;color:var(--wine);font:700 clamp(2.1rem,5vw,3.4rem)/1.05 Georgia,serif}.lower-cta p{max-width:650px;margin:14px auto 0;color:var(--muted);font-size:1.05rem}footer{padding:28px 0 45px;color:var(--muted);font-size:13px}footer a{color:inherit}@media(max-width:780px){.site-nav{align-items:flex-start}.nav-tools{align-items:flex-end;flex-direction:column}.season-select{max-width:195px}.grid{grid-template-columns:1fr}.hero{padding-top:58px}}@media(max-width:520px){.site-nav{width:calc(100% - 24px)}.brand span{display:none}.nav-link{display:none}.season-select{max-width:215px}.hero{margin-top:8px;border-radius:24px}.hero:after{font-size:34px}.cast{grid-template-columns:1fr 1fr}.cast li{border-radius:16px;align-items:center;flex-direction:column;text-align:center}.cast img{width:64px;height:64px}}</style></head>
+<body><header class="site-nav"><a class="brand" href="/"><img src="/images/through-the-wall-app-icon.png" alt=""><span>Through the Wall</span></a><div class="nav-tools"><label><span style="position:absolute;clip:rect(0 0 0 0);clip-path:inset(50%)">Explore seasons</span><select class="season-select" aria-label="Explore seasons" onchange="if(this.value)location.href=this.value"><option value="">Explore seasons</option>${seasonMenuOptions(availableSeasons,season.id)}</select></label><a class="nav-link" href="/welcome/">How it works</a></div></header>
 <main><section class="hero"><div class="eyebrow">${esc(place)} · Season ${esc(season.seasonNumber)} · ${esc(release)}</div><h1>${esc(season.label)}</h1><p>${esc(intro)}</p><a class="cta" data-placement="season_hero" href="/?start=create&amp;season=${encodeURIComponent(season.id)}">Create a free pool</a></section>
-<section class="grid"><article class="card"><h2>Meet the cast</h2><p>${castSentence}</p><ul class="cast">${castList}</ul></article><article class="card"><h2>Couples and outcomes</h2><p>${outcomeSentence}</p><ul class="couples">${coupleList}</ul></article></section>
-<section class="hero"><h2>Turn every episode into a friendly competition</h2><p>Through the Wall scores picks across the pods, retreats, weddings, and reunion. Invite friends, lock each phase, and watch the standings move as outcomes land.</p><a class="cta" data-placement="season_footer" href="/?start=create&amp;season=${encodeURIComponent(season.id)}">Start ${esc(season.label)}</a></section></main>
+<section class="grid"><article class="card"><h2>Meet the cast</h2><p>${castSentence}</p><ul class="cast">${castList}</ul></article><article class="card how-card"><h2>Play without spoilers</h2><p>Make each call before you watch, then reveal only the results you are ready to see.</p><div class="checkpoints"><div class="checkpoint"><b>1</b><div><strong>Pick your season</strong><span>Create a private pool and invite your group chat.</span></div></div><div class="checkpoint"><b>2</b><div><strong>Lock your calls</strong><span>Spend Hearts on the predictions you trust most.</span></div></div><div class="checkpoint"><b>3</b><div><strong>Climb the standings</strong><span>Score each checkpoint at your own watch pace.</span></div></div></div></article></section>
+<section class="lower-cta"><h2>Turn every episode into a friendly competition</h2><p>Through the Wall scores picks across the pods, retreats, weddings, and reunion—without revealing anything this page should not.</p><a class="cta" data-placement="season_footer" href="/?start=create&amp;season=${encodeURIComponent(season.id)}">Start ${esc(season.label)}</a></section></main>
 <footer><a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></footer>
 <script>document.querySelectorAll('[data-placement]').forEach(link=>link.addEventListener('click',()=>window.plausible&&window.plausible('create_pool_click',{props:{placement:link.dataset.placement,season:'${esc(season.id)}'}})));</script></body></html>`;
 }
@@ -267,6 +261,11 @@ async function build() {
     fs.rmSync(output,{recursive:true,force:true});
     if(fs.existsSync(input)) fs.cpSync(input,output,{recursive:true});
   }
+  const welcomePath=path.join(dist,'welcome','index.html');
+  if(fs.existsSync(welcomePath)) {
+    const welcome=fs.readFileSync(welcomePath,'utf8').replace('<!-- SEASON_MENU_OPTIONS -->',seasonMenuOptions(available));
+    fs.writeFileSync(welcomePath,welcome);
+  }
   for(const file of ['manifest.webmanifest','privacy.html','terms.html']) {
     const input=path.join(root,file);
     if(fs.existsSync(input)) fs.copyFileSync(input,path.join(dist,file));
@@ -280,7 +279,7 @@ async function build() {
   for(const [season,data] of seasonData) {
     const directory=path.join(seasonRoot,season.id);
     fs.mkdirSync(directory,{recursive:true});
-    fs.writeFileSync(path.join(directory,'index.html'),seasonPage(season,data));
+    fs.writeFileSync(path.join(directory,'index.html'),seasonPage(season,data,available));
   }
 
   const urls=['https://throughthewall.ca/','https://throughthewall.ca/welcome/','https://throughthewall.ca/privacy.html','https://throughthewall.ca/terms.html',

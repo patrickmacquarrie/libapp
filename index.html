@@ -200,6 +200,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .evt.retro-event::after{content:'✦';position:absolute;right:15px;top:9px;color:#7b2ee5;font-size:20px;opacity:.48;pointer-events:none}
 .evt.retro-event h3{position:relative;z-index:1;padding-right:22px}
 .evt.retro-event .warnchip{color:#fff;background:linear-gradient(135deg,#ed0c72,#7b2ee5);border-color:transparent;box-shadow:0 3px 10px color-mix(in srgb,#7b2ee5 28%,transparent)}
+.retro-pick-updates{display:grid;gap:7px;margin-top:11px}.retro-pick-update{position:relative;padding:11px 12px 11px 46px;border:1px solid rgba(255,255,255,.42);border-radius:12px;background:rgba(255,255,255,.72);color:var(--wine);box-shadow:0 7px 18px rgba(67,17,39,.11)}.retro-pick-update::before{content:'↻';position:absolute;left:12px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:linear-gradient(135deg,#ed0c72,#7b2ee5);color:#fff;font-size:16px;font-weight:900}.retro-pick-update strong{display:block;font-family:'Playfair Display',Georgia,serif;font-size:14px}.retro-pick-update span{display:inline-block;margin-bottom:3px;color:#7b2ee5;font-size:8px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}.retro-pick-update small{display:block;margin-top:3px;color:var(--muted);font-size:10px;font-weight:700}
 .warnchip{display:inline-block;vertical-align:middle;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#8a6116;background:#f7e8c8;border:1px solid #e3cd93;padding:2px 8px;border-radius:999px;text-transform:uppercase;margin-left:6px}
 .lb{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
 .lb table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;table-layout:fixed}
@@ -266,6 +267,9 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .score-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 12px;margin-top:10px}.score-legend-item{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-size:11px;font-weight:700}.score-legend-swatch{width:18px;height:3px;border-radius:999px;flex:0 0 auto}.score-legend-total{color:var(--muted);font-weight:600}
 .score-trend.animated .score-series{stroke-dasharray:900;stroke-dashoffset:900;animation:wrapped-line 2.8s cubic-bezier(.22,.8,.32,1) forwards}.score-trend.animated .score-point{opacity:0;transform-box:fill-box;transform-origin:center;animation:wrapped-point .35s ease forwards}@keyframes wrapped-line{to{stroke-dashoffset:0}}@keyframes wrapped-point{from{opacity:0;transform:scale(.25)}to{opacity:1;transform:scale(1)}}
 .season-wrapped{margin:22px 0 8px;padding:18px;border:1px solid color-mix(in srgb,var(--purple) 34%,var(--line));border-radius:21px;background:linear-gradient(160deg,color-mix(in srgb,var(--purple) 7%,var(--surface)),var(--surface) 45%,color-mix(in srgb,var(--rose) 7%,var(--surface)))}.wrapped-hero{text-align:center;margin:2px 0 18px}.wrapped-hero>span{color:var(--rose);font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}.wrapped-hero h3{margin:6px 0 4px;color:var(--wine);font:700 29px/1.05 'Playfair Display',Georgia,serif}.wrapped-hero p{margin:0;color:var(--muted);font-size:12px}.wrapped-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:13px 0}.wrapped-stats div{padding:13px 8px;text-align:center;border:1px solid var(--line);border-radius:13px;background:var(--surface)}.wrapped-stats strong{display:block;color:var(--wine);font:700 27px/1 'Playfair Display',Georgia,serif}.wrapped-stats span{display:block;margin-top:4px;color:var(--soft-text);font-size:8px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.wrapped-predictions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wrapped-predictions article{padding:15px;border:1px solid color-mix(in srgb,var(--gold) 42%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--gold) 8%,var(--surface))}.wrapped-predictions span,.wrapped-drama span{display:block;color:var(--rose);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.wrapped-predictions strong,.wrapped-drama strong{display:block;margin:5px 0;color:var(--wine);font:700 18px/1.2 'Playfair Display',Georgia,serif}.wrapped-predictions small{color:var(--muted);font-size:10px;font-weight:700}.wrapped-drama{margin:10px 0;padding:14px 16px;border-radius:14px;background:linear-gradient(135deg,#431127,#7b2ee5);color:#fff}.wrapped-drama span{color:#f2c85f}.wrapped-drama strong{color:#fff}.wrapped-awards{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;margin:12px 0}.wrapped-awards span{padding:6px 9px;border-radius:999px;background:var(--blush-soft);color:var(--wine);font-size:10px;font-weight:900}@media(max-width:560px){.wrapped-predictions{grid-template-columns:1fr}.season-wrapped{padding:12px}.wrapped-hero h3{font-size:25px}}
+.podium-share-actions{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:11px}.podium-share-button{width:auto;margin:0;padding:8px 13px;border-color:rgba(255,255,255,.34);background:rgba(255,255,255,.12);color:#fff}.podium-share-button:hover{background:rgba(255,255,255,.2)}.podium-share-feedback{margin:0;color:#f4dbe7;font-size:10px;font-weight:750}
+.wrapped-launch{position:relative;overflow:hidden;margin:20px 0 8px;padding:24px;border:1px solid color-mix(in srgb,var(--purple) 45%,var(--line));border-radius:22px;background:linear-gradient(135deg,#381028,#6c168b 60%,#ed0c72);color:#fff;box-shadow:0 18px 40px color-mix(in srgb,#431127 20%,transparent)}.wrapped-launch::before{content:'';position:absolute;width:220px;height:220px;right:-95px;bottom:-125px;border-radius:50%;background:rgba(242,200,95,.18)}.wrapped-launch::after{content:'✦';position:absolute;right:23px;top:12px;color:var(--gold);font-size:35px}.wrapped-launch-kicker{position:relative;z-index:1;color:#f2c85f;font-size:10px;font-weight:900;letter-spacing:.15em;text-transform:uppercase}.wrapped-launch h3{position:relative;z-index:1;margin:6px 40px 5px 0;color:#fff;font:700 30px/1.05 'Playfair Display',Georgia,serif}.wrapped-launch p{position:relative;z-index:1;max-width:430px;margin:0;color:#efd8e8;font-size:12px}.wrapped-launch .btn-secondary{position:relative;z-index:1;width:auto;margin:16px 0 0;background:#fff;color:#431127;border:0}
+.wrapped-story-modal{position:fixed;z-index:500;inset:0;display:grid;place-items:center;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:#170811;color:#fff}.wrapped-story-shell{position:relative;width:min(520px,100%);height:min(920px,100%);min-height:540px;overflow:hidden;border-radius:28px;background:#431127;box-shadow:0 35px 100px rgba(0,0,0,.55)}.wrapped-story-progress{position:absolute;z-index:4;left:14px;right:58px;top:16px;display:grid;grid-template-columns:repeat(var(--story-count),1fr);gap:5px}.wrapped-story-progress button{height:4px;padding:0;border:0;border-radius:999px;background:rgba(255,255,255,.28);cursor:pointer;overflow:hidden}.wrapped-story-progress button span{display:block;width:0;height:100%;background:#fff}.wrapped-story-progress button.done span{width:100%}.wrapped-story-progress button.active span{width:100%;animation:wrapped-story-timer 7.5s linear both}.wrapped-story-close{position:absolute;z-index:6;right:13px;top:7px;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:rgba(0,0,0,.2);color:#fff;font-size:25px;cursor:pointer}.wrapped-story-slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:68px 42px 110px;text-align:center;background:radial-gradient(circle at 12% 12%,rgba(242,200,95,.24),transparent 30%),linear-gradient(145deg,#421027,#74115c 60%,#7b2ee5)}.wrapped-story-slide.theme-purple{background:radial-gradient(circle at 82% 15%,rgba(237,12,114,.35),transparent 35%),linear-gradient(150deg,#27104d,#7b2ee5 58%,#ed0c72)}.wrapped-story-slide.theme-gold{background:radial-gradient(circle at 16% 80%,rgba(237,12,114,.25),transparent 33%),linear-gradient(145deg,#6b3e08,#bd7b16 55%,#7b2ee5)}.wrapped-story-slide.theme-pink{background:radial-gradient(circle at 80% 75%,rgba(123,46,229,.35),transparent 38%),linear-gradient(145deg,#83104d,#ed0c72 62%,#ff719f)}.wrapped-story-slide::after{content:'✦';position:absolute;right:9%;top:11%;color:#f2c85f;font-size:48px;opacity:.8}.wrapped-story-kicker{position:relative;z-index:1;color:#f2c85f;font-size:11px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}.wrapped-story-slide h2{position:relative;z-index:1;margin:13px auto 9px;max-width:430px;color:#fff;font:700 clamp(38px,8vw,62px)/.94 'Playfair Display',Georgia,serif;letter-spacing:-.025em}.wrapped-story-slide p{position:relative;z-index:1;max-width:390px;margin:0 auto;color:#f2dce8;font-size:15px;line-height:1.5}.wrapped-story-number{position:relative;z-index:1;margin:11px 0 7px;color:#fff;font:700 clamp(82px,20vw,142px)/.84 'Playfair Display',Georgia,serif}.wrapped-story-substat{position:relative;z-index:1;color:#f2c85f;font-size:15px;font-weight:900}.wrapped-story-awards{position:relative;z-index:1;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:20px}.wrapped-story-awards span{padding:8px 11px;border:1px solid rgba(255,255,255,.28);border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:11px;font-weight:900}.wrapped-story-chart{position:relative;z-index:1;width:100%;margin-top:15px;padding:12px;border-radius:18px;background:rgba(255,255,255,.94);color:#351323;text-align:left}.wrapped-story-chart .score-trend{margin:0;padding:0;border:0}.wrapped-story-chart .score-trend h3{color:#431127}.wrapped-story-chart .score-trend-note{color:#806b70}.wrapped-story-footer{position:absolute;z-index:5;left:18px;right:18px;bottom:18px;display:grid;grid-template-columns:46px minmax(0,1fr) 46px;align-items:center;gap:9px}.wrapped-story-footer button{height:46px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:rgba(0,0,0,.2);color:#fff;font-weight:900;cursor:pointer}.wrapped-story-footer .wrapped-story-share{background:#fff;color:#431127;border:0}.wrapped-story-footer button:disabled{opacity:.38;cursor:default}.wrapped-story-feedback{position:absolute;z-index:6;left:20px;right:20px;bottom:72px;margin:0;color:#fff;font-size:11px;font-weight:800;text-align:center}.wrapped-story-tap{position:absolute;z-index:2;top:52px;bottom:82px;width:28%;border:0;background:transparent;color:transparent;cursor:pointer}.wrapped-story-tap.prev{left:0}.wrapped-story-tap.next{right:0}@keyframes wrapped-story-timer{from{width:0}to{width:100%}}@media(max-width:560px){.wrapped-story-modal{padding:0}.wrapped-story-shell{width:100%;height:100%;border-radius:0}.wrapped-story-slide{padding-inline:25px}.wrapped-story-chart{padding:7px}.wrapped-story-slide h2{font-size:43px}}@media(prefers-reduced-motion:reduce){.wrapped-story-progress button.active span{animation:none;width:100%}}
 .gatecard{text-align:center}
 .exhausted-board{padding:30px 24px;text-align:center}
 .exhausted-board h2{margin:0}
@@ -2782,11 +2786,25 @@ function makeEngine(cfg, poolSize) {
     });
     return {entries,totals,events:activeEvents};
   }
+  const retroEventMatchesPick=(event,phase,pick)=>{
+    if(!event||!pick)return false;
+    if(event.market==='void') {
+      if(event.voidMarket==='pods') return phase==='pods'&&sameCouple(pick.c,coupleFor(event.target));
+      if(event.voidMarket==='weddings') return phase==='weddings'&&sameCouple(pick.c,coupleFor(event.target));
+      if(event.voidMarket==='flirt') return phase==='dating'&&pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
+      return phase==='dating'&&pick.m===event.voidMarket&&sameCouple(pick.c,coupleFor(event.target));
+    }
+    if(phase!==event.appliesPhase)return false;
+    if(event.market==='pods')return sameCouple(pick.c,coupleFor(event.target));
+    if(event.market==='flirt')return pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
+    if(event.market==='still')return relationshipOutcome(pick)==='still'&&sameCouple(pick.c,coupleFor(event.target));
+    return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
+  };
   const spentBy = picks => (Array.isArray(picks)?picks:[]).reduce((total,pick)=>total+(Number.isFinite(Number(pick?.s))?Number(pick.s):0),0);
   return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,DATING_MULT:DATING_MARKET_MULT,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
           nameOf,membOf,coupleFor,sameCouple,whoNm,reunionPickLabel,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
-          pickIdentity,resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,sanitizePhasePicks,spentBy};
+          pickIdentity,resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,retroEventMatchesPick,sanitizePhasePicks,spentBy};
 }
 const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points are included in the live standings after you complete this reveal phase.';
 const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
@@ -3077,13 +3095,14 @@ function RevealSummary({reveal,heading,eng,meId,memberLabels,extraEntries=[],sha
     {shareData&&<ShareMoment {...shareData}/>}
   </div>;
 }
-function PersistentRetroReveals({events,globalPool}) {
+function PersistentRetroReveals({events,globalPool,picks={},eng}) {
   if(!events.length) return null;
   return <div className="persistent-retro-events">
-    {events.map(event=><div className="evt retro-event" key={event.id}>
+    {events.map(event=>{const affected=eng?PH_ORDER.flatMap(phase=>(picks[phase]||[]).filter(pick=>eng.retroEventMatchesPick(event,phase,pick)).map(pick=>({phase,pick}))):[];return <div className="evt retro-event" key={event.id}>
       <h3>{event.note}<span className="warnchip">retro</span>{!event.confirmed&&<span className="warnchip">placeholder</span>}</h3>
       <div className="sub">{retroRevealSub(event,globalPool)}</div>
-    </div>)}
+      {affected.length>0&&<div className="retro-pick-updates" aria-label="Your predictions affected by this retroactive update">{affected.map(({phase,pick},index)=><div className="retro-pick-update" key={phase+'-'+index}><span>Retro scoring update</span><strong>{pickLabelFor(phase,pick,eng)}</strong><small>{event.confirmed?'This prediction has been recalculated in your standings.':'This prediction will recalculate when the update is confirmed.'}</small></div>)}</div>}
+    </div>;})}
   </div>;
 }
 function AppLoadingState({label}) {
@@ -3909,27 +3928,74 @@ function ScoreProgressChart({phases, ranked, phaseTotals, RULES, playerName, has
     <div className="score-legend" aria-label="Player score legend">{series.map(s=><span className="score-legend-item" key={s.id}><span className="score-legend-swatch" style={{backgroundColor:s.color}}></span><span>{s.name} <span className="score-legend-total">{scoreText(s.values[s.values.length-1])}</span></span></span>)}</div>
   </section>;
 }
-function SeasonWrapped({phases,ranked,rankById,phaseTotals,RULES,playerName,meId,entries=[],awards=[],bestHit,scoreFor,scoredThrough,poolName,seasonLabel}) {
+const drawPodiumShareCard=(ctx,options)=>{
+  const podium=options.podium||[];
+  drawReceiptBackground(ctx,1080,1080);drawReceiptBrand(ctx,{x:115,y:126,scale:.8});
+  ctx.textAlign='center';ctx.fillStyle='#f3c553';ctx.font='900 23px Inter,Arial,sans-serif';ctx.letterSpacing='5px';ctx.fillText(options.finalized?'FINAL PODIUM':'LIVE PODIUM',540,285);ctx.letterSpacing='0px';
+  ctx.fillStyle='#fffaf7';ctx.font='700 69px Georgia,serif';ctx.fillText(options.poolName||'Through the Wall',540,372);
+  ctx.fillStyle='#f1d7e4';ctx.font='700 23px Inter,Arial,sans-serif';ctx.fillText(options.seasonLabel||'',540,415);
+  const visual=[podium[1],podium[0],podium[2]].filter(Boolean),xs=visual.length===1?[540]:visual.length===2?[350,730]:[225,540,855];
+  visual.forEach((row,index)=>{
+    const place=row.place,barHeight=place===1?285:place===2?220:175,x=xs[index],barWidth=250,top=825-barHeight;
+    ctx.fillStyle=place===1?'rgba(243,197,83,.45)':'rgba(255,255,255,.16)';ctx.beginPath();ctx.roundRect(x-barWidth/2,top,barWidth,barHeight,26);ctx.fill();
+    ctx.fillStyle='#fffaf7';ctx.font='700 34px Georgia,serif';wrapCanvasText(ctx,row.name,barWidth-24).slice(0,2).forEach((line,lineIndex)=>ctx.fillText(line,x,top-72+lineIndex*35));
+    ctx.font='900 68px Inter,Arial,sans-serif';ctx.fillText(String(place),x,top+82);
+    ctx.fillStyle='#f3c553';ctx.font='900 27px Inter,Arial,sans-serif';ctx.fillText(String(+Number(row.score).toFixed(2))+' pts',x,top+126);
+  });
+  ctx.fillStyle='#fffaf7';ctx.font='italic 37px Georgia,serif';ctx.fillText('“The standings have receipts.”',540,930);
+  ctx.strokeStyle='#f3c553';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(235,968);ctx.lineTo(845,968);ctx.stroke();
+  ctx.font='800 19px Inter,Arial,sans-serif';ctx.fillText('throughthewall.ca  ·  Unofficial Love Is Blind predictions pool',540,1018);ctx.textAlign='left';
+};
+const createPodiumShareBlob=options=>new Promise((resolve,reject)=>{
+  const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1080;
+  drawPodiumShareCard(canvas.getContext('2d'),options);
+  canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('The podium card could not be created.')),'image/png',.96);
+});
+const sharePodiumCard=async options=>{
+  const blob=await createPodiumShareBlob(options),filename='through-the-wall-podium.png',file=new File([blob],filename,{type:'image/png'});
+  trackTtwEvent('share_card_generated',{kind:'podium',format:'chat'});
+  if(typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:'Through the Wall podium',text:'Our Through the Wall podium. '+APP_SHARE_URL,files:[file]});return 'Share menu opened.';}
+  const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);return 'Podium card downloaded.';
+};
+function SeasonWrapped({phases,ranked,rankById,phaseTotals,RULES,playerName,meId,entries=[],awards=[],bestHit,scoreFor,poolName,seasonLabel}) {
+  const [open,setOpen]=useState(false),[active,setActive]=useState(0),[sharing,setSharing]=useState(false),[feedback,setFeedback]=useState('');
   const myHits=entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points);
-  const uniqueHit=myHits.filter(entry=>entry.owners===1).sort((a,b)=>b.points-a.points)[0]||myHits.slice().sort((a,b)=>(a.owners||Infinity)-(b.owners||Infinity)||b.points-a.points)[0];
+  const soloHits=myHits.filter(entry=>entry.owners===1);
+  const uniqueHit=soloHits.slice().sort((a,b)=>b.points-a.points)[0]||myHits.slice().sort((a,b)=>(a.owners||Infinity)-(b.owners||Infinity)||b.points-a.points)[0];
   let previousLeader='';const running=Object.fromEntries(ranked.map(id=>[id,0]));const leadMoments=[];
   phases.forEach(phase=>{ranked.forEach(id=>{running[id]+=(phaseTotals[phase]?.[id]||0);});const leader=[...ranked].sort((a,b)=>running[b]-running[a]||String(a).localeCompare(String(b)))[0];if(previousLeader&&leader!==previousLeader)leadMoments.push(`After ${RULES.phases[phase].label}, ${playerName(leader)} took the lead.`);previousLeader=leader;});
-  const details=[`Pool winner: ${playerName(ranked[0])}`,uniqueHit?`Most unique: ${uniqueHit.label}`:'',leadMoments.at(-1)||'The lead held from the opening checkpoint.'].filter(Boolean);
-  return <section className="season-wrapped" aria-labelledby="season-wrapped-title">
-    <div className="wrapped-hero"><span>Through the Wall · Pool Wrapped</span><h3 id="season-wrapped-title">Your season had plot twists.</h3><p>The leaderboard, the bold calls, and the moment the room changed hands.</p></div>
-    <StandingsPodium ranked={ranked} rankById={rankById} scoreFor={scoreFor} playerName={playerName} scoredThrough={scoredThrough} liveStandings={false} finalized/>
-    <div className="wrapped-stats"><div><strong>{myHits.length}</strong><span>predictions hit</span></div><div><strong>{myHits.filter(entry=>entry.owners===1).length}</strong><span>solo calls</span></div><div><strong>{leadMoments.length}</strong><span>lead changes</span></div></div>
-    <div className="wrapped-predictions"><article><span>Highest-scoring prediction</span><strong>{bestHit?.label||'You made it through every reveal.'}</strong><small>{bestHit?.points?bestHit.points+' points':'Season complete'}</small></article><article><span>Most unique prediction</span><strong>{uniqueHit?.label||'Your boldest call is waiting for next season.'}</strong><small>{uniqueHit?.owners===1?'Only you called it':uniqueHit?.owners?uniqueHit.owners+' players called it':'Keep trusting the vibes'}</small></article></div>
-    {leadMoments.length>0&&<div className="wrapped-drama"><span>🎬 The dramatic turn</span><strong>{leadMoments.at(-1)}</strong></div>}
-    <ScoreProgressChart phases={phases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} animated/>
-    {awards.length>0&&<div className="wrapped-awards">{awards.map((award,index)=><span key={award.label+index}>{award.label}</span>)}</div>}
-    <ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={bestHit?.label||'You survived the pods, retreats, weddings, and reunion.'} predictedAt={predictionTimingLabel(bestHit)} rank={rankById[meId]} total={ranked.length} score={scoreFor(meId)} playerName={playerName(meId)} poolName={poolName} seasonLabel={seasonLabel} details={details}/>
-  </section>;
+  const slides=[
+    {id:'intro',theme:'',kicker:'Through the Wall · Season Wrapped',title:'Your season had plot twists.',copy:`${seasonLabel} · ${poolName}`,shareHighlight:'My season had plot twists.',shareDetails:[`${myHits.length} predictions hit`,`#${rankById[meId]} of ${ranked.length}`]},
+    {id:'rank',theme:'theme-purple',kicker:'Your final position',title:`#${rankById[meId]} of ${ranked.length}`,copy:`${Math.round(scoreFor(meId))} points. The wall remembers everything.`,number:true,shareHighlight:`I finished #${rankById[meId]} of ${ranked.length}.`,shareDetails:[`${Math.round(scoreFor(meId))} final points`]},
+    {id:'hits',theme:'theme-pink',kicker:'You called it',title:String(myHits.length),copy:'predictions hit',number:true,sub:`${soloHits.length} solo call${soloHits.length===1?'':'s'} nobody else made`,shareHighlight:`I hit ${myHits.length} predictions.`,shareDetails:[`${soloHits.length} solo calls`]},
+    {id:'best',theme:'theme-gold',kicker:'Your biggest hit',title:bestHit?.label||'You survived every reveal.',copy:bestHit?.points?`${bestHit.points} points · ${predictionTimingLabel(bestHit)}`:'Season complete',shareHighlight:bestHit?.label||'I survived every reveal.',shareDetails:[bestHit?.points?`${bestHit.points} points won`:'']},
+    {id:'unique',theme:'theme-purple',kicker:'Against the grain',title:uniqueHit?.label||'You kept trusting the vibes.',copy:uniqueHit?.owners===1?'Only you called it.':uniqueHit?.owners?`${uniqueHit.owners} players called it.`:'Your boldest call is waiting for next season.',shareHighlight:uniqueHit?.label||'I kept trusting the vibes.',shareDetails:[uniqueHit?.owners===1?'Only I called it':'']},
+    {id:'drama',theme:'theme-pink',kicker:'The dramatic turn',title:leadMoments.at(-1)||'The opening leader held the room.',copy:`${leadMoments.length} lead change${leadMoments.length===1?'':'s'} across the season.`,shareHighlight:leadMoments.at(-1)||'The lead held from the opening checkpoint.',shareDetails:[`${leadMoments.length} lead changes`]},
+    {id:'chart',theme:'theme-purple',kicker:'How the room moved',title:'Every point told a story.',chart:true,shareHighlight:'Every point told a story.',shareDetails:[`Winner: ${playerName(ranked[0])}`]},
+    {id:'awards',theme:'theme-gold',kicker:'Your superlatives',title:awards.length?'The wall has spoken.':'Season complete.',awards:awards.length?awards:[{label:'Finished the experiment'}],copy:'Keep these for the group chat.',shareHighlight:awards[0]?.label||'I finished the experiment.',shareDetails:awards.slice(1,4).map(award=>award.label)},
+  ];
+  const close=()=>{setOpen(false);setFeedback('');};
+  const move=delta=>{setFeedback('');setActive(current=>Math.max(0,Math.min(slides.length-1,current+delta)));};
+  useEffect(()=>{if(!open||sharing||active>=slides.length-1||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;const timer=setTimeout(()=>move(1),7500);return()=>clearTimeout(timer);},[open,active,sharing]);
+  useEffect(()=>{if(!open)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';const keydown=event=>{if(event.key==='Escape')close();if(event.key==='ArrowRight')move(1);if(event.key==='ArrowLeft')move(-1);};window.addEventListener('keydown',keydown);return()=>{document.body.style.overflow=previous;window.removeEventListener('keydown',keydown);};},[open]);
+  const shareSlide=async()=>{if(sharing)return;const slide=slides[active];setSharing(true);setFeedback('');try{setFeedback(await shareGeneratedCard({kind:'wrapped',format:'story',eyebrow:slide.kicker,title:'My season, through the wall.',highlight:slide.shareHighlight,rank:rankById[meId],total:ranked.length,score:scoreFor(meId),playerName:playerName(meId),poolName,seasonLabel,details:slide.shareDetails}));}catch(error){if(error?.name!=='AbortError')setFeedback('The story card hit a wall. Try again.');}finally{setSharing(false);}};
+  const slide=slides[active];
+  return <React.Fragment><section className="wrapped-launch" aria-labelledby="season-wrapped-title"><span className="wrapped-launch-kicker">Your season wrapped</span><h3 id="season-wrapped-title">Your story is ready.</h3><p>Open a full-screen recap of the bold calls, plot twists, points, and awards that defined your season.</p><button className="btn-secondary" type="button" onClick={()=>{setActive(0);setOpen(true);trackTtwEvent('wrapped_opened',{season:seasonLabel});}}>Open Wrapped →</button></section>
+    {open&&<div className="wrapped-story-modal" role="dialog" aria-modal="true" aria-label="Your season Wrapped"><div className="wrapped-story-shell" style={{'--story-count':slides.length}}>
+      <div className="wrapped-story-progress" aria-label={`Slide ${active+1} of ${slides.length}`}>{slides.map((item,index)=><button type="button" className={index<active?'done':index===active?'active':''} aria-label={`Go to slide ${index+1}`} onClick={()=>{setActive(index);setFeedback('');}} key={item.id}><span/></button>)}</div>
+      <button className="wrapped-story-close" type="button" aria-label="Close Wrapped" onClick={close}>×</button>
+      <article className={'wrapped-story-slide '+slide.theme} key={slide.id} aria-live="polite"><span className="wrapped-story-kicker">{slide.kicker}</span>{slide.number?<div className="wrapped-story-number">{slide.title}</div>:<h2>{slide.title}</h2>}{slide.copy&&<p>{slide.copy}</p>}{slide.sub&&<div className="wrapped-story-substat">{slide.sub}</div>}{slide.chart&&<div className="wrapped-story-chart"><ScoreProgressChart phases={phases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} animated/></div>}{slide.awards&&<div className="wrapped-story-awards">{slide.awards.map((award,index)=><span key={award.label+index}>{award.label}</span>)}</div>}</article>
+      <button className="wrapped-story-tap prev" type="button" aria-label="Previous slide" disabled={active===0} onClick={()=>move(-1)}>Previous</button><button className="wrapped-story-tap next" type="button" aria-label="Next slide" disabled={active===slides.length-1} onClick={()=>move(1)}>Next</button>
+      {feedback&&<p className="wrapped-story-feedback" role="status">{feedback}</p>}<div className="wrapped-story-footer"><button type="button" aria-label="Previous slide" disabled={active===0} onClick={()=>move(-1)}>‹</button><button className="wrapped-story-share" type="button" disabled={sharing} onClick={shareSlide}>{sharing?'Making this story…':'Share this tile'}</button><button type="button" aria-label="Next slide" disabled={active===slides.length-1} onClick={()=>move(1)}>›</button></div>
+    </div></div>}
+  </React.Fragment>;
 }
-function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,liveStandings=true,throughLabel,finalized=false,showLiveShiftNote=true}) {
+function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,liveStandings=true,throughLabel,finalized=false,showLiveShiftNote=true,poolName='',seasonLabel='',shareable=true}) {
+  const [sharing,setSharing]=useState(false),[shareFeedback,setShareFeedback]=useState('');
   const podium=ranked.slice(0,3);
   if(!podium.length)return null;
   const podiumKey=podium.map(id=>id+':'+scoreFor(id)).join('|');
+  const share=async()=>{if(sharing)return;setSharing(true);setShareFeedback('');try{setShareFeedback(await sharePodiumCard({podium:podium.map(id=>({name:playerName(id),score:scoreFor(id),place:rankById[id]})),poolName,seasonLabel,finalized}));}catch(error){if(error?.name!=='AbortError')setShareFeedback('The podium card hit a wall. Try again.');}finally{setSharing(false);}};
   return <section className="champion-ceremony current-podium" key={podiumKey} aria-label={(liveStandings?'Live':'Final')+' top three standings'}>
     <div className="standings-status">{liveStandings&&<span className="standings-status-dot" aria-hidden="true"></span>}{finalized?'Final standings':'Live podium'+(throughLabel?' through '+throughLabel:'')}</div>
     <div className="podium" aria-label="Top three places">
@@ -3944,6 +4010,7 @@ function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,live
       })}
     </div>
     {(finalized||showLiveShiftNote)&&<p className="podium-bottom-note">{finalized?'Final standings are locked.':'Positions can shift as more players complete this checkpoint.'}</p>}
+    {shareable&&<div className="podium-share-actions"><button type="button" className="btn-secondary podium-share-button" disabled={sharing} onClick={share}>{sharing?'Making podium…':'↗ Share podium'}</button>{shareFeedback&&<p className="podium-share-feedback" role="status">{shareFeedback}</p>}</div>}
   </section>;
 }
 function PersonalRaceCard({rank,total,playerCount,score,nextName,nextGap,leader,globalPool,liveStandings=true}) {
@@ -4241,7 +4308,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions settle when the retreat ends. Against-the-Grain bonuses keep adjusting as more players finish.</div>}
       {globalPool&&reunionScoresPartial&&<div className="notice">Reunion scores are live for players who have finished. They remain provisional while the pool is open or another member is still watching.</div>}
       {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
-      {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} liveStandings={!seasonFinalized} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized} showLiveShiftNote={globalPool}/>}
+      {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} liveStandings={!seasonFinalized} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized} showLiveShiftNote={globalPool} poolName={poolName} seasonLabel={seasonLabel}/>}
       {!globalPool&&!membershipClosed&&scoredPhases.length>0&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete. Positions can shift as more players complete each checkpoint.</div>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&<PersonalRaceCard rank={raceRankById[meId]} total={raceRanked.length} playerCount={raceRanked.length} score={raceScore(meId)} nextName={nextRaceId?playerName(nextRaceId):''} nextGap={nextRaceGap} leader={raceRankById[meId]===1} globalPool={globalPool} liveStandings={!seasonFinalized}/>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&!demoMode&&<ReceiptsShelf receipts={receipts} rank={raceRankById[meId]} total={raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName={poolName} seasonLabel={seasonLabel}/>}
@@ -5487,6 +5554,7 @@ function App() {
       await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
       writeSeenRetroNotices(activePool.id,user.uid,nextSeenRetroNotices);
+      setSessionRetroNotices(current=>normalizeSeenRetroNotices([...current,...revealedRetroEvents.map(retroNoticeKey)]));
       setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
       if(canClose){const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();}
     } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
@@ -5683,10 +5751,9 @@ function App() {
   },[activePool,eng,user?.uid,playersById,poolStatus,picks,completed,phase,screen,w,watchThrough]);
   const globalDemoData=useMemo(()=>activePool?.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user?.uid,meName):null,[activePool?.id,user?.uid,meName]);
   const shareStandings=useMemo(()=>calculateShareStandings({eng,playersById,poolStatus,statusDocs:poolStatus,meId:user?.uid,currentPicks:picks,memberLabels,globalPool:activePool?.global===true}),[eng,playersById,poolStatus,user?.uid,picks,memberLabels,activePool?.global]);
-  const retroDisplayContext=activePool?activePool.id+':'+screen+':'+w:'';
   useEffect(()=>{
     setSessionRetroNotices([]);
-  },[retroDisplayContext]);
+  },[activePool?.id]);
   useEffect(()=>{
     if(!activePool||!eng||!user?.uid||poolTab!=='play'||!['watch','board','close'].includes(screen)) return;
     const currentRevealIds=new Set((reveal?.events||[]).filter(event=>event.retro&&event.retroEventId).map(event=>event.retroEventId));
@@ -5890,7 +5957,7 @@ function App() {
   const sessionRetroNoticeSet=new Set(sessionRetroNotices);
   const persistentRetroEvents=(screen==='watch'||screen==='board')?(eng.RETRO_EVENTS||[]).filter(event=>
     event.revealedEp<=w&&!currentRevealRetroIds.has(event.id)&&
-    (!seenRetroNoticeSet.has(retroNoticeKey(event))||sessionRetroNoticeSet.has(retroNoticeKey(event)))
+    (!seenRetroNoticeSet.has(retroNoticeKey(event))||sessionRetroNoticeSet.has(retroNoticeKey(event))||PH_ORDER.some(phaseId=>(picks[phaseId]||[]).some(pick=>eng.retroEventMatchesPick(event,phaseId,pick))))
   ):[];
   const crossover=predictionPhases.length>1;
   const crossoverLabels=predictionPhases.map(phaseId=>RULES.phases[phaseId]?.label).filter(Boolean);
@@ -5985,7 +6052,7 @@ function App() {
         {historicalPredictionDeadline!=null&&<div className="notice" style={{margin:'8px 0 14px'}}><b>Your last chance for {RULES.phases[phase].label} predictions is after Episode {historicalPredictionDeadline}.</b></div>}
         {crossover&&<div className="notice" style={{margin:'8px 0 14px'}}><b>{crossoverMessage}</b> This lock covers both boards before you watch Episode {w+1}.</div>}
         <RevealSummary reveal={reveal} heading={revealHeading} eng={eng} meId={user.uid} memberLabels={memberLabels}/>
-        <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/>
+        <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/>
         {predictionPhases.includes('pods')&&<PodsBoard w={w} picks={picks.pods} add={p=>addPick('pods',p)} remove={i=>removePick('pods',i)} spent={eng.spentBy(picks.pods)} eng={eng} finalWindow={finalPredictionWindowFor('pods')} onPendingChange={setPendingPodsPrediction} pendingRef={pendingPodsSkip}/>}
         {predictionPhases.includes('dating')&&<DatingBoard w={w} picks={picks.dating} add={p=>addPick('dating',p)} remove={i=>removePick('dating',i)} spent={eng.spentBy(picks.dating)} eng={eng} finalWindow={finalPredictionWindowFor('dating')}/>}
         {predictionPhases.includes('weddings')&&<WeddingsBoard w={w} picks={picks.weddings} add={p=>addPick('weddings',p)} remove={i=>removePick('weddings',i)} spent={eng.spentBy(picks.weddings)} eng={eng} finalWindow={finalPredictionWindowFor('weddings')}/>}
@@ -6001,19 +6068,19 @@ function App() {
         {watchThrough>w?<React.Fragment>
           <p className="lede">You can now watch {watchRangeLabel(phase,w+1,watchThrough)}. Return here when you finish.</p>
           {lockedPickCards}
-          <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/>
+          <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/>
           <button className="btn-primary" disabled={gating} onClick={()=>finishWatch()}>I've finished {watchRangeLabel(phase,w+1,watchThrough)} →</button>
         </React.Fragment>:readyWatchEnd>w?<React.Fragment>
           <p className="lede">You can now watch {watchRangeLabel(phase,w+1,readyWatchEnd)}. Return here when you finish.</p>
           {lockedPickCards}
-          <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/>
+          <PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/>
           <button className="btn-primary" disabled={gating} onClick={()=>finishWatch(readyWatchEnd)}>I've finished {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
         </React.Fragment>:<React.Fragment>
           {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
-            ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
+            ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
             : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
-              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>
-              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true}/><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>}
+              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>
+              : <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>}
         </React.Fragment>}
       </div>}
       {screen==='close'&&closeInfo&&<React.Fragment>
@@ -6031,9 +6098,8 @@ function App() {
       {screen==='final'&&<div className="card gatecard">
         <div className="crown">👑</div>
         <div className="winner">Season complete!</div>
-        <p className="lede" style={{marginBottom:12}}>Your full score is live. Standings and Against-the-Grain bonuses continue updating as more pool members finish.</p>
-        <ShareMoment kind="wrapped" phaseLabel="Season wrapped" bestHit={shareStandings?.bestHit||'You made it through every reveal.'} predictedAt={shareStandings?.bestHitTiming||''} rank={shareStandings?.rank} total={shareStandings?.total} score={shareStandings?.score} playerName={meName} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)} details={[`${shareStandings?.hitCount||0} predictions hit`,`${Object.values(picks).flat().length} total predictions`]}/>
-        <button className="btn-primary" onClick={()=>switchPoolTab('standings')}>View Standings</button>
+        <p className="lede" style={{marginBottom:12}}>Your full score is live. Standings and Against-the-Grain bonuses continue updating as more pool members finish. When the final standings lock, your full-screen Wrapped story will appear there.</p>
+        <button className="btn-primary" onClick={()=>switchPoolTab('standings')}>View standings &amp; Wrapped</button>
       </div>}
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}

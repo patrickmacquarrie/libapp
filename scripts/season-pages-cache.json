@@ -82,80 +82,6 @@
         "photo_url": "images/cast/love-is-blind-us-2/Trisha.png"
       }
     ],
-    "couples": [
-      {
-        "id": "nick-danielle",
-        "him": "Nick",
-        "her": "Danielle",
-        "engaged_ep": "1",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "shake-deepti",
-        "him": "Shake",
-        "her": "Deepti",
-        "engaged_ep": "2",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "kyle-shaina",
-        "him": "Kyle",
-        "her": "Shaina",
-        "engaged_ep": "2",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "6",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "shayne-natalie",
-        "him": "Shayne",
-        "her": "Natalie",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "sal-mal",
-        "him": "Salvador",
-        "her": "Mallory",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "jarrette-iyanna",
-        "him": "Jarrette",
-        "her": "Iyanna",
-        "engaged_ep": "3",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      }
-    ],
     "settings": [
       {
         "key": "PODS_BUDGET",
@@ -400,99 +326,6 @@
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-10/Brittany.png"
       }
     ],
-    "couples": [
-      {
-        "id": "vic-christine",
-        "him": "Vic",
-        "her": "Christine",
-        "engaged_ep": "1",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": "FALSE"
-      },
-      {
-        "id": "jordan-amber",
-        "him": "Jordan",
-        "her": "Amber",
-        "engaged_ep": "2",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": ""
-      },
-      {
-        "id": "alex-ashley",
-        "him": "Alex",
-        "her": "Ashley",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": ""
-      },
-      {
-        "id": "chris-jessica",
-        "him": "Chris",
-        "her": "Jessica",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "9",
-        "settled_ep": "9",
-        "together_now": "",
-        "lock_ep": "9",
-        "dating_eligible": ""
-      },
-      {
-        "id": "connor-bri",
-        "him": "Connor",
-        "her": "Bri",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "11",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": "11",
-        "dating_eligible": ""
-      },
-      {
-        "id": "devonta-brittany",
-        "him": "Devonta",
-        "her": "Brittany",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": ""
-      },
-      {
-        "id": "mike-emma",
-        "him": "Mike",
-        "her": "Emma",
-        "engaged_ep": "5",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "11",
-        "dating_eligible": ""
-      }
-    ],
     "settings": [
       {
         "key": "PODS_BUDGET",
@@ -646,7 +479,6 @@
   },
   "love-is-blind-uk-3": {
     "cast": [],
-    "couples": [],
     "settings": [
       {
         "key": "PODS_BUDGET",
@@ -918,113 +750,6 @@
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-7/Ramses.png"
       }
     ],
-    "couples": [
-      {
-        "id": "garrett-taylor",
-        "him": "Garrett",
-        "her": "Taylor",
-        "engaged_ep": "2",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": "",
-        "weddings_eligible": "",
-        "reunion_eligible": ""
-      },
-      {
-        "id": "tyler-ashley",
-        "him": "Tyler",
-        "her": "Ashley",
-        "engaged_ep": "3",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": "",
-        "weddings_eligible": "",
-        "reunion_eligible": ""
-      },
-      {
-        "id": "stephen-monica",
-        "him": "Stephen",
-        "her": "Monica",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "8",
-        "settled_ep": "8",
-        "together_now": "",
-        "lock_ep": "8",
-        "dating_eligible": "",
-        "weddings_eligible": "",
-        "reunion_eligible": ""
-      },
-      {
-        "id": "tim-alex",
-        "him": "Tim",
-        "her": "Alex",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": "10",
-        "dating_eligible": "",
-        "weddings_eligible": "",
-        "reunion_eligible": ""
-      },
-      {
-        "id": "nick-hannah",
-        "him": "Nick",
-        "her": "Hannah",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "11",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": "11",
-        "dating_eligible": "",
-        "weddings_eligible": "",
-        "reunion_eligible": ""
-      },
-      {
-        "id": "ramses-marissa",
-        "him": "Ramses",
-        "her": "Marissa",
-        "engaged_ep": "5",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12",
-        "dating_eligible": "",
-        "weddings_eligible": "",
-        "reunion_eligible": ""
-      },
-      {
-        "id": "leo-brittany",
-        "him": "Leo",
-        "her": "Brittany",
-        "engaged_ep": "5",
-        "wedding": "notShown",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "",
-        "together_now": "",
-        "lock_ep": "5",
-        "dating_eligible": "FALSE",
-        "weddings_eligible": "FALSE",
-        "reunion_eligible": "FALSE"
-      }
-    ],
     "settings": [
       {
         "key": "PODS_BUDGET",
@@ -1232,64 +957,6 @@
         "name": "Aaliyah",
         "gender": "F",
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-5/Aaliyah.png"
-      }
-    ],
-    "couples": [
-      {
-        "id": "lydia-milton",
-        "him": "Milton",
-        "her": "Lydia",
-        "engaged_ep": "4",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "10",
-        "together_now": "FALSE",
-        "lock_ep": "10",
-        "reunion_status_eligible": "",
-        "dating_eligible": ""
-      },
-      {
-        "id": "stacy-izzy",
-        "him": "Izzy",
-        "her": "Stacy",
-        "engaged_ep": "4",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "FALSE",
-        "lock_ep": "10",
-        "reunion_status_eligible": "",
-        "dating_eligible": ""
-      },
-      {
-        "id": "taylor-jp",
-        "him": "JP",
-        "her": "Taylor",
-        "engaged_ep": "2",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "6",
-        "settled_ep": "6",
-        "together_now": "FALSE",
-        "lock_ep": "6",
-        "reunion_status_eligible": "",
-        "dating_eligible": ""
-      },
-      {
-        "id": "chris-johnie",
-        "him": "Chris",
-        "her": "Johnie",
-        "engaged_ep": "",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "",
-        "together_now": "",
-        "lock_ep": "",
-        "reunion_status_eligible": "TRUE",
-        "dating_eligible": "FALSE"
       }
     ],
     "settings": [
@@ -1514,80 +1181,6 @@
         "name": "Kenny",
         "gender": "M",
         "photo_url": "images/cast/love-is-blind-us-1/Kenny.png"
-      }
-    ],
-    "couples": [
-      {
-        "id": "cameron-lauren",
-        "him": "Cameron",
-        "her": "Lauren",
-        "engaged_ep": "1",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "carlton-diamond",
-        "him": "Carlton",
-        "her": "Diamond",
-        "engaged_ep": "2",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "5",
-        "settled_ep": "",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "kenny-kelly",
-        "him": "Kenny",
-        "her": "Kelly",
-        "engaged_ep": "2",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "damian-gia",
-        "him": "Damian",
-        "her": "Giannina",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "mark-jessica",
-        "him": "Mark",
-        "her": "Jessica",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "barnett-amber",
-        "him": "Barnett",
-        "her": "Amber",
-        "engaged_ep": "3",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
       }
     ],
     "settings": [
@@ -1827,80 +1420,6 @@
         "name": "Brenden",
         "gender": "M",
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-9/Brenden.png"
-      }
-    ],
-    "couples": [
-      {
-        "id": "anton-ali",
-        "him": "Anton",
-        "her": "Ali",
-        "engaged_ep": "1",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12"
-      },
-      {
-        "id": "joe-madison",
-        "him": "Joe",
-        "her": "Madison",
-        "engaged_ep": "2",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "11",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": "11"
-      },
-      {
-        "id": "edmond-kalybriah",
-        "him": "Edmond",
-        "her": "Kalybriah",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12"
-      },
-      {
-        "id": "patrick-kacie",
-        "him": "Patrick",
-        "her": "Kacie",
-        "engaged_ep": "4",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "6",
-        "settled_ep": "6",
-        "together_now": "",
-        "lock_ep": "6"
-      },
-      {
-        "id": "nick-annie",
-        "him": "Nick",
-        "her": "Annie",
-        "engaged_ep": "5",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": "10"
-      },
-      {
-        "id": "jordan-megan",
-        "him": "Jordan",
-        "her": "Megan",
-        "engaged_ep": "5",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12"
       }
     ],
     "settings": [
@@ -2157,86 +1676,6 @@
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
       }
     ],
-    "couples": [
-      {
-        "id": "steven-sabrina",
-        "him": "Steven",
-        "her": "Sabrina",
-        "engaged_ep": "2",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": "10",
-        "dating_eligible": ""
-      },
-      {
-        "id": "bobby-jasmine",
-        "him": "Bobby",
-        "her": "Jasmine",
-        "engaged_ep": "2",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": ""
-      },
-      {
-        "id": "freddie-catherine",
-        "him": "Freddie",
-        "her": "Catherine",
-        "engaged_ep": "3",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": ""
-      },
-      {
-        "id": "sam-nicole",
-        "him": "Sam",
-        "her": "Nicole",
-        "engaged_ep": "3",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "4",
-        "settled_ep": "4",
-        "together_now": "",
-        "lock_ep": "4",
-        "dating_eligible": ""
-      },
-      {
-        "id": "tom-maria",
-        "him": "Tom",
-        "her": "Maria",
-        "engaged_ep": "4",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": "10",
-        "dating_eligible": ""
-      },
-      {
-        "id": "benaiah-nicole",
-        "him": "Benaiah",
-        "her": "Nicole",
-        "engaged_ep": "5",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": ""
-      }
-    ],
     "settings": [
       {
         "key": "PODS_BUDGET",
@@ -2284,7 +1723,7 @@
       },
       {
         "key": "WEDDINGS_END_EP",
-        "value": "12"
+        "value": "11"
       },
       {
         "key": "REUNION_BUDGET",
@@ -2296,11 +1735,11 @@
       },
       {
         "key": "REUNION_START_EP",
-        "value": "12"
+        "value": "11"
       },
       {
         "key": "REUNION_END_EP",
-        "value": "13"
+        "value": "12"
       },
       {
         "key": "PODS_RESULTS_READY",
@@ -2469,68 +1908,6 @@
         "name": "Ben",
         "gender": "M",
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-8/Ben.png"
-      }
-    ],
-    "couples": [
-      {
-        "id": "joey-monica",
-        "him": "Joey",
-        "her": "Monica",
-        "engaged_ep": "2",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "13",
-        "settled_ep": "13",
-        "together_now": "",
-        "lock_ep": "13"
-      },
-      {
-        "id": "ben-sara",
-        "him": "Ben",
-        "her": "Sara",
-        "engaged_ep": "5",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "13",
-        "settled_ep": "13",
-        "together_now": "",
-        "lock_ep": "13"
-      },
-      {
-        "id": "dave-lauren",
-        "him": "Dave",
-        "her": "Lauren",
-        "engaged_ep": "5",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "11",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": "11"
-      },
-      {
-        "id": "daniel-taylor",
-        "him": "Daniel",
-        "her": "Taylor",
-        "engaged_ep": "6",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "13",
-        "together_now": "",
-        "lock_ep": "13"
-      },
-      {
-        "id": "devin-virginia",
-        "him": "Devin",
-        "her": "Virginia",
-        "engaged_ep": "6",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "13",
-        "settled_ep": "13",
-        "together_now": "",
-        "lock_ep": "13"
       }
     ],
     "settings": [
@@ -2762,68 +2139,6 @@
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-us-6/Brittany.png"
       }
     ],
-    "couples": [
-      {
-        "id": "johnny-amy",
-        "him": "Johnny",
-        "her": "Amy",
-        "engaged_ep": "2",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12"
-      },
-      {
-        "id": "kenneth-brittany",
-        "him": "Kenneth",
-        "her": "Brittany",
-        "engaged_ep": "3",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "8",
-        "settled_ep": "8",
-        "together_now": "",
-        "lock_ep": "8"
-      },
-      {
-        "id": "clay-ad",
-        "him": "Clay",
-        "her": "AD",
-        "engaged_ep": "4",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12"
-      },
-      {
-        "id": "jimmy-chelsea",
-        "him": "Jimmy",
-        "her": "Chelsea",
-        "engaged_ep": "5",
-        "wedding": "calledOff",
-        "who_says_no": "him",
-        "breakup_ep": "12",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "12"
-      },
-      {
-        "id": "jeramey-laura",
-        "him": "Jeramey",
-        "her": "Laura",
-        "engaged_ep": "5",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "9",
-        "settled_ep": "9",
-        "together_now": "",
-        "lock_ep": "9"
-      }
-    ],
     "settings": [
       {
         "key": "PODS_BUDGET",
@@ -3031,68 +2346,6 @@
         "name": "Matt",
         "gender": "M",
         "photo_url": "images/cast/love-is-blind-us-3/Matt.png"
-      }
-    ],
-    "couples": [
-      {
-        "id": "brennon-alexa",
-        "him": "Brennon",
-        "her": "Alexa",
-        "engaged_ep": "1",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "cole-zanab",
-        "him": "Cole",
-        "her": "Zanab",
-        "engaged_ep": "2",
-        "wedding": "saysNo",
-        "who_says_no": "her",
-        "breakup_ep": "11",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "sk-raven",
-        "him": "SK",
-        "her": "Raven",
-        "engaged_ep": "2",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "bartise-nancy",
-        "him": "Bartise",
-        "her": "Nancy",
-        "engaged_ep": "3",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "11",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": ""
-      },
-      {
-        "id": "matt-colleen",
-        "him": "Matt",
-        "her": "Colleen",
-        "engaged_ep": "3",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "11",
-        "together_now": "",
-        "lock_ep": ""
       }
     ],
     "settings": [
@@ -3312,92 +2565,6 @@
         "name": "Josh",
         "gender": "M",
         "photo_url": "images/cast/love-is-blind-us-4/Josh.png"
-      }
-    ],
-    "couples": [
-      {
-        "id": "brett-tiffany",
-        "him": "Brett",
-        "her": "Tiffany",
-        "engaged_ep": "2",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": "",
-        "pods_eligible": ""
-      },
-      {
-        "id": "paul-micah",
-        "him": "Paul",
-        "her": "Micah",
-        "engaged_ep": "2",
-        "wedding": "saysNo",
-        "who_says_no": "him",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": "",
-        "pods_eligible": ""
-      },
-      {
-        "id": "marshall-jack",
-        "him": "Marshall",
-        "her": "Jackelina",
-        "engaged_ep": "3",
-        "wedding": "calledOff",
-        "who_says_no": "her",
-        "breakup_ep": "10",
-        "settled_ep": "10",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": "",
-        "pods_eligible": ""
-      },
-      {
-        "id": "kwame-chelsea",
-        "him": "Kwame",
-        "her": "Chelsea",
-        "engaged_ep": "3",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "11",
-        "dating_eligible": "",
-        "pods_eligible": ""
-      },
-      {
-        "id": "zack-irina",
-        "him": "Zack",
-        "her": "Irina",
-        "engaged_ep": "3",
-        "wedding": "",
-        "who_says_no": "",
-        "breakup_ep": "5",
-        "settled_ep": "5",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": "",
-        "pods_eligible": ""
-      },
-      {
-        "id": "zack-bliss",
-        "him": "Zack",
-        "her": "Bliss",
-        "engaged_ep": "6",
-        "wedding": "married",
-        "who_says_no": "",
-        "breakup_ep": "",
-        "settled_ep": "12",
-        "together_now": "",
-        "lock_ep": "",
-        "dating_eligible": "No",
-        "pods_eligible": "No"
       }
     ],
     "settings": [
