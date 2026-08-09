@@ -195,8 +195,7 @@ service cloud.firestore {
             'PH_STARTW',
             'DATING_MULT',
             'WED_MULT',
-            'REU_MULT',
-            'RACE_MULT'
+            'REU_MULT'
           ]) &&
           snapshot.keys().hasOnly([
             'version',
@@ -210,14 +209,15 @@ service cloud.firestore {
           ]) &&
           // Keep this range aligned with rulesSnapshotFrom in index.html.
           snapshot.version >= 3 &&
-          snapshot.version <= 4 &&
+          snapshot.version <= 5 &&
+          (snapshot.version >= 5 || snapshot.keys().hasAll(['RACE_MULT'])) &&
           snapshot.RULES is map &&
           snapshot.PH_SPAN is map &&
           snapshot.PH_STARTW is map &&
           snapshot.DATING_MULT is map &&
           snapshot.WED_MULT is map &&
           snapshot.REU_MULT is map &&
-          snapshot.RACE_MULT is number;
+          (!snapshot.keys().hasAny(['RACE_MULT']) || snapshot.RACE_MULT is number);
       }
 
       function canOwnerChangeMembershipSetting() {
@@ -322,8 +322,8 @@ service cloud.firestore {
 
       // ----------------------------------------------------------
       // Phase completion status
-      // Each member may add or remove only their own uid. This is what lets a
-      // provisional live-season checkpoint reopen when its boundary moves.
+      // Members may lock their own checkpoint. Reopening a provisional live
+      // boundary is authorized by the reopenPhase callable.
       // ----------------------------------------------------------
 
       match /phaseStatus/{phase} {
@@ -345,12 +345,6 @@ service cloud.firestore {
                 .union([request.auth.uid].toSet());
         }
 
-        function viewerOnlyRemovedOwnCompletion() {
-          return request.resource.data.completedMembers.toSet() ==
-              resource.data.get('completedMembers', []).toSet()
-                .difference([request.auth.uid].toSet());
-        }
-
         allow read: if poolMember(poolId);
 
         allow create: if poolMember(poolId) &&
@@ -364,8 +358,7 @@ service cloud.firestore {
             'revealed',
             'updatedAt'
           ]) &&
-          (viewerOnlyAddedOwnCompletion() ||
-            viewerOnlyRemovedOwnCompletion());
+          viewerOnlyAddedOwnCompletion();
 
         allow delete: if poolOwner(poolId);
       }
