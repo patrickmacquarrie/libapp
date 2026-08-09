@@ -2717,5 +2717,259 @@
         "value": "3"
       }
     ]
+  },
+  "love-is-blind-uk-2": {
+    "cast": [
+      {
+        "name": "Ashleigh",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Ashleigh.png"
+      },
+      {
+        "name": "Billy",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Billy.png"
+      },
+      {
+        "name": "Sophie",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Sophie.png"
+      },
+      {
+        "name": "Kieran",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Kieran.png"
+      },
+      {
+        "name": "Megan",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Megan.png"
+      },
+      {
+        "name": "Patrick",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Patrick.png"
+      },
+      {
+        "name": "Aanu",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Aanu.png"
+      },
+      {
+        "name": "Sarover",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Sarover.png"
+      },
+      {
+        "name": "Kal",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Kal.png"
+      },
+      {
+        "name": "Javen",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Javen.png"
+      },
+      {
+        "name": "Katisha",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Katisha.png"
+      },
+      {
+        "name": "Demola",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Demola.png"
+      },
+      {
+        "name": "Jed",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Jed.png"
+      },
+      {
+        "name": "Bardha",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Bardha.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      },
+      {
+        "name": "",
+        "gender": "",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "6"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "11"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "11"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "12"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "13"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "6"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
   }
 }
