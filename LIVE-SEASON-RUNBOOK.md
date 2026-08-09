@@ -26,6 +26,17 @@ Set the real `PODS`, `DATING`, `WEDDINGS`, and `REUNION` start and end episode v
 
 After significant updates, publish the Firestore `seasons/{seasonId}` snapshot. It is the app's primary season-data source; the Google Sheet is the fallback.
 
+The `lib-oauth` project uses domain-restricted sharing, so `reopenphase` cannot grant the usual Cloud Run `allUsers` invoker role. Its Cloud Run Invoker IAM check must stay disabled instead. If phase reopening starts returning a Cloud Run 403 after a deployment, restore the supported public-ingress setting:
+
+```sh
+gcloud run services update reopenphase \
+  --project=lib-oauth \
+  --region=us-central1 \
+  --no-invoker-iam-check
+```
+
+This only lets requests reach the callable. `reopenPhase` still requires Firebase sign-in, pool membership, a live season, and a provisional phase boundary.
+
 After every sheet edit:
 
 1. Reload the app once.
