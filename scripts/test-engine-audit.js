@@ -85,6 +85,13 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 }
 
 {
+  const couple={id:'alex-casey',him:'Alex',her:'Casey',wedding:'married',weddingEligibleFromEp:5,settledEp:6,lockEp:8,lockEpFallback:true};
+  const engine=makeEngine(cfg([couple]),1);
+  assert.equal(engine.eligibleForWeddings(couple,5),true,'A wedding market must remain eligible before its settlement is watched.');
+  assert.equal(engine.eligibleForWeddings(couple,7),false,'A wedding market must close after its settlement is watched even with a fallback lock episode.');
+}
+
+{
   const couples=[{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}];
   const engine=makeEngine(cfg(couples),2);
   const scored=engine.scorePhase('pods',{
@@ -121,8 +128,28 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   season.REUNION_RESULTS.still={'alex-casey':false};
   const engine=makeEngine(season,1);
   const scored=engine.scorePhase('reunion',{viewer:[{m:'relationship',c:'alex-casey',outcome:'marriedSplit',s:20}]});
-  assert.equal(scored.entries.length,0,'A marriedSplit prediction on a non-married couple must not score.');
-  assert.equal(scored.totals.viewer,0);
+  const refund=scored.entries.find(entry=>entry.member==='viewer'&&entry.multLabel==='x1 flat refund');
+  assert(refund,'A marriedSplit prediction on a non-married couple must refund instead of scoring.');
+  assert.equal(refund.mult,1);
+  assert.equal(refund.points,20);
+  assert.equal(scored.totals.viewer,20);
+}
+
+{
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',wedding:'married',settledEp:7,reunionStatusEligible:false}];
+  const engine=makeEngine(cfg(couples),2);
+  const scored=engine.scorePhase('reunion',{
+    invalidated:[{m:'relationship',c:'alex-casey',outcome:'split',s:25}],
+    valid:[{m:'newCouple',pair:'Blair|Drew',s:20}],
+  });
+  const refund=scored.entries.find(entry=>entry.member==='invalidated'&&entry.multLabel==='x1 flat refund');
+  const hit=scored.entries.find(entry=>entry.member==='valid'&&entry.label==='New couple: Blair & Drew');
+  assert(refund,'A relationship pick invalidated by current couple eligibility must receive a flat refund.');
+  assert.equal(refund.points,25);
+  assert.equal(scored.totals.invalidated,25);
+  assert.equal(refund.owners,null);
+  assert.equal(hit.owners,1,'An invalidated relationship refund must not count as an owner.');
+  assert.equal(hit.poolSize,1,'A member with only an invalidated relationship pick must not inflate the active phase pool.');
 }
 
 console.log('Engine audit assertions passed.');

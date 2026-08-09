@@ -19,9 +19,9 @@ const MAIL_SENDERS={
   support:'Through the Wall Support <support@throughthewall.ca>',
 };
 const MAIL_REPLY_TO='patrick.macquarrie@gmail.com';
-// Private friends beta: public Global Pool creation stays disabled until the
-// live-season launch is ready for the much larger notification/scoring load.
-const GLOBAL_POOL_SEASONS={};
+const GLOBAL_POOL_SEASONS={
+  'love-is-blind-uk-3':{id:'love-is-blind-uk-3',label:'Love Is Blind UK: Season 3',country:'United Kingdom',countryCode:'UK',seasonNumber:3,locationLabel:null,status:'upcoming',releaseLabel:'First episodes drop August 19, 2026'},
+};
 
 function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');

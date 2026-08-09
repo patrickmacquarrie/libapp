@@ -664,6 +664,11 @@
         "key": "DATING_BREAKUP_MULT",
         "value": "3",
         "notes": ""
+      },
+      {
+        "key": "RELEASE_LABEL",
+        "value": "First episodes drop August 19, 2026",
+        "notes": ""
       }
     ]
   },

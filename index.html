@@ -1213,7 +1213,7 @@ const SEASON_BANK = [
     seasonNumber:3,
     locationLabel:null,
     status:'upcoming',
-    releaseLabel:'First episodes drop August 13, 2026',
+    releaseLabel:'First episodes drop August 19, 2026',
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
     historical:false,
     available:true,
@@ -1575,8 +1575,7 @@ const SEASON_BANK = [
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const HISTORICAL_SEASON_ROADMAP = SEASON_BANK.filter(season=>season.historical);
 const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
-// Private friends beta: keep every Global Pool entry point out of the UI.
-const GLOBAL_POOL_SEASON = null;
+const GLOBAL_POOL_SEASON = seasonById('love-is-blind-uk-3');
 // Safe visual preview: append ?globalDemo=1 to the app URL. Sample players
 // exist only in memory and are never written to Firebase.
 const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('globalDemo')==='1';
@@ -2396,6 +2395,7 @@ function makeEngine(cfg, poolSize) {
     c.wedding!=='notShown' &&
     Number.isFinite(c.weddingEligibleFromEp) &&
     c.weddingEligibleFromEp<=w &&
+    !(Number.isFinite(c.settledEp)&&c.settledEp<=w) &&
     weddingMarketState(c,w).open;
   const activePoolSize = picksBy => Math.max(Object.values(picksBy).filter(v=>Array.isArray(v)&&v.length>0).length,1);
   const contraV = (o,p=POOL)=>1+RULES.K*(1-o/p);
@@ -2411,6 +2411,12 @@ function makeEngine(cfg, poolSize) {
   const reunionRelationshipGroup = couple => couple?.wedding==='married'?'married'
     :couple?.reunionStatusEligible?'knownDating'
     :couple?.wedding&&couple.wedding!=='notShown'?'split':null;
+  const validReunionRelationshipOutcome = (couple,outcome) => {
+    const group=reunionRelationshipGroup(couple);
+    return group==='married'?['still','marriedSplit'].includes(outcome)
+      :group==='knownDating'?['still','split'].includes(outcome)
+      :group==='split'&&outcome==='back';
+  };
   const refundableInvalidPick = (phase,pick) => {
     if(!pick||typeof pick!=='object'||Array.isArray(pick)) return false;
     if(phase==='pods') {
@@ -2420,7 +2426,14 @@ function makeEngine(cfg, poolSize) {
     if(phase==='dating') return pick.m==='flirt'?!knownPerson(pick.p):['sex','breakup'].includes(pick.m)&&!coupleFor(pick.c);
     if(phase==='weddings') return !coupleFor(pick.c);
     if(phase==='reunion') {
-      if(relationshipOutcome(pick)) return !coupleFor(pick.c);
+      const outcome=relationshipOutcome(pick);
+      if(outcome) {
+        const coupleId=String(pick.c||'').trim();
+        if(!coupleId) return false;
+        const couple=coupleFor(coupleId);
+        // A flat refund also safely covers fabricated ineligible picks because it has no upside over a legitimate market.
+        return !couple||!validReunionRelationshipOutcome(couple,outcome);
+      }
       if(pick.m==='newCouple') return String(pick.pair||'').split('|').some(person=>!knownPerson(person));
       if(['lifeUpdate','absent'].includes(pick.m)) return !knownPerson(pick.person);
     }
@@ -2440,12 +2453,7 @@ function makeEngine(cfg, poolSize) {
       (pick.o==='married'||['him','her'].includes(pick.who));
     if(phase==='reunion') {
       const outcome=relationshipOutcome(pick);
-      if(outcome) {
-        const group=reunionRelationshipGroup(coupleFor(pick.c));
-        return group==='married'?['still','marriedSplit'].includes(outcome)
-          :group==='knownDating'?['still','split'].includes(outcome)
-          :group==='split'&&outcome==='back';
-      }
+      if(outcome) return validReunionRelationshipOutcome(coupleFor(pick.c),outcome);
       if(pick.m==='newCouple') {
         const people=String(pick.pair||'').split('|');
         return people.length===2&&personKey(people[0])!==personKey(people[1])&&people.every(knownPerson);
@@ -3759,7 +3767,7 @@ function ChemistryPreview() {
     setFeedback(globalPool?'Saved privately and added to the global averages.':'Ratings saved.');
   };
   return <div className="app">
-    <BrandHeader season="Love Is Blind US: Season 6"><h1>{globalPool?'Global Pool':'Pod Squad'}</h1></BrandHeader>
+    <BrandHeader season={globalPool?'Love Is Blind UK: Season 3':'Love Is Blind US: Season 6'}><h1>{globalPool?'Global Pool':'Pod Squad'}</h1></BrandHeader>
     <PoolTabs tabs={[{id:'play',label:'Play'},{id:'standings',label:'Standings'},{id:'chemistry',label:'Heat Check'},{id:'rules',label:'Rules'}]} active="chemistry" onChange={()=>{}}/>
     <ChemistryPanel eng={{CAST:cast}} seasonId="chemistry-preview" poolName="Pod Squad" globalPool={globalPool} currentUid="demo-me" myRatingDoc={mine} community={community} globalCommunity={{kind:'global',aggregate,loadedAt:1}} memberLabels={{'demo-me':'You','demo-maya':'Maya','demo-lex':'Lex'}} onSave={savePreview} saving={false} feedback={feedback} onRefresh={()=>setFeedback('Preview refreshed.')}/>
   </div>;
@@ -3849,7 +3857,8 @@ function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
   const exhausted=phaseOpen&&left<=0;
   const listed=COUPLES.filter(c=>c.wedding!=='notShown'&&Number.isFinite(c.weddingEligibleFromEp)&&c.weddingEligibleFromEp<=w);
   const alive=listed.filter(c=>eligibleForWeddings(c,w)&&!picks.some(p=>p.c===c.id));
-  const locked=listed.filter(c=>!weddingMarketState(c,w).open);
+  const locked=listed.filter(c=>!eligibleForWeddings(c,w));
+  const lockedReason=c=>Number.isFinite(c.settledEp)&&c.settledEp<=w?'Outcome settled in Episode '+c.settledEp:weddingMarketState(c,w).reason;
   const open=phaseOpen&&!exhausted&&alive.length>0;
   const outcome=answer==='yes'?'married':(answer==='no'&&when==='before'?'calledOff':(answer==='no'&&when==='altar'?'saysNo':''));
   const previewMultiplier=answer==='yes'?WED_MULT.married:(outcome?WED_MULT[outcome]*(1+RULES.WHO_TAG):1);
@@ -3870,7 +3879,7 @@ function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
     {answer==='no'&&cid&&<React.Fragment><div className="row"><Sel label="When?" value={when} onChange={setWhen} options={[{v:'before',t:'Before the altar (x'+fmt(WED_MULT.calledOff)+' bonus)'},{v:'altar',t:'At the altar (x'+fmt(WED_MULT.saysNo)+' bonus)'}]}/><Sel label="Who ends it?" value={whoT} onChange={setWhoT} options={[{v:'him',t:membOf(cid)[0]},{v:'her',t:membOf(cid)[1]}]}/></div></React.Fragment>}
     <div className="row"><StakeSlider value={stake} onChange={setStake} max={maxS} multiplier={previewMultiplier} pointsPerHeart={RULES.POINTS_PER_HEART} previewNote={previewNote}/><button className="btn-add" disabled={!cid||!answer||left<5||(answer==='no'&&(!when||!whoT))} onClick={()=>{add({c:cid,o:outcome,...(answer==='no'?{who:whoT}:{}),s:Math.min(stake,maxS),w});setCid('');setAnswer('');setWhen('');setWhoT('');}}>Add prediction</button></div>
     </React.Fragment>}
-    {locked.length>0&&<React.Fragment><hr className="divider"/><div className="mkt-title"><h3>Locked couples</h3><span className="multpill">{locked.length}</span></div><div className="locked-market-list">{locked.map(c=><div className="locked-market" key={c.id}><strong>{nameOf(c.id)}</strong><span className="lock-reason">{weddingMarketState(c,w).reason}</span></div>)}</div></React.Fragment>}
+    {locked.length>0&&<React.Fragment><hr className="divider"/><div className="mkt-title"><h3>Locked couples</h3><span className="multpill">{locked.length}</span></div><div className="locked-market-list">{locked.map(c=><div className="locked-market" key={c.id}><strong>{nameOf(c.id)}</strong><span className="lock-reason">{lockedReason(c)}</span></div>)}</div></React.Fragment>}
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=>{const c=eng.coupleFor(p.c),market=c&&weddingMarketState(c,w);return <div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{phaseOpen&&!exhausted&&market?.open&&pickWindow(p)===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>;})}</div>;
 }
 function ReunionBoard({w,picks,add,remove,spent,eng}) {
