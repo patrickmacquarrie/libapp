@@ -6,7 +6,7 @@
   "etags": {
     "lib-oauth": {
       "extensionInstances": {
-        "firestore-send-email": "e8b0d828be9771732da6edc302c43ec9d762df5579be6f6eafd89753e5a619b0"
+        "firestore-send-email": "478d39e24632c8ee8e35d3f76f2f55aaafb3b3ef0ba865a9da1f3207ec03cd81"
       }
     }
   }
