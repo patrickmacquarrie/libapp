@@ -1594,6 +1594,7 @@ const SEASON_BANK = [
   //   Love Is Blind US S11 (autumn 2026)
   //   Love Is Blind: Habibi S2, Argentina S2
 ];
+const seasonById = id => SEASON_BANK.find(season=>season.id===id);
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const HISTORICAL_SEASON_ROADMAP = SEASON_BANK.filter(season=>season.historical);
@@ -1607,7 +1608,6 @@ const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('g
 const CAST_CHEMISTRY_DEMO_MODE = new URLSearchParams(window.location.search).has('chemistryPreview');
 const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
 const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
-const seasonById = id => SEASON_BANK.find(season=>season.id===id);
 const MARKETING_SEASON_ID = seasonById(initialAppParams.get('season'))?.available
   ? initialAppParams.get('season')
   : DEFAULT_SEASON_ID;
