@@ -1376,9 +1376,7 @@ const SEASON_BANK = [
     locationLabel:null,
     sheetId:'1ZzwsCIemhE5ByHl9Uo7TGTGE-LEoY_QnongHbBeWQD4',
     historical:true,
-    // The sheet is connected, but results still need to be entered before this
-    // completed season can be safely opened for new prediction pools.
-    available:false,
+    available:true,
   },
 
   // ── Brazil ───────────────────────────────────────────────────
@@ -1389,7 +1387,7 @@ const SEASON_BANK = [
     countryCode:'BR',
     seasonNumber:1,
     locationLabel:null,
-    sheetId:'',
+    sheetId:'1hTvisEoOLVyClNjG4ZIKroAwr_ZsnTAz2_aC3ZGfyaY',
     historical:true,
     available:false,
   },
@@ -1595,6 +1593,10 @@ const SEASON_BANK = [
   //   Love Is Blind: Habibi S2, Argentina S2
 ];
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
+const seasonOrder = (a,b) => String(a.country||'').localeCompare(String(b.country||''),'en',{sensitivity:'base'})
+  || (Number(a.seasonNumber)||0)-(Number(b.seasonNumber)||0)
+  || String(a.label||'').localeCompare(String(b.label||''),'en',{sensitivity:'base'});
+const SEASON_BANK_SORTED = [...SEASON_BANK].sort(seasonOrder);
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const HISTORICAL_SEASON_ROADMAP = SEASON_BANK.filter(season=>season.historical);
@@ -5971,7 +5973,7 @@ function App() {
         <div className="row">
           <div className="field"><label className="small" htmlFor="new-pool-season">Season</label>
             <select id="new-pool-season" value={selectedSeasonId} onChange={e=>setSelectedSeasonId(e.target.value)}>
-              {SEASON_BANK.map(season=><option value={season.id} disabled={!season.available} key={season.id}>{formatSeasonOption(season)}{season.available?'':' — Coming soon'}</option>)}
+              {SEASON_BANK_SORTED.map(season=><option value={season.id} disabled={!season.available} key={season.id}>{formatSeasonOption(season)}{season.available?'':' — Coming soon'}</option>)}
             </select>
             <div className="subtle" style={{marginTop:6}}>{seasonById(selectedSeasonId)?.status==='upcoming'?'You can create the pool and invite friends now. Predictions open after the cast is announced and the season begins.':'The season is permanent once the pool is created.'}</div>
           </div>

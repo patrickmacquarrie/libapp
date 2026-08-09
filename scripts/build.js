@@ -189,7 +189,10 @@ const seasonIntro={
 
 function settingMap(data) {return Object.fromEntries((data.settings||[]).map(row=>[row.key,row.value]));}
 
-const seasonMenuOptions=(seasons,currentId='')=>seasons.map(item=>
+const seasonOrder=(a,b)=>String(a.country||'').localeCompare(String(b.country||''),'en',{sensitivity:'base'})
+  ||(Number(a.seasonNumber)||0)-(Number(b.seasonNumber)||0)
+  ||String(a.label||'').localeCompare(String(b.label||''),'en',{sensitivity:'base'});
+const seasonMenuOptions=(seasons,currentId='')=>[...seasons].sort(seasonOrder).map(item=>
   `<option value="/seasons/${encodeURIComponent(item.id)}/"${item.id===currentId?' selected':''}>${esc(item.label)}</option>`
 ).join('');
 
