@@ -9,6 +9,7 @@ Use this procedure while updating an active season from the Google Sheet.
 3. For judgment-call Retreats results (`flirt`, `sex`, or `breakup`), set `confirmed=FALSE` while the group decides. Flip the row to `TRUE` after agreement; the app will keep the result pending until then.
 4. Set each couple's `lock_ep` as soon as their wedding episode is known. A blank `lock_ep` on a live season produces a quality-control warning and temporarily falls back to `WEDDINGS_END_EP`.
 5. Use the Retro Events tab for late reveals about an earlier phase. Add void rows there as well when a previously scored market must be cancelled.
+6. Never rename a Cast name or Couples id once `AVAILABLE_THROUGH_EP` is above 0; fix typos by adding a Retro/void row instead.
 
 ## Results-ready switches
 
@@ -25,6 +26,10 @@ Set the real `PODS`, `DATING`, `WEDDINGS`, and `REUNION` start and end episode v
 ## Publish and verify
 
 After significant updates, publish the Firestore `seasons/{seasonId}` snapshot. It is the app's primary season-data source; the Google Sheet is the fallback.
+
+## Post-deploy verification
+
+After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403.
 
 The `lib-oauth` project uses domain-restricted sharing, so `reopenphase` cannot grant the usual Cloud Run `allUsers` invoker role. Its Cloud Run Invoker IAM check must stay disabled instead. If phase reopening starts returning a Cloud Run 403 after a deployment, restore the supported public-ingress setting:
 

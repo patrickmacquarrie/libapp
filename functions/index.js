@@ -277,7 +277,8 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   const poolSnap=await poolRef.get();
   if(!poolSnap.exists||poolSnap.data().ownerUid!==uid)throw new HttpsError('permission-denied','Only the pool owner can email invitations.');
   if(poolSnap.data().membershipClosed===true)throw new HttpsError('failed-precondition','This pool is locked for new players.');
-  const day=new Date().toISOString().slice(0,10);
+  const createdAt=Date.now();
+  const day=new Date(createdAt).toISOString().slice(0,10);
   const limitRef=db.doc(`inviteRateLimits/${uid}__${day}`);
   const profileSnap=await db.doc(`users/${uid}`).get();
   await db.runTransaction(async tx=>{
@@ -288,7 +289,7 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
     const inviteRef=db.doc(`invites/${poolId}__${toEmail}`);
     const existing=await tx.get(inviteRef);
     if(existing.exists&&existing.data().status!=='pending')throw new HttpsError('already-exists','That invitation was already answered. Share the pool link instead.');
-    tx.set(inviteRef,{poolId,poolName:pool.name,seasonLabel:pool.season?.label||'',fromUid:uid,fromUsername:profileSnap.data()?.username||'A friend',toEmail,status:'pending',createdAt:Date.now()});
+    tx.set(inviteRef,{poolId,poolName:pool.name,seasonLabel:pool.season?.label||'',fromUid:uid,fromUsername:profileSnap.data()?.username||'A friend',toEmail,status:'pending',createdAt});
     tx.set(limitRef,{uid,day,count:count+1,updatedAt:Date.now()},{merge:true});
   });
   const pool=poolSnap.data();
@@ -337,16 +338,21 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
     </table>
   </body>
 </html>`;
-  await db.collection('mail').add({
-    to:[toEmail],
-    message:{
-      from:MAIL_SENDERS.invites,
-      replyTo:MAIL_REPLY_TO,
-      subject,
-      text,
-      html:inviteHtml,
-    },
-  });
+  try{
+    await db.doc(`mail/invite_${poolId}__${encodeURIComponent(toEmail)}_${day}`).create({
+      to:[toEmail],
+      message:{
+        from:MAIL_SENDERS.invites,
+        replyTo:MAIL_REPLY_TO,
+        subject,
+        text,
+        html:inviteHtml,
+      },
+    });
+  }catch(error){
+    const code=String(error?.code??'').toLowerCase();
+    if(code!=='6'&&code!=='already-exists'&&code!=='already_exists')throw error;
+  }
   return {ok:true};
 });
 

@@ -23,6 +23,17 @@
 4. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
 5. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Heat Check saved/shared, result card shared, and return visit.
 
+## Post-deploy verification
+
+After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
+
+```sh
+gcloud run services update reopenphase \
+  --project=lib-oauth \
+  --region=us-central1 \
+  --no-invoker-iam-check
+```
+
 ## Required before a large Global Pool
 
 The current Global Pool still uses the legacy `members` array and client-computed leaderboard. Do not use it for a multi-thousand-player launch. Complete these two coordinated migrations first:

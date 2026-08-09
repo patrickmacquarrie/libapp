@@ -70,4 +70,59 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   assert(source.includes('REU_MULT:reunionMult'),'The settings-derived Reunion multipliers must be returned to scoring.');
 }
 
+{
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',wedding:'married',settledEp:5}];
+  const engine=makeEngine(cfg(couples),2);
+  const resolved=engine.resolveEpisode('weddings',6,{
+    correct:[{c:'alex-casey',o:'married',s:10,w:5}],
+    incorrect:[{c:'alex-casey',o:'saysNo',who:'him',s:10,w:5}],
+  });
+  assert.equal(resolved.events.length,0,'An early-settled wedding result must keep its first-episode event suppressed.');
+  assert.equal(resolved.entries.length,2,'Both early-settled wedding predictions must resolve in the first Weddings episode.');
+  assert(resolved.entries.some(entry=>entry.member==='correct'&&entry.ok===true&&entry.points>0));
+  assert(resolved.entries.some(entry=>entry.member==='incorrect'&&entry.ok===false&&entry.points===0));
+  assert(resolved.entries.every(entry=>!entry.multLabel||entry.multLabel.includes('(0 episodes of foresight)')),'Clamped early settlements must not grant negative or impossible foresight.');
+}
+
+{
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}];
+  const engine=makeEngine(cfg(couples),2);
+  const scored=engine.scorePhase('pods',{
+    stale:[{c:'Blair|Renamed Drew',s:15,w:1}],
+    valid:[{c:'Alex|Casey',s:20,w:1}],
+  });
+  const refund=scored.entries.find(entry=>entry.member==='stale'&&entry.multLabel==='x1 flat refund');
+  const hit=scored.entries.find(entry=>entry.member==='valid'&&entry.ok&&entry.label==='Alex & Casey get engaged');
+  assert(refund,'An unknown Cast name must produce a visible flat-refund entry.');
+  assert.equal(refund.points,15);
+  assert.equal(refund.stake,15);
+  assert.equal(refund.owners,null);
+  assert.equal(hit.owners,1,'A refunded pick must not count as an owner of another prediction.');
+  assert.equal(hit.poolSize,1,'A member with only refunded picks must not inflate the active phase pool.');
+  assert.equal(hit.points,30);
+}
+
+{
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}];
+  const engine=makeEngine(cfg(couples),2);
+  const scored=engine.scorePhase('pods',{
+    rounded:[{c:'Alex|Casey',s:7,w:1}],
+    tooSmall:[{c:'Blair|Drew',s:3,w:1}],
+  });
+  const hit=scored.entries.find(entry=>entry.member==='rounded'&&entry.ok);
+  assert.equal(hit.stake,5,'A 7-Heart stake must round down to 5 before scoring.');
+  assert.equal(scored.entries.filter(entry=>entry.member==='tooSmall').length,0,'A sub-5 stake must be dropped silently.');
+  assert.equal(scored.totals.tooSmall,0);
+}
+
+{
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',wedding:'saysNo',who:'him',settledEp:7,reunionStatusEligible:true}];
+  const season=cfg(couples);
+  season.REUNION_RESULTS.still={'alex-casey':false};
+  const engine=makeEngine(season,1);
+  const scored=engine.scorePhase('reunion',{viewer:[{m:'relationship',c:'alex-casey',outcome:'marriedSplit',s:20}]});
+  assert.equal(scored.entries.length,0,'A marriedSplit prediction on a non-married couple must not score.');
+  assert.equal(scored.totals.viewer,0);
+}
+
 console.log('Engine audit assertions passed.');

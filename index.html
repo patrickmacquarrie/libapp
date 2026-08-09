@@ -865,17 +865,8 @@ window._fb = {
     return Promise.all(pools.map(async pool=>{
       try {
         const playerSnap=await getDoc(doc(db,'pools',pool.id,'players',uid));
-        const pickSnaps=await Promise.all(GAME_PHASES.map(async phase=>{
-          try {
-            return await getDoc(doc(db,'pools',pool.id,'phasePicks',phase+'__'+uid));
-          } catch(e) {
-            console.warn('Older prediction activity could not be loaded.',e);
-            return null;
-          }
-        }));
         const myPlayer=playerSnap.exists()?playerSnap.data():null;
-        const legacyPredictionAt=Math.max(0,...pickSnaps.filter(pick=>pick?.exists()).map(pick=>Number(pick.data().updatedAt)||0));
-        const lastPredictionAt=Math.max(Number(myPlayer?.lastPredictionAt)||0,legacyPredictionAt,Number(pool.createdAt)||0);
+        const lastPredictionAt=Number(myPlayer?.lastPredictionAt)||Number(pool.createdAt)||0;
         const past=myPlayer?.screen==='final'||myPlayer?.completed?.reunion===true;
         return {...pool,_myPlayer:myPlayer,_myLastPredictionAt:lastPredictionAt,_myPast:past};
       } catch(e) {
@@ -2417,6 +2408,24 @@ function makeEngine(cfg, poolSize) {
   }
   const flirtResultFor = person => Object.entries(DATING_RESULTS.flirt).find(([name])=>personKey(name)===personKey(person))?.[1];
   const knownPerson = value => CAST.some(person=>personKey(person.name)===personKey(value));
+  const reunionRelationshipGroup = couple => couple?.wedding==='married'?'married'
+    :couple?.reunionStatusEligible?'knownDating'
+    :couple?.wedding&&couple.wedding!=='notShown'?'split':null;
+  const refundableInvalidPick = (phase,pick) => {
+    if(!pick||typeof pick!=='object'||Array.isArray(pick)) return false;
+    if(phase==='pods') {
+      const people=membOf(pick.c);
+      return people.length===2&&people.some(person=>!knownPerson(person));
+    }
+    if(phase==='dating') return pick.m==='flirt'?!knownPerson(pick.p):['sex','breakup'].includes(pick.m)&&!coupleFor(pick.c);
+    if(phase==='weddings') return !coupleFor(pick.c);
+    if(phase==='reunion') {
+      if(relationshipOutcome(pick)) return !coupleFor(pick.c);
+      if(pick.m==='newCouple') return String(pick.pair||'').split('|').some(person=>!knownPerson(person));
+      if(['lifeUpdate','absent'].includes(pick.m)) return !knownPerson(pick.person);
+    }
+    return false;
+  };
   const validPickForPhase = (phase,pick) => {
     if(!pick||typeof pick!=='object'||Array.isArray(pick)) return false;
     if(phase==='pods') {
@@ -2430,7 +2439,13 @@ function makeEngine(cfg, poolSize) {
     if(phase==='weddings') return !!coupleFor(pick.c)&&['married','saysNo','calledOff'].includes(pick.o)&&
       (pick.o==='married'||['him','her'].includes(pick.who));
     if(phase==='reunion') {
-      if(relationshipOutcome(pick)) return !!coupleFor(pick.c);
+      const outcome=relationshipOutcome(pick);
+      if(outcome) {
+        const group=reunionRelationshipGroup(coupleFor(pick.c));
+        return group==='married'?['still','marriedSplit'].includes(outcome)
+          :group==='knownDating'?['still','split'].includes(outcome)
+          :group==='split'&&outcome==='back';
+      }
       if(pick.m==='newCouple') {
         const people=String(pick.pair||'').split('|');
         return people.length===2&&personKey(people[0])!==personKey(people[1])&&people.every(knownPerson);
@@ -2449,19 +2464,24 @@ function makeEngine(cfg, poolSize) {
     if(pick.m==='lifeUpdate') return 'lifeUpdate:'+personKey(pick.person)+':'+normalizeLifeUpdate(pick.update);
     return 'absent:'+personKey(pick.person);
   };
-  const sanitizePhasePicks = (phase,picks) => {
+  const sanitizePhasePickState = (phase,picks) => {
     const phaseRules=RULES.phases[phase];
-    if(!phaseRules) return [];
+    if(!phaseRules) return {picks:[],refunds:[]};
     const cap=Math.max(0,Number(phaseRules.cap)||0);
     const budget=Math.max(0,Number(phaseRules.budget)||0);
-    const seen=new Set();
+    const seen=new Set(), refunds=[];
     let spent=0;
-    return (Array.isArray(picks)?picks:[]).slice(0,40).reduce((safe,raw)=>{
-      if(!validPickForPhase(phase,raw)) return safe;
+    const safe=(Array.isArray(picks)?picks:[]).slice(0,40).reduce((safe,raw)=>{
+      if(!validPickForPhase(phase,raw)) {
+        const rawStake=Number(raw?.s), stake=Number.isFinite(rawStake)?Math.floor(Math.min(cap,rawStake)/5)*5:0;
+        if(refundableInvalidPick(phase,raw)&&stake>=5&&spent+stake<=budget) {refunds.push({...raw,s:stake});spent+=stake;}
+        return safe;
+      }
       const rawStake=Number(raw.s);
       if(!Number.isFinite(rawStake)||rawStake<=0) return safe;
-      const stake=Math.min(cap,rawStake);
-      if(stake<=0||spent+stake>budget) return safe;
+      const stake=Math.floor(Math.min(cap,rawStake)/5)*5;
+      // Sub-5 stakes cannot come from the legitimate UI, so drop them without a refund.
+      if(stake<5||spent+stake>budget) return safe;
       const identity=pickIdentity(phase,raw);
       if(seen.has(identity)) return safe;
       const pick={...raw,s:stake};
@@ -2482,7 +2502,9 @@ function makeEngine(cfg, poolSize) {
       safe.push(pick);
       return safe;
     },[]);
+    return {picks:safe,refunds};
   };
+  const sanitizePhasePicks = (phase,picks) => sanitizePhasePickState(phase,picks).picks;
   const sanitizePicksBy = (phase,picksBy) => Object.fromEntries(
     Object.entries(picksBy||{}).map(([member,picks])=>[member,sanitizePhasePicks(phase,picks)])
   );
@@ -2539,7 +2561,7 @@ function makeEngine(cfg, poolSize) {
       });
     }
     if(phase==='weddings') {
-      COUPLES.filter(c=>c.wedding&&c.wedding!=='notShown'&&((c.settledEp||SPAN.weddings.endEp)===ep)).forEach(c=>{
+      COUPLES.filter(c=>c.wedding&&c.wedding!=='notShown'&&Math.max(Number.isFinite(c.settledEp)?c.settledEp:SPAN.weddings.endEp,START.weddings)===ep).forEach(c=>{
         const out=c.wedding, noOutcomes=['saysNo','calledOff'];
         const actualWho=noOutcomes.includes(out)&&c.who?' ('+whoNm(c.id,c.who)+')':'';
         if (!(ep===START.weddings&&c.settledEp<=START.weddings)) events.push({title:nameOf(c.id)+': '+WED_LABEL[out]+actualWho,sub:c.settledEp===ep&&ep<SPAN.weddings.endEp?'Settled in Episode '+ep+'.':null});
@@ -2679,13 +2701,18 @@ function makeEngine(cfg, poolSize) {
   }
   /* Score a phase for the members who have individually completed it. */
   function scorePhase(phase, picksBy) {
-    picksBy=sanitizePicksBy(phase,picksBy);
+    const sanitized=Object.fromEntries(Object.entries(picksBy||{}).map(([member,picks])=>[member,sanitizePhasePickState(phase,picks)]));
+    picksBy=Object.fromEntries(Object.entries(sanitized).map(([member,state])=>[member,state.picks]));
     const startEp = phase==='dating'?RETREAT_START_EP:START[phase], endEp = phase==='dating'?RETREAT_END_EP:SPAN[phase].endEp;
     let entries = [];
     for (let ep = startEp; ep <= endEp; ep++) {
       entries = entries.concat(resolveEpisode(phase, ep, picksBy).entries);
     }
     entries = entries.concat(resolvePhaseClose(phase, picksBy));
+    Object.entries(sanitized).forEach(([member,state])=>state.refunds.forEach(pick=>{
+      const points=Math.round(RULES.POINTS_PER_HEART*pick.s);
+      entries.push({member,phase,ok:true,label:'Prediction removed after season data changed',stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize:activePoolSize(picksBy),contra:1,tag:1,note:'This prediction no longer matches the season data. Hearts returned as points.',placeholder:false,pending:false,points});
+    }));
     const totals = {};
     Object.keys(picksBy).forEach(m=>totals[m]=0);
     entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
@@ -2808,7 +2835,7 @@ function makeEngine(cfg, poolSize) {
   const spentBy = picks => (Array.isArray(picks)?picks:[]).reduce((total,pick)=>total+(Number.isFinite(Number(pick?.s))?Number(pick.s):0),0);
   return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,DATING_MULT:DATING_MARKET_MULT,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
-          nameOf,membOf,coupleFor,sameCouple,whoNm,reunionPickLabel,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
+          nameOf,membOf,coupleFor,sameCouple,whoNm,reunionPickLabel,reunionRelationshipGroup,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
           pickIdentity,resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,retroEventMatchesPick,sanitizePhasePicks,spentBy};
 }
 const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points are included in the live standings after you complete this reveal phase.';
@@ -3847,13 +3874,13 @@ function WeddingsBoard({w,picks,add,remove,spent,eng,finalWindow}) {
     {picks.length>0&&<hr className="divider"/>}{picks.map((p,i)=>{const c=eng.coupleFor(p.c),market=c&&weddingMarketState(c,w);return <div className="pickchip" key={i}><div><div className="nm">{nameOf(p.c)} - {WED_LABEL[p.o]}{p.who?' ('+whoNm(p.c,p.who)+')':''} - {p.s}♥</div><div className="subtle">{predictionStatus(p)}</div></div>{phaseOpen&&!exhausted&&market?.open&&pickWindow(p)===w&&<button className="btn-x" onClick={()=>remove(i)} aria-label={'Remove prediction for '+nameOf(p.c)}>✕</button>}</div>;})}</div>;
 }
 function ReunionBoard({w,picks,add,remove,spent,eng}) {
-  const {MEN,WOMEN,COUPLES,RULES,PH_SPAN,PH_STARTW,REU_MULT,RESULTS_READY,nameOf,reunionPickLabel,fmt,personKey,pairKeyFor}=eng;
+  const {MEN,WOMEN,COUPLES,RULES,PH_SPAN,PH_STARTW,REU_MULT,RESULTS_READY,nameOf,reunionPickLabel,reunionRelationshipGroup,fmt,personKey,pairKeyFor}=eng;
   const open=w>=PH_STARTW.reunion&&w<PH_SPAN.reunion.endEp;
   const left=RULES.phases.reunion.budget-spent, maxS=Math.min(RULES.phases.reunion.cap,left);
   const AC=[...new Set(COUPLES.flatMap(c=>[c.him,c.her]))].sort(alphaByName);
-  const married=COUPLES.filter(c=>c.wedding==='married').map(c=>c.id);
-  const split=COUPLES.filter(c=>!c.reunionStatusEligible&&c.wedding!=='married'&&c.wedding!=='notShown').map(c=>c.id);
-  const knownDating=COUPLES.filter(c=>c.reunionStatusEligible).map(c=>c.id);
+  const married=COUPLES.filter(c=>reunionRelationshipGroup(c)==='married').map(c=>c.id);
+  const split=COUPLES.filter(c=>reunionRelationshipGroup(c)==='split').map(c=>c.id);
+  const knownDating=COUPLES.filter(c=>reunionRelationshipGroup(c)==='knownDating').map(c=>c.id);
   const knownPairKeys=new Set(COUPLES.map(c=>pairKeyFor(c.id)));
   const [relC,setRelC]=useState(''),[relO,setRelO]=useState(''),[relS,setRelS]=useState(20);
   const [nH,setNH]=useState(''),[nW,setNW]=useState(''),[nS,setNS]=useState(20);
@@ -4458,10 +4485,10 @@ function PH_INTRO(phase,RULES,cfg) {
   const weddingExamplePoints=Math.round(20*RULES.POINTS_PER_HEART*cfg.WED_MULT.married*weddingExampleClock*soloGrain);
   const reunionExamplePoints=Math.round(20*RULES.POINTS_PER_HEART*cfg.REU_MULT.newCouple*soloGrain);
   const copy={
-    pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen. Watch Episode '+cfg.PH_STARTW.pods+' first — predictions open between episodes.',rules:<ul><li>You get {RULES.phases.pods.budget} Hearts that you can spend during the Pods phase.</li><li>You do not have to spend all your Hearts in the current episode. Unspent Hearts stay available for later Pods prediction windows.</li><li>You lose any Hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more Hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = Hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×{cfg.fmt(oneEpisodeClock)}, two episodes earlier for ×{cfg.fmt(twoEpisodeClock)}, and so on. This season's maximum is ×{cfg.fmt(maxPodsClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more points when fewer players in your pool make the same prediction. In a {cfg.POOL}-player pool, the bonus ranges from ×1 (everyone made this prediction) to ×{cfg.fmt(soloGrain)} (one person made this prediction).</p><p><b>Example for this {cfg.POOL}-player pool:</b> Wager 20 Hearts, predict an engagement two episodes early (×{cfg.fmt(twoEpisodeClock)}), and be the only player to predict them (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(twoEpisodeClock)} × {cfg.fmt(soloGrain)} = {podsExamplePoints} points.</p></div>},
-    dating:{tagline:'Out of the pods and into the Retreats. Predict between episodes before you see the retreat outcomes coming.',rules:<ul><li>You get {RULES.phases.dating.budget} Hearts that you can spend until the cast leaves the retreat vacation. Predictions can only be made between episodes.</li><li>You do not have to spend all your Hearts in the current window. Unspent Hearts stay available until the retreat scoring window closes.</li><li>You lose any Hearts left when the retreat ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who breaks up during the retreat?</b> Choose any couples where the relationship ends on the retreat. Both members must clearly understand that the relationship is over.</li><li><b>Who sleeps together?</b> You may choose multiple couples; only moments referenced on camera during the retreat count.</li><li><b>Who inappropriately flirts with or expresses interest directly to someone other than their fiancé(e)?</b> Choose a person that flirts inappropriately. Only moments during the retreat count.</li></ul></li><li>Add predictions between episodes. Once you watch the next episode, those picks are locked.</li><li>Earlier correct picks earn more points than later ones.</li>{cfg.BOUNDARIES_FINAL?.dating!==false&&<li>Your last chance to make retreat predictions is after Episode {cfg.PH_SPAN.dating.retreatEndEp}.</li>}</ul>,scoring:<div><p><b>Points = Hearts wagered × Market Multiplier × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Market Multipliers:</b> Who sleeps together pays ×{cfg.fmt(cfg.DATING_MULT.sex)}, who inappropriately flirts pays ×{cfg.fmt(cfg.DATING_MULT.flirt)}, and who breaks up pays ×{cfg.fmt(cfg.DATING_MULT.breakup)}.</p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you make a correct prediction in the window immediately before it happens. Predict one episode earlier for ×{cfg.fmt(oneEpisodeClock)}, two episodes earlier for ×{cfg.fmt(twoEpisodeClock)}, and so on. This season's maximum is ×{cfg.fmt(maxDatingClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more points when fewer players in your pool make the same prediction. In a {cfg.POOL}-player pool, the bonus ranges from ×1 (everyone made this prediction) to ×{cfg.fmt(soloGrain)} (one person made this prediction).</p><p><b>Example for this {cfg.POOL}-player pool:</b> Wager 20 Hearts on a breakup, predict it two episodes early (×{cfg.fmt(twoEpisodeClock)}), and be the only player to predict it (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(cfg.DATING_MULT.breakup)} × {cfg.fmt(twoEpisodeClock)} × {cfg.fmt(soloGrain)} = {datingExamplePoints} points.</p></div>},
-    weddings:{tagline:'Predict each couple’s outcome between episodes. Earlier predictions earn a larger bonus while the outcome remains unresolved.',rules:<ul><li>You get {RULES.phases.weddings.budget} Hearts that you can spend throughout the Weddings phase.</li><li>You do not have to spend all your Hearts in the current episode. Unspent Hearts stay available until the weddings actually occur.</li><li>You may add predictions between episodes. Once you watch the next episode, those predictions are locked.</li><li>Predictions are optional, but each couple can be predicted only once.</li><li>First predict whether a couple will end up married or not married.</li><li>If you predict not married, also predict when it ends and who ends it. These are independent bonuses: getting either detail right earns that bonus even when the other detail is wrong.</li><li>The who-ends-it bonus applies to either a pre-altar or altar ending, provided the outcome occurs after your prediction.</li><li>Earlier correct predictions earn a larger Against-the-Clock Bonus.</li><li>Unspent Hearts are lost after the actual Weddings and never carry into another phase.</li></ul>,scoring:<div><p><b>Points = Hearts wagered × Base Result Multiplier × Against-the-Clock Bonus × Against-the-Grain Bonus × optional Exact-ending Bonus × optional Who-Ends-It Bonus.</b></p><p><b>Base Result Multiplier:</b> A correct married prediction pays ×{cfg.fmt(cfg.WED_MULT.married)}. A correct not-married prediction pays ×1 before its optional bonuses.</p><p><b>Exact-ending Bonus:</b> If you correctly predict not married, matching an at-the-altar ending adds ×{cfg.fmt(cfg.WED_MULT.saysNo)}; matching a pre-altar ending adds ×{cfg.fmt(cfg.WED_MULT.calledOff)}. An exact-ending miss does not erase the base result points.</p><p><b>Who-Ends-It Bonus:</b> Correctly naming the person adds ×{cfg.fmt(1+RULES.WHO_TAG)} regardless of whether the ending is before or at the altar, provided it happens after your prediction. A person miss does not erase base or exact-ending points.</p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 in the window immediately before the outcome. It increases by {cfg.fmt((Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*100)}% for every full episode you predict early. This season's maximum is ×{cfg.fmt(maxWeddingClock)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more points when fewer players in your pool make the same correct base-result prediction. In a {cfg.POOL}-player pool, the bonus ranges from ×1 (everyone made this prediction) to ×{cfg.fmt(soloGrain)} (one person made this prediction).</p><p><b>Example for this {cfg.POOL}-player pool:</b> Wager 20 Hearts on a couple getting married, predict it two episodes early (×{cfg.fmt(weddingExampleClock)}), and be the only player to predict it (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(cfg.WED_MULT.married)} × {cfg.fmt(weddingExampleClock)} × {cfg.fmt(soloGrain)} = {weddingExamplePoints} points.</p></div>},
-    reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} Hearts that you can spend during the Reunion phase.</li><li>You lose any Hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>In <b>Where are they now?</b>, choose one relationship status per eligible couple: still together, no longer together, broken up since marrying, or back together.</li><li><b>New couple revealed</b> only includes pairings first revealed at the Reunion. Couples already shown dating are excluded.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more Hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = Hearts wagered × Outcome Multiplier × Against-the-Grain Bonus.</b></p><p><b>Outcome Multipliers:</b> In <b>Where are they now?</b>, still together pays ×{cfg.fmt(cfg.REU_MULT.still)}, no longer together pays ×{cfg.fmt(cfg.REU_MULT.split)}, broken up since marrying pays ×{cfg.fmt(cfg.REU_MULT.marriedSplit)}, and back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}, new couple revealed pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}, and major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> You earn more points when fewer players in your pool make the same prediction. In a {cfg.POOL}-player pool, the bonus ranges from ×1 (everyone made this prediction) to ×{cfg.fmt(soloGrain)} (one person made this prediction).</p><p><b>Example for this {cfg.POOL}-player pool:</b> Wager 20 Hearts on a new couple being revealed and be the only player to predict them (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(cfg.REU_MULT.newCouple)} × {cfg.fmt(soloGrain)} = {reunionExamplePoints} points.</p></div>},
+    pods:{tagline:'Who falls in love through a wall? Predict the engagements before they happen. Watch Episode '+cfg.PH_STARTW.pods+' first — predictions open between episodes.',rules:<ul><li>You get {RULES.phases.pods.budget} Hearts that you can spend during the Pods phase.</li><li>You do not have to spend all your Hearts in the current episode. Unspent Hearts stay available for later Pods prediction windows.</li><li>You lose any Hearts you do not spend before the Pods close. Hearts never carry into another phase.</li><li>You can only predict between episodes. Watch Episode {cfg.PH_STARTW.pods} before making any predictions.</li><li>You win points if you correctly predict an engaged couple.</li><li>You can only predict one engagement per cast member.</li><li>The sooner you predict an engagement, the more points you get!</li><li>The more Hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = Hearts wagered × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you predict an engagement in the window immediately before it happens. Predict one episode earlier for ×{cfg.fmt(oneEpisodeClock)}, two episodes earlier for ×{cfg.fmt(twoEpisodeClock)}, and so on. This season's maximum is ×{cfg.fmt(maxPodsClock)}.</p><p><b>Against-the-Grain Bonus:</b> Only players who made predictions in this phase count toward this bonus. The bonus is ×1 if every active player made this prediction, and up to ×{cfg.fmt(soloGrain)} if all {cfg.POOL} players predict this phase and only you make this pick.</p><p><b>Maximum example for this {cfg.POOL}-player pool (if all {cfg.POOL} players predict this phase):</b> Wager 20 Hearts, predict an engagement two episodes early (×{cfg.fmt(twoEpisodeClock)}), and be the only player to predict them (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(twoEpisodeClock)} × {cfg.fmt(soloGrain)} = {podsExamplePoints} points.</p></div>},
+    dating:{tagline:'Out of the pods and into the Retreats. Predict between episodes before you see the retreat outcomes coming.',rules:<ul><li>You get {RULES.phases.dating.budget} Hearts that you can spend until the cast leaves the retreat vacation. Predictions can only be made between episodes.</li><li>You do not have to spend all your Hearts in the current window. Unspent Hearts stay available until the retreat scoring window closes.</li><li>You lose any Hearts left when the retreat ends. Hearts never carry into another phase.</li><li>You win points if you correctly predict:<ul><li><b>Who breaks up during the retreat?</b> Choose any couples where the relationship ends on the retreat. Both members must clearly understand that the relationship is over.</li><li><b>Who sleeps together?</b> You may choose multiple couples; only moments referenced on camera during the retreat count.</li><li><b>Who inappropriately flirts with or expresses interest directly to someone other than their fiancé(e)?</b> Choose a person that flirts inappropriately. Only moments during the retreat count.</li></ul></li><li>Add predictions between episodes. Once you watch the next episode, those picks are locked.</li><li>Earlier correct picks earn more points than later ones.</li>{cfg.BOUNDARIES_FINAL?.dating!==false&&<li>Your last chance to make retreat predictions is after Episode {cfg.PH_SPAN.dating.retreatEndEp}.</li>}</ul>,scoring:<div><p><b>Points = Hearts wagered × Market Multiplier × Against-the-Clock Bonus × Against-the-Grain Bonus.</b></p><p><b>Market Multipliers:</b> Who sleeps together pays ×{cfg.fmt(cfg.DATING_MULT.sex)}, who inappropriately flirts pays ×{cfg.fmt(cfg.DATING_MULT.flirt)}, and who breaks up pays ×{cfg.fmt(cfg.DATING_MULT.breakup)}.</p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 when you make a correct prediction in the window immediately before it happens. Predict one episode earlier for ×{cfg.fmt(oneEpisodeClock)}, two episodes earlier for ×{cfg.fmt(twoEpisodeClock)}, and so on. This season's maximum is ×{cfg.fmt(maxDatingClock)}.</p><p><b>Against-the-Grain Bonus:</b> Only players who made predictions in this phase count toward this bonus. The bonus is ×1 if every active player made this prediction, and up to ×{cfg.fmt(soloGrain)} if all {cfg.POOL} players predict this phase and only you make this pick.</p><p><b>Maximum example for this {cfg.POOL}-player pool (if all {cfg.POOL} players predict this phase):</b> Wager 20 Hearts on a breakup, predict it two episodes early (×{cfg.fmt(twoEpisodeClock)}), and be the only player to predict it (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(cfg.DATING_MULT.breakup)} × {cfg.fmt(twoEpisodeClock)} × {cfg.fmt(soloGrain)} = {datingExamplePoints} points.</p></div>},
+    weddings:{tagline:'Predict each couple’s outcome between episodes. Earlier predictions earn a larger bonus while the outcome remains unresolved.',rules:<ul><li>You get {RULES.phases.weddings.budget} Hearts that you can spend throughout the Weddings phase.</li><li>You do not have to spend all your Hearts in the current episode. Unspent Hearts stay available until the weddings actually occur.</li><li>You may add predictions between episodes. Once you watch the next episode, those predictions are locked.</li><li>Predictions are optional, but each couple can be predicted only once.</li><li>First predict whether a couple will end up married or not married.</li><li>If you predict not married, also predict when it ends and who ends it. These are independent bonuses: getting either detail right earns that bonus even when the other detail is wrong.</li><li>The who-ends-it bonus applies to either a pre-altar or altar ending, provided the outcome occurs after your prediction.</li><li>Earlier correct predictions earn a larger Against-the-Clock Bonus.</li><li>Unspent Hearts are lost after the actual Weddings and never carry into another phase.</li></ul>,scoring:<div><p><b>Points = Hearts wagered × Base Result Multiplier × Against-the-Clock Bonus × Against-the-Grain Bonus × optional Exact-ending Bonus × optional Who-Ends-It Bonus.</b></p><p><b>Base Result Multiplier:</b> A correct married prediction pays ×{cfg.fmt(cfg.WED_MULT.married)}. A correct not-married prediction pays ×1 before its optional bonuses.</p><p><b>Exact-ending Bonus:</b> If you correctly predict not married, matching an at-the-altar ending adds ×{cfg.fmt(cfg.WED_MULT.saysNo)}; matching a pre-altar ending adds ×{cfg.fmt(cfg.WED_MULT.calledOff)}. An exact-ending miss does not erase the base result points.</p><p><b>Who-Ends-It Bonus:</b> Correctly naming the person adds ×{cfg.fmt(1+RULES.WHO_TAG)} regardless of whether the ending is before or at the altar, provided it happens after your prediction. A person miss does not erase base or exact-ending points.</p><p><b>Against-the-Clock Bonus:</b> Your multiplier starts at ×1 in the window immediately before the outcome. It increases by {cfg.fmt((Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*100)}% for every full episode you predict early. This season's maximum is ×{cfg.fmt(maxWeddingClock)}.</p><p><b>Against-the-Grain Bonus:</b> Only players who made predictions in this phase count toward this bonus. The bonus is ×1 if every active player made the same correct base-result prediction, and up to ×{cfg.fmt(soloGrain)} if all {cfg.POOL} players predict this phase and only you make this pick.</p><p><b>Maximum example for this {cfg.POOL}-player pool (if all {cfg.POOL} players predict this phase):</b> Wager 20 Hearts on a couple getting married, predict it two episodes early (×{cfg.fmt(weddingExampleClock)}), and be the only player to predict it (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(cfg.WED_MULT.married)} × {cfg.fmt(weddingExampleClock)} × {cfg.fmt(soloGrain)} = {weddingExamplePoints} points.</p></div>},
+    reunion:{tagline:'Make your final predictions before the Reunion begins.',rules:<ul><li>You get {RULES.phases.reunion.budget} Hearts that you can spend during the Reunion phase.</li><li>You lose any Hearts you do not spend before the Reunion begins. Hearts never carry into another phase.</li><li>You win points if you correctly predict Reunion outcomes.</li><li>In <b>Where are they now?</b>, choose one relationship status per eligible couple: still together, no longer together, broken up since marrying, or back together.</li><li><b>New couple revealed</b> only includes pairings first revealed at the Reunion. Couples already shown dating are excluded.</li><li>Choose any combination of categories. You may make multiple predictions in one category and leave other categories empty.</li><li>Lock all Reunion predictions before watching the Reunion.</li><li>The more Hearts you wager, the more points you win if you are right!</li></ul>,scoring:<div><p><b>Points = Hearts wagered × Outcome Multiplier × Against-the-Grain Bonus.</b></p><p><b>Outcome Multipliers:</b> In <b>Where are they now?</b>, still together pays ×{cfg.fmt(cfg.REU_MULT.still)}, no longer together pays ×{cfg.fmt(cfg.REU_MULT.split)}, broken up since marrying pays ×{cfg.fmt(cfg.REU_MULT.marriedSplit)}, and back together pays ×{cfg.fmt(cfg.REU_MULT.back)}. Absent castmate pays ×{cfg.fmt(cfg.REU_MULT.absent)}, new couple revealed pays ×{cfg.fmt(cfg.REU_MULT.newCouple)}, and major life update pays ×{cfg.fmt(cfg.REU_MULT.lifeUpdate)}.</p><p><b>Against-the-Grain Bonus:</b> Only players who made predictions in this phase count toward this bonus. The bonus is ×1 if every active player made this prediction, and up to ×{cfg.fmt(soloGrain)} if all {cfg.POOL} players predict this phase and only you make this pick.</p><p><b>Maximum example for this {cfg.POOL}-player pool (if all {cfg.POOL} players predict this phase):</b> Wager 20 Hearts on a new couple being revealed and be the only player to predict them (×{cfg.fmt(soloGrain)}): 20 × {cfg.fmt(cfg.REU_MULT.newCouple)} × {cfg.fmt(soloGrain)} = {reunionExamplePoints} points.</p></div>},
   };
   const phaseCopy=copy[phase], ruleItems=React.Children.toArray(phaseCopy.rules.props.children);
   ruleItems.splice(1,0,<li key="minimum-stake">Predictions cost at least 5 Hearts, in steps of 5. Fewer than 5 remaining Hearts cannot be spent.</li>);
@@ -4601,7 +4628,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
         <div className="how-points">
           <div className="how-point"><span className="how-point-icon">♥</span><p><strong>Wager more.</strong> 1 Heart wagered = 1 point if you’re right, before bonuses. Incorrect predictions get no points.</p></div>
           <div className="how-point"><span className="how-point-icon">⏱</span><p><strong>Predict earlier.</strong> Score more points with the Against-the-Clock Bonus.</p></div>
-          <div className="how-point"><span className="how-point-icon">✦</span><p><strong>Be more unique.</strong> Fewer matching predictions means a bigger Against-the-Grain Bonus.{soloGrain?` In this ${poolSize}-player pool, a prediction only you make can be worth up to ×${Number(soloGrain.toFixed(2))} before other bonuses.`:' A prediction only you make earns the largest bonus.'}</p></div>
+          <div className="how-point"><span className="how-point-icon">✦</span><p><strong>Be more unique.</strong> Fewer matching predictions among players who predicted that phase means a bigger Against-the-Grain Bonus.{soloGrain?` If all ${poolSize} players predict the phase, a prediction only you make can be worth up to ×${Number(soloGrain.toFixed(2))} before other bonuses.`:' A prediction only you make earns the largest bonus.'}</p></div>
         </div>
         <button className="btn-primary" onClick={onClose}>Got it</button>
       </div>
@@ -5141,7 +5168,7 @@ function App() {
     clearTimeout(saveTimer.current);
     setSaveState('saving');
     const {seenRetroNotices:localRetroNotices,...persistedState}=state;
-    const skipPickWriteFor=phase==='reunion'&&['watch','close','final'].includes(screen)?['reunion']:[];
+    const skipPickWriteFor=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)?['reunion']:[];
     const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
     pendingSave.current=snapshot;
