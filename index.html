@@ -727,14 +727,37 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 </div></div>
 <noscript><div class="root-boot"><h1>JavaScript is turned off</h1><p>Through the Wall needs JavaScript to run. You can still visit the <a href="/welcome/">welcome page</a>.</p></div></noscript>
 <script>
-window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
-  if(window._fb)return;
+window.__ttwAppMounted=false;
+window.__ttwBootFailure='';
+window.__ttwBootFailed=false;
+window.__ttwShowBootFailure=function(message){
+  if(window.__ttwAppMounted||window.__ttwBootFailed)return;
+  window.__ttwBootFailed=true;
   var root=document.getElementById('root');
   if(!root)return;
+  var detail=message||'Through the Wall could not start. Check your connection, then try again.';
   root.innerHTML='<div class="root-boot" role="alert">'+
     '<svg class="root-boot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/><path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/><path fill="#fff" d="M30 12h4v44h-4z"/><path fill="#f2c85f" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/></svg>'+
-    '<h1>We couldn’t reach the pods</h1><p>Through the Wall could not load its Firebase connection. Check your connection, then try again.</p>'+
+    '<h1>We couldn’t open the pods</h1><p>'+detail+'</p>'+
     '<div class="root-boot-actions"><a class="btn-primary" href="">Reload</a><a class="btn-secondary" href="/welcome/">Visit the welcome page</a></div></div>';
+};
+window.addEventListener('error',function(event){
+  if(window.__ttwAppMounted)return;
+  var target=event&&event.target;
+  if(target&&target.tagName==='SCRIPT'){
+    window.__ttwBootFailure='A required app script could not load. Check your connection or disable a content blocker, then reload.';
+  }else if(event&&event.message){
+    window.__ttwBootFailure='The app encountered a startup error. Reload the page to try again.';
+  }
+},true);
+window.addEventListener('unhandledrejection',function(){
+  if(!window.__ttwAppMounted)window.__ttwBootFailure='The app encountered a startup error. Reload the page to try again.';
+});
+window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
+  if(window.__ttwAppMounted)return;
+  window.__ttwShowBootFailure(window.__ttwBootFailure||(window._fb
+    ? 'The app shell loaded, but its interface did not start. Check your connection or disable a content blocker, then reload.'
+    : 'Through the Wall could not load its Firebase connection. Check your connection, then try again.'));
 },8000);
 </script>
 <script type="module">
@@ -6156,9 +6179,16 @@ function App() {
 }
 let appMounted=false;
 const mountApp = () => {
-  if(appMounted)return;
-  appMounted=true;window.clearTimeout(window.__ttwFirebaseFallbackTimer);
-  ReactDOM.createRoot(document.getElementById('root')).render(<AppErrorBoundary><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</AppErrorBoundary>);
+  if(appMounted||window.__ttwBootFailed)return;
+  try {
+    const root=ReactDOM.createRoot(document.getElementById('root'));
+    appMounted=true;window.__ttwAppMounted=true;window.clearTimeout(window.__ttwFirebaseFallbackTimer);
+    root.render(<AppErrorBoundary><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</AppErrorBoundary>);
+  } catch(error) {
+    console.error('Through the Wall could not start.',error);
+    window.__ttwBootFailure='The app interface could not start. Reload the page to try again.';
+    window.__ttwShowBootFailure(window.__ttwBootFailure);
+  }
 };
 if (window._fb) mountApp();
 else window.addEventListener('firebase-ready',mountApp,{once:true});
