@@ -4108,7 +4108,124 @@ function AgainstTheGrainSpotlight({spotlight,globalPool}) {
     <p className="atg-spotlight-copy">{globalPool?percent+'% of active '+spotlight.phaseLabel+' players predicted this.':spotlight.owners+' of '+spotlight.poolSize+' active players predicted this.'}</p>
   </section>;
 }
-const derivePlayerAwards=({phaseEntries={},phaseMembers={},scoredPhases=[]})=>{
+// Wrapped titles are intentionally player-focused: they describe how someone
+// played the pool, never a contestant's outcome.  A title is chosen from the
+// relevant bucket only after final standings are locked.
+const wrappedSuperlatives={
+  champion:[
+    'Most Likely to Have Production on Speed Dial',
+    'The Pod Prophet Award',
+    'Most Likely to Read the Edit Like a Book',
+    'The Golden Goblet Genius Award',
+    'The Love Is Blind Oracle Award',
+    'The Main Character of the Leaderboard Award',
+    'Most Likely to Say “I Knew It” and Mean It'
+  ],
+  podium:[
+    'The Almost Had the Crown Award',
+    'Most Likely to Make the Champion Nervous',
+    'Most Likely to Demand a Replay Next Season',
+    'The Podium Princess/Prince/Person Award',
+    'Most Likely to Have One Prediction Haunt Them Forever',
+    'Most Likely to Be a Threat Next Season',
+    'The Respectfully Devastated Award',
+    'Most Likely to Blame One Very Specific Couple',
+    'The Runner-Up With Main-Character Energy Award'
+  ],
+  top_half:[
+    'Most Likely to Have Done Their Homework',
+    'The Quietly Dangerous Predictor Award',
+    'The Better Than the Group Chat Award',
+    'Most Likely to Have Trusted the Right Red Flags',
+    'The Consistently Correct-ish Award',
+    'Most Likely to Win the Next Pool',
+    'The Impressive Without Being Insufferable Award'
+  ],
+  middle_of_pack:[
+    'Most Likely to Be Here for the Drama, Not the Data',
+    'The Respectably Chaotic Award',
+    'The Perfectly Average, Wildly Entertaining Award',
+    'Most Likely to Blame the Edit',
+    'Most Likely to Have Predicted Vibes Instead of Outcomes',
+    'The Could’ve Been Worse Award',
+    'Most Likely to Be Selectively Correct',
+    'Most Likely to Call This a Moral Victory',
+    'The Neither Here Nor There, But Definitely Watching Award'
+  ],
+  bottom_half:[
+    'Most Likely to Have Trusted the Wrong Vibes',
+    'The Red Flag Optimist Award',
+    'The Bold Predictions, Bolder Misses Award',
+    'The Confidence Was Never the Problem Award',
+    'Most Likely to Pick With Their Heart—and Regret It',
+    'The Chaos Draft Pick Award',
+    'Most Likely to Say “But It Made Sense at the Time”',
+    'The Technically Participated Award',
+    'Most Likely to Be Wrong for the Right Reasons'
+  ],
+  last_place:[
+    'Most Likely to Lose With Incredible Confidence',
+    'Most Likely to Have Watched a Different Show',
+    'The Red Flag Collector Award',
+    'The Last Place, First in Spirit Award',
+    'Most Likely to Have Picked Every Plot Twist Backwards',
+    'Most Likely to Blame Mercury Retrograde',
+    'Most Likely to Return Stronger—and Slightly Less Certain',
+    'The At Least You Had Fun Award'
+  ],
+  comeback:[
+    'Most Likely to Rise From the Ranking Ashes',
+    'The Redemption Arc Award',
+    'The Never Counted Out Award',
+    'Most Likely to Turn a Bad Start Into a Great Story',
+    'The Late-Season Menace Award',
+    'Most Likely to Make the Leaderboard Nervous at the End',
+    'The Comeback Kid Award'
+  ],
+  early_leader_fade:[
+    'Most Likely to Peak Before the Reunion',
+    'Most Likely to Have Led the Pool in a Past Life',
+    'The Started Hot, Finished Plot-Twisted Award',
+    'The Leaderboard’s Fallen Star Award',
+    'Most Likely to Have Been Betrayed by Momentum',
+    'The Vintage Front-Runner Award'
+  ],
+  most_accurate:[
+    'The Human Spoiler Alert Award',
+    'Most Likely to Know Before Anyone Else Knew',
+    'The Accuracy Is a Personality Trait Award',
+    'Most Likely to Call It Correctly, Annoyingly',
+    'The Pod Detective Award',
+    'Most Likely to Have Receipts and a High Score',
+    'The Vibe Check Valedictorian Award'
+  ],
+  most_chaotic:[
+    'Most Likely to Pick Drama Over Probability',
+    'The Agent of Pod Chaos Award',
+    'Most Likely to Have Made Every Pick With Maximum Emotion',
+    'The No Spreadsheet, Just Vibes Award',
+    'Most Likely to Turn a Pool Into Performance Art',
+    'The Beautiful Disaster Bracket Award',
+    'Most Likely to Have a Theory for Everything',
+    'The Chaos Was the Strategy Award'
+  ],
+  contrarian:[
+    'Most Likely to Zig While Everyone Zagged',
+    'The Contrary to Popular Opinion Award',
+    'The Independent Thinker Award',
+    'Most Likely to Pick the Long Shot With Their Whole Chest',
+    'The Never Follows the Group Chat Award',
+    'Most Likely to Be Brilliant or Catastrophic',
+    'The Hot Take Hall of Fame Award'
+  ]
+};
+const uniqueWrappedTitle=(category,id,candidates=[])=>{
+  const titles=wrappedSuperlatives[category]||[];
+  if(!titles.length)return '';
+  const index=candidates.slice().sort((a,b)=>String(a).localeCompare(String(b))).indexOf(id);
+  return titles[(index<0?0:index)%titles.length];
+};
+const derivePlayerAwards=({phaseEntries={},phaseMembers={},scoredPhases=[],phaseTotals={},ranked=[],rankById={},includeWrappedSuperlatives=false})=>{
   const ids=[...new Set(scoredPhases.flatMap(phase=>phaseMembers[phase]||[]))],awards=Object.fromEntries(ids.map(id=>[id,[]]));
   const hitIn=(id,phase)=>(phaseEntries[phase]||[]).some(entry=>entry.member===id&&entry.ok&&!entry.pending);
   ids.forEach(id=>{
@@ -4118,9 +4235,62 @@ const derivePlayerAwards=({phaseEntries={},phaseMembers={},scoredPhases=[]})=>{
     if(cold>=2)awards[id].push({label:'🧊 Cold streak',tone:'purple'});
     if(hitIn(id,'weddings'))awards[id].push({label:'💍 Predicted the Wedding',tone:'gold'});
   });
+  const addWrappedAward=(id,category,candidates,tone='gold')=>{
+    const label=uniqueWrappedTitle(category,id,candidates);
+    if(label)awards[id]?.unshift({label,tone});
+  };
+  if(includeWrappedSuperlatives&&ranked.length){
+    const categoryById={};
+    ranked.forEach(id=>{
+      const rank=rankById[id]||ranked.length,total=ranked.length;
+      categoryById[id]=rank===1?'champion':rank===total?'last_place':total>=3&&rank<=3?'podium':rank/total<=.4?'top_half':rank/total>.75?'bottom_half':'middle_of_pack';
+    });
+    Object.entries(categoryById).forEach(([id,category])=>addWrappedAward(id,category,ranked.filter(candidate=>categoryById[candidate]===category)));
+
+    const settledEntries=scoredPhases.flatMap(phase=>phaseEntries[phase]||[]).filter(entry=>entry.member&&!entry.pending);
+    const accuracy=Object.fromEntries(ids.map(id=>[id,{hits:0,total:0}]));
+    settledEntries.forEach(entry=>{if(accuracy[entry.member]){accuracy[entry.member].total++;if(entry.ok)accuracy[entry.member].hits++;}});
+    const eligibleAccuracy=ids.filter(id=>accuracy[id].total>=3);
+    const bestAccuracy=Math.max(...eligibleAccuracy.map(id=>accuracy[id].hits/accuracy[id].total),-1);
+    const accuracyWinners=eligibleAccuracy.filter(id=>accuracy[id].hits/accuracy[id].total===bestAccuracy);
+    accuracyWinners.forEach(id=>addWrappedAward(id,'most_accurate',accuracyWinners,'purple'));
+
+    const phaseRanks=[];const running=Object.fromEntries(ranked.map(id=>[id,0]));
+    scoredPhases.forEach(phase=>{
+      ranked.forEach(id=>{running[id]+=(phaseTotals[phase]?.[id]||0);});
+      const ordered=ranked.slice().sort((a,b)=>running[b]-running[a]||String(a).localeCompare(String(b)));
+      const ranks={};ordered.forEach((id,index)=>{ranks[id]=index>0&&running[id]===running[ordered[index-1]]?ranks[ordered[index-1]]:index+1;});
+      phaseRanks.push(ranks);
+    });
+    if(phaseRanks.length>=2){
+      const firstRanks=phaseRanks[0],finalRanks=rankById,minShift=Math.max(2,Math.ceil(ranked.length*.15));
+      const comebackCandidates=ranked.filter(id=>(firstRanks[id]||ranked.length)-(finalRanks[id]||ranked.length)>=minShift);
+      const bestComeback=Math.max(...comebackCandidates.map(id=>(firstRanks[id]||ranked.length)-(finalRanks[id]||ranked.length)),-1);
+      const comebackWinners=comebackCandidates.filter(id=>(firstRanks[id]||ranked.length)-(finalRanks[id]||ranked.length)===bestComeback);
+      comebackWinners.forEach(id=>addWrappedAward(id,'comeback',comebackWinners,'gold'));
+      const fadeCandidates=ranked.filter(id=>(firstRanks[id]||ranked.length)<=Math.max(3,Math.ceil(ranked.length*.25))&&(finalRanks[id]||ranked.length)-(firstRanks[id]||ranked.length)>=minShift);
+      const biggestFade=Math.max(...fadeCandidates.map(id=>(finalRanks[id]||ranked.length)-(firstRanks[id]||ranked.length)),-1);
+      const fadeWinners=fadeCandidates.filter(id=>(finalRanks[id]||ranked.length)-(firstRanks[id]||ranked.length)===biggestFade);
+      fadeWinners.forEach(id=>addWrappedAward(id,'early_leader_fade',fadeWinners,'purple'));
+
+      const volatility={};
+      // The biggest difference between any two phase scores is our stat-based
+      // proxy for a player whose pool experience was pure chaos.
+      ranked.forEach(id=>{
+        const phaseScores=scoredPhases.map(phase=>phaseTotals[phase]?.[id]||0);
+        volatility[id]=Math.max(...phaseScores)-Math.min(...phaseScores);
+      });
+      const wildest=Math.max(...ranked.map(id=>volatility[id]),0);
+      const chaosWinners=ranked.filter(id=>wildest>0&&volatility[id]===wildest);
+      chaosWinners.forEach(id=>addWrappedAward(id,'most_chaotic',chaosWinners,'purple'));
+    }
+  }
   const contrarian=[];scoredPhases.forEach(phase=>(phaseEntries[phase]||[]).forEach(entry=>{if(entry.ok&&!entry.pending&&entry.member&&Number(entry.owners)>0&&Number(entry.poolSize)>0)contrarian.push(entry);}));
   contrarian.sort((a,b)=>(a.owners/a.poolSize)-(b.owners/b.poolSize)||b.points-a.points);
-  if(contrarian[0]?.member)awards[contrarian[0].member]?.unshift({label:'✦ Most Contrarian',tone:''});
+  if(contrarian[0]?.member){
+    if(includeWrappedSuperlatives)addWrappedAward(contrarian[0].member,'contrarian',[contrarian[0].member],'');
+    else awards[contrarian[0].member]?.unshift({label:'✦ Most Contrarian',tone:''});
+  }
   return awards;
 };
 function PlayerBadges({items=[]}) {return items.length?<span className="badge-row">{items.slice(0,3).map((item,index)=><span className={'player-badge '+(item.tone||'')} key={item.label+index}>{item.label}</span>)}</span>:null;}
@@ -4308,7 +4478,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     const phases=PH_ORDER.filter(ph=>(phaseMembers[ph]||[]).includes(id));
     return phases.length?RULES.phases[phases[phases.length-1]].label:'Not scored yet';
   };
-  const playerAwards=derivePlayerAwards({phaseEntries,phaseMembers,scoredPhases});
+  const playerAwards=derivePlayerAwards({phaseEntries,phaseMembers,scoredPhases,phaseTotals,ranked,rankById,includeWrappedSuperlatives:seasonFinalized});
   const bestHitsById={};memberIds.forEach(id=>{bestHitsById[id]=scoredPhases.flatMap(ph=>phaseEntries[ph]||[]).filter(entry=>entry.member===id&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points)[0]||null;});
   return {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough,playerAwards,bestHitsById};
   },[playersById,statusDocs,eng,globalPool,membershipClosed,demoMode,presetPhaseScores,meId]);
