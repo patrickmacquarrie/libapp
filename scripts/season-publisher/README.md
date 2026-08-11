@@ -10,9 +10,29 @@ This standalone Google Apps Script publishes any season sheet into Firestore, pr
    - `SEASON_ID`: for example, `love-is-blind-uk-3`
    - `SPREADSHEET_ID`: the ID between `/d/` and `/edit` in the Google Sheet URL
    - `PROJECT_ID`: optional; defaults to `lib-oauth`
+   - `SEASONS_JSON`: optional; adds more seasons to the admin switcher (see below)
 4. Run `previewSeasonSnapshot`. The first run asks for Google Sheets and Firestore authorization. The executing Google account needs source-sheet access and permission to update Firestore in the selected project.
 
-Changing `SEASON_ID` and `SPREADSHEET_ID` is all that is required to use the publisher for another season. Always change both properties together.
+`SEASON_ID` and `SPREADSHEET_ID` remain the default season, so existing one-season setups continue to work.
+
+To switch between seasons in the web app, add a `SEASONS_JSON` Script property. Its value is a JSON array containing only the seasons this admin should be allowed to edit:
+
+```json
+[
+  {
+    "seasonId": "love-is-blind-uk-3",
+    "label": "UK Season 3",
+    "spreadsheetId": "10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY"
+  },
+  {
+    "seasonId": "love-is-blind-br-1",
+    "label": "Brazil Season 1",
+    "spreadsheetId": "1hTvisEoOLVyClNjG4ZIKroAwr_ZsnTAz2_aC3ZGfyaY"
+  }
+]
+```
+
+The default season is added automatically if it is not repeated in `SEASONS_JSON`. If it is repeated, its spreadsheet ID must match `SPREADSHEET_ID`. This allow-list prevents a mistyped or browser-supplied season ID from opening an arbitrary spreadsheet.
 
 ## Private season-admin web app
 
@@ -24,7 +44,9 @@ Deploy it from Apps Script with **Deploy → New deployment → Web app**:
 2. Set **Who has access** to **Only myself**.
 3. Deploy and save the web-app URL.
 
-Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet and produces the normal publisher summary without changing Firestore. **Publish to the app** runs the existing backup-first publish flow. **Restore latest backup** uses the reversible rollback flow.
+Use the season menu in the top-right to switch between registered sheets. The app warns before discarding unsaved changes. Every save, preview, publish, and rollback remains scoped to the selected season.
+
+Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet and produces the normal publisher summary without changing Firestore. The app automatically opens the result panel; validation failures are shown in red and explicitly confirm that nothing was published. **Publish to the app** runs the existing backup-first publish flow. **Restore latest backup** uses the reversible rollback flow.
 
 There are no automatic triggers. Editing the sheet or admin form never updates the live app until **Publish to the app** is confirmed.
 

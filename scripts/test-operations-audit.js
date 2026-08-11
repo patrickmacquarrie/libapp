@@ -35,23 +35,41 @@ assert(!html.includes('data?.stack'),'Browser stack traces must not be copied in
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
 assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish')"),'Every publish must preserve the previous live snapshot.');
-assert(publisher.includes('function rollbackSeasonSnapshot()'),'The season publisher must retain a rollback entry point.');
-assert(publisher.includes('function previewSeasonSnapshot()'),'The season publisher must support a no-write preview.');
+assert(publisher.includes('function rollbackSeasonSnapshot('),'The season publisher must retain a rollback entry point.');
+assert(publisher.includes('function previewSeasonSnapshot('),'The season publisher must support a no-write preview.');
 assert(!publisher.includes("const SEASON_ID ="),'The publisher must not be hardcoded to one season.');
 assert(publisher.includes('function doGet()'),'The publisher must serve the season-admin web app.');
 assert(publisher.includes('function saveSeasonAdminDraft(payload)'),'The admin must support non-live sheet saves.');
 assert(publisher.includes('function previewSeasonFromAdmin(payload)'),'The admin must preserve a read-only preview action.');
 assert(publisher.includes('function publishSeasonFromAdmin(payload)'),'The admin must publish through the backup-aware publisher.');
 assert(publisher.includes('validateSeasonAdminPayload_'),'The admin must validate submitted season data on the server.');
+assert(publisher.includes('SEASONS_JSON'),'The publisher must support an explicit season allow-list.');
+assert(publisher.includes('publisherConfig_(requestedSeasonId)'),'Every publisher action must resolve the selected registered season.');
 assert(seasonAdmin.includes('Engagements & Weddings'),'The admin must cover engagement and wedding outcomes.');
 assert(seasonAdmin.includes('Retreat outcomes'),'The admin must cover retreat outcomes.');
 assert(seasonAdmin.includes('Reunion outcomes'),'The admin must cover Reunion outcomes.');
 assert(seasonAdmin.includes('Available through episode'),'The admin must expose episode availability.');
+assert(seasonAdmin.includes('id="seasonSelect"'),'The admin must expose a season switcher.');
+assert(seasonAdmin.includes("active='release'"),'Preview failures must open the visible result panel.');
+assert(seasonAdmin.includes('Nothing was published.'),'Validation failures must clearly state that live data was not changed.');
 assert(seasonAdmin.includes('Phase starts must remain chronological')===false,'Server validation details should not be duplicated into the UI source.');
 
 const publisherContext={console};
 vm.createContext(publisherContext);
-vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;',publisherContext);
+vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;',publisherContext);
+const seasons=publisherContext.__publisherSeasonRegistry({
+  SEASON_ID:'love-is-blind-uk-3',
+  SPREADSHEET_ID:'uk3sheet',
+  SEASONS_JSON:JSON.stringify([{seasonId:'love-is-blind-br-1',spreadsheetId:'br1sheet',label:'Brazil Season 1'}])
+});
+assert.equal(seasons.length,2);
+assert.equal(seasons[0].seasonId,'love-is-blind-uk-3');
+assert.equal(seasons[1].label,'Brazil Season 1');
+assert.throws(()=>publisherContext.__publisherSeasonRegistry({SEASONS_JSON:'not json'}),/not valid JSON/i);
+assert.throws(()=>publisherContext.__publisherSeasonRegistry({SEASONS_JSON:JSON.stringify([
+  {seasonId:'duplicate',spreadsheetId:'one'},
+  {seasonId:'duplicate',spreadsheetId:'two'}
+])}),/more than once/i);
 const baseAdminSettings={
   SEASON_STATUS:'comingSoon',RELEASE_LABEL:'First episodes soon',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
   PODS_START_EP:'1',PODS_END_EP:'5',DATING_START_EP:'5',DATING_END_EP:'7',RETREAT_START_EP:'5',RETREAT_END_EP:'7',
