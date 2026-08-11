@@ -4,6 +4,107 @@ const OPTIONAL_TAB_NAMES = ['Retro Events'];
 const TAB_NAMES = REQUIRED_TAB_NAMES.concat(OPTIONAL_TAB_NAMES);
 const BACKUP_COLLECTION = 'seasonSnapshotBackups';
 const MAX_SNAPSHOT_BYTES = 900000;
+const ADMIN_TABLE_HEADERS = {
+  cast: ['Gender', 'Name'],
+  couples: ['ID', 'Him', 'Her', 'Engaged Ep', 'Wedding', 'Who Says No', 'Breakup Ep', 'Settled Ep', 'Together Now', 'lock_ep', 'Pods Eligible', 'Dating Eligible', 'Reunion Status Eligible'],
+  datingResults: ['Market', 'Couple ID', 'Episode', 'Person', 'Confirmed'],
+  reunionResults: ['Market', 'Couple/Person ID or Name', 'Value', 'Notes'],
+  retroEvents: ['Market', 'Target', 'Void Market', 'Applies Phase', 'Revealed Ep', 'Note', 'Confirmed']
+};
+const ADMIN_TABLE_KEYS = {
+  cast: ['gender', 'name'],
+  couples: ['id', 'him', 'her', 'engagedEp', 'wedding', 'whoSaysNo', 'breakupEp', 'settledEp', 'togetherNow', 'lockEp', 'podsEligible', 'datingEligible', 'reunionStatusEligible'],
+  datingResults: ['market', 'coupleId', 'episode', 'person', 'confirmed'],
+  reunionResults: ['market', 'target', 'value', 'notes'],
+  retroEvents: ['market', 'target', 'voidMarket', 'appliesPhase', 'revealedEp', 'note', 'confirmed']
+};
+const ADMIN_EDITABLE_SETTINGS = [
+  'SEASON_STATUS', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'PODS_START_EP', 'PODS_END_EP', 'DATING_START_EP', 'DATING_END_EP',
+  'RETREAT_START_EP', 'RETREAT_END_EP', 'WEDDINGS_START_EP', 'WEDDINGS_END_EP',
+  'REUNION_START_EP', 'REUNION_END_EP',
+  'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL',
+  'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY',
+  'PODS_BUDGET', 'PODS_CAP', 'DATING_BUDGET', 'DATING_CAP',
+  'WEDDINGS_BUDGET', 'WEDDINGS_CAP', 'REUNION_BUDGET', 'REUNION_CAP',
+  'DATING_SEX_MULT', 'DATING_FLIRT_MULT', 'DATING_BREAKUP_MULT',
+  'WEDDINGS_MARRIED_MULT', 'WEDDINGS_SAYS_NO_MULT', 'WEDDINGS_CALLED_OFF_MULT',
+  'WEDDINGS_LEAD_STEP', 'WEDDINGS_LEAD_CAP',
+  'REUNION_STILL_MULT', 'REUNION_SPLIT_MULT', 'REUNION_MARRIED_SPLIT_MULT',
+  'REUNION_BACK_MULT', 'REUNION_NEW_COUPLE_MULT', 'REUNION_LIFE_UPDATE_MULT', 'REUNION_ABSENT_MULT'
+];
+
+/**
+ * Serves the private season-admin interface when this project is deployed as
+ * an Apps Script web app. Access should be restricted to the script owner.
+ */
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Admin')
+    .setTitle('Through the Wall Season Admin')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
+}
+
+/** Returns the configured sheet as a structured model for the admin UI. */
+function getSeasonAdminData() {
+  const config = publisherConfig_();
+  const spreadsheet = SpreadsheetApp.openById(config.spreadsheetId);
+  const settingsRows = readAdminTable_(spreadsheet, 'Settings');
+  const settings = {};
+  settingsRows.forEach(function(row) {
+    if (row.key) settings[row.key] = row.value;
+  });
+  return {
+    projectId: config.projectId,
+    seasonId: config.seasonId,
+    spreadsheetId: config.spreadsheetId,
+    spreadsheetName: spreadsheet.getName(),
+    settings: settings,
+    cast: readAdminTable_(spreadsheet, 'Cast'),
+    couples: readAdminTable_(spreadsheet, 'Couples'),
+    datingResults: readAdminTable_(spreadsheet, 'Dating Results'),
+    reunionResults: readAdminTable_(spreadsheet, 'Reunion Results'),
+    retroEvents: readAdminTable_(spreadsheet, 'Retro Events', true),
+    latestBackupPath: latestBackupPath_(config.seasonId)
+  };
+}
+
+/** Saves form changes to the season sheet without publishing to Firestore. */
+function saveSeasonAdminDraft(payload) {
+  const config = publisherConfig_();
+  const clean = validateSeasonAdminPayload_(payload);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const spreadsheet = SpreadsheetApp.openById(config.spreadsheetId);
+    writeAdminTable_(spreadsheet, 'Cast', ADMIN_TABLE_HEADERS.cast, clean.cast);
+    writeAdminTable_(spreadsheet, 'Couples', ADMIN_TABLE_HEADERS.couples, clean.couples);
+    writeAdminTable_(spreadsheet, 'Dating Results', ADMIN_TABLE_HEADERS.datingResults, clean.datingResults);
+    writeAdminTable_(spreadsheet, 'Reunion Results', ADMIN_TABLE_HEADERS.reunionResults, clean.reunionResults);
+    writeAdminTable_(spreadsheet, 'Retro Events', ADMIN_TABLE_HEADERS.retroEvents, clean.retroEvents, true);
+    mergeAdminSettings_(spreadsheet, clean.settings);
+    SpreadsheetApp.flush();
+  } finally {
+    lock.releaseLock();
+  }
+  return {saved: true, model: getSeasonAdminData()};
+}
+
+/** Saves the draft, then performs the existing read-only publisher preview. */
+function previewSeasonFromAdmin(payload) {
+  saveSeasonAdminDraft(payload);
+  return previewSeasonSnapshot();
+}
+
+/** Saves the draft, backs up the live document, and publishes it. */
+function publishSeasonFromAdmin(payload) {
+  saveSeasonAdminDraft(payload);
+  return publishSeasonSnapshot();
+}
+
+/** Exposes the existing reversible rollback to the private admin UI. */
+function rollbackSeasonFromAdmin() {
+  return rollbackSeasonSnapshot();
+}
 
 /**
  * Builds and validates a snapshot without changing Firestore.
@@ -202,6 +303,284 @@ function assertFirestoreResponse_(response, operation) {
   if (code < 200 || code >= 300) {
     throw new Error('Firestore could not ' + operation + ' (' + code + '): ' + response.getContentText());
   }
+}
+
+function adminTableKeyForTab_(tabName) {
+  return {
+    'Cast': 'cast',
+    'Couples': 'couples',
+    'Dating Results': 'datingResults',
+    'Reunion Results': 'reunionResults',
+    'Retro Events': 'retroEvents'
+  }[tabName] || '';
+}
+
+function normalizedAdminHeader_(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function readAdminTable_(spreadsheet, tabName, optional) {
+  const sheet = spreadsheet.getSheetByName(tabName);
+  if (!sheet && optional) return [];
+  if (!sheet) throw new Error('Missing required sheet tab: ' + tabName);
+  const values = sheet.getDataRange().getDisplayValues();
+  if (!values.length) return [];
+  const headerIndexes = {};
+  values[0].forEach(function(header, index) {
+    headerIndexes[normalizedAdminHeader_(header)] = index;
+  });
+  if (tabName === 'Settings') {
+    return values.slice(1).filter(adminRowHasValue_).map(function(row) {
+      return {
+        key: String(row[headerIndexes.key] || '').trim(),
+        value: String(row[headerIndexes.value] || '').trim(),
+        notes: String(row[headerIndexes.notes] || '').trim()
+      };
+    }).filter(function(row) { return row.key; });
+  }
+  const tableKey = adminTableKeyForTab_(tabName);
+  const headers = ADMIN_TABLE_HEADERS[tableKey];
+  const keys = ADMIN_TABLE_KEYS[tableKey];
+  return values.slice(1).filter(adminRowHasValue_).map(function(row) {
+    const record = {};
+    headers.forEach(function(header, index) {
+      const column = headerIndexes[normalizedAdminHeader_(header)];
+      record[keys[index]] = column == null ? '' : String(row[column] || '').trim();
+    });
+    return record;
+  });
+}
+
+function adminRowHasValue_(row) {
+  return row.some(function(value) { return String(value || '').trim() !== ''; });
+}
+
+function writeAdminTable_(spreadsheet, tabName, headers, records, optional) {
+  let sheet = spreadsheet.getSheetByName(tabName);
+  if (!sheet && optional) sheet = spreadsheet.insertSheet(tabName);
+  if (!sheet) throw new Error('Missing required sheet tab: ' + tabName);
+  const tableKey = adminTableKeyForTab_(tabName);
+  const keys = ADMIN_TABLE_KEYS[tableKey];
+  const values = [headers].concat(records.map(function(record) {
+    return keys.map(function(key) { return String(record[key] == null ? '' : record[key]); });
+  }));
+  sheet.clearContents();
+  sheet.getRange(1, 1, values.length, headers.length).setValues(values);
+  sheet.setFrozenRows(1);
+}
+
+function mergeAdminSettings_(spreadsheet, settings) {
+  const sheet = spreadsheet.getSheetByName('Settings');
+  if (!sheet) throw new Error('Missing required sheet tab: Settings');
+  const existing = readAdminTable_(spreadsheet, 'Settings');
+  const byKey = {};
+  existing.forEach(function(row) { byKey[row.key] = row; });
+  ADMIN_EDITABLE_SETTINGS.forEach(function(key) {
+    if (!Object.prototype.hasOwnProperty.call(settings, key)) return;
+    if (!byKey[key]) {
+      byKey[key] = {key: key, value: '', notes: ''};
+      existing.push(byKey[key]);
+    }
+    byKey[key].value = String(settings[key]);
+  });
+  const values = [['key', 'value', 'Notes']].concat(existing.map(function(row) {
+    return [row.key, row.value, row.notes || ''];
+  }));
+  sheet.clearContents();
+  sheet.getRange(1, 1, values.length, 3).setValues(values);
+  sheet.setFrozenRows(1);
+}
+
+function cleanAdminString_(value, maxLength) {
+  const cleaned = String(value == null ? '' : value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (cleaned.length > (maxLength || 200)) throw new Error('A field is longer than the admin limit.');
+  return cleaned;
+}
+
+function cleanAdminBoolean_(value, allowBlank) {
+  if (allowBlank && (value == null || value === '')) return '';
+  if (value === true || String(value).toUpperCase() === 'TRUE') return 'TRUE';
+  if (value === false || String(value).toUpperCase() === 'FALSE') return 'FALSE';
+  throw new Error('Expected a true/false value.');
+}
+
+function cleanAdminEpisode_(value, label, allowBlank) {
+  if (allowBlank && (value == null || String(value).trim() === '')) return '';
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 100) {
+    throw new Error(label + ' must be an episode from 1 to 100.');
+  }
+  return String(parsed);
+}
+
+function cleanAdminNumber_(value, label, minimum, maximum) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(label + ' must be between ' + minimum + ' and ' + maximum + '.');
+  }
+  return String(parsed);
+}
+
+function validateSeasonAdminPayload_(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('The season-admin form was not received correctly.');
+  }
+  ['cast', 'couples', 'datingResults', 'reunionResults', 'retroEvents'].forEach(function(key) {
+    if (!Array.isArray(payload[key])) throw new Error('Missing admin section: ' + key + '.');
+    if (payload[key].length > 250) throw new Error('The ' + key + ' section has too many rows.');
+  });
+
+  const settings = validateAdminSettings_(payload.settings || {});
+  const cast = [];
+  const castNames = new Set();
+  payload.cast.forEach(function(raw, index) {
+    const name = cleanAdminString_(raw.name, 80);
+    const gender = cleanAdminString_(raw.gender, 1).toUpperCase();
+    if (!name && !gender) return;
+    if (!name) throw new Error('Cast row ' + (index + 1) + ' needs a name.');
+    if (!['M', 'F'].includes(gender)) throw new Error(name + ' needs gender M or F.');
+    const key = name.toLowerCase();
+    if (castNames.has(key)) throw new Error('Cast name is duplicated: ' + name + '.');
+    castNames.add(key);
+    cast.push({gender: gender, name: name});
+  });
+
+  const couples = [];
+  const coupleIds = new Set();
+  payload.couples.forEach(function(raw, index) {
+    const id = cleanAdminString_(raw.id, 100);
+    const him = cleanAdminString_(raw.him, 80);
+    const her = cleanAdminString_(raw.her, 80);
+    if (!id && !him && !her) return;
+    if (!id || !him || !her) throw new Error('Engagement row ' + (index + 1) + ' needs an ID and both cast members.');
+    if (him === her) throw new Error(id + ' cannot pair one cast member with themselves.');
+    if (!castNames.has(him.toLowerCase()) || !castNames.has(her.toLowerCase())) {
+      throw new Error(id + ' must use exact names from the Cast section.');
+    }
+    if (coupleIds.has(id)) throw new Error('Couple ID is duplicated: ' + id + '.');
+    coupleIds.add(id);
+    const wedding = cleanAdminString_(raw.wedding, 20);
+    if (wedding && !['married', 'saysNo', 'calledOff', 'notShown'].includes(wedding)) {
+      throw new Error(id + ' has an unsupported wedding outcome.');
+    }
+    const who = cleanAdminString_(raw.whoSaysNo, 10);
+    if (who && !['him', 'her'].includes(who)) throw new Error(id + ' must use him or her for who ended it.');
+    if (['saysNo', 'calledOff'].includes(wedding) && !who) throw new Error(id + ' needs the person who ended it.');
+    couples.push({
+      id: id, him: him, her: her,
+      engagedEp: cleanAdminEpisode_(raw.engagedEp, id + ' engagement episode', true),
+      wedding: wedding, whoSaysNo: who,
+      breakupEp: cleanAdminEpisode_(raw.breakupEp, id + ' breakup episode', true),
+      settledEp: cleanAdminEpisode_(raw.settledEp, id + ' settled episode', true),
+      togetherNow: cleanAdminBoolean_(raw.togetherNow, true),
+      lockEp: cleanAdminEpisode_(raw.lockEp, id + ' lock episode', true),
+      podsEligible: cleanAdminBoolean_(raw.podsEligible, true),
+      datingEligible: cleanAdminBoolean_(raw.datingEligible, true),
+      reunionStatusEligible: cleanAdminBoolean_(raw.reunionStatusEligible, true)
+    });
+  });
+
+  const retreatStart = Number(settings.RETREAT_START_EP);
+  const retreatEnd = Number(settings.RETREAT_END_EP);
+  const datingResults = [];
+  payload.datingResults.forEach(function(raw, index) {
+    const market = cleanAdminString_(raw.market, 20).toLowerCase();
+    const coupleId = cleanAdminString_(raw.coupleId, 100);
+    const person = cleanAdminString_(raw.person, 80);
+    if (!market && !coupleId && !person) return;
+    if (!['sex', 'flirt', 'breakup'].includes(market)) throw new Error('Retreat result row ' + (index + 1) + ' has an unsupported outcome.');
+    const episode = cleanAdminEpisode_(raw.episode, 'Retreat result episode', false);
+    if (Number(episode) < retreatStart || Number(episode) > retreatEnd) {
+      throw new Error('Retreat results must fall between Episodes ' + retreatStart + ' and ' + retreatEnd + '.');
+    }
+    if (market === 'flirt') {
+      if (!person || !castNames.has(person.toLowerCase())) throw new Error('A flirt result must use an exact cast name.');
+    } else if (!coupleIds.has(coupleId)) {
+      throw new Error('A ' + market + ' result must use an existing couple.');
+    }
+    datingResults.push({market: market, coupleId: market === 'flirt' ? '' : coupleId, episode: episode, person: market === 'flirt' ? person : '', confirmed: cleanAdminBoolean_(raw.confirmed, false)});
+  });
+
+  const reunionResults = [];
+  payload.reunionResults.forEach(function(raw, index) {
+    const market = cleanAdminString_(raw.market, 20).toLowerCase();
+    const target = cleanAdminString_(raw.target, 180);
+    const value = cleanAdminString_(raw.value, 80);
+    const notes = cleanAdminString_(raw.notes, 300);
+    if (!market && !target && !value) return;
+    if (!['still', 'back', 'newcouple', 'lifeupdate', 'absent'].includes(market)) throw new Error('Reunion row ' + (index + 1) + ' has an unsupported outcome.');
+    if (['still', 'back'].includes(market) && !coupleIds.has(target)) throw new Error('A Reunion relationship result must use an existing couple.');
+    if (market === 'newcouple') {
+      const people = target.split('|');
+      if (people.length !== 2 || !people.every(function(name) { return castNames.has(name.toLowerCase()); })) throw new Error('A new Reunion couple must contain two exact cast names.');
+    }
+    if (['lifeupdate', 'absent'].includes(market) && !castNames.has(target.toLowerCase())) throw new Error('The Reunion castmate must use an exact Cast name.');
+    if (market === 'lifeupdate' && !['newPartner', 'newBaby'].includes(value)) throw new Error('Choose a supported major-life-update result.');
+    if (['still', 'back'].includes(market) && !['TRUE', 'FALSE'].includes(value.toUpperCase())) throw new Error('Relationship status results must be true or false.');
+    reunionResults.push({market: market, target: target, value: ['still', 'back'].includes(market) ? value.toUpperCase() : value, notes: notes});
+  });
+
+  const retroEvents = payload.retroEvents.map(function(raw, index) {
+    const market = cleanAdminString_(raw.market, 20).toLowerCase();
+    const target = cleanAdminString_(raw.target, 180);
+    const note = cleanAdminString_(raw.note, 300);
+    if (!market && !target && !note) return null;
+    if (!['pods', 'sex', 'flirt', 'breakup', 'still', 'void'].includes(market)) throw new Error('Correction row ' + (index + 1) + ' has an unsupported market.');
+    if (!target || !note) throw new Error('Every correction needs a target and an explanatory note.');
+    return {
+      market: market,
+      target: target,
+      voidMarket: cleanAdminString_(raw.voidMarket, 20).toLowerCase(),
+      appliesPhase: cleanAdminString_(raw.appliesPhase, 20).toLowerCase(),
+      revealedEp: cleanAdminEpisode_(raw.revealedEp, 'Correction reveal episode', false),
+      note: note,
+      confirmed: cleanAdminBoolean_(raw.confirmed, false)
+    };
+  }).filter(Boolean);
+
+  return {settings: settings, cast: cast, couples: couples, datingResults: datingResults, reunionResults: reunionResults, retroEvents: retroEvents};
+}
+
+function validateAdminSettings_(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Season settings are missing.');
+  const settings = {};
+  ADMIN_EDITABLE_SETTINGS.forEach(function(key) {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) settings[key] = cleanAdminString_(raw[key], 180);
+  });
+  const status = String(settings.SEASON_STATUS || '').trim();
+  if (!['comingSoon', 'live', 'completed'].includes(status)) throw new Error('Choose Upcoming, Live, or Completed for the season status.');
+  settings.SEASON_STATUS = status;
+  settings.AVAILABLE_THROUGH_EP = cleanAdminNumber_(settings.AVAILABLE_THROUGH_EP || 0, 'Available-through episode', 0, 100);
+
+  const numberKeys = [
+    'PODS_START_EP', 'PODS_END_EP', 'DATING_START_EP', 'DATING_END_EP', 'RETREAT_START_EP', 'RETREAT_END_EP',
+    'WEDDINGS_START_EP', 'WEDDINGS_END_EP', 'REUNION_START_EP', 'REUNION_END_EP',
+    'PODS_BUDGET', 'PODS_CAP', 'DATING_BUDGET', 'DATING_CAP', 'WEDDINGS_BUDGET', 'WEDDINGS_CAP', 'REUNION_BUDGET', 'REUNION_CAP',
+    'DATING_SEX_MULT', 'DATING_FLIRT_MULT', 'DATING_BREAKUP_MULT',
+    'WEDDINGS_MARRIED_MULT', 'WEDDINGS_SAYS_NO_MULT', 'WEDDINGS_CALLED_OFF_MULT', 'WEDDINGS_LEAD_STEP', 'WEDDINGS_LEAD_CAP',
+    'REUNION_STILL_MULT', 'REUNION_SPLIT_MULT', 'REUNION_MARRIED_SPLIT_MULT', 'REUNION_BACK_MULT',
+    'REUNION_NEW_COUPLE_MULT', 'REUNION_LIFE_UPDATE_MULT', 'REUNION_ABSENT_MULT'
+  ];
+  numberKeys.forEach(function(key) {
+    if (!Object.prototype.hasOwnProperty.call(settings, key) || settings[key] === '') return;
+    const maximum = key.includes('BUDGET') || key.includes('CAP') ? 10000 : (key.includes('_EP') ? 100 : 100);
+    settings[key] = cleanAdminNumber_(settings[key], key, key.includes('_EP') ? 1 : 0, maximum);
+  });
+  ['BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
+    settings[key] = cleanAdminBoolean_(settings[key], false);
+  });
+
+  const starts = [Number(settings.PODS_START_EP), Number(settings.DATING_START_EP), Number(settings.WEDDINGS_START_EP), Number(settings.REUNION_START_EP)];
+  const ends = [Number(settings.PODS_END_EP), Number(settings.DATING_END_EP), Number(settings.WEDDINGS_END_EP), Number(settings.REUNION_END_EP)];
+  starts.forEach(function(start, index) {
+    if (!Number.isFinite(start) || !Number.isFinite(ends[index]) || ends[index] <= start) throw new Error('Each phase end must be later than its start.');
+    if (index > 0 && (start <= starts[index - 1] || start > ends[index - 1])) throw new Error('Phase starts must remain chronological and overlap or meet the previous phase.');
+  });
+  const retreatStart = Number(settings.RETREAT_START_EP), retreatEnd = Number(settings.RETREAT_END_EP);
+  if (retreatStart < starts[1] || retreatEnd < retreatStart || retreatEnd > ends[1]) throw new Error('The retreat scoring window must sit inside the Dating phase.');
+  if (status === 'live' && Number(settings.AVAILABLE_THROUGH_EP) < starts[0]) throw new Error('A live season must make at least the first Pods episode available.');
+  if (Number(settings.AVAILABLE_THROUGH_EP) > ends[3]) throw new Error('Available-through episode cannot exceed the Reunion end.');
+  return settings;
 }
 
 function rowsToRecords_(tabName, rows) {
