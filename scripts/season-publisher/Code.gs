@@ -44,9 +44,9 @@ function doGet() {
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
 }
 
-/** Returns the configured sheet as a structured model for the admin UI. */
-function getSeasonAdminData() {
-  const config = publisherConfig_();
+/** Returns the selected registered season sheet as a structured model for the admin UI. */
+function getSeasonAdminData(seasonId) {
+  const config = publisherConfig_(seasonId);
   const spreadsheet = SpreadsheetApp.openById(config.spreadsheetId);
   const settingsRows = readAdminTable_(spreadsheet, 'Settings');
   const settings = {};
@@ -58,6 +58,7 @@ function getSeasonAdminData() {
     seasonId: config.seasonId,
     spreadsheetId: config.spreadsheetId,
     spreadsheetName: spreadsheet.getName(),
+    seasons: config.seasons,
     settings: settings,
     cast: readAdminTable_(spreadsheet, 'Cast'),
     couples: readAdminTable_(spreadsheet, 'Couples'),
@@ -70,7 +71,7 @@ function getSeasonAdminData() {
 
 /** Saves form changes to the season sheet without publishing to Firestore. */
 function saveSeasonAdminDraft(payload) {
-  const config = publisherConfig_();
+  const config = publisherConfig_(payload && payload.seasonId);
   const clean = validateSeasonAdminPayload_(payload);
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -86,32 +87,32 @@ function saveSeasonAdminDraft(payload) {
   } finally {
     lock.releaseLock();
   }
-  return {saved: true, model: getSeasonAdminData()};
+  return {saved: true, model: getSeasonAdminData(config.seasonId)};
 }
 
 /** Saves the draft, then performs the existing read-only publisher preview. */
 function previewSeasonFromAdmin(payload) {
   saveSeasonAdminDraft(payload);
-  return previewSeasonSnapshot();
+  return previewSeasonSnapshot(payload.seasonId);
 }
 
 /** Saves the draft, backs up the live document, and publishes it. */
 function publishSeasonFromAdmin(payload) {
   saveSeasonAdminDraft(payload);
-  return publishSeasonSnapshot();
+  return publishSeasonSnapshot(payload.seasonId);
 }
 
 /** Exposes the existing reversible rollback to the private admin UI. */
-function rollbackSeasonFromAdmin() {
-  return rollbackSeasonSnapshot();
+function rollbackSeasonFromAdmin(seasonId) {
+  return rollbackSeasonSnapshot(seasonId);
 }
 
 /**
  * Builds and validates a snapshot without changing Firestore.
  * Run this before every live publish and inspect the execution log.
  */
-function previewSeasonSnapshot() {
-  const config = publisherConfig_();
+function previewSeasonSnapshot(seasonId) {
+  const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
   const summary = publishSummary_(config, built, {preview: true});
   console.log(JSON.stringify(summary));
@@ -121,8 +122,8 @@ function previewSeasonSnapshot() {
 /**
  * Backs up the live season document, then replaces it from fresh sheet data.
  */
-function publishSeasonSnapshot() {
-  const config = publisherConfig_();
+function publishSeasonSnapshot(seasonId) {
+  const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
   const seasonPath = 'seasons/' + config.seasonId;
   const current = readFirestoreDocument_(config, seasonPath);
@@ -149,8 +150,8 @@ function publishSeasonSnapshot() {
  * Restores the last backup created for the configured season.
  * The current live document is saved first, making the rollback reversible.
  */
-function rollbackSeasonSnapshot() {
-  const config = publisherConfig_();
+function rollbackSeasonSnapshot(seasonId) {
+  const config = publisherConfig_(seasonId);
   const seasonPath = 'seasons/' + config.seasonId;
   const backupPath = latestBackupPath_(config.seasonId);
   if (!backupPath) throw new Error('No rollback backup is recorded for ' + config.seasonId + '.');
@@ -181,19 +182,91 @@ function rollbackSeasonSnapshot() {
   return summary;
 }
 
-function publisherConfig_() {
+function publisherConfig_(requestedSeasonId) {
   const properties = PropertiesService.getScriptProperties().getProperties();
+  const seasons = publisherSeasonRegistryFromProperties_(properties);
+  const seasonId = String(requestedSeasonId || properties.SEASON_ID || seasons[0].seasonId).trim();
+  const selectedSeason = seasons.find(function(season) {
+    return season.seasonId === seasonId;
+  });
+  if (!selectedSeason) {
+    throw new Error('Season "' + seasonId + '" is not registered in SEASONS_JSON.');
+  }
   const config = {
     projectId: String(properties.PROJECT_ID || DEFAULT_PROJECT_ID).trim(),
-    seasonId: String(properties.SEASON_ID || '').trim(),
-    spreadsheetId: String(properties.SPREADSHEET_ID || '').trim()
+    seasonId: selectedSeason.seasonId,
+    spreadsheetId: selectedSeason.spreadsheetId,
+    seasons: seasons
   };
-  if (!config.seasonId) throw new Error('Set the SEASON_ID script property before running the publisher.');
-  if (!config.spreadsheetId) throw new Error('Set the SPREADSHEET_ID script property before running the publisher.');
   if (!/^[A-Za-z0-9_-]+$/.test(config.projectId)) throw new Error('PROJECT_ID contains unsupported characters.');
-  if (!/^[A-Za-z0-9_-]+$/.test(config.seasonId)) throw new Error('SEASON_ID contains unsupported characters.');
-  if (!/^[A-Za-z0-9_-]+$/.test(config.spreadsheetId)) throw new Error('SPREADSHEET_ID contains unsupported characters.');
   return config;
+}
+
+/**
+ * Builds the admin allow-list. SEASON_ID/SPREADSHEET_ID remain the default and
+ * keep existing one-season projects working; SEASONS_JSON adds switchable seasons.
+ */
+function publisherSeasonRegistryFromProperties_(properties) {
+  const seasons = [];
+  const rawRegistry = String(properties.SEASONS_JSON || '').trim();
+  if (rawRegistry) {
+    let parsed;
+    try {
+      parsed = JSON.parse(rawRegistry);
+    } catch (error) {
+      throw new Error('SEASONS_JSON is not valid JSON: ' + error.message);
+    }
+    if (!Array.isArray(parsed)) throw new Error('SEASONS_JSON must be a JSON array.');
+    parsed.forEach(function(entry, index) {
+      if (!entry || typeof entry !== 'object') {
+        throw new Error('SEASONS_JSON entry ' + (index + 1) + ' must be an object.');
+      }
+      seasons.push(normalizePublisherSeason_(entry, 'SEASONS_JSON entry ' + (index + 1)));
+    });
+  }
+
+  const defaultSeasonId = String(properties.SEASON_ID || '').trim();
+  const defaultSpreadsheetId = String(properties.SPREADSHEET_ID || '').trim();
+  if (defaultSeasonId || defaultSpreadsheetId) {
+    if (!defaultSeasonId || !defaultSpreadsheetId) {
+      throw new Error('SEASON_ID and SPREADSHEET_ID must either both be set or both be blank.');
+    }
+    const legacy = normalizePublisherSeason_({
+      seasonId: defaultSeasonId,
+      spreadsheetId: defaultSpreadsheetId,
+      label: defaultSeasonId
+    }, 'default season properties');
+    const existing = seasons.find(function(season) { return season.seasonId === legacy.seasonId; });
+    if (existing && existing.spreadsheetId !== legacy.spreadsheetId) {
+      throw new Error('The default season has different spreadsheet IDs in SPREADSHEET_ID and SEASONS_JSON.');
+    }
+    if (!existing) seasons.unshift(legacy);
+  }
+
+  if (!seasons.length) {
+    throw new Error('Set SEASON_ID and SPREADSHEET_ID, or add at least one entry to SEASONS_JSON.');
+  }
+  const seen = {};
+  seasons.forEach(function(season) {
+    if (seen[season.seasonId]) throw new Error('SEASONS_JSON contains the season more than once: ' + season.seasonId);
+    seen[season.seasonId] = true;
+  });
+  return seasons;
+}
+
+function normalizePublisherSeason_(entry, sourceLabel) {
+  const season = {
+    seasonId: String(entry.seasonId || '').trim(),
+    spreadsheetId: String(entry.spreadsheetId || '').trim(),
+    label: String(entry.label || entry.seasonId || '').trim()
+  };
+  if (!season.seasonId || !season.spreadsheetId) {
+    throw new Error(sourceLabel + ' needs both seasonId and spreadsheetId.');
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(season.seasonId)) throw new Error(sourceLabel + ' has an invalid seasonId.');
+  if (!/^[A-Za-z0-9_-]+$/.test(season.spreadsheetId)) throw new Error(sourceLabel + ' has an invalid spreadsheetId.');
+  if (season.label.length > 100) throw new Error(sourceLabel + ' label must be 100 characters or fewer.');
+  return season;
 }
 
 function buildSeasonSnapshot_(config) {
