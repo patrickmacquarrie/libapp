@@ -2,8 +2,9 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "npm run test:engine && npm run test:rules",
+    "test": "npm run test:engine && npm run test:operations && npm run test:rules",
     "test:engine": "node scripts/test-engine-audit.js",
+    "test:operations": "node scripts/test-operations-audit.js",
     "test:rules": "firebase emulators:exec --only firestore,auth \"node scripts/test-firestore-rules.js\"",
     "check": "npm test && npm run build"
   },

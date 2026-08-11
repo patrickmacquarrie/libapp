@@ -1,5 +1,6 @@
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {onDocumentWritten}=require('firebase-functions/v2/firestore');
+const logger=require('firebase-functions/logger');
 const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
@@ -10,6 +11,12 @@ const PHASES=['pods','dating','weddings','reunion'];
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
+const CLIENT_ERROR_CATEGORIES=new Set([
+  'invite_accept_failed','invite_send_failed','lobby_load_failed','mirror_sync_failed',
+  'pool_create_failed','pool_open_failed','render_failed','save_failed',
+  'season_load_failed','startup_failed',
+]);
+const clientErrorWindows=new Map();
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
 // is a verified sending domain. Replies route to Patrick's personal inbox.
@@ -27,6 +34,38 @@ function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
   return request.auth.uid;
 }
+
+function safeTelemetryText(value,maxLength=100){
+  return String(value||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
+}
+
+function allowClientErrorReport(uid,now=Date.now()){
+  const minute=Math.floor(now/60000);
+  const key=`${uid}:${minute}`;
+  const count=clientErrorWindows.get(key)||0;
+  if(count>=12)return false;
+  clientErrorWindows.set(key,count+1);
+  if(clientErrorWindows.size>500){
+    for(const storedKey of clientErrorWindows.keys()){
+      if(!storedKey.endsWith(`:${minute}`))clientErrorWindows.delete(storedKey);
+    }
+  }
+  return true;
+}
+
+exports.reportClientError=onCall(FUNCTION_LIMITS,async request=>{
+  const uid=requireUser(request);
+  const category=safeTelemetryText(request.data?.category,60);
+  if(!CLIENT_ERROR_CATEGORIES.has(category))throw new HttpsError('invalid-argument','Choose a supported error category.');
+  if(!allowClientErrorReport(uid))return {ok:true,reported:false,reason:'rate-limited'};
+  const context={};
+  ['appBuild','code','entryStep','operation','phase','poolId','screen','seasonId','targetPoolId'].forEach(key=>{
+    const value=safeTelemetryText(request.data?.[key],key==='appBuild'?160:100);
+    if(value)context[key]=value;
+  });
+  logger.error('Client operation failed',{category,uid,...context});
+  return {ok:true,reported:true};
+});
 
 function escapeHtml(value){
   return String(value||'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
