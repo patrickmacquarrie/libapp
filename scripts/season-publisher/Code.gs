@@ -3,6 +3,8 @@ const REQUIRED_TAB_NAMES = ['Cast', 'Couples', 'Dating Results', 'Reunion Result
 const OPTIONAL_TAB_NAMES = ['Retro Events'];
 const TAB_NAMES = REQUIRED_TAB_NAMES.concat(OPTIONAL_TAB_NAMES);
 const BACKUP_COLLECTION = 'seasonSnapshotBackups';
+const APP_CONFIG_PATH = 'appConfig/public';
+const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const MAX_SNAPSHOT_BYTES = 900000;
 const ADMIN_TABLE_HEADERS = {
   cast: ['Gender', 'Name'],
@@ -59,6 +61,7 @@ function getSeasonAdminData(seasonId) {
     spreadsheetId: config.spreadsheetId,
     spreadsheetName: spreadsheet.getName(),
     seasons: config.seasons,
+    defaultSeasonId: currentDefaultSeasonId_(config),
     settings: settings,
     cast: readAdminTable_(spreadsheet, 'Cast'),
     couples: readAdminTable_(spreadsheet, 'Couples'),
@@ -66,6 +69,53 @@ function getSeasonAdminData(seasonId) {
     reunionResults: readAdminTable_(spreadsheet, 'Reunion Results'),
     retroEvents: readAdminTable_(spreadsheet, 'Retro Events', true),
     latestBackupPath: latestBackupPath_(config.seasonId)
+  };
+}
+
+/** Makes a published, non-completed season the app default and Global Pool season. */
+function setDefaultSeasonFromAdmin(seasonId) {
+  const config = publisherConfig_(seasonId);
+  const seasonPath = 'seasons/' + config.seasonId;
+  const published = readFirestoreDocument_(config, seasonPath);
+  if (!published.exists) {
+    throw new Error('Publish this season before making it the live/default season.');
+  }
+  const status = firestoreStringField_(published.fields, 'status').toLowerCase();
+  if (status === 'completed') {
+    throw new Error('A completed season cannot be the live/default season. Change it to Live, publish it, then try again.');
+  }
+  if (!['live', 'upcoming'].includes(status)) {
+    throw new Error('The published season must be Live or Upcoming before it can become the default.');
+  }
+
+  const registryEntry = config.seasons.find(function(season) {
+    return season.seasonId === config.seasonId;
+  });
+  const spreadsheet = SpreadsheetApp.openById(config.spreadsheetId);
+  const settings = readAdminTable_(spreadsheet, 'Settings');
+  const metadata = publisherSeasonMetadata_(registryEntry, status, setting_(settings, 'RELEASE_LABEL'));
+  const current = readFirestoreDocument_(config, APP_CONFIG_PATH);
+  const alreadyDefault = current.exists && firestoreStringField_(current.fields, 'defaultSeasonId') === config.seasonId;
+  let backupPath = '';
+  if (current.exists && !alreadyDefault) {
+    backupPath = APP_CONFIG_BACKUP_COLLECTION + '/default__' + timestampId_();
+    writeFirestoreDocument_(config, backupPath, current.fields);
+  }
+  writeFirestoreDocument_(config, APP_CONFIG_PATH, mapFields_({
+    defaultSeasonId: config.seasonId,
+    globalPoolSeasonId: config.seasonId,
+    defaultSeasonLabel: metadata.label,
+    sourceSheetId: config.spreadsheetId,
+    status: status,
+    defaultSeason: metadata,
+    updatedAt: new Date()
+  }));
+  return {
+    changed: !alreadyDefault,
+    defaultSeasonId: config.seasonId,
+    globalPoolSeasonId: config.seasonId,
+    previousConfigBackupPath: backupPath || null,
+    model: getSeasonAdminData(config.seasonId)
   };
 }
 
@@ -160,6 +210,11 @@ function previewSeasonSnapshot(seasonId) {
 function publishSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
+  const publishedStatus = firestoreStringField_(built.fields, 'status').toLowerCase();
+  const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
+  if (isCurrentDefault && publishedStatus === 'completed') {
+    throw new Error('Choose another live/default season before publishing this season as Completed.');
+  }
   const seasonPath = 'seasons/' + config.seasonId;
   const current = readFirestoreDocument_(config, seasonPath);
   let backupPath = '';
@@ -171,6 +226,7 @@ function publishSeasonSnapshot(seasonId) {
 
   writeFirestoreDocument_(config, seasonPath, built.fields);
   if (backupPath) setLatestBackupPath_(config.seasonId, backupPath);
+  if (isCurrentDefault) setDefaultSeasonFromAdmin(config.seasonId);
 
   const summary = publishSummary_(config, built, {
     published: true,
@@ -231,7 +287,8 @@ function publisherConfig_(requestedSeasonId) {
     projectId: String(properties.PROJECT_ID || DEFAULT_PROJECT_ID).trim(),
     seasonId: selectedSeason.seasonId,
     spreadsheetId: selectedSeason.spreadsheetId,
-    seasons: seasons
+    seasons: seasons,
+    fallbackDefaultSeasonId: String(properties.SEASON_ID || seasons[0].seasonId).trim()
   };
   if (!/^[A-Za-z0-9_-]+$/.test(config.projectId)) throw new Error('PROJECT_ID contains unsupported characters.');
   return config;
@@ -334,6 +391,41 @@ function upsertPublisherSeason_(seasons, requested) {
   }
   updated.push(requested);
   return updated;
+}
+
+function currentDefaultSeasonId_(config) {
+  const current = readFirestoreDocument_(config, APP_CONFIG_PATH);
+  return current.exists
+    ? firestoreStringField_(current.fields, 'defaultSeasonId') || config.fallbackDefaultSeasonId
+    : config.fallbackDefaultSeasonId;
+}
+
+function firestoreStringField_(fields, key) {
+  const field = fields && fields[key];
+  return field && typeof field.stringValue === 'string' ? field.stringValue : '';
+}
+
+function publisherSeasonMetadata_(registryEntry, status, releaseLabel) {
+  const seasonId = registryEntry.seasonId;
+  const match = seasonId.match(/^love-is-blind-([a-z]+)-(\d+)$/);
+  const code = match ? match[1] : '';
+  const countries = {
+    us: ['United States', 'US'], uk: ['United Kingdom', 'UK'], br: ['Brazil', 'BR'],
+    se: ['Sweden', 'SE'], de: ['Germany', 'DE'], jp: ['Japan', 'JP'], mx: ['Mexico', 'MX'],
+    habibi: ['United Arab Emirates', 'AE'], ar: ['Argentina', 'AR'], it: ['Italy', 'IT'],
+    fr: ['France', 'FR'], pl: ['Poland', 'PL'], nl: ['Netherlands', 'NL'], za: ['South Africa', 'ZA']
+  };
+  const country = countries[code] || ['', code.toUpperCase()];
+  return {
+    id: seasonId,
+    label: registryEntry.label || seasonId,
+    country: country[0],
+    countryCode: country[1],
+    seasonNumber: match ? Number(match[2]) : 0,
+    locationLabel: null,
+    status: status,
+    releaseLabel: String(releaseLabel || '')
+  };
 }
 
 function buildSeasonSnapshot_(config) {

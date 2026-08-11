@@ -36,6 +36,10 @@ assert(html.includes('listPublishedSeasonSnapshots'),'The app must discover newl
 assert(html.includes('applyPublishedSeasonSnapshots'),'Published season snapshots must activate their matching season-library entries.');
 assert(html.includes("collection(db,'seasons')"),'Published season discovery must use the protected seasons collection.');
 assert(html.includes("raw.length===0&&PUBLISHED_TAB_HEADERS[wanted]"),'Empty live-result tabs must remain usable from a published snapshot.');
+assert(html.includes('getPublicAppConfig'),'The app must read the public live/default season configuration.');
+assert(html.includes('const globalPoolSeason=seasonById(defaultSeasonId)'),'The active Global Pool must follow the configured default season.');
+assert(html.includes('Past Global Pools'),'Previous Global Pools must remain accessible to their members.');
+assert(firestoreRules.includes('match /appConfig/public'),'Firestore rules must expose only the public runtime routing document.');
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
 assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish')"),'Every publish must preserve the previous live snapshot.');
@@ -51,6 +55,11 @@ assert(publisher.includes('SEASONS_JSON'),'The publisher must support an explici
 assert(publisher.includes('publisherConfig_(requestedSeasonId)'),'Every publisher action must resolve the selected registered season.');
 assert(publisher.includes('function connectSeasonFromAdmin(payload)'),'The admin must be able to connect another season sheet.');
 assert(publisher.includes("setProperty('SEASONS_JSON'"),'Connected season sheets must persist in the private allow-list.');
+assert(publisher.includes('function setDefaultSeasonFromAdmin(seasonId)'),'The admin must be able to promote a published season to live/default.');
+assert(publisher.includes("APP_CONFIG_PATH = 'appConfig/public'"),'The publisher must write the public runtime routing document.');
+assert(publisher.includes('Choose another live/default season before publishing this season as Completed.'),'The active default must not be completed before its successor is chosen.');
+assert(functionsSource.includes('function globalPoolSeasonFromConfig(data)'),'The Global Pool callable must resolve the active season from runtime configuration.');
+assert(!functionsSource.includes('GLOBAL_POOL_SEASONS'),'The Global Pool callable must not retain a hardcoded season allow-list.');
 assert(seasonAdmin.includes('Engagements & Weddings'),'The admin must cover engagement and wedding outcomes.');
 assert(seasonAdmin.includes('Retreat outcomes'),'The admin must cover retreat outcomes.');
 assert(seasonAdmin.includes('Reunion outcomes'),'The admin must cover Reunion outcomes.');
@@ -58,6 +67,7 @@ assert(seasonAdmin.includes('Available through episode'),'The admin must expose 
 assert(seasonAdmin.includes('id="seasonSelect"'),'The admin must expose a season switcher.');
 assert(seasonAdmin.includes('id="connectSeasonButton"'),'The admin must expose a connect-season action.');
 assert(seasonAdmin.includes('connectSeasonFromAdmin(request)'),'The connect-season form must use server-side sheet validation.');
+assert(seasonAdmin.includes('Make live/default'),'The admin must expose an explicit default-season action.');
 assert(seasonAdmin.includes('<svg viewBox="0 0 1024 1024">'),'The season admin must use the Through the Wall app icon.');
 assert(seasonAdmin.includes("active='release'"),'Preview failures must open the visible result panel.');
 assert(seasonAdmin.includes('Nothing was published.'),'Validation failures must clearly state that live data was not changed.');
@@ -65,7 +75,7 @@ assert(seasonAdmin.includes('Phase starts must remain chronological')===false,'S
 
 const publisherContext={console};
 vm.createContext(publisherContext);
-vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;',publisherContext);
+vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;this.__publisherSeasonMetadata=publisherSeasonMetadata_;',publisherContext);
 const seasons=publisherContext.__publisherSeasonRegistry({
   SEASON_ID:'love-is-blind-uk-3',
   SPREADSHEET_ID:'uk3sheet',
@@ -87,6 +97,9 @@ assert.equal(connected.length,3);
 assert.equal(connected[2].label,'Sweden Season 1');
 assert.throws(()=>publisherContext.__upsertPublisherSeason(connected,{seasonId:'love-is-blind-se-1',spreadsheetId:'other',label:'Wrong'}),/different spreadsheet/i);
 assert.throws(()=>publisherContext.__upsertPublisherSeason(connected,{seasonId:'another-season',spreadsheetId:'se1sheet',label:'Wrong'}),/already connected/i);
+assert.deepEqual(JSON.parse(JSON.stringify(publisherContext.__publisherSeasonMetadata({seasonId:'love-is-blind-br-4',label:'Brazil Season 4'},'live','Now streaming'))),{
+  id:'love-is-blind-br-4',label:'Brazil Season 4',country:'Brazil',countryCode:'BR',seasonNumber:4,locationLabel:null,status:'live',releaseLabel:'Now streaming'
+});
 const mockScriptProperties={
   PROJECT_ID:'lib-oauth',
   SEASON_ID:'love-is-blind-uk-3',

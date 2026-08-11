@@ -119,6 +119,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Public, non-sensitive runtime routing: which published season is the
+    // current default and therefore owns the active Global Pool.
+    match /appConfig/public {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+
     // ============================================================
     // Pools
     // ============================================================

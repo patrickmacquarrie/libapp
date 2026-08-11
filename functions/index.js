@@ -26,9 +26,7 @@ const MAIL_SENDERS={
   support:'Through the Wall Support <support@throughthewall.ca>',
 };
 const MAIL_REPLY_TO='patrick.macquarrie@gmail.com';
-const GLOBAL_POOL_SEASONS={
-  'love-is-blind-uk-3':{id:'love-is-blind-uk-3',label:'Love Is Blind UK: Season 3',country:'United Kingdom',countryCode:'UK',seasonNumber:3,locationLabel:null,status:'upcoming',releaseLabel:'First episodes drop August 19, 2026'},
-};
+const FALLBACK_GLOBAL_POOL_SEASON={id:'love-is-blind-uk-3',label:'Love Is Blind UK: Season 3',country:'United Kingdom',countryCode:'UK',seasonNumber:3,locationLabel:null,status:'upcoming',releaseLabel:'First episodes drop August 19, 2026'};
 
 function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
@@ -72,6 +70,22 @@ function escapeHtml(value){
 }
 function safeHeaderText(value,maxLength=100){
   return String(value||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
+}
+
+function globalPoolSeasonFromConfig(data){
+  const configured=data?.defaultSeason&&typeof data.defaultSeason==='object'?data.defaultSeason:{};
+  const id=safeHeaderText(data?.globalPoolSeasonId||data?.defaultSeasonId||configured.id,100);
+  if(!id)return FALLBACK_GLOBAL_POOL_SEASON;
+  return {
+    id,
+    label:safeHeaderText(configured.label||data?.defaultSeasonLabel||id,100),
+    country:safeHeaderText(configured.country,80),
+    countryCode:safeHeaderText(configured.countryCode,8),
+    seasonNumber:Number.isFinite(Number(configured.seasonNumber))?Number(configured.seasonNumber):0,
+    locationLabel:safeHeaderText(configured.locationLabel,80)||null,
+    status:safeHeaderText(configured.status||data?.status,30)||'upcoming',
+    releaseLabel:safeHeaderText(configured.releaseLabel,160),
+  };
 }
 
 function nudgePreferenceEnabled(preferences,key){
@@ -399,10 +413,13 @@ exports.openGlobalPool=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
   const email=String(request.auth.token?.email||'').trim().toLowerCase();
   const seasonId=String(request.data?.seasonId||'');
-  const season=GLOBAL_POOL_SEASONS[seasonId];
-  if(!season)throw new HttpsError('invalid-argument','That season is not approved for the global pool.');
   const ref=db.doc(`pools/global__${seasonId}`);
+  const configRef=db.doc('appConfig/public');
   await db.runTransaction(async tx=>{
+    const configSnapshot=await tx.get(configRef);
+    const season=globalPoolSeasonFromConfig(configSnapshot.exists?configSnapshot.data():null);
+    if(seasonId!==season.id)throw new HttpsError('invalid-argument','That season is not the active Global Pool season.');
+    if(season.status==='completed')throw new HttpsError('failed-precondition','A completed season cannot open the active Global Pool.');
     const snapshot=await tx.get(ref);
     if(snapshot.exists){
       const current=snapshot.data();

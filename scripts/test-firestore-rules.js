@@ -103,6 +103,18 @@ async function main(){
   await expectStatus(await readDocument('seasons',token),200,'signed-in user lists published seasons');
   await expectStatus(await readDocument('seasons',''),403,'signed-out visitor cannot list published seasons');
 
+  await expectStatus(
+    await writeDocument('appConfig/public',{defaultSeasonId:stringValue('love-is-blind-se-1'),globalPoolSeasonId:stringValue('love-is-blind-se-1')},'owner'),
+    200,
+    'admin seeds public live/default routing'
+  );
+  await expectStatus(await readDocument('appConfig/public',''),200,'signed-out visitor reads public live/default routing');
+  await expectStatus(
+    await writeDocument('appConfig/public',{defaultSeasonId:stringValue('love-is-blind-uk-3')},token),
+    403,
+    'browser user cannot change live/default routing'
+  );
+
   await expectStatus(await writeDocument('pools/v3-valid',poolFields(uid,rulesSnapshot(3,'number')),token),200,'v3 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v4-valid',poolFields(uid,rulesSnapshot(4,'number')),token),200,'v4 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v3-missing-race',poolFields(uid,rulesSnapshot(3)),token),403,'v3 snapshot without RACE_MULT');

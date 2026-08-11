@@ -887,6 +887,10 @@ window._fb = {
     const snapshot=await getDoc(doc(db,'seasons',seasonId));
     return snapshot.exists()?snapshot.data():null;
   },
+  getPublicAppConfig: async () => {
+    const snapshot=await getDoc(doc(db,'appConfig','public'));
+    return snapshot.exists()?snapshot.data():null;
+  },
   listPublishedSeasonSnapshots: async () => {
     const snapshots=await getDocs(collection(db,'seasons'));
     return snapshots.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
@@ -1655,6 +1659,15 @@ const applyPublishedSeasonSnapshots = snapshots => {
   });
   return changed;
 };
+const applyPublicAppConfig = config => {
+  const configuredId=String(config?.defaultSeasonId||'').trim();
+  const season=seasonById(configuredId);
+  if(!season)return DEFAULT_SEASON_ID;
+  const sourceSheetId=String(config?.sourceSheetId||'').trim();
+  if(sourceSheetId){season.sheetId=sourceSheetId;season.available=true;}
+  if(config?.status)season.status=String(config.status);
+  return season.id;
+};
 const seasonOrder = (a,b) => String(a.country||'').localeCompare(String(b.country||''),'en',{sensitivity:'base'})
   || (Number(a.seasonNumber)||0)-(Number(b.seasonNumber)||0)
   || String(a.label||'').localeCompare(String(b.label||''),'en',{sensitivity:'base'});
@@ -1662,7 +1675,6 @@ const SEASON_BANK_SORTED = [...SEASON_BANK].sort(seasonOrder);
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_ROADMAP = SEASON_BANK.filter(season=>season.historical);
 const availableHistoricalSeasonCount = () => HISTORICAL_SEASON_ROADMAP.filter(season=>season.available).length;
-const GLOBAL_POOL_SEASON = seasonById('love-is-blind-uk-3');
 // Safe visual preview: append ?globalDemo=1 to the app URL. Sample players
 // exist only in memory and are never written to Firebase.
 const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('globalDemo')==='1';
@@ -5052,6 +5064,7 @@ function App() {
   // Config
   const [cfg, setCfg] = useState(null);
   const [,setSeasonCatalogVersion] = useState(0);
+  const [defaultSeasonId,setDefaultSeasonId] = useState(DEFAULT_SEASON_ID);
   const [err, setErr] = useState('');
   const [offline, setOffline] = useState(()=>navigator.onLine===false);
   // Lobby
@@ -5129,6 +5142,7 @@ function App() {
   const pickMirrorLinks = useRef([]);
   const confirmResolver=useRef(null);
   const lastStandingsRefresh=useRef(0);
+  const globalPoolSeason=seasonById(defaultSeasonId)||seasonById(DEFAULT_SEASON_ID);
   const requestConfirmation=useCallback(options=>new Promise(resolve=>{
     confirmResolver.current=resolve;setConfirmDialog(options);
   }),[]);
@@ -5189,6 +5203,17 @@ function App() {
     });
   }, [loadAuthenticatedProfile]);
   useEffect(()=>{
+    let cancelled=false;
+    window._fb.getPublicAppConfig().then(config=>{
+      if(cancelled||!config)return;
+      const nextDefault=applyPublicAppConfig(config);
+      setDefaultSeasonId(nextDefault);
+      if(!initialAppParams.has('season'))setSelectedSeasonId(nextDefault);
+      setSeasonCatalogVersion(version=>version+1);
+    }).catch(error=>console.info('The live/default season could not be refreshed.',error));
+    return()=>{cancelled=true;};
+  },[]);
+  useEffect(()=>{
     if(authState!=='signedin')return;
     let cancelled=false;
     window._fb.listPublishedSeasonSnapshots().then(snapshots=>{
@@ -5233,20 +5258,20 @@ function App() {
         : null).filter(Boolean);
       pickMirrorLinks.current=links;
       setPools(availablePools); setInvites(is);
-      const publicGlobalPools=GLOBAL_POOL_SEASON?[await (async()=>{
+      const publicGlobalPools=globalPoolSeason?[await (async()=>{
         try {
-          let pool=await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id);
+          let pool=await window._fb.getGlobalPool(globalPoolSeason.id);
           if(!pool){
-            try{await window._fb.openGlobalPool(GLOBAL_POOL_SEASON.id);pool=await window._fb.getGlobalPool(GLOBAL_POOL_SEASON.id);}catch(error){}
+            try{await window._fb.openGlobalPool(globalPoolSeason.id);pool=await window._fb.getGlobalPool(globalPoolSeason.id);}catch(error){}
           }
-          return [GLOBAL_POOL_SEASON.id,pool];
+          return [globalPoolSeason.id,pool];
         }
-        catch(e) { console.info('The global pool is unavailable until its Firestore rules are published.',e); return [GLOBAL_POOL_SEASON.id,null]; }
+        catch(e) { console.info('The global pool is unavailable until its Firestore rules are published.',e); return [globalPoolSeason.id,null]; }
       })()]:[];
       setGlobalPools(Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool])));
     } catch(e) { console.error(e);reportTtwError('lobby_load_failed',e,{operation:'load_lobby'});setErr('Could not refresh your pools. Please try again.'); }
     finally { setLobbyLoading(false); }
-  }, [user]);
+  }, [user,defaultSeasonId]);
   useEffect(() => { if (authState==='signedin' && profile?.username) loadLobby(); }, [authState, profile, loadLobby]);
   useEffect(()=>{
     if(authState!=='signedin'||!profile?.username||activePool||!creating)return;
@@ -5588,7 +5613,7 @@ function App() {
         reportTtwError('invite_send_failed',inviteError,{operation:'send_creation_invites',poolId,seasonId:season.id});
         setErr('Your pool was created, but an invitation could not be sent. Publish the latest Firestore rules, then invite your friend from the Standings tab.');
       }
-      setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setMirrorGlobalPicks(false); setInviteList([]);
+      setCreating(false); setNewPoolName(''); setSelectedSeasonId(defaultSeasonId); setMirrorGlobalPicks(false); setInviteList([]);
       if(mirrorSourcePoolId) {
         const createdPool=await window._fb.getPool(poolId);
         if(!createdPool)throw new Error('Your pool was created, but it could not be opened. Refresh to find it in your pool list.');
@@ -6184,11 +6209,12 @@ function App() {
   const recentPoolOrder=(a,b)=>(Number(b._myLastPredictionAt)||0)-(Number(a._myLastPredictionAt)||0)||alphaByName(a.name,b.name);
   const activeFriendPools=friendPools.filter(pool=>pool._myPast!==true).sort(recentPoolOrder);
   const pastFriendPools=friendPools.filter(pool=>pool._myPast===true).sort(recentPoolOrder);
+  const pastGlobalPools=pools.filter(pool=>pool.global===true&&seasonForPool(pool).id!==defaultSeasonId).sort(recentPoolOrder);
   const friendPoolRow=pool=><button type="button" className="pool-row" key={pool.id} onClick={()=>enterPool(pool)}>
     <span className="pool-row-copy"><span className="pname">{pool.name}</span><span className="pmeta">{seasonLabelForPool(pool)} · {pool._myPast===true?'Past':seasonPoolStatusLabel(seasonForPool(pool))||`${pool.members.length} member${pool.members.length!==1?'s':''}`}</span></span>
     <span className="pool-row-action" aria-hidden="true">→</span>
   </button>;
-  const globalPool=GLOBAL_POOL_SEASON?globalPools[GLOBAL_POOL_SEASON.id]:null;
+  const globalPool=globalPoolSeason?globalPools[globalPoolSeason.id]:null;
   const joinedGlobalPool=!!globalPool?.members?.includes(user.uid);
   const selectedGlobalMirrorPool=globalPools[selectedSeasonId];
   const canMirrorSelectedGlobal=!!selectedGlobalMirrorPool?.members?.includes(user.uid);
@@ -6217,10 +6243,10 @@ function App() {
         </div>
       </div>)}
     </div>}
-    {GLOBAL_POOL_SEASON&&<section className="card global-pool-card">
+    {globalPoolSeason&&<section className="card global-pool-card">
       <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pool</h2><p className="lede">One universal season pool with its own predictions, scoring, and leaderboard.</p></div></div>
-      <button type="button" className="pool-row" onClick={()=>openGlobalPool(GLOBAL_POOL_SEASON)}>
-        <span className="pool-row-copy"><span className="pname">{formatSeasonLabel(GLOBAL_POOL_SEASON)}</span><span className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(GLOBAL_POOL_SEASON)||'Live season'}</span></span>
+      <button type="button" className="pool-row" onClick={()=>openGlobalPool(globalPoolSeason)}>
+        <span className="pool-row-copy"><span className="pname">{formatSeasonLabel(globalPoolSeason)}</span><span className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(globalPoolSeason)||'Live season'}</span></span>
         <span className="pool-row-action">{joinedGlobalPool?'Open':'Join'} →</span>
       </button>
       <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are scored only against global players; when you create a friend pool for the same season, you can choose to mirror them there.</p>
@@ -6262,10 +6288,11 @@ function App() {
           {inviteList.map(em=><span className="email-chip" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
         </div>}
         <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId||creatingPool} onClick={doCreatePool}>{creatingPool?'Building your pool…':`Create pool${inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}`}</button>
-        <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setMirrorGlobalPicks(false);setInviteList([]);}}>Cancel</button>
+        <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(defaultSeasonId);setMirrorGlobalPicks(false);setInviteList([]);}}>Cancel</button>
       </div>}
       </section>
       {!lobbyLoading&&pastFriendPools.length>0&&<section aria-labelledby="past-pools-heading" style={{marginTop:22}}><div className="library-head"><h3 id="past-pools-heading" style={{margin:0}}>Past pools</h3><button type="button" className="btn-small" aria-expanded={pastPoolsOpen} aria-controls="past-pools-list" onClick={()=>setPastPoolsOpen(open=>!open)}>{pastPoolsOpen?'Hide pools':'Show pools'}</button></div><div id="past-pools-list" hidden={!pastPoolsOpen}>{pastFriendPools.map(friendPoolRow)}</div></section>}
+      {!lobbyLoading&&pastGlobalPools.length>0&&<section aria-labelledby="past-global-pools-heading" style={{marginTop:22}}><h3 id="past-global-pools-heading" style={{margin:'0 0 8px'}}>Past Global Pools</h3>{pastGlobalPools.map(friendPoolRow)}</section>}
     </div>
     <div className="card">
       <div className="library-head">
