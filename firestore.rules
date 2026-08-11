@@ -63,14 +63,17 @@ service cloud.firestore {
 
     function reunionLocked(poolId, uid) {
       return exists(
-        /databases/$(database)/documents/pools/$(poolId)/players/$(uid)
+        /databases/$(database)/documents/pools/$(poolId)/phasePicks/$("reunion__" + uid)
       ) &&
         get(
-          /databases/$(database)/documents/pools/$(poolId)/players/$(uid)
+          /databases/$(database)/documents/pools/$(poolId)/phasePicks/$("reunion__" + uid)
+        ).data.get('uid', '') == uid &&
+        get(
+          /databases/$(database)/documents/pools/$(poolId)/phasePicks/$("reunion__" + uid)
         ).data.get('phase', '') == 'reunion' &&
         get(
-          /databases/$(database)/documents/pools/$(poolId)/players/$(uid)
-        ).data.get('screen', '') in ['watch', 'close', 'final'];
+          /databases/$(database)/documents/pools/$(poolId)/phasePicks/$("reunion__" + uid)
+        ).data.get('lockedAt', null) is number;
     }
 
     function pendingInviteFor(poolId) {
@@ -381,7 +384,8 @@ service cloud.firestore {
               'uid',
               'phase',
               'picks',
-              'updatedAt'
+              'updatedAt',
+              'lockedAt'
             ]) &&
             request.resource.data.uid == request.auth.uid &&
             request.resource.data.phase is string &&
@@ -391,14 +395,24 @@ service cloud.firestore {
             request.resource.data.picks is list &&
             request.resource.data.picks.size() <= 40 &&
             request.resource.data.updatedAt is number &&
+            (
+              !request.resource.data.keys().hasAny(['lockedAt']) ||
+              (
+                request.resource.data.phase == 'reunion' &&
+                request.resource.data.lockedAt is number
+              )
+            ) &&
             !phaseCompleted(
               poolId,
               request.resource.data.phase,
               request.auth.uid
             ) &&
-            !(
-              request.resource.data.phase == 'reunion' &&
-              reunionLocked(poolId, request.auth.uid)
+            (
+              !(
+                request.resource.data.phase == 'reunion' &&
+                reunionLocked(poolId, request.auth.uid)
+              ) ||
+              request.resource.data == resource.data
             );
         }
 

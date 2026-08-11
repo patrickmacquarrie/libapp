@@ -11,6 +11,17 @@ npm run build
 
 The deployable static site is written to `dist/`. GitHub Actions publishes that folder to GitHub Pages.
 
+## Tests
+
+Install Java 21 as well as Node.js 22, then run the same release gate used by GitHub Pages:
+
+```sh
+npm ci
+npm run check
+```
+
+The gate runs the prediction-engine audit, starts local Firestore and Authentication emulators for the security-rules tests, and produces the deployable build. Pull requests run the full gate, and a push to `main` deploys only after it passes.
+
 ## Firebase deployment
 
 The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, global Heat Check aggregation, and opt-in comeback nudges use Firebase Functions.

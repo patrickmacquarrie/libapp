@@ -1024,7 +1024,7 @@ window._fb = {
   },
   savePlayer: async (poolId, uid, data) => {
     const batch = writeBatch(db);
-    const {picks={},predictionPhases,skipPickWriteFor=[], ...publicState} = data;
+    const {picks={},predictionPhases,skipPickWriteFor=[],lockPicks={}, ...publicState} = data;
     // Public status never contains picks. Replacing the document also removes legacy embedded picks.
     batch.set(doc(db,'pools',poolId,'players',uid), {...publicState,picks:deleteField()},{merge:true});
     const activePhase = GAME_PHASES.includes(publicState.phase) ? publicState.phase : 'pods';
@@ -1035,9 +1035,15 @@ window._fb = {
     // player locked them, so close/final-screen saves update only public status.
     editablePhases.filter(phase=>!skipPickWriteFor.includes(phase)).forEach(phase=>{
       if (publicState.completed?.[phase]) return;
+      const lockedAt=Number(lockPicks[phase]);
+      const pickState={
+        uid,phase,picks:Array.isArray(picks[phase])?picks[phase]:[],
+        updatedAt:Number.isFinite(lockedAt)?lockedAt:Date.now()
+      };
+      if(Number.isFinite(lockedAt))pickState.lockedAt=lockedAt;
       batch.set(
         doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),
-        {uid,phase,picks:Array.isArray(picks[phase])?picks[phase]:[],updatedAt:Date.now()}
+        pickState
       );
     });
     await batch.commit();
@@ -1106,13 +1112,20 @@ window._fb = {
           // Reunion scores can be shown as soon as an individual player locks.
           // Other locked players' picks are readable only after the viewer has
           // locked too. Until then, fetch the viewer's own pick document only.
-          const viewer=players[currentUid]||{};
+          let viewerPick=null;
+          if(currentUid) {
+            const viewerPickSnap=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+currentUid));
+            if(viewerPickSnap.exists()) {
+              viewerPick=viewerPickSnap.data();
+              if(players[currentUid])players[currentUid].picks[phase]=Array.isArray(viewerPick.picks)?viewerPick.picks:[];
+            }
+          }
           const viewerLocked=!!currentUid&&(phaseStatusData?.completedMembers?.includes(currentUid) ||
-            (viewer.phase==='reunion'&&['watch','close','final'].includes(viewer.screen)));
+            Number.isFinite(Number(viewerPick?.lockedAt)));
           const pickUids=viewerLocked?Object.entries(players)
             .filter(([uid,p]) => phaseStatusData?.completedMembers?.includes(uid) ||
               (p.phase==='reunion' && ['watch','close','final'].includes(p.screen)))
-            .map(([uid])=>uid):(currentUid?[currentUid]:[]);
+            .map(([uid])=>uid).filter(uid=>uid!==currentUid):[];
           await Promise.all(pickUids.map(async uid => {
             try {
               const lockedPick = await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
@@ -5371,9 +5384,11 @@ function App() {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
-    const {seenRetroNotices:localRetroNotices,...persistedState}=state;
-    const skipPickWriteFor=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)?['reunion']:[];
-    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
+    const {seenRetroNotices:localRetroNotices,lockReunion=false,...persistedState}=state;
+    const lockingReunion=lockReunion===true&&state.phase==='reunion'&&state.screen==='watch';
+    const skipPickWriteFor=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)&&!lockingReunion?['reunion']:[];
+    const lockPicks=lockingReunion?{reunion:Date.now()}:{};
+    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,lockPicks,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
     pendingSave.current=snapshot;
     if (immediate) return flushSave();
@@ -5742,7 +5757,7 @@ function App() {
     if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
     setGatingLabel('Locking in your predictions…');setGating(true);
     try {
-      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
+      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion'},true);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
     } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
     finally { setGating(false);setGatingLabel(''); }
