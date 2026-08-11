@@ -887,6 +887,10 @@ window._fb = {
     const snapshot=await getDoc(doc(db,'seasons',seasonId));
     return snapshot.exists()?snapshot.data():null;
   },
+  listPublishedSeasonSnapshots: async () => {
+    const snapshots=await getDocs(collection(db,'seasons'));
+    return snapshots.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+  },
   setProfile: (uid, data) => setDoc(doc(db,'users',uid), data),
   myPools: async (uid) => {
     const q1 = query(collection(db,'pools'), where('members','array-contains',uid));
@@ -1639,14 +1643,25 @@ const SEASON_BANK = [
   //   Love Is Blind: Habibi S2, Argentina S2
 ];
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
+const applyPublishedSeasonSnapshots = snapshots => {
+  let changed=false;
+  (snapshots||[]).forEach(snapshot=>{
+    const season=seasonById(snapshot?.id);
+    const sourceSheetId=String(snapshot?.sourceSheetId||'').trim();
+    if(!season||!sourceSheetId)return;
+    if(!season.available){season.available=true;changed=true;}
+    if(season.sheetId!==sourceSheetId){season.sheetId=sourceSheetId;changed=true;}
+    if(snapshot.status&&season.status!==snapshot.status){season.status=snapshot.status;changed=true;}
+  });
+  return changed;
+};
 const seasonOrder = (a,b) => String(a.country||'').localeCompare(String(b.country||''),'en',{sensitivity:'base'})
   || (Number(a.seasonNumber)||0)-(Number(b.seasonNumber)||0)
   || String(a.label||'').localeCompare(String(b.label||''),'en',{sensitivity:'base'});
 const SEASON_BANK_SORTED = [...SEASON_BANK].sort(seasonOrder);
 // Historical seasons will be added here as their outcome sheets are completed.
-const HISTORICAL_SEASON_BANK = SEASON_BANK.filter(season=>season.historical&&season.available);
 const HISTORICAL_SEASON_ROADMAP = SEASON_BANK.filter(season=>season.historical);
-const AVAILABLE_SEASONS = SEASON_BANK.filter(season=>season.available);
+const availableHistoricalSeasonCount = () => HISTORICAL_SEASON_ROADMAP.filter(season=>season.available).length;
 const GLOBAL_POOL_SEASON = seasonById('love-is-blind-uk-3');
 // Safe visual preview: append ?globalDemo=1 to the app URL. Sample players
 // exist only in memory and are never written to Firebase.
@@ -1654,8 +1669,11 @@ const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('g
 // Safe Heat Check preview for design QA and demos. No authentication,
 // reads, or writes occur in this mode.
 const CAST_CHEMISTRY_DEMO_MODE = new URLSearchParams(window.location.search).has('chemistryPreview');
-const AVAILABLE_COUNTRY_COUNT = new Set(AVAILABLE_SEASONS.map(season=>season.country)).size;
-const seasonLibrarySummary = `Love Is Blind · ${AVAILABLE_SEASONS.length} season${AVAILABLE_SEASONS.length===1?'':'s'} available across ${AVAILABLE_COUNTRY_COUNT} ${AVAILABLE_COUNTRY_COUNT===1?'country':'countries'}`;
+const seasonLibrarySummary = () => {
+  const seasons=SEASON_BANK.filter(season=>season.available);
+  const countryCount=new Set(seasons.map(season=>season.country)).size;
+  return `Love Is Blind · ${seasons.length} season${seasons.length===1?'':'s'} available across ${countryCount} ${countryCount===1?'country':'countries'}`;
+};
 const MARKETING_SEASON_ID = seasonById(initialAppParams.get('season'))?.available
   ? initialAppParams.get('season')
   : DEFAULT_SEASON_ID;
@@ -1758,6 +1776,14 @@ function parseCSV(text) {
   return rows;
 }
 const normalizedTabKey = value => String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const PUBLISHED_TAB_HEADERS={
+  cast:['Gender','Name'],
+  couples:['ID','Him','Her','Engaged Ep','Wedding','Who Says No','Breakup Ep','Settled Ep','Together Now','lock_ep','Pods Eligible','Dating Eligible','Reunion Status Eligible'],
+  datingresults:['Market','Couple ID','Episode','Person','Confirmed'],
+  reunionresults:['Market','Couple/Person ID or Name','Value','Notes'],
+  settings:['key','value','Notes'],
+  retroevents:['Market','Target','Void Market','Applies Phase','Revealed Ep','Note','Confirmed'],
+};
 function publishedTabRows(snapshot,tabName) {
   if(!snapshot||typeof snapshot!=='object') return null;
   const wanted=normalizedTabKey(tabName);
@@ -1769,6 +1795,7 @@ function publishedTabRows(snapshot,tabName) {
   }
   if(raw&&typeof raw==='object'&&!Array.isArray(raw)) raw=raw.rows||raw.values||raw.data||raw;
   if(typeof raw==='string') return parseCSV(raw);
+  if(Array.isArray(raw)&&raw.length===0&&PUBLISHED_TAB_HEADERS[wanted]) return [PUBLISHED_TAB_HEADERS[wanted]];
   if(Array.isArray(raw)&&raw.every(row=>Array.isArray(row))) return raw.map(row=>row.map(value=>value==null?'':String(value)));
   if(Array.isArray(raw)&&raw.every(row=>row&&typeof row==='object'&&!Array.isArray(row))) {
     const headers=[...new Set(raw.flatMap(row=>Object.keys(row)))];
@@ -5024,6 +5051,7 @@ function App() {
   const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
   const [cfg, setCfg] = useState(null);
+  const [,setSeasonCatalogVersion] = useState(0);
   const [err, setErr] = useState('');
   const [offline, setOffline] = useState(()=>navigator.onLine===false);
   // Lobby
@@ -5039,7 +5067,7 @@ function App() {
   const [creating, setCreating] = useState(MARKETING_CREATE_INTENT);
   const [creatingPool,setCreatingPool]=useState(false);
   const [inviteAction,setInviteAction]=useState('');
-  const [historicalLibraryOpen,setHistoricalLibraryOpen] = useState(()=>HISTORICAL_SEASON_BANK.length<=1);
+  const [historicalLibraryOpen,setHistoricalLibraryOpen] = useState(()=>availableHistoricalSeasonCount()<=1);
   const [pastPoolsOpen,setPastPoolsOpen] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
   const [selectedSeasonId, setSelectedSeasonId] = useState(MARKETING_SEASON_ID);
@@ -5160,6 +5188,14 @@ function App() {
       }
     });
   }, [loadAuthenticatedProfile]);
+  useEffect(()=>{
+    if(authState!=='signedin')return;
+    let cancelled=false;
+    window._fb.listPublishedSeasonSnapshots().then(snapshots=>{
+      if(!cancelled&&applyPublishedSeasonSnapshots(snapshots))setSeasonCatalogVersion(version=>version+1);
+    }).catch(error=>console.info('Published season availability could not be refreshed.',error));
+    return()=>{cancelled=true;};
+  },[authState]);
   /* ── Lobby data ── */
   const loadLobby = useCallback(async () => {
     if (!user) return;
@@ -6157,14 +6193,14 @@ function App() {
   const selectedGlobalMirrorPool=globalPools[selectedSeasonId];
   const canMirrorSelectedGlobal=!!selectedGlobalMirrorPool?.members?.includes(user.uid);
   if (!activePool&&enteringPool) return <div className="app">
-    <BrandHeader season={seasonLibrarySummary}>{userBar}</BrandHeader>
+    <BrandHeader season={seasonLibrarySummary()}>{userBar}</BrandHeader>
     <div className="loading"><span className="spinner">♥</span>Opening your pool...</div>
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
   /* ── LOBBY ── */
   if (!activePool) return <div className="app">
     <AppLoadingState label={loadingMessage}/>
-    <BrandHeader season={seasonLibrarySummary}>
+    <BrandHeader season={seasonLibrarySummary()}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       {userBar}
     </BrandHeader>
@@ -6233,10 +6269,10 @@ function App() {
     </div>
     <div className="card">
       <div className="library-head">
-        <div><h2>Play past seasons</h2>{HISTORICAL_SEASON_BANK.length>1&&<p className="subtle">{HISTORICAL_SEASON_BANK.length} seasons ready to play</p>}</div>
-        {HISTORICAL_SEASON_BANK.length>1&&<button type="button" className="btn-small" aria-expanded={historicalLibraryOpen} aria-controls="historical-season-list" onClick={()=>setHistoricalLibraryOpen(open=>!open)}>{historicalLibraryOpen?'Hide seasons':'Show seasons'}</button>}
+        <div><h2>Play past seasons</h2>{availableHistoricalSeasonCount()>1&&<p className="subtle">{availableHistoricalSeasonCount()} seasons ready to play</p>}</div>
+        {availableHistoricalSeasonCount()>1&&<button type="button" className="btn-small" aria-expanded={historicalLibraryOpen} aria-controls="historical-season-list" onClick={()=>setHistoricalLibraryOpen(open=>!open)}>{historicalLibraryOpen?'Hide seasons':'Show seasons'}</button>}
       </div>
-      {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={HISTORICAL_SEASON_BANK.length>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
+      {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={availableHistoricalSeasonCount()>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}

@@ -32,6 +32,10 @@ assert(firestoreRules.includes("duration.value(1, 'm')"),'Repeated diagnostics m
 });
 assert(!html.includes('data?.message'),'Browser error messages must not be copied into production diagnostics.');
 assert(!html.includes('data?.stack'),'Browser stack traces must not be copied into production diagnostics.');
+assert(html.includes('listPublishedSeasonSnapshots'),'The app must discover newly published roadmap seasons from Firestore.');
+assert(html.includes('applyPublishedSeasonSnapshots'),'Published season snapshots must activate their matching season-library entries.');
+assert(html.includes("collection(db,'seasons')"),'Published season discovery must use the protected seasons collection.');
+assert(html.includes("raw.length===0&&PUBLISHED_TAB_HEADERS[wanted]"),'Empty live-result tabs must remain usable from a published snapshot.');
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
 assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish')"),'Every publish must preserve the previous live snapshot.');
@@ -45,18 +49,23 @@ assert(publisher.includes('function publishSeasonFromAdmin(payload)'),'The admin
 assert(publisher.includes('validateSeasonAdminPayload_'),'The admin must validate submitted season data on the server.');
 assert(publisher.includes('SEASONS_JSON'),'The publisher must support an explicit season allow-list.');
 assert(publisher.includes('publisherConfig_(requestedSeasonId)'),'Every publisher action must resolve the selected registered season.');
+assert(publisher.includes('function connectSeasonFromAdmin(payload)'),'The admin must be able to connect another season sheet.');
+assert(publisher.includes("setProperty('SEASONS_JSON'"),'Connected season sheets must persist in the private allow-list.');
 assert(seasonAdmin.includes('Engagements & Weddings'),'The admin must cover engagement and wedding outcomes.');
 assert(seasonAdmin.includes('Retreat outcomes'),'The admin must cover retreat outcomes.');
 assert(seasonAdmin.includes('Reunion outcomes'),'The admin must cover Reunion outcomes.');
 assert(seasonAdmin.includes('Available through episode'),'The admin must expose episode availability.');
 assert(seasonAdmin.includes('id="seasonSelect"'),'The admin must expose a season switcher.');
+assert(seasonAdmin.includes('id="connectSeasonButton"'),'The admin must expose a connect-season action.');
+assert(seasonAdmin.includes('connectSeasonFromAdmin(request)'),'The connect-season form must use server-side sheet validation.');
+assert(seasonAdmin.includes('<svg viewBox="0 0 1024 1024">'),'The season admin must use the Through the Wall app icon.');
 assert(seasonAdmin.includes("active='release'"),'Preview failures must open the visible result panel.');
 assert(seasonAdmin.includes('Nothing was published.'),'Validation failures must clearly state that live data was not changed.');
 assert(seasonAdmin.includes('Phase starts must remain chronological')===false,'Server validation details should not be duplicated into the UI source.');
 
 const publisherContext={console};
 vm.createContext(publisherContext);
-vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;',publisherContext);
+vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;',publisherContext);
 const seasons=publisherContext.__publisherSeasonRegistry({
   SEASON_ID:'love-is-blind-uk-3',
   SPREADSHEET_ID:'uk3sheet',
@@ -70,6 +79,33 @@ assert.throws(()=>publisherContext.__publisherSeasonRegistry({SEASONS_JSON:JSON.
   {seasonId:'duplicate',spreadsheetId:'one'},
   {seasonId:'duplicate',spreadsheetId:'two'}
 ])}),/more than once/i);
+assert.equal(publisherContext.__publisherSpreadsheetId('https://docs.google.com/spreadsheets/d/1234567890abcdefghij/edit#gid=0'),'1234567890abcdefghij');
+assert.equal(publisherContext.__publisherSpreadsheetId('https://docs.google.com/spreadsheets/u/0/d/abcdefghij1234567890/edit'),'abcdefghij1234567890');
+assert.throws(()=>publisherContext.__publisherSpreadsheetId('not-a-sheet'),/complete Google Sheet link/i);
+const connected=publisherContext.__upsertPublisherSeason(seasons,{seasonId:'love-is-blind-se-1',spreadsheetId:'se1sheet',label:'Sweden Season 1'});
+assert.equal(connected.length,3);
+assert.equal(connected[2].label,'Sweden Season 1');
+assert.throws(()=>publisherContext.__upsertPublisherSeason(connected,{seasonId:'love-is-blind-se-1',spreadsheetId:'other',label:'Wrong'}),/different spreadsheet/i);
+assert.throws(()=>publisherContext.__upsertPublisherSeason(connected,{seasonId:'another-season',spreadsheetId:'se1sheet',label:'Wrong'}),/already connected/i);
+const mockScriptProperties={
+  PROJECT_ID:'lib-oauth',
+  SEASON_ID:'love-is-blind-uk-3',
+  SPREADSHEET_ID:'1234567890uk3sheetidabc'
+};
+publisherContext.PropertiesService={getScriptProperties:()=>({
+  getProperties:()=>({...mockScriptProperties}),
+  setProperty:(key,value)=>{mockScriptProperties[key]=value;}
+})};
+publisherContext.SpreadsheetApp={openById:()=>({getSheetByName:tabName=>({tabName})})};
+publisherContext.LockService={getScriptLock:()=>({waitLock:()=>{},releaseLock:()=>{}})};
+publisherContext.getSeasonAdminData=seasonId=>({seasonId});
+const connectedModel=publisherContext.connectSeasonFromAdmin({
+  seasonId:'love-is-blind-se-1',
+  label:'Sweden Season 1',
+  spreadsheetUrl:'https://docs.google.com/spreadsheets/d/1234567890swedensheetid/edit'
+});
+assert.equal(connectedModel.seasonId,'love-is-blind-se-1');
+assert.equal(JSON.parse(mockScriptProperties.SEASONS_JSON).at(-1).label,'Sweden Season 1');
 const baseAdminSettings={
   SEASON_STATUS:'comingSoon',RELEASE_LABEL:'First episodes soon',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
   PODS_START_EP:'1',PODS_END_EP:'5',DATING_START_EP:'5',DATING_END_EP:'7',RETREAT_START_EP:'5',RETREAT_END_EP:'7',

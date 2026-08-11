@@ -15,7 +15,9 @@ This standalone Google Apps Script publishes any season sheet into Firestore, pr
 
 `SEASON_ID` and `SPREADSHEET_ID` remain the default season, so existing one-season setups continue to work.
 
-To switch between seasons in the web app, add a `SEASONS_JSON` Script property. Its value is a JSON array containing only the seasons this admin should be allowed to edit:
+The easiest way to add another season is the **Connect season sheet** button in the web app. Enter its friendly name, the exact season ID used by the main app, and its Google Sheet link. The publisher checks that you can open the sheet and that all required tabs exist before adding it to the season menu. Connecting a sheet does not modify the sheet or publish anything.
+
+The connected list is stored in the `SEASONS_JSON` Script property. It can also be maintained manually as a JSON array containing only the seasons this admin should be allowed to edit:
 
 ```json
 [
@@ -44,7 +46,9 @@ Deploy it from Apps Script with **Deploy → New deployment → Web app**:
 2. Set **Who has access** to **Only myself**.
 3. Deploy and save the web-app URL.
 
-Use the season menu in the top-right to switch between registered sheets. The app warns before discarding unsaved changes. Every save, preview, publish, and rollback remains scoped to the selected season.
+Use **Connect season sheet** to add another existing spreadsheet, then use the season menu in the top-right to switch between connected sheets. The app warns before discarding unsaved changes. Every save, preview, publish, and rollback remains scoped to the selected season.
+
+Connecting and publishing are separate steps. To treat an older international season as a live test, connect its sheet, set **Season status** to **Live**, choose **Available through episode**, save and preview, and only then publish. Once published, a season already listed in the main app's international roadmap automatically becomes available for signed-in players; no separate app-code edit is required. Previously published US and UK seasons do not need to be connected unless you intend to operate them again.
 
 Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet and produces the normal publisher summary without changing Firestore. The app automatically opens the result panel; validation failures are shown in red and explicitly confirm that nothing was published. **Publish to the app** runs the existing backup-first publish flow. **Restore latest backup** uses the reversible rollback flow.
 
