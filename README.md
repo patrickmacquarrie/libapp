@@ -46,6 +46,8 @@ Before testing Apple or email-link sign-in, enable those providers in Firebase A
 
 The app reads the published Firestore `seasons/{seasonId}` snapshot first. Public Google Sheet CSV is a fallback/admin source only. Keep the Firestore snapshot current before episode traffic arrives.
 
+Use the reusable publisher in [`scripts/season-publisher`](scripts/season-publisher/README.md) and follow [`SEASON-LAUNCH-RUNBOOK.md`](SEASON-LAUNCH-RUNBOOK.md) for preview, publish, verification, monitoring, and rollback.
+
 ## Public-launch checklist
 
 See `PUBLIC-TEST-CHECKLIST.md`. Do not open a large Global Pool until its subcollection membership and precomputed leaderboard migration is complete.

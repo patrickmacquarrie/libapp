@@ -949,6 +949,7 @@ window._fb = {
   },
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
     httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
+  reportClientError: data => httpsCallable(functions,'reportClientError')(data),
   leavePool: poolId => httpsCallable(functions,'leavePool')({poolId}),
   deleteMyAccount: () => httpsCallable(functions,'deleteMyAccount')({}),
   openGlobalPool: seasonId => httpsCallable(functions,'openGlobalPool')({seasonId}),
@@ -1234,6 +1235,17 @@ const trackTtwEvent=(event,details={})=>{
   const payload={event,...details,...acquisition};
   window.dataLayer=window.dataLayer||[];window.dataLayer.push(payload);
   window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));
+};
+const ERROR_CONTEXT_KEYS=['entryStep','operation','phase','poolId','screen','seasonId','targetPoolId'];
+const safeErrorContextValue=(value,maxLength=100)=>String(value||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
+const reportTtwError=(category,error,context={})=>{
+  const code=safeErrorContextValue(error?.code||error?.name||'unknown',80)||'unknown';
+  const safeContext=Object.fromEntries(ERROR_CONTEXT_KEYS.map(key=>[key,safeErrorContextValue(context[key])]).filter(([,value])=>value));
+  trackTtwEvent('app_error',{category,code,operation:safeContext.operation||'',phase:safeContext.phase||'',screen:safeContext.screen||''});
+  try{
+    const report=window._fb?.reportClientError?.({category,code,appBuild:APP_BUILD_TIMESTAMP,...safeContext});
+    if(report?.catch)report.catch(()=>{});
+  }catch(reportError){}
 };
 if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_click',{placement:'app_intent'});
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
@@ -1800,6 +1812,7 @@ async function loadConfig(seasonId=DEFAULT_SEASON_ID,{force=false}={}) {
     return resolved;
   } catch(e) {
     if(configCache.get(seasonId)?.value===value) configCache.delete(seasonId);
+    reportTtwError('season_load_failed',e,{operation:'load_config',seasonId});
     throw e;
   }
 }
@@ -3231,6 +3244,7 @@ class AppErrorBoundary extends React.Component {
   static getDerivedStateFromError(error){return {error};}
   componentDidCatch(error,info){
     console.error('Through the Wall render failed.',error,info);
+    reportTtwError('render_failed',error,{operation:'react_render'});
     this.setState({componentStack:info?.componentStack||''});
   }
   diagnosticPayload=()=>{
@@ -5173,7 +5187,7 @@ function App() {
         catch(e) { console.info('The global pool is unavailable until its Firestore rules are published.',e); return [GLOBAL_POOL_SEASON.id,null]; }
       })()]:[];
       setGlobalPools(Object.fromEntries(publicGlobalPools.filter(([,pool])=>pool).map(([seasonId,pool])=>[seasonId,pool])));
-    } catch(e) { console.error(e); setErr('Could not refresh your pools. Please try again.'); }
+    } catch(e) { console.error(e);reportTtwError('lobby_load_failed',e,{operation:'load_lobby'});setErr('Could not refresh your pools. Please try again.'); }
     finally { setLobbyLoading(false); }
   }, [user]);
   useEffect(() => { if (authState==='signedin' && profile?.username) loadLobby(); }, [authState, profile, loadLobby]);
@@ -5326,6 +5340,7 @@ function App() {
       setActivePool(enteredPool);
     } catch(e) {
       console.error(e);
+      reportTtwError('pool_open_failed',e,{operation:'enter_pool',entryStep,poolId:pool.id,seasonId:seasonForPool(pool).id});
       const message=playerSeasonError(e,'Could not open this pool. Please try again.');
       const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/insufficient permissions/i.test(String(e?.message||''));
       setErr(permissionDenied&&pool.global===true?`The Global Pool was blocked while ${entryStep}. Missing or insufficient permissions.`:message);
@@ -5352,7 +5367,10 @@ function App() {
           try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,pending.data.picks?.[phase]||[]); }
           // A completed target checkpoint is deliberately immutable. It
           // must not prevent the source-pool prediction from saving.
-          catch(e) { console.info('Mirrored pick sync skipped.',e); }
+          catch(e) {
+            console.info('Mirrored pick sync skipped.',e);
+            reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase});
+          }
         })));
       }
     });
@@ -5370,6 +5388,7 @@ function App() {
         },2000);
       }
     } catch(e) {
+      reportTtwError('save_failed',e,{operation:'save_player',poolId:pending.poolId,phase:pending.data.phase,screen:pending.data.screen});
       if(latestSaveSequence.current===pending.sequence) {
         pendingSave.current=pending;
         if(inFlightSave.current?.sequence===pending.sequence) inFlightSave.current=null;
@@ -5509,6 +5528,7 @@ function App() {
         await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
       } catch(inviteError) {
         console.error('The pool was created, but one or more invitations failed.',inviteError);
+        reportTtwError('invite_send_failed',inviteError,{operation:'send_creation_invites',poolId,seasonId:season.id});
         setErr('Your pool was created, but an invitation could not be sent. Publish the latest Firestore rules, then invite your friend from the Standings tab.');
       }
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setMirrorGlobalPicks(false); setInviteList([]);
@@ -5517,7 +5537,7 @@ function App() {
         if(!createdPool)throw new Error('Your pool was created, but it could not be opened. Refresh to find it in your pool list.');
         await enterPool(createdPool,mirrorSourcePoolId);
       } else await loadLobby();
-    } catch(e) { console.error(e); setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
+    } catch(e) { console.error(e);reportTtwError('pool_create_failed',e,{operation:'create_pool',seasonId:season?.id});setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
     finally{setCreatingPool(false);}
   };
   const openGlobalPool = season => {
@@ -5554,6 +5574,7 @@ function App() {
     }
     catch(e) {
       console.error('Pool invitation acceptance failed.',e);
+      reportTtwError('invite_accept_failed',e,{operation:'accept_invite',poolId:inv.poolId});
       setEnteringPool(false);
       const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/permission/i.test(e?.message||'');
       setErr(permissionDenied
@@ -5616,7 +5637,7 @@ function App() {
       const pending=await window._fb.poolInvites(activePool.id);
       setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback('Invitation sent to '+email+'.');
     } catch(e) {
-      console.error(e);setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
+      console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
     } finally { setSendingPoolInvite(false); }
   };
   const shareGlobalPool = async () => {
@@ -6384,6 +6405,7 @@ const mountApp = () => {
     root.render(<AppErrorBoundary><ErrorScrollManager/>{CAST_CHEMISTRY_DEMO_MODE?<ChemistryPreview/>:<App/>}</AppErrorBoundary>);
   } catch(error) {
     console.error('Through the Wall could not start.',error);
+    reportTtwError('startup_failed',error,{operation:'mount_app'});
     window.__ttwBootFailure='The app interface could not start. Reload the page to try again.';
     window.__ttwShowBootFailure(window.__ttwBootFailure);
   }
