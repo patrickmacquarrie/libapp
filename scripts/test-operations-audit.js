@@ -6,6 +6,7 @@ const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const html=read('index.html');
 const functionsSource=read('functions/index.js');
+const firestoreRules=read('firestore.rules');
 const publisher=read('scripts/season-publisher/Code.gs');
 const workflow=read('.github/workflows/deploy-pages.yml');
 const runbook=read('SEASON-LAUNCH-RUNBOOK.md');
@@ -13,14 +14,19 @@ const runbook=read('SEASON-LAUNCH-RUNBOOK.md');
 new Function(functionsSource);
 new Function(publisher);
 
-assert(functionsSource.includes('exports.reportClientError=onCall'),'The searchable client-error function must remain deployed.');
-assert(functionsSource.includes("logger.error('Client operation failed'"),'Client failures must use a stable structured-log message.');
+assert(html.includes("doc(db,'clientErrors',user.uid,'categories',category)"),'Client failures must use authenticated Firestore diagnostics.');
+assert(html.includes('occurrenceCount:increment(1)'),'Client failure counts must remain bounded to one document per user and category.');
+assert(html.includes('lastAt:serverTimestamp()'),'Client failure throttling must use the trusted server timestamp.');
+assert(!html.includes("httpsCallable(functions,'reportClientError')"),'Client failures must not use the organization-blocked public callable.');
+assert(firestoreRules.includes('match /clientErrors/{userId}/categories/{category}'),'Firestore rules must protect client diagnostics.');
+assert(firestoreRules.includes('allow read, delete: if false'),'Browser clients must not read or delete diagnostics.');
+assert(firestoreRules.includes("duration.value(1, 'm')"),'Repeated diagnostics must be throttled in Firestore rules.');
 ['save_failed','season_load_failed','pool_open_failed','pool_create_failed','invite_send_failed','invite_accept_failed','mirror_sync_failed'].forEach(category=>{
-  assert(functionsSource.includes(`'${category}'`),`${category} must be accepted by the reporting function.`);
+  assert(firestoreRules.includes(`'${category}'`),`${category} must be accepted by the diagnostic rules.`);
   assert(html.includes(`reportTtwError('${category}'`),`${category} must be reported by the app.`);
 });
-assert(!functionsSource.includes('request.data?.message'),'Browser error messages must not be copied into production logs.');
-assert(!functionsSource.includes('request.data?.stack'),'Browser stack traces must not be copied into production logs.');
+assert(!html.includes('data?.message'),'Browser error messages must not be copied into production diagnostics.');
+assert(!html.includes('data?.stack'),'Browser stack traces must not be copied into production diagnostics.');
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
 assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish')"),'Every publish must preserve the previous live snapshot.');

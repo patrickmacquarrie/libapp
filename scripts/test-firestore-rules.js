@@ -8,13 +8,28 @@ assert(firestoreHost&&authHost,'Run this script through the Firestore and Auth e
 const stringValue=value=>({stringValue:value});
 const numberValue=value=>({integerValue:String(value)});
 const boolValue=value=>({booleanValue:value});
+const timestampValue=value=>({timestampValue:new Date(value).toISOString()});
 const arrayValue=values=>({arrayValue:{values}});
 const mapValue=fields=>({mapValue:{fields}});
 const documentUrl=path=>`http://${firestoreHost}/v1/projects/${projectId}/databases/(default)/documents/${path}`;
+const databaseName=`projects/${projectId}/databases/(default)`;
 
 async function writeDocument(path,fields,token){
   return fetch(documentUrl(path),{
     method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({fields}),
+  });
+}
+
+async function writeDocumentAtServerTime(path,fields,token){
+  return fetch(`http://${firestoreHost}/v1/${databaseName}/documents:commit`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+    body:JSON.stringify({
+      writes:[{
+        update:{name:`${databaseName}/documents/${path}`,fields},
+        updateTransforms:[{fieldPath:'lastAt',setToServerValue:'REQUEST_TIME'}],
+      }],
+    }),
   });
 }
 
@@ -65,6 +80,16 @@ function phasePickFields(uid,phase,{lockedAt,updatedAt=Date.now()}={}){
   return fields;
 }
 
+function clientErrorFields(uid,category='save_failed',overrides={}){
+  return {
+    uid:stringValue(uid),category:stringValue(category),code:stringValue('permission-denied'),
+    appBuild:stringValue('rules-test'),entryStep:stringValue(''),operation:stringValue('save_player'),
+    phase:stringValue('pods'),poolId:stringValue('pool-1'),screen:stringValue('watch'),
+    seasonId:stringValue('love-is-blind-uk-3'),targetPoolId:stringValue(''),
+    occurrenceCount:numberValue(1),...overrides,
+  };
+}
+
 async function main(){
   const first=await createUser('rules@example.test');
   const second=await createUser('rules-second@example.test');
@@ -75,6 +100,46 @@ async function main(){
   await expectStatus(await writeDocument('pools/v3-missing-race',poolFields(uid,rulesSnapshot(3)),token),403,'v3 snapshot without RACE_MULT');
   await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5)),token),200,'v5 snapshot without RACE_MULT');
   await expectStatus(await writeDocument('pools/v5-invalid-race',poolFields(uid,rulesSnapshot(5,'string')),token),403,'v5 snapshot with invalid optional RACE_MULT');
+
+  const clientErrorPath=`clientErrors/${uid}/categories/save_failed`;
+  await expectStatus(
+    await writeDocumentAtServerTime(clientErrorPath,clientErrorFields(uid),token),
+    200,
+    'signed-in user creates a bounded client diagnostic'
+  );
+  await expectStatus(await readDocument(clientErrorPath,token),403,'browser client cannot read diagnostics');
+  await expectStatus(
+    await writeDocumentAtServerTime(clientErrorPath,clientErrorFields(uid,'save_failed',{occurrenceCount:numberValue(2)}),token),
+    403,
+    'same diagnostic category is throttled for one minute'
+  );
+  await expectStatus(
+    await writeDocument(clientErrorPath,{
+      ...clientErrorFields(uid),lastAt:timestampValue(Date.now()-120000),
+    },'owner'),
+    200,
+    'admin ages the diagnostic for retry testing'
+  );
+  await expectStatus(
+    await writeDocumentAtServerTime(clientErrorPath,clientErrorFields(uid,'save_failed',{occurrenceCount:numberValue(2)}),token),
+    200,
+    'diagnostic counter may advance after the throttle window'
+  );
+  await expectStatus(
+    await writeDocumentAtServerTime(`clientErrors/${second.uid}/categories/save_failed`,clientErrorFields(uid),token),
+    403,
+    'user cannot report under another user id'
+  );
+  await expectStatus(
+    await writeDocumentAtServerTime(`clientErrors/${uid}/categories/not_supported`,clientErrorFields(uid,'not_supported'),token),
+    403,
+    'unsupported diagnostic category is denied'
+  );
+  await expectStatus(
+    await writeDocumentAtServerTime(`clientErrors/${uid}/categories/render_failed`,clientErrorFields(uid,'render_failed',{code:stringValue('x'.repeat(81))}),token),
+    403,
+    'oversized diagnostic values are denied'
+  );
 
   const statusPath='pools/v5-valid/phaseStatus/pods';
   await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([]),revealed:boolValue(false),updatedAt:numberValue(Date.now())},'owner'),200,'admin phase seed');
