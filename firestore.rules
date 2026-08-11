@@ -650,6 +650,80 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == userId;
     }
 
+    // ============================================================
+    // Bounded client diagnostics
+    // One latest report per signed-in user and category. Browser clients
+    // cannot read, delete, impersonate another user, or report more than
+    // once per category per minute.
+    // ============================================================
+
+    match /clientErrors/{userId}/categories/{category} {
+      function validClientErrorCategory() {
+        return category in [
+          'invite_accept_failed',
+          'invite_send_failed',
+          'lobby_load_failed',
+          'mirror_sync_failed',
+          'pool_create_failed',
+          'pool_open_failed',
+          'render_failed',
+          'save_failed',
+          'season_load_failed',
+          'startup_failed'
+        ];
+      }
+
+      function validClientErrorReport() {
+        return signedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly([
+            'uid',
+            'category',
+            'code',
+            'appBuild',
+            'entryStep',
+            'operation',
+            'phase',
+            'poolId',
+            'screen',
+            'seasonId',
+            'targetPoolId',
+            'occurrenceCount',
+            'lastAt'
+          ]) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.category == category &&
+          validClientErrorCategory() &&
+          request.resource.data.code is string &&
+          request.resource.data.code.size() <= 80 &&
+          request.resource.data.appBuild is string &&
+          request.resource.data.appBuild.size() <= 160 &&
+          request.resource.data.entryStep is string &&
+          request.resource.data.entryStep.size() <= 100 &&
+          request.resource.data.operation is string &&
+          request.resource.data.operation.size() <= 100 &&
+          request.resource.data.phase is string &&
+          request.resource.data.phase.size() <= 100 &&
+          request.resource.data.poolId is string &&
+          request.resource.data.poolId.size() <= 100 &&
+          request.resource.data.screen is string &&
+          request.resource.data.screen.size() <= 100 &&
+          request.resource.data.seasonId is string &&
+          request.resource.data.seasonId.size() <= 100 &&
+          request.resource.data.targetPoolId is string &&
+          request.resource.data.targetPoolId.size() <= 100 &&
+          request.resource.data.occurrenceCount is int &&
+          request.resource.data.lastAt == request.time;
+      }
+
+      allow read, delete: if false;
+      allow create: if validClientErrorReport() &&
+        request.resource.data.occurrenceCount == 1;
+      allow update: if validClientErrorReport() &&
+        request.resource.data.occurrenceCount == resource.data.occurrenceCount + 1 &&
+        request.time >= resource.data.lastAt + duration.value(1, 'm');
+    }
+
     match /mail/{messageId} {
       allow read, write: if false;
     }

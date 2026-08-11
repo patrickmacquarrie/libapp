@@ -764,7 +764,7 @@ window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch, deleteField, onSnapshot }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch, deleteField, increment, serverTimestamp, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-functions.js';
@@ -785,6 +785,13 @@ const inviteDocId = (poolId,email) => poolId+'__'+email.toLowerCase();
 const newPoolJoinCode = () => Array.from(crypto.getRandomValues(new Uint8Array(18)),value=>value.toString(36).padStart(2,'0')).join('').slice(0,24);
 const CAST_RATING_CATEGORIES = ['hotness','humour','intelligence','vibes'];
 const NOTIFICATION_DEFAULTS = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
+const CLIENT_ERROR_CATEGORIES = Object.freeze([
+  'invite_accept_failed','invite_send_failed','lobby_load_failed','mirror_sync_failed',
+  'pool_create_failed','pool_open_failed','render_failed','save_failed',
+  'season_load_failed','startup_failed',
+]);
+const CLIENT_ERROR_CONTEXT_KEYS = Object.freeze(['entryStep','operation','phase','poolId','screen','seasonId','targetPoolId']);
+const cleanClientErrorValue = (value,maxLength=100) => String(value||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
 const normalizeNotificationPreferences = value => {
   const stored=value&&typeof value==='object'?value:{};
   const legacy=stored.emailNudges===true;
@@ -949,7 +956,21 @@ window._fb = {
   },
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
     httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
-  reportClientError: data => httpsCallable(functions,'reportClientError')(data),
+  reportClientError: data => {
+    const user=auth.currentUser;
+    const category=cleanClientErrorValue(data?.category,60);
+    if(!user||!CLIENT_ERROR_CATEGORIES.includes(category))return Promise.resolve({reported:false});
+    const report={
+      uid:user.uid,
+      category,
+      code:cleanClientErrorValue(data?.code,80),
+      appBuild:cleanClientErrorValue(data?.appBuild,160),
+      occurrenceCount:increment(1),
+      lastAt:serverTimestamp(),
+    };
+    CLIENT_ERROR_CONTEXT_KEYS.forEach(key=>{report[key]=cleanClientErrorValue(data?.[key]);});
+    return setDoc(doc(db,'clientErrors',user.uid,'categories',category),report,{merge:true});
+  },
   leavePool: poolId => httpsCallable(functions,'leavePool')({poolId}),
   deleteMyAccount: () => httpsCallable(functions,'deleteMyAccount')({}),
   openGlobalPool: seasonId => httpsCallable(functions,'openGlobalPool')({seasonId}),
