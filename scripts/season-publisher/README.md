@@ -5,13 +5,30 @@ This standalone Google Apps Script publishes any season sheet into Firestore, pr
 ## One-time setup
 
 1. Create a standalone Apps Script project and copy in `Code.gs` and `appsscript.json`.
-2. In **Project Settings → Script properties**, add:
+2. Add an HTML file named `Admin` and copy in `Admin.html`.
+3. In **Project Settings → Script properties**, add:
    - `SEASON_ID`: for example, `love-is-blind-uk-3`
    - `SPREADSHEET_ID`: the ID between `/d/` and `/edit` in the Google Sheet URL
    - `PROJECT_ID`: optional; defaults to `lib-oauth`
-3. Run `previewSeasonSnapshot`. The first run asks for Google Sheets and Firestore authorization. The executing Google account needs source-sheet access and permission to update Firestore in the selected project.
+4. Run `previewSeasonSnapshot`. The first run asks for Google Sheets and Firestore authorization. The executing Google account needs source-sheet access and permission to update Firestore in the selected project.
 
 Changing `SEASON_ID` and `SPREADSHEET_ID` is all that is required to use the publisher for another season. Always change both properties together.
+
+## Private season-admin web app
+
+The `Admin.html` interface provides structured forms for cast members, engagements and wedding outcomes, retreat results, Reunion results, later corrections, episode availability, phase boundaries, budgets, and multipliers. The sheet remains the source of truth.
+
+Deploy it from Apps Script with **Deploy → New deployment → Web app**:
+
+1. Set **Execute as** to **Me**.
+2. Set **Who has access** to **Only myself**.
+3. Deploy and save the web-app URL.
+
+Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet and produces the normal publisher summary without changing Firestore. **Publish to the app** runs the existing backup-first publish flow. **Restore latest backup** uses the reversible rollback flow.
+
+There are no automatic triggers. Editing the sheet or admin form never updates the live app until **Publish to the app** is confirmed.
+
+After changing `Code.gs` or `Admin.html`, use **Deploy → Manage deployments**, edit the web-app deployment, choose **New version**, and deploy the update.
 
 ## Normal publishing
 

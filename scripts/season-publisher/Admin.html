@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Through the Wall Season Admin</title>
+  <style>
+    :root{--ink:#23152e;--muted:#6f6378;--line:#e7dce9;--paper:#fffdfd;--wash:#fbf4fb;--pink:#ed0c72;--violet:#7b2ee5;--gold:#c68a16;--green:#16794b;--red:#b42344;--shadow:0 14px 40px rgba(63,28,73,.10)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);background:linear-gradient(145deg,#fff8fb,#f7f1ff 45%,#fffaf0);font:15px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}
+    .shell{max-width:1240px;margin:auto;padding:22px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:16px}.brand{display:flex;gap:12px;align-items:center}.mark{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,var(--pink),var(--violet));display:grid;place-items:center;color:#fff;font-weight:900;box-shadow:var(--shadow)}h1{font-size:24px;margin:0;letter-spacing:-.03em}.subtitle{color:var(--muted);font-size:13px;margin-top:2px}.season-chip{padding:8px 12px;border:1px solid var(--line);background:#fff;border-radius:999px;font-weight:750;font-size:12px;white-space:nowrap}
+    .app{display:grid;grid-template-columns:225px minmax(0,1fr);gap:18px}.sidebar,.panel{background:rgba(255,255,255,.92);border:1px solid rgba(231,220,233,.92);box-shadow:var(--shadow);border-radius:22px}.sidebar{padding:12px;height:max-content;position:sticky;top:16px}.nav{display:grid;gap:4px}.nav button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:11px 12px;border-radius:12px;text-align:left;color:var(--muted);font-weight:700}.nav button:hover{background:var(--wash);color:var(--ink)}.nav button.active{color:var(--violet);background:#f2eaff}.nav-icon{width:24px;text-align:center}.sidebar-note{margin:14px 5px 4px;padding:12px;border-radius:13px;background:#fff8e9;color:#76510b;font-size:12px}
+    .panel{padding:24px;min-height:680px}.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px}.panel h2{font-size:27px;margin:0;letter-spacing:-.035em}.panel-intro{color:var(--muted);margin:5px 0 0;max-width:720px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 14px;border-radius:12px;font-weight:780}.btn:hover{border-color:#cbb8d1}.btn-primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,var(--pink),var(--violet))}.btn-danger{border-color:#f1b9c7;color:var(--red);background:#fff7f8}.btn-small{padding:7px 10px;font-size:12px}.btn-icon{width:34px;height:34px;padding:0;display:grid;place-items:center}
+    .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{border:1px solid var(--line);border-radius:16px;padding:16px;background:var(--paper)}.card h3{font-size:15px;margin:0 0 12px}.card-wide{grid-column:1/-1}.metric{font-size:30px;font-weight:850;letter-spacing:-.04em}.metric-label{color:var(--muted);font-size:12px}.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field-grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}.field{display:grid;gap:5px}.field label,.field-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:800}.field input,.field select,.field textarea,.cell input,.cell select,.cell textarea{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 10px;color:var(--ink);outline:none}.field input:focus,.field select:focus,.field textarea:focus,.cell input:focus,.cell select:focus,.cell textarea:focus{border-color:var(--violet);box-shadow:0 0 0 3px rgba(123,46,229,.10)}.field textarea,.cell textarea{min-height:72px;resize:vertical}.check{display:flex;align-items:center;gap:8px;padding:9px 0;font-weight:650}.check input{width:18px;height:18px;accent-color:var(--violet)}
+    .section-stack{display:grid;gap:14px}.phase-card{border-left:4px solid var(--violet)}.phase-card:nth-child(2){border-left-color:var(--pink)}.phase-card:nth-child(3){border-left-color:var(--gold)}.phase-card:nth-child(4){border-left-color:var(--green)}.phase-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.phase-title h3{margin:0;font-size:18px}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:15px}.data-table{width:100%;border-collapse:collapse;min-width:760px}.data-table th{position:sticky;top:0;background:#f8f3f9;color:var(--muted);text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:9px;border-bottom:1px solid var(--line)}.data-table td{padding:7px;border-bottom:1px solid #f0e8f1;vertical-align:top}.data-table tr:last-child td{border-bottom:0}.data-table .compact{width:92px}.data-table .remove{width:42px}.empty{border:1px dashed #cdbfd1;border-radius:16px;padding:32px;text-align:center;color:var(--muted);background:#fdfafd}.table-actions{margin-top:12px}.hint{color:var(--muted);font-size:12px}.notice{border-radius:14px;padding:13px 15px;background:#eef9f3;color:#176240;margin-bottom:14px}.warning{background:#fff6e5;color:#79520a}.error{background:#fff0f2;color:#9b1b3b}.result{white-space:pre-wrap;word-break:break-word;background:#21162a;color:#f9efff;border-radius:14px;padding:14px;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}.release-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.release-card{border:1px solid var(--line);border-radius:18px;padding:18px;background:#fff}.release-card h3{margin:0 0 7px}.release-card p{color:var(--muted);min-height:60px}.release-card.publish{border-color:#e9bfd3;background:#fff9fc}.release-card.rollback{border-color:#efd7ac;background:#fffbf2}
+    .footerbar{position:sticky;bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:20px;padding:12px 14px;border-radius:16px;background:rgba(35,21,46,.94);color:#fff;box-shadow:0 12px 34px rgba(35,21,46,.28);backdrop-filter:blur(12px)}.footerbar .btn{border-color:rgba(255,255,255,.2)}.save-state{font-size:12px}.dirty{color:#ffd57b}.saved{color:#91ebbc}.overlay{position:fixed;inset:0;background:rgba(35,21,46,.38);display:grid;place-items:center;z-index:20;backdrop-filter:blur(4px)}.overlay[hidden]{display:none}.loader{background:#fff;padding:22px 26px;border-radius:18px;box-shadow:var(--shadow);font-weight:800}.dot{display:inline-block;animation:pulse 1s infinite}@keyframes pulse{50%{opacity:.25}}
+    @media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{position:static;overflow:auto}.nav{display:flex;min-width:max-content}.nav button{width:auto}.sidebar-note{display:none}.cards,.release-grid{grid-template-columns:1fr 1fr}.field-grid.four{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:620px){.shell{padding:12px}.topbar{align-items:flex-start}.season-chip{display:none}.panel{padding:18px;border-radius:18px}.panel-head{display:grid}.cards,.release-grid,.field-grid,.field-grid.four{grid-template-columns:1fr}.footerbar{align-items:flex-start;flex-direction:column}.footerbar .actions{width:100%}.footerbar .btn{flex:1}.mark{width:42px;height:42px}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="mark">TTW</div><div><h1>Season Admin</h1><div class="subtitle">A clean control room for live Love Is Blind seasons</div></div></div>
+      <div class="season-chip" id="seasonChip">Loading season…</div>
+    </header>
+    <div class="app">
+      <aside class="sidebar">
+        <nav class="nav" id="nav"></nav>
+        <div class="sidebar-note">Nothing reaches the live app until you use <b>Publish</b>. Save &amp; Preview only updates the sheet.</div>
+      </aside>
+      <main class="panel" id="panel"><div class="empty">Loading the season sheet…</div></main>
+    </div>
+  </div>
+  <div class="overlay" id="overlay"><div class="loader"><span class="dot">●</span> <span id="overlayText">Loading season…</span></div></div>
+  <script>
+    const sections=[
+      ['overview','◉','Overview'],['cast','☺','Cast'],['couples','♥','Engagements & Weddings'],
+      ['dating','☀','Retreat outcomes'],['reunion','✦','Reunion'],['corrections','↺','Later corrections'],['release','↑','Preview & Publish']
+    ];
+    const defaults={
+      SEASON_STATUS:'comingSoon',RELEASE_LABEL:'',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
+      PODS_START_EP:'1',PODS_END_EP:'5',DATING_START_EP:'5',DATING_END_EP:'7',RETREAT_START_EP:'5',RETREAT_END_EP:'7',
+      WEDDINGS_START_EP:'7',WEDDINGS_END_EP:'11',REUNION_START_EP:'11',REUNION_END_EP:'12',
+      PODS_BOUNDARY_FINAL:'FALSE',DATING_BOUNDARY_FINAL:'FALSE',WEDDINGS_BOUNDARY_FINAL:'FALSE',REUNION_BOUNDARY_FINAL:'FALSE',
+      PODS_RESULTS_READY:'FALSE',DATING_RESULTS_READY:'FALSE',WEDDINGS_RESULTS_READY:'FALSE',REUNION_RESULTS_READY:'FALSE',
+      PODS_BUDGET:'200',PODS_CAP:'60',DATING_BUDGET:'150',DATING_CAP:'40',WEDDINGS_BUDGET:'150',WEDDINGS_CAP:'80',REUNION_BUDGET:'100',REUNION_CAP:'40',
+      DATING_SEX_MULT:'1',DATING_FLIRT_MULT:'2',DATING_BREAKUP_MULT:'3',WEDDINGS_MARRIED_MULT:'1',WEDDINGS_SAYS_NO_MULT:'1.5',WEDDINGS_CALLED_OFF_MULT:'1.75',WEDDINGS_LEAD_STEP:'.25',WEDDINGS_LEAD_CAP:'1.75',
+      REUNION_STILL_MULT:'1',REUNION_SPLIT_MULT:'2',REUNION_MARRIED_SPLIT_MULT:'2',REUNION_BACK_MULT:'2',REUNION_NEW_COUPLE_MULT:'5',REUNION_LIFE_UPDATE_MULT:'5',REUNION_ABSENT_MULT:'2'
+    };
+    let model=null,active='overview',dirty=false,lastResult='';
+    const $=id=>document.getElementById(id);
+    const h=value=>String(value??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+    const selected=(value,wanted)=>String(value)===String(wanted)?' selected':'';
+    const checked=value=>String(value).toUpperCase()==='TRUE'?' checked':'';
+    const optionList=(items,value,placeholder='Choose…')=>`<option value="">${h(placeholder)}</option>`+items.map(item=>{const pair=typeof item==='string'?[item,item]:item;return `<option value="${h(pair[0])}"${selected(value,pair[0])}>${h(pair[1])}</option>`}).join('');
+    const setting=(key)=>model.settings[key]??defaults[key]??'';
+    const input=(scope,index,key,value,type='text',extra='')=>`<input type="${type}" value="${h(value)}" data-scope="${scope}" data-index="${index}" data-key="${key}" ${extra}>`;
+    const select=(scope,index,key,value,items,placeholder,extra='')=>`<select data-scope="${scope}" data-index="${index}" data-key="${key}" ${extra}>${optionList(items,value,placeholder)}</select>`;
+    const settingInput=(key,label,type='number',extra='')=>`<div class="field"><label>${h(label)}</label><input type="${type}" value="${h(setting(key))}" data-scope="settings" data-key="${key}" ${extra}></div>`;
+    const settingCheck=(key,label)=>`<label class="check"><input type="checkbox" data-scope="settings" data-key="${key}"${checked(setting(key))}>${h(label)}</label>`;
+    const panelHead=(title,intro,button='')=>`<div class="panel-head"><div><h2>${h(title)}</h2><p class="panel-intro">${intro}</p></div>${button}</div>`;
+    function setBusy(on,text='Working…'){ $('overlay').hidden=!on;$('overlayText').textContent=text; }
+    function fail(error){setBusy(false);const message=error?.message||String(error||'Something went wrong.');lastResult='ERROR\n'+message;render();}
+    function markDirty(){dirty=true;renderFooter();}
+    function renderNav(){ $('nav').innerHTML=sections.map(([id,icon,label])=>`<button type="button" data-nav="${id}" class="${id===active?'active':''}"><span class="nav-icon">${icon}</span>${h(label)}</button>`).join(''); }
+    function render(){if(!model)return;renderNav();$('seasonChip').textContent=model.seasonId+' · '+statusLabel();const views={overview:renderOverview,cast:renderCast,couples:renderCouples,dating:renderDating,reunion:renderReunion,corrections:renderCorrections,release:renderRelease};$('panel').innerHTML=views[active]()+renderFooterHtml();bindControls();}
+    function statusLabel(){return {comingSoon:'Upcoming',live:'Live',completed:'Completed'}[setting('SEASON_STATUS')]||setting('SEASON_STATUS');}
+    function renderOverview(){
+      const phases=[['PODS','Pods'],['DATING','Dating'],['WEDDINGS','Weddings'],['REUNION','Reunion']];
+      return panelHead('Season overview','Control what viewers can access and where each prediction phase begins and ends.')+
+        `<div class="cards"><div class="card"><div class="metric">${model.cast.length}</div><div class="metric-label">cast members</div></div><div class="card"><div class="metric">${model.couples.length}</div><div class="metric-label">known couples</div></div><div class="card"><div class="metric">${h(setting('AVAILABLE_THROUGH_EP'))}</div><div class="metric-label">episodes available</div></div>
+        <div class="card card-wide"><h3>Release controls</h3><div class="field-grid four"><div class="field"><label>Season status</label><select data-scope="settings" data-key="SEASON_STATUS">${optionList([['comingSoon','Upcoming'],['live','Live'],['completed','Completed']],setting('SEASON_STATUS'),'Choose status')}</select></div>${settingInput('AVAILABLE_THROUGH_EP','Available through episode','number','min="0" max="100"')}${settingInput('RELEASE_LABEL','Release label','text')}<div class="field"><label>Live boundaries</label>${settingCheck('BOUNDARIES_LIVE','Allow provisional phase boundaries')}</div></div></div></div>
+        <div class="section-stack" style="margin-top:14px">${phases.map(([key,label])=>`<div class="card phase-card"><div class="phase-title"><h3>${label}</h3><span class="hint">Prediction window</span></div><div class="field-grid four">${settingInput(key+'_START_EP','Starts episode','number','min="1"')}${settingInput(key+'_END_EP','Ends episode','number','min="2"')}${settingInput(key+'_BUDGET','Hearts budget','number','min="0"')}${settingInput(key+'_CAP','Max per pick','number','min="0"')}</div><div class="field-grid"><div>${settingCheck(key+'_BOUNDARY_FINAL','Boundary is final')}</div><div>${settingCheck(key+'_RESULTS_READY','Results are ready')}</div></div>${key==='DATING'?`<div class="field-grid">${settingInput('RETREAT_START_EP','Retreat starts','number','min="1"')}${settingInput('RETREAT_END_EP','Retreat ends','number','min="1"')}</div>`:''}</div>`).join('')}</div>`;
+    }
+    function renderCast(){
+      const rows=model.cast.length?`<div class="table-wrap"><table class="data-table" style="min-width:520px"><thead><tr><th class="compact">Gender</th><th>Name</th><th class="remove"></th></tr></thead><tbody>${model.cast.map((row,i)=>`<tr><td>${select('cast',i,'gender',row.gender,[['M','Man'],['F','Woman']],'Gender')}</td><td>${input('cast',i,'name',row.name,'text','placeholder="Exact on-screen name"')}</td><td><button class="btn btn-small btn-icon" type="button" data-remove="cast" data-index="${i}" aria-label="Remove ${h(row.name||'cast member')}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No cast members yet. Add people only when they have a meaningful pod date.</div>`;
+      return panelHead('Cast','Add only the people you want to make available for predictions. Exact names connect to the matching repository photos.')+rows+`<div class="table-actions"><button class="btn" type="button" data-add="cast">+ Add cast member</button></div>`;
+    }
+    function castOptions(gender){return model.cast.filter(row=>!gender||row.gender===gender).map(row=>row.name).filter(Boolean);}
+    function coupleOptions(){return model.couples.map(row=>[row.id,(row.him&&row.her)?row.him+' & '+row.her:row.id]).filter(row=>row[0]);}
+    function renderCouples(){
+      const rows=model.couples.length?`<div class="table-wrap"><table class="data-table" style="min-width:1350px"><thead><tr><th>ID</th><th>Man</th><th>Woman</th><th>Engaged ep.</th><th>Wedding outcome</th><th>Who ends it</th><th>Breakup ep.</th><th>Settled ep.</th><th>Together now</th><th>Lock ep.</th><th>Pods?</th><th>Retreat?</th><th>Reunion?</th><th></th></tr></thead><tbody>${model.couples.map((row,i)=>`<tr><td>${input('couples',i,'id',row.id,'text','placeholder="auto-generated"')}</td><td>${select('couples',i,'him',row.him,castOptions('M'),'Choose man')}</td><td>${select('couples',i,'her',row.her,castOptions('F'),'Choose woman')}</td><td>${input('couples',i,'engagedEp',row.engagedEp,'number','min="1"')}</td><td>${select('couples',i,'wedding',row.wedding,[['married','Married'],['saysNo','Says no at altar'],['calledOff','Called off before altar'],['notShown','Not shown past pods']],'Unknown')}</td><td>${select('couples',i,'whoSaysNo',row.whoSaysNo,[['him',row.him||'Him'],['her',row.her||'Her']],'Not applicable')}</td><td>${input('couples',i,'breakupEp',row.breakupEp,'number','min="1"')}</td><td>${input('couples',i,'settledEp',row.settledEp,'number','min="1"')}</td><td>${select('couples',i,'togetherNow',row.togetherNow,[['TRUE','Yes'],['FALSE','No']],'Unknown')}</td><td>${input('couples',i,'lockEp',row.lockEp,'number','min="1"')}</td><td>${select('couples',i,'podsEligible',row.podsEligible,[['TRUE','Yes'],['FALSE','No']],'Default')}</td><td>${select('couples',i,'datingEligible',row.datingEligible,[['TRUE','Yes'],['FALSE','No']],'Default')}</td><td>${select('couples',i,'reunionStatusEligible',row.reunionStatusEligible,[['TRUE','Yes'],['FALSE','No']],'No')}</td><td><button class="btn btn-small btn-icon" type="button" data-remove="couples" data-index="${i}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No engagements recorded yet. Add a couple when an engagement is revealed.</div>`;
+      return panelHead('Engagements & weddings','Record engagements once shown, then fill in breakup and wedding outcomes as the season progresses.')+rows+`<div class="table-actions"><button class="btn" type="button" data-add="couples">+ Add engagement</button></div><p class="hint">The couple ID is generated from the two names when left blank. “Lock episode” is the last episode before the outcome becomes known.</p>`;
+    }
+    function engagedCast(){const names=new Set(model.couples.flatMap(row=>[row.him,row.her]));return [...names].filter(Boolean);}
+    function renderDating(){
+      const rows=model.datingResults.length?`<div class="table-wrap"><table class="data-table"><thead><tr><th>Outcome</th><th>Couple or person</th><th>Episode</th><th>Confirmed</th><th></th></tr></thead><tbody>${model.datingResults.map((row,i)=>{const flirt=row.market==='flirt';return `<tr><td>${select('datingResults',i,'market',row.market,[['sex','Slept together'],['flirt','Flirted outside engagement'],['breakup','Broke up']],'Choose outcome')}</td><td>${flirt?select('datingResults',i,'person',row.person,engagedCast(),'Choose cast member'):select('datingResults',i,'coupleId',row.coupleId,coupleOptions(),'Choose couple')}</td><td>${input('datingResults',i,'episode',row.episode,'number',`min="${h(setting('RETREAT_START_EP'))}" max="${h(setting('RETREAT_END_EP'))}"`)}</td><td><label class="check"><input type="checkbox" data-scope="datingResults" data-index="${i}" data-key="confirmed"${checked(row.confirmed)}> Confirmed</label></td><td><button class="btn btn-small btn-icon" type="button" data-remove="datingResults" data-index="${i}">×</button></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty">No retreat outcomes recorded yet.</div>`;
+      return panelHead('Retreat outcomes',`Record only events shown or clearly discussed during Episodes ${h(setting('RETREAT_START_EP'))}–${h(setting('RETREAT_END_EP'))}.`)+rows+`<div class="table-actions"><button class="btn" type="button" data-add="datingResults">+ Add retreat outcome</button></div><div class="card" style="margin-top:16px"><h3>Market multipliers</h3><div class="field-grid four">${settingInput('DATING_SEX_MULT','Slept together')}${settingInput('DATING_FLIRT_MULT','Flirt')}${settingInput('DATING_BREAKUP_MULT','Breakup')}</div></div>`;
+    }
+    function reunionTarget(row,i){
+      if(['still','back'].includes(row.market))return select('reunionResults',i,'target',row.target,coupleOptions(),'Choose couple');
+      if(['lifeupdate','absent'].includes(row.market))return select('reunionResults',i,'target',row.target,castOptions(),'Choose cast member');
+      if(row.market==='newcouple'){const parts=String(row.target||'|').split('|');return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${select('reunionResults',i,'target',parts[0],castOptions('M'),'Choose man','data-pair-part="0"')}${select('reunionResults',i,'target',parts[1],castOptions('F'),'Choose woman','data-pair-part="1"')}</div>`}
+      return input('reunionResults',i,'target',row.target);
+    }
+    function reunionValue(row,i){
+      if(['still','back'].includes(row.market))return select('reunionResults',i,'value',row.value,[['TRUE','Yes'],['FALSE','No']],'Choose result');
+      if(row.market==='lifeupdate')return select('reunionResults',i,'value',row.value,[['newPartner','Married or engaged to someone new'],['newBaby','Pregnant or new baby']],'Choose update');
+      return '<span class="hint">No extra value needed</span>';
+    }
+    function renderReunion(){
+      const rows=model.reunionResults.length?`<div class="table-wrap"><table class="data-table" style="min-width:880px"><thead><tr><th>Outcome</th><th>Couple / cast member</th><th>Result</th><th>Notes</th><th></th></tr></thead><tbody>${model.reunionResults.map((row,i)=>`<tr><td>${select('reunionResults',i,'market',row.market,[['still','Still together'],['back','Back together'],['newcouple','New couple revealed'],['lifeupdate','Major life update'],['absent','Absent from reunion']],'Choose outcome')}</td><td>${reunionTarget(row,i)}</td><td>${reunionValue(row,i)}</td><td>${input('reunionResults',i,'notes',row.notes,'text','placeholder="Optional context"')}</td><td><button class="btn btn-small btn-icon" type="button" data-remove="reunionResults" data-index="${i}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No Reunion outcomes recorded yet.</div>`;
+      return panelHead('Reunion outcomes','Record confirmed relationship statuses, new couples, major life updates, and absent cast members.')+rows+`<div class="table-actions"><button class="btn" type="button" data-add="reunionResults">+ Add Reunion outcome</button></div><div class="card" style="margin-top:16px"><h3>Reunion multipliers</h3><div class="field-grid four">${settingInput('REUNION_STILL_MULT','Still together')}${settingInput('REUNION_SPLIT_MULT','Split')}${settingInput('REUNION_MARRIED_SPLIT_MULT','Married then split')}${settingInput('REUNION_BACK_MULT','Back together')}${settingInput('REUNION_NEW_COUPLE_MULT','New couple')}${settingInput('REUNION_LIFE_UPDATE_MULT','Life update')}${settingInput('REUNION_ABSENT_MULT','Absent')}</div></div>`;
+    }
+    function renderCorrections(){
+      const rows=model.retroEvents.length?`<div class="table-wrap"><table class="data-table" style="min-width:1050px"><thead><tr><th>Market</th><th>Target</th><th>Voids market</th><th>Applies to phase</th><th>Revealed ep.</th><th>Confirmed</th><th>Explanation</th><th></th></tr></thead><tbody>${model.retroEvents.map((row,i)=>`<tr><td>${select('retroEvents',i,'market',row.market,['pods','sex','flirt','breakup','still','void'],'Market')}</td><td>${input('retroEvents',i,'target',row.target)}</td><td>${select('retroEvents',i,'voidMarket',row.voidMarket,['pods','weddings','sex','flirt','breakup'],'Only for void')}</td><td>${select('retroEvents',i,'appliesPhase',row.appliesPhase,['pods','dating','weddings','reunion'],'Phase')}</td><td>${input('retroEvents',i,'revealedEp',row.revealedEp,'number','min="1"')}</td><td><label class="check"><input type="checkbox" data-scope="retroEvents" data-index="${i}" data-key="confirmed"${checked(row.confirmed)}> Yes</label></td><td>${input('retroEvents',i,'note',row.note,'text','placeholder="Why this changes earlier scoring"')}</td><td><button class="btn btn-small btn-icon" type="button" data-remove="retroEvents" data-index="${i}">×</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">No later corrections. Most seasons will leave this section empty.</div>`;
+      return panelHead('Later corrections','Use this advanced section only when a later episode changes or invalidates an earlier scored outcome.')+`<div class="notice warning"><b>Use sparingly.</b> Corrections can change existing scores. Always preview before publishing.</div>`+rows+`<div class="table-actions"><button class="btn" type="button" data-add="retroEvents">+ Add later correction</button></div>`;
+    }
+    function renderRelease(){
+      return panelHead('Preview & publish','Save whenever you like. Preview validates the complete sheet. Publish creates a backup before updating the live app.')+
+        `<div class="release-grid"><div class="release-card"><h3>1. Save draft</h3><p>Writes these forms back to the Google Sheet. Nothing changes in the live app.</p><button class="btn" type="button" data-action="save">Save draft</button></div><div class="release-card"><h3>2. Save & preview</h3><p>Validates the sheet and shows status, row counts, and document size without changing Firestore.</p><button class="btn btn-primary" type="button" data-action="preview">Save & preview</button></div><div class="release-card publish"><h3>3. Publish live</h3><p>Backs up the current season, then replaces it with this version.</p><button class="btn btn-primary" type="button" data-action="publish">Publish to the app</button></div></div>
+        <div class="release-grid" style="margin-top:14px"><div class="release-card rollback"><h3>Rollback</h3><p>Restores the latest recorded backup. The current live version is saved first.</p><button class="btn btn-danger" type="button" data-action="rollback">Restore latest backup</button></div><div class="release-card" style="grid-column:span 2"><h3>Latest backup</h3><p class="hint">${h(model.latestBackupPath||'No backup has been recorded for this season yet.')}</p></div></div>`+
+        (lastResult?`<h3 style="margin-top:22px">Latest result</h3><div class="result">${h(lastResult)}</div>`:'');
+    }
+    function renderFooterHtml(){return `<div class="footerbar" id="footerbar"><div class="save-state ${dirty?'dirty':'saved'}">${dirty?'● Unsaved sheet changes':'✓ Sheet changes saved'}</div><div class="actions"><button class="btn" type="button" data-action="save">Save draft</button><button class="btn btn-primary" type="button" data-action="preview">Save & preview</button></div></div>`}
+    function renderFooter(){const existing=$('footerbar');if(existing)existing.outerHTML=renderFooterHtml();bindActionButtons();}
+    function bindControls(){
+      document.querySelectorAll('[data-nav]').forEach(button=>button.onclick=()=>{active=button.dataset.nav;render()});
+      document.querySelectorAll('[data-scope]').forEach(control=>{control.onchange=()=>updateControl(control);control.oninput=()=>{if(control.tagName==='INPUT'&&control.type!=='checkbox')updateControl(control,false)}});
+      document.querySelectorAll('[data-add]').forEach(button=>button.onclick=()=>addRow(button.dataset.add));
+      document.querySelectorAll('[data-remove]').forEach(button=>button.onclick=()=>removeRow(button.dataset.remove,Number(button.dataset.index)));
+      bindActionButtons();
+    }
+    function bindActionButtons(){document.querySelectorAll('[data-action]').forEach(button=>button.onclick=()=>runAction(button.dataset.action));}
+    function updateControl(control,rerender=true){
+      const value=control.type==='checkbox'?(control.checked?'TRUE':'FALSE'):control.value;
+      if(control.dataset.scope==='settings')model.settings[control.dataset.key]=value;
+      else{
+        const row=model[control.dataset.scope][Number(control.dataset.index)];
+        if(control.dataset.pairPart!=null){const parts=String(row.target||'|').split('|');parts[Number(control.dataset.pairPart)]=value;row.target=(parts[0]||'')+'|'+(parts[1]||'');}
+        else {
+          row[control.dataset.key]=value;
+          if(control.dataset.key==='market'){
+            if(control.dataset.scope==='datingResults'){row.coupleId='';row.person='';}
+            if(control.dataset.scope==='reunionResults'){row.target='';row.value='';}
+          }
+        }
+        if(control.dataset.scope==='couples'&&['him','her'].includes(control.dataset.key)&&!row.id&&row.him&&row.her)row.id=slug(row.him)+'-'+slug(row.her);
+      }
+      markDirty();
+      if(rerender&&['market','him','her'].includes(control.dataset.key))render();
+    }
+    function slug(value){return String(value||'').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
+    function addRow(section){const empty={cast:{gender:'',name:''},couples:{id:'',him:'',her:'',engagedEp:'',wedding:'',whoSaysNo:'',breakupEp:'',settledEp:'',togetherNow:'',lockEp:'',podsEligible:'',datingEligible:'',reunionStatusEligible:''},datingResults:{market:'',coupleId:'',episode:'',person:'',confirmed:'TRUE'},reunionResults:{market:'',target:'',value:'',notes:''},retroEvents:{market:'',target:'',voidMarket:'',appliesPhase:'',revealedEp:'',note:'',confirmed:'TRUE'}};model[section].push(empty[section]);dirty=true;render()}
+    function removeRow(section,index){model[section].splice(index,1);dirty=true;render()}
+    function payload(){return {settings:{...defaults,...model.settings},cast:model.cast,couples:model.couples,datingResults:model.datingResults,reunionResults:model.reunionResults,retroEvents:model.retroEvents}}
+    function runAction(action){
+      if(action==='publish'&&!confirm('Publish this season to the live app? The current version will be backed up first.'))return;
+      if(action==='rollback'&&!confirm('Restore the latest season backup? The current live version will be saved first.'))return;
+      setBusy(true,{save:'Saving draft…',preview:'Validating preview…',publish:'Publishing season…',rollback:'Restoring backup…'}[action]);
+      const runner=google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{
+        setBusy(false);dirty=false;
+        if(action==='save'){model=result.model;lastResult='Draft saved to '+model.spreadsheetName+'.';}
+        else{lastResult=JSON.stringify(result,null,2);if(action!=='preview')load(false);}
+        render();
+      });
+      if(action==='save')runner.saveSeasonAdminDraft(payload());
+      else if(action==='preview')runner.previewSeasonFromAdmin(payload());
+      else if(action==='publish')runner.publishSeasonFromAdmin(payload());
+      else runner.rollbackSeasonFromAdmin();
+    }
+    function load(showOverlay=true){if(showOverlay)setBusy(true,'Loading season…');google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{model=result;model.settings={...defaults,...model.settings};dirty=false;setBusy(false);render()}).getSeasonAdminData()}
+    window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
+    load();
+  </script>
+</body>
+</html>
