@@ -52,6 +52,10 @@ Connecting and publishing are separate steps. To treat an older international se
 
 Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet and produces the normal publisher summary without changing Firestore. The app automatically opens the result panel; validation failures are shown in red and explicitly confirm that nothing was published. **Publish to the app** runs the existing backup-first publish flow. **Restore latest backup** uses the reversible rollback flow.
 
+After a Live or Upcoming season has been published, use **Make live/default** on its Overview screen to make it the season the main app opens by default. The same season becomes the active public Global Pool. This is intentionally separate from publishing, so an ordinary content update cannot accidentally move the Global Pool. The previous Global Pool is preserved and remains available to its members under **Past Global Pools**.
+
+The active default cannot be published as Completed. First publish its successor as Live or Upcoming, make that successor live/default, and then publish the old season as Completed. Publishing normal updates to the active season automatically refreshes its status and release label in the public routing configuration.
+
 There are no automatic triggers. Editing the sheet or admin form never updates the live app until **Publish to the app** is confirmed.
 
 After changing `Code.gs` or `Admin.html`, use **Deploy → Manage deployments**, edit the web-app deployment, choose **New version**, and deploy the update.
