@@ -41,6 +41,13 @@ Run this two-account checklist against production before the August 13, 2026 fri
 - [ ] Account B locks Reunion picks, then confirm A and B can see one another's locked picks.
 - [ ] Return Account B to the prediction board or retry the save and confirm the locked Reunion picks cannot be changed. Identical network retries should still succeed.
 
+## Global-to-friend pick mirroring
+
+- [ ] Join the Global Pool, make at least one unlocked pick, then return to the lobby and start a friend pool for the same season.
+- [ ] Confirm “Mirror my Global Pool picks” appears only for that matching season. Select it and create the pool.
+- [ ] Confirm the new friend pool starts at Episode 1 with the existing Global Pool pick copied in.
+- [ ] Before completing the friend-pool checkpoint, change the pick in the Global Pool and confirm the matching friend-pool pick updates. Confirm a completed friend-pool checkpoint remains immutable.
+
 ## Pass criteria
 
 The beta is ready only if every box above passes, no callable returns a platform/Cloud Run 403, the UK3 season stays `upcoming`, and both accounts' budgets and privacy behaviour match.
