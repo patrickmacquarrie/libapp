@@ -1024,7 +1024,7 @@ window._fb = {
   },
   savePlayer: async (poolId, uid, data) => {
     const batch = writeBatch(db);
-    const {picks={},predictionPhases,skipPickWriteFor=[], ...publicState} = data;
+    const {picks={},predictionPhases,skipPickWriteFor=[],lockPicks={}, ...publicState} = data;
     // Public status never contains picks. Replacing the document also removes legacy embedded picks.
     batch.set(doc(db,'pools',poolId,'players',uid), {...publicState,picks:deleteField()},{merge:true});
     const activePhase = GAME_PHASES.includes(publicState.phase) ? publicState.phase : 'pods';
@@ -1035,9 +1035,15 @@ window._fb = {
     // player locked them, so close/final-screen saves update only public status.
     editablePhases.filter(phase=>!skipPickWriteFor.includes(phase)).forEach(phase=>{
       if (publicState.completed?.[phase]) return;
+      const lockedAt=Number(lockPicks[phase]);
+      const pickState={
+        uid,phase,picks:Array.isArray(picks[phase])?picks[phase]:[],
+        updatedAt:Number.isFinite(lockedAt)?lockedAt:Date.now()
+      };
+      if(Number.isFinite(lockedAt))pickState.lockedAt=lockedAt;
       batch.set(
         doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),
-        {uid,phase,picks:Array.isArray(picks[phase])?picks[phase]:[],updatedAt:Date.now()}
+        pickState
       );
     });
     await batch.commit();
@@ -1106,13 +1112,20 @@ window._fb = {
           // Reunion scores can be shown as soon as an individual player locks.
           // Other locked players' picks are readable only after the viewer has
           // locked too. Until then, fetch the viewer's own pick document only.
-          const viewer=players[currentUid]||{};
+          let viewerPick=null;
+          if(currentUid) {
+            const viewerPickSnap=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+currentUid));
+            if(viewerPickSnap.exists()) {
+              viewerPick=viewerPickSnap.data();
+              if(players[currentUid])players[currentUid].picks[phase]=Array.isArray(viewerPick.picks)?viewerPick.picks:[];
+            }
+          }
           const viewerLocked=!!currentUid&&(phaseStatusData?.completedMembers?.includes(currentUid) ||
-            (viewer.phase==='reunion'&&['watch','close','final'].includes(viewer.screen)));
+            Number.isFinite(Number(viewerPick?.lockedAt)));
           const pickUids=viewerLocked?Object.entries(players)
             .filter(([uid,p]) => phaseStatusData?.completedMembers?.includes(uid) ||
               (p.phase==='reunion' && ['watch','close','final'].includes(p.screen)))
-            .map(([uid])=>uid):(currentUid?[currentUid]:[]);
+            .map(([uid])=>uid).filter(uid=>uid!==currentUid):[];
           await Promise.all(pickUids.map(async uid => {
             try {
               const lockedPick = await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
@@ -4995,6 +5008,7 @@ function App() {
   const [pastPoolsOpen,setPastPoolsOpen] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
   const [selectedSeasonId, setSelectedSeasonId] = useState(MARKETING_SEASON_ID);
+  const [mirrorGlobalPicks, setMirrorGlobalPicks] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteList, setInviteList] = useState([]);
   const [poolInviteEmail, setPoolInviteEmail] = useState('');
@@ -5049,7 +5063,7 @@ function App() {
   const inFlightSave = useRef(null);
   const latestSaveSequence = useRef(0);
   const saveChain = useRef(Promise.resolve());
-  const globalLinks = useRef([]);
+  const pickMirrorLinks = useRef([]);
   const confirmResolver=useRef(null);
   const lastStandingsRefresh=useRef(0);
   const requestConfirmation=useCallback(options=>new Promise(resolve=>{
@@ -5143,13 +5157,10 @@ function App() {
           history.replaceState({},'',currentUrl.toString());
         }
       }
-      const links=(await Promise.all(availablePools.filter(pool=>pool.global===true).map(async pool=>{
-        try {
-          const player=await window._fb.getPlayer(pool.id,user.uid);
-          return player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
-        } catch(e) { console.info('A global-pool link could not be loaded.',e); return null; }
-      }))).filter(Boolean);
-      globalLinks.current=links;
+      const links=availablePools.map(pool=>pool._myPlayer?.duplicateFromPoolId
+        ? {poolId:pool.id,sourcePoolId:pool._myPlayer.duplicateFromPoolId}
+        : null).filter(Boolean);
+      pickMirrorLinks.current=links;
       setPools(availablePools); setInvites(is);
       const publicGlobalPools=GLOBAL_POOL_SEASON?[await (async()=>{
         try {
@@ -5219,8 +5230,8 @@ function App() {
       // Load my state
       let mine = players[user.uid];
       if (mine) {
-        setDuplicateFromPoolId(enteredPool.global===true?(mine.duplicateFromPoolId||''):'');
-        if(enteredPool.global===true&&mine.duplicateFromPoolId) {
+        setDuplicateFromPoolId(mine.duplicateFromPoolId||'');
+        if(mine.duplicateFromPoolId) {
           const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid,false);
           const sourcePicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
@@ -5294,7 +5305,7 @@ function App() {
         const w0=Math.max(0,PH_STARTW.pods-1);
         const landingScreen='intro';
         let initialPicks=freshPicks();
-        const duplicateFrom=pool.global===true&&duplicateFromPoolId?duplicateFromPoolId:'';
+        const duplicateFrom=duplicateFromPoolId||'';
         if(duplicateFrom) {
           const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid,false);
           initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
@@ -5305,6 +5316,7 @@ function App() {
         entryStep='creating your player profile';
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
         if(duplicateFrom) {
+          pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:duplicateFrom}];
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
             window._fb.savePhasePicks(pool.id,ph,user.uid,initialPicks[ph])
           ));
@@ -5329,18 +5341,18 @@ function App() {
     inFlightSave.current=pending;
     const write=saveChain.current.then(async()=>{
       await window._fb.savePlayer(pending.poolId, pending.uid, pending.data);
-      // A linked global pool keeps a separate copy of the player's picks. The
-      // global pool scores them against its own full player population.
-      const linkedTargets=globalLinks.current.filter(link=>link.sourcePoolId===pending.poolId);
+      // A linked target pool keeps its own copy of the source pool's picks and
+      // scores them against the target pool's player population.
+      const linkedTargets=pickMirrorLinks.current.filter(link=>link.sourcePoolId===pending.poolId);
       const syncedPhases=Array.isArray(pending.data.predictionPhases)
         ? [...new Set(pending.data.predictionPhases.filter(phase=>PH_ORDER.includes(phase)))]
         : (PH_ORDER.includes(pending.data.phase)?[pending.data.phase]:[]);
       if(linkedTargets.length&&syncedPhases.length) {
         await Promise.all(linkedTargets.flatMap(link=>syncedPhases.map(async phase=>{
           try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,pending.data.picks?.[phase]||[]); }
-          // A completed global checkpoint is deliberately immutable. It
+          // A completed target checkpoint is deliberately immutable. It
           // must not prevent the source-pool prediction from saving.
-          catch(e) { console.info('Global-pool pick sync skipped.',e); }
+          catch(e) { console.info('Mirrored pick sync skipped.',e); }
         })));
       }
     });
@@ -5371,9 +5383,11 @@ function App() {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
-    const {seenRetroNotices:localRetroNotices,...persistedState}=state;
-    const skipPickWriteFor=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)?['reunion']:[];
-    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,...(activePool.global&&duplicateFromPoolId?{duplicateFromPoolId}:{})}};
+    const {seenRetroNotices:localRetroNotices,lockReunion=false,...persistedState}=state;
+    const lockingReunion=lockReunion===true&&state.phase==='reunion'&&state.screen==='watch';
+    const skipPickWriteFor=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)&&!lockingReunion?['reunion']:[];
+    const lockPicks=lockingReunion?{reunion:Date.now()}:{};
+    const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,lockPicks,...(duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
     pendingSave.current=snapshot;
     if (immediate) return flushSave();
@@ -5485,18 +5499,24 @@ function App() {
     setCreatingPool(true);
     try {
       setErr('');
+      const matchingGlobalPool=globalPools[season.id];
+      const mirrorSourcePoolId=mirrorGlobalPicks&&matchingGlobalPool?.members?.includes(user.uid)?matchingGlobalPool.id:'';
       const seasonCfg = await loadConfig(season.id);
       const initialRules = seasonCfg.PLAYABLE ? rulesSnapshotFrom(seasonCfg) : null;
       const poolId = await window._fb.createPool(name, user.uid, initialRules, season);
-      trackTtwEvent('pool_created',{seasonId:season.id,invitationCount:inviteList.length});
+      trackTtwEvent('pool_created',{seasonId:season.id,invitationCount:inviteList.length,mirrorsGlobalPicks:!!mirrorSourcePoolId});
       try {
         await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
       } catch(inviteError) {
         console.error('The pool was created, but one or more invitations failed.',inviteError);
         setErr('Your pool was created, but an invitation could not be sent. Publish the latest Firestore rules, then invite your friend from the Standings tab.');
       }
-      setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setInviteList([]);
-      await loadLobby();
+      setCreating(false); setNewPoolName(''); setSelectedSeasonId(DEFAULT_SEASON_ID); setMirrorGlobalPicks(false); setInviteList([]);
+      if(mirrorSourcePoolId) {
+        const createdPool=await window._fb.getPool(poolId);
+        if(!createdPool)throw new Error('Your pool was created, but it could not be opened. Refresh to find it in your pool list.');
+        await enterPool(createdPool,mirrorSourcePoolId);
+      } else await loadLobby();
     } catch(e) { console.error(e); setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
     finally{setCreatingPool(false);}
   };
@@ -5514,7 +5534,7 @@ function App() {
       const rulesSnapshot=seasonCfg.PLAYABLE?rulesSnapshotFrom(seasonCfg):null;
       const globalPool=await window._fb.joinGlobalPool(season,user.uid,rulesSnapshot);
       setGlobalPools(current=>({...current,[season.id]:globalPool}));
-      if(sourcePoolId) globalLinks.current=[...globalLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
+      if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
       await enterPool(globalPool,sourcePoolId);
     } catch(e) { console.error(e);setErr(playerSeasonError(e,'Could not join the global pool. Please try again.')); }
@@ -5742,7 +5762,7 @@ function App() {
     if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
     setGatingLabel('Locking in your predictions…');setGating(true);
     try {
-      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed},true);
+      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion'},true);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
     } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
     finally { setGating(false);setGatingLabel(''); }
@@ -6078,7 +6098,7 @@ function App() {
     <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
   </div>;
   const startPoolFromLibrary=seasonId=>{
-    setSelectedSeasonId(seasonId);setCreating(true);
+    setSelectedSeasonId(seasonId);setMirrorGlobalPicks(false);setCreating(true);
     setTimeout(()=>newPoolFormRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),0);
   };
   const globalSourcePools=globalJoin?pools.filter(pool=>pool.global!==true&&seasonForPool(pool).id===globalJoin.season.id):[];
@@ -6092,6 +6112,8 @@ function App() {
   </button>;
   const globalPool=GLOBAL_POOL_SEASON?globalPools[GLOBAL_POOL_SEASON.id]:null;
   const joinedGlobalPool=!!globalPool?.members?.includes(user.uid);
+  const selectedGlobalMirrorPool=globalPools[selectedSeasonId];
+  const canMirrorSelectedGlobal=!!selectedGlobalMirrorPool?.members?.includes(user.uid);
   if (!activePool&&enteringPool) return <div className="app">
     <BrandHeader season={seasonLibrarySummary}>{userBar}</BrandHeader>
     <div className="loading"><span className="spinner">♥</span>Opening your pool...</div>
@@ -6123,7 +6145,7 @@ function App() {
         <span className="pool-row-copy"><span className="pname">{formatSeasonLabel(GLOBAL_POOL_SEASON)}</span><span className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(GLOBAL_POOL_SEASON)||'Live season'}</span></span>
         <span className="pool-row-action">{joinedGlobalPool?'Open':'Join'} →</span>
       </button>
-      <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are separate from your friend pools and are scored only against global-pool players.</p>
+      <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are scored only against global players; when you create a friend pool for the same season, you can choose to mirror them there.</p>
     </section>}
     <div className="card">
       <h2>Your pools</h2>
@@ -6142,12 +6164,16 @@ function App() {
         </div>
         <div className="row">
           <div className="field"><label className="small" htmlFor="new-pool-season">Season</label>
-            <select id="new-pool-season" value={selectedSeasonId} onChange={e=>setSelectedSeasonId(e.target.value)}>
+            <select id="new-pool-season" value={selectedSeasonId} onChange={e=>{setSelectedSeasonId(e.target.value);setMirrorGlobalPicks(false);}}>
               {SEASON_BANK_SORTED.map(season=><option value={season.id} disabled={!season.available} key={season.id}>{formatSeasonOption(season)}{season.available?'':' — Coming soon'}</option>)}
             </select>
             <div className="subtle" style={{marginTop:6}}>{seasonById(selectedSeasonId)?.status==='upcoming'?'You can create the pool and invite friends now. Predictions open after the cast is announced and the season begins.':'The season is permanent once the pool is created.'}</div>
           </div>
         </div>
+        {canMirrorSelectedGlobal&&<label className="chemistry-toggle">
+          <input type="checkbox" checked={mirrorGlobalPicks} onChange={event=>setMirrorGlobalPicks(event.target.checked)}/>
+          <span><strong>Mirror my Global Pool picks</strong><span>Copy your current {formatSeasonLabel(seasonById(selectedSeasonId))} Global Pool picks into this friend pool. Future Global Pool changes will keep matching friend-pool picks updated until you complete each friend-pool checkpoint.</span></span>
+        </label>}
         <div className="row">
           <div className="field"><label className="small">Invite by email</label>
             <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addInviteEmail()} placeholder="friend@email.com"/>
@@ -6158,7 +6184,7 @@ function App() {
           {inviteList.map(em=><span className="email-chip" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
         </div>}
         <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId||creatingPool} onClick={doCreatePool}>{creatingPool?'Building your pool…':`Create pool${inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}`}</button>
-        <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setInviteList([]);}}>Cancel</button>
+        <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(DEFAULT_SEASON_ID);setMirrorGlobalPicks(false);setInviteList([]);}}>Cancel</button>
       </div>}
       </section>
       {!lobbyLoading&&pastFriendPools.length>0&&<section aria-labelledby="past-pools-heading" style={{marginTop:22}}><div className="library-head"><h3 id="past-pools-heading" style={{margin:0}}>Past pools</h3><button type="button" className="btn-small" aria-expanded={pastPoolsOpen} aria-controls="past-pools-list" onClick={()=>setPastPoolsOpen(open=>!open)}>{pastPoolsOpen?'Hide pools':'Show pools'}</button></div><div id="past-pools-list" hidden={!pastPoolsOpen}>{pastFriendPools.map(friendPoolRow)}</div></section>}

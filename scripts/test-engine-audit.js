@@ -152,4 +152,11 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   assert.equal(hit.poolSize,1,'A member with only an invalidated relationship pick must not inflate the active phase pool.');
 }
 
+{
+  assert(source.includes('Mirror my Global Pool picks'),'Friend-pool creation must offer Global Pool mirroring.');
+  assert(source.includes("const duplicateFrom=duplicateFromPoolId||''"),'A friend pool must be allowed to use the Global Pool as its pick source.');
+  assert(source.includes('const linkedTargets=pickMirrorLinks.current.filter'),'Pick synchronization must support either pool type as the target.');
+  assert(source.includes('matchingGlobalPool?.members?.includes(user.uid)'),'The mirror option must be limited to matching Global Pool members.');
+}
+
 console.log('Engine audit assertions passed.');

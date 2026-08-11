@@ -101,7 +101,10 @@ async function loadSeasonData(season,cache) {
       fetchSheetTab(season.sheetId,'Cast'),
       fetchSheetTab(season.sheetId,'Settings'),
     ]);
-    cache[season.id]={cast,settings};
+    cache[season.id]={
+      cast:cast.filter(row=>String(row.name||'').trim()),
+      settings,
+    };
     return cache[season.id];
   } catch(error) {
     if(cache[season.id]) {

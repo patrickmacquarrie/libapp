@@ -667,7 +667,7 @@
       },
       {
         "key": "RELEASE_LABEL",
-        "value": "First episodes drop August 19, 2026",
+        "value": "",
         "notes": ""
       }
     ]
@@ -1649,36 +1649,6 @@
         "name": "Natasha",
         "gender": "F",
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/Natasha.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-1/.png"
       }
     ],
     "settings": [
@@ -2794,36 +2764,6 @@
         "name": "Bardha",
         "gender": "F",
         "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/Bardha.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/.png"
-      },
-      {
-        "name": "",
-        "gender": "",
-        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-uk-2/.png"
       }
     ],
     "settings": [
@@ -2914,6 +2854,195 @@
       {
         "key": "AVAILABLE_THROUGH_EP",
         "value": "11"
+      },
+      {
+        "key": "BOUNDARIES_LIVE",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_MARRIED_MULT",
+        "value": "1"
+      },
+      {
+        "key": "WEDDINGS_SAYS_NO_MULT",
+        "value": "1.5"
+      },
+      {
+        "key": "WEDDINGS_CALLED_OFF_MULT",
+        "value": "1.75"
+      },
+      {
+        "key": "WEDDINGS_LEAD_STEP",
+        "value": "0.25"
+      },
+      {
+        "key": "WEDDINGS_LEAD_CAP",
+        "value": "1.75"
+      },
+      {
+        "key": "RETREAT_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "PODS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "DATING_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "REUNION_BOUNDARY_FINAL",
+        "value": ""
+      },
+      {
+        "key": "RETREAT_START_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_SEX_MULT",
+        "value": "1"
+      },
+      {
+        "key": "DATING_FLIRT_MULT",
+        "value": "2"
+      },
+      {
+        "key": "DATING_BREAKUP_MULT",
+        "value": "3"
+      }
+    ]
+  },
+  "love-is-blind-br-1": {
+    "cast": [
+      {
+        "name": "Ana",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Ana.png"
+      },
+      {
+        "name": "Shayan",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Shayan.png"
+      },
+      {
+        "name": "Thiago",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Thiago.png"
+      },
+      {
+        "name": "Fernanda",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Fernanda.png"
+      },
+      {
+        "name": "Mack",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Mack.png"
+      },
+      {
+        "name": "Rodrigo",
+        "gender": "M",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Rodrigo.png"
+      },
+      {
+        "name": "Dayanne",
+        "gender": "F",
+        "photo_url": "https://raw.githubusercontent.com/patrickmacquarrie/libapp/main/images/cast/love-is-blind-brazil-1/Dayanne.png"
+      }
+    ],
+    "settings": [
+      {
+        "key": "PODS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "PODS_CAP",
+        "value": "60"
+      },
+      {
+        "key": "PODS_START_EP",
+        "value": "1"
+      },
+      {
+        "key": "PODS_END_EP",
+        "value": "4"
+      },
+      {
+        "key": "DATING_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "DATING_CAP",
+        "value": "40"
+      },
+      {
+        "key": "DATING_START_EP",
+        "value": "3"
+      },
+      {
+        "key": "DATING_END_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_BUDGET",
+        "value": "200"
+      },
+      {
+        "key": "WEDDINGS_CAP",
+        "value": "80"
+      },
+      {
+        "key": "WEDDINGS_START_EP",
+        "value": "5"
+      },
+      {
+        "key": "WEDDINGS_END_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_BUDGET",
+        "value": "100"
+      },
+      {
+        "key": "REUNION_CAP",
+        "value": "40"
+      },
+      {
+        "key": "REUNION_START_EP",
+        "value": "10"
+      },
+      {
+        "key": "REUNION_END_EP",
+        "value": "11"
+      },
+      {
+        "key": "PODS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "DATING_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "WEDDINGS_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "REUNION_RESULTS_READY",
+        "value": ""
+      },
+      {
+        "key": "SEASON_STATUS",
+        "value": ""
+      },
+      {
+        "key": "AVAILABLE_THROUGH_EP",
+        "value": "1"
       },
       {
         "key": "BOUNDARIES_LIVE",
