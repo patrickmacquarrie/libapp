@@ -35,7 +35,7 @@ async function writeDocumentAtServerTime(path,fields,token){
 
 async function readDocument(path,token){
   return fetch(documentUrl(path),{
-    headers:{Authorization:`Bearer ${token}`},
+    headers:token?{Authorization:`Bearer ${token}`}:{},
   });
 }
 
@@ -94,6 +94,14 @@ async function main(){
   const first=await createUser('rules@example.test');
   const second=await createUser('rules-second@example.test');
   const {uid,token}=first;
+
+  await expectStatus(
+    await writeDocument('seasons/love-is-blind-se-1',{sourceSheetId:stringValue('sheet-id'),status:stringValue('live')},'owner'),
+    200,
+    'admin seeds a published season'
+  );
+  await expectStatus(await readDocument('seasons',token),200,'signed-in user lists published seasons');
+  await expectStatus(await readDocument('seasons',''),403,'signed-out visitor cannot list published seasons');
 
   await expectStatus(await writeDocument('pools/v3-valid',poolFields(uid,rulesSnapshot(3,'number')),token),200,'v3 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v4-valid',poolFields(uid,rulesSnapshot(4,'number')),token),200,'v4 snapshot with RACE_MULT');

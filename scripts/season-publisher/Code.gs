@@ -69,6 +69,41 @@ function getSeasonAdminData(seasonId) {
   };
 }
 
+/**
+ * Validates a season sheet, then adds it to the private admin allow-list.
+ * This only connects the sheet; it does not change the sheet or Firestore.
+ */
+function connectSeasonFromAdmin(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('The season connection form was not received correctly.');
+  }
+  const spreadsheetId = publisherSpreadsheetId_(payload.spreadsheetUrl || payload.spreadsheetId);
+  const requested = normalizePublisherSeason_({
+    seasonId: cleanAdminString_(payload.seasonId, 100),
+    spreadsheetId: spreadsheetId,
+    label: cleanAdminString_(payload.label, 100) || cleanAdminString_(payload.seasonId, 100)
+  }, 'new season');
+
+  const spreadsheet = SpreadsheetApp.openById(requested.spreadsheetId);
+  REQUIRED_TAB_NAMES.forEach(function(tabName) {
+    if (!spreadsheet.getSheetByName(tabName)) {
+      throw new Error('That spreadsheet is missing the required "' + tabName + '" tab.');
+    }
+  });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const propertyStore = PropertiesService.getScriptProperties();
+    const seasons = publisherSeasonRegistryFromProperties_(propertyStore.getProperties());
+    const updated = upsertPublisherSeason_(seasons, requested);
+    propertyStore.setProperty('SEASONS_JSON', JSON.stringify(updated));
+  } finally {
+    lock.releaseLock();
+  }
+  return getSeasonAdminData(requested.seasonId);
+}
+
 /** Saves form changes to the season sheet without publishing to Firestore. */
 function saveSeasonAdminDraft(payload) {
   const config = publisherConfig_(payload && payload.seasonId);
@@ -267,6 +302,38 @@ function normalizePublisherSeason_(entry, sourceLabel) {
   if (!/^[A-Za-z0-9_-]+$/.test(season.spreadsheetId)) throw new Error(sourceLabel + ' has an invalid spreadsheetId.');
   if (season.label.length > 100) throw new Error(sourceLabel + ' label must be 100 characters or fewer.');
   return season;
+}
+
+function publisherSpreadsheetId_(value) {
+  const source = String(value || '').trim();
+  const urlMatch = source.match(/\/spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]+)/);
+  const spreadsheetId = urlMatch ? urlMatch[1] : source;
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(spreadsheetId)) {
+    throw new Error('Paste a complete Google Sheet link or a valid spreadsheet ID.');
+  }
+  return spreadsheetId;
+}
+
+function upsertPublisherSeason_(seasons, requested) {
+  const updated = seasons.map(function(season) {
+    return {seasonId: season.seasonId, spreadsheetId: season.spreadsheetId, label: season.label};
+  });
+  const existing = updated.find(function(season) { return season.seasonId === requested.seasonId; });
+  if (existing) {
+    if (existing.spreadsheetId !== requested.spreadsheetId) {
+      throw new Error('That season ID is already connected to a different spreadsheet.');
+    }
+    existing.label = requested.label;
+    return updated;
+  }
+  const sheetAlreadyConnected = updated.find(function(season) {
+    return season.spreadsheetId === requested.spreadsheetId;
+  });
+  if (sheetAlreadyConnected) {
+    throw new Error('That spreadsheet is already connected as ' + sheetAlreadyConnected.label + '.');
+  }
+  updated.push(requested);
+  return updated;
 }
 
 function buildSeasonSnapshot_(config) {
