@@ -767,28 +767,16 @@ window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
 </script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch, deleteField, increment, serverTimestamp, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-functions.js';
 /* AUTH HELPERS START */
-const AUTH_REDIRECT_FALLBACK_CODES=new Set([
-  'auth/popup-blocked',
-  'auth/operation-not-supported-in-this-environment',
-  'auth/cancelled-popup-request',
-]);
 const AUTH_SILENT_CODES=new Set(['auth/popup-closed-by-user','auth/cancelled-popup-request']);
 const EMAIL_SIGN_IN_QUERY='signInEmail';
 const authErrorCode=error=>String(error?.code||'').trim().toLowerCase();
-const shouldFallbackToRedirect=error=>AUTH_REDIRECT_FALLBACK_CODES.has(authErrorCode(error));
-const isLikelyInAppBrowser=(userAgent='')=>{
-  const ua=String(userAgent);
-  return /Instagram|FBAN|FBAV|FB_IAB|Messenger|TikTok|Bytedance|Snapchat|Line\//i.test(ua)
-    || /; wv\)|\bwv\b|Version\/4\.0.*Chrome/i.test(ua)
-    || (/iP(?:hone|ad|od)/i.test(ua)&&/AppleWebKit/i.test(ua)&&!/Safari/i.test(ua));
-};
 const authErrorMessage=(error,fallback='Sign-in could not be completed. Please try again.')=>{
   const code=authErrorCode(error);
   if(AUTH_SILENT_CODES.has(code))return '';
@@ -856,22 +844,8 @@ const restoreJoinAfterRedirect=()=>{
 };
 const signInWithProvider=async provider=>{
   rememberJoinForRedirect();
-  if(isLikelyInAppBrowser(navigator.userAgent)){
-    await signInWithRedirect(auth,provider);
-    return null;
-  }
-  try{
-    const result=await signInWithPopup(auth,provider);
-    try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(error){}
-    return result;
-  }catch(error){
-    if(!shouldFallbackToRedirect(error)){
-      try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(storageError){}
-      throw error;
-    }
-    await signInWithRedirect(auth,provider);
-    return null;
-  }
+  await signInWithRedirect(auth,provider);
+  return null;
 };
 const GAME_PHASES = ['pods','dating','weddings','reunion'];
 const inviteDocId = (poolId,email) => poolId+'__'+email.toLowerCase();

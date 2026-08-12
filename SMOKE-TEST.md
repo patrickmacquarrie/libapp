@@ -6,7 +6,7 @@ Run this two-account checklist against production before the August 19, 2026 UK3
 
 - [ ] Open the app in two browser profiles and sign in as Account A and Account B.
 - [ ] Confirm the production response includes the CSP and other security headers from `firebase.json`, with no blocked app scripts in the browser console.
-- [ ] Block pop-ups, then start Google sign-in and confirm the app automatically continues with redirect sign-in without displaying a Firebase error code.
+- [ ] Start Google sign-in and confirm the app uses a full-page redirect without opening a popup or displaying a Firebase error code.
 - [ ] Open the app inside one common in-app browser and confirm Google sign-in uses the full-page redirect flow. If an invite link contains `?join=`, confirm it still joins the intended pool after sign-in.
 - [ ] Request an email sign-in link in Account A's browser, open it in Account B's browser profile or another device, and confirm sign-in completes without asking for the email address. Confirm the address and Firebase action parameters disappear from the address bar while any `join` parameter remains.
 - [ ] Keep the Firebase console open to Firestore Database for project `lib-oauth`.
