@@ -767,12 +767,63 @@ window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
 </script>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
+import { getAuth, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch, deleteField, increment, serverTimestamp, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-functions.js';
+/* AUTH HELPERS START */
+const AUTH_REDIRECT_FALLBACK_CODES=new Set([
+  'auth/popup-blocked',
+  'auth/operation-not-supported-in-this-environment',
+  'auth/cancelled-popup-request',
+]);
+const AUTH_SILENT_CODES=new Set(['auth/popup-closed-by-user','auth/cancelled-popup-request']);
+const EMAIL_SIGN_IN_QUERY='signInEmail';
+const authErrorCode=error=>String(error?.code||'').trim().toLowerCase();
+const shouldFallbackToRedirect=error=>AUTH_REDIRECT_FALLBACK_CODES.has(authErrorCode(error));
+const isLikelyInAppBrowser=(userAgent='')=>{
+  const ua=String(userAgent);
+  return /Instagram|FBAN|FBAV|FB_IAB|Messenger|TikTok|Bytedance|Snapchat|Line\//i.test(ua)
+    || /; wv\)|\bwv\b|Version\/4\.0.*Chrome/i.test(ua)
+    || (/iP(?:hone|ad|od)/i.test(ua)&&/AppleWebKit/i.test(ua)&&!/Safari/i.test(ua));
+};
+const authErrorMessage=(error,fallback='Sign-in could not be completed. Please try again.')=>{
+  const code=authErrorCode(error);
+  if(AUTH_SILENT_CODES.has(code))return '';
+  const messages={
+    'auth/account-exists-with-different-credential':'An account already uses this email with another sign-in method.',
+    'auth/credential-already-in-use':'That sign-in method is already connected to another account.',
+    'auth/invalid-action-code':'That sign-in link is invalid or has already been used. Request a new one.',
+    'auth/invalid-email':'Enter a valid email address.',
+    'auth/network-request-failed':'We could not reach the sign-in service. Check your connection and try again.',
+    'auth/operation-not-allowed':'That sign-in option is not available right now. Try another method.',
+    'auth/popup-blocked':'Your browser blocked the sign-in window. Please try again.',
+    'auth/too-many-requests':'Too many sign-in attempts were made. Wait a moment, then try again.',
+    'auth/unauthorized-domain':'Sign-in is not available on this web address.',
+    'auth/user-disabled':'This account has been disabled. Contact support for help.',
+    'auth/web-storage-unsupported':'Your browser is blocking storage needed to sign in. Allow site storage and try again.',
+    'auth/expired-action-code':'That sign-in link has expired. Request a new one.',
+  };
+  return messages[code]||fallback;
+};
+const emailFromSignInUrl=href=>{
+  try{
+    const url=new URL(href);
+    const direct=url.searchParams.get(EMAIL_SIGN_IN_QUERY);
+    if(direct)return direct.trim().toLowerCase();
+    const continueUrl=url.searchParams.get('continueUrl');
+    if(!continueUrl)return '';
+    return new URL(continueUrl,url.origin).searchParams.get(EMAIL_SIGN_IN_QUERY)?.trim().toLowerCase()||'';
+  }catch(error){return '';}
+};
+const cleanEmailSignInUrl=href=>{
+  const url=new URL(href);
+  ['apiKey','oobCode','mode','continueUrl','lang','tenantId',EMAIL_SIGN_IN_QUERY].forEach(key=>url.searchParams.delete(key));
+  return url.toString();
+};
+/* AUTH HELPERS END */
 const firebaseConfig = {
   apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
   authDomain: "lib-oauth.firebaseapp.com",
@@ -785,6 +836,43 @@ const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 const functions = getFunctions(fbApp);
+const AUTH_RETURN_JOIN_KEY='through-the-wall-auth-return-join';
+const rememberJoinForRedirect=()=>{
+  try{
+    const join=new URL(window.location.href).searchParams.get('join');
+    if(join)sessionStorage.setItem(AUTH_RETURN_JOIN_KEY,join);
+  }catch(error){}
+};
+const restoreJoinAfterRedirect=()=>{
+  try{
+    const join=sessionStorage.getItem(AUTH_RETURN_JOIN_KEY);
+    if(!join)return;
+    const url=new URL(window.location.href);
+    if(!url.searchParams.has('join'))url.searchParams.set('join',join);
+    history.replaceState({},'',url.toString());
+  }finally{
+    try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(error){}
+  }
+};
+const signInWithProvider=async provider=>{
+  rememberJoinForRedirect();
+  if(isLikelyInAppBrowser(navigator.userAgent)){
+    await signInWithRedirect(auth,provider);
+    return null;
+  }
+  try{
+    const result=await signInWithPopup(auth,provider);
+    try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(error){}
+    return result;
+  }catch(error){
+    if(!shouldFallbackToRedirect(error)){
+      try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(storageError){}
+      throw error;
+    }
+    await signInWithRedirect(auth,provider);
+    return null;
+  }
+};
 const GAME_PHASES = ['pods','dating','weddings','reunion'];
 const inviteDocId = (poolId,email) => poolId+'__'+email.toLowerCase();
 const newPoolJoinCode = () => Array.from(crypto.getRandomValues(new Uint8Array(18)),value=>value.toString(36).padStart(2,'0')).join('').slice(0,24);
@@ -861,27 +949,31 @@ const updateCastAggregate = (aggregate,previousRatings,nextRatings) => {
   return [...rows.values()].filter(row=>Object.values(row.counts).some(count=>count>0)).sort((a,b)=>a.name.localeCompare(b.name));
 };
 window._fb = {
-  signIn:  () => signInWithPopup(auth, new GoogleAuthProvider()),
+  signIn:  () => signInWithProvider(new GoogleAuthProvider()),
   signInApple: () => {
     const provider=new OAuthProvider('apple.com');provider.addScope('email');provider.addScope('name');
-    return signInWithPopup(auth,provider);
+    return signInWithProvider(provider);
+  },
+  completeAuthRedirect: async () => {
+    try{return await getRedirectResult(auth);}
+    finally{restoreJoinAfterRedirect();}
   },
   sendEmailSignInLink: async email => {
-    const returnUrl=window.location.origin==='null'?window.location.href:window.location.origin+window.location.pathname+window.location.search;
-    await sendSignInLinkToEmail(auth,email,{url:returnUrl,handleCodeInApp:true});
+    const returnUrl=new URL(window.location.href);
+    returnUrl.searchParams.set(EMAIL_SIGN_IN_QUERY,email);
+    await sendSignInLinkToEmail(auth,email,{url:returnUrl.toString(),handleCodeInApp:true});
     localStorage.setItem('through-the-wall-email-signin',email);
   },
   completeEmailSignIn: async () => {
     if(!isSignInWithEmailLink(auth,window.location.href))return false;
-    const email=localStorage.getItem('through-the-wall-email-signin')||window.prompt('Confirm the email address that received this sign-in link:');
+    const email=localStorage.getItem('through-the-wall-email-signin')||emailFromSignInUrl(window.location.href)||window.prompt('Confirm the email address that received this sign-in link:');
     if(!email)return false;
     await signInWithEmailLink(auth,email,window.location.href);
     localStorage.removeItem('through-the-wall-email-signin');
-    const cleanUrl=new URL(window.location.href);
-    ['apiKey','oobCode','mode','continueUrl','lang','tenantId'].forEach(key=>cleanUrl.searchParams.delete(key));
-    history.replaceState({},'',cleanUrl.toString());
+    history.replaceState({},'',cleanEmailSignInUrl(window.location.href));
     return true;
   },
+  authErrorMessage,
   signOut: () => signOut(auth),
   onAuthStateChanged: (cb) => onAuthStateChanged(auth, cb),
   getProfile: async (uid) => {
@@ -5200,14 +5292,23 @@ function App() {
   },[replayPendingSave]);
   /* ── Auth ── */
   useEffect(() => {
-    window._fb.completeEmailSignIn().catch(error=>{console.error(error);setErr('That email sign-in link could not be completed. Request a new one.');});
-    return window._fb.onAuthStateChanged(u => {
-      setPoolInviteRemaining(null);
-      if (u) loadAuthenticatedProfile(u);
-      else {
-        setUser(null);setProfile(null);setAuthError('');setAuthState('signedout');
-      }
-    });
+    let cancelled=false,unsubscribe=()=>{};
+    const initializeAuth=async()=>{
+      try{await window._fb.completeEmailSignIn();}
+      catch(error){console.error(error);const message=window._fb.authErrorMessage(error,'That email sign-in link could not be completed. Request a new one.');if(message)setErr(message);}
+      try{await window._fb.completeAuthRedirect();}
+      catch(error){console.error(error);const message=window._fb.authErrorMessage(error);if(message)setErr(message);}
+      if(cancelled)return;
+      unsubscribe=window._fb.onAuthStateChanged(u => {
+        setPoolInviteRemaining(null);
+        if (u) loadAuthenticatedProfile(u);
+        else {
+          setUser(null);setProfile(null);setAuthError('');setAuthState('signedout');
+        }
+      });
+    };
+    initializeAuth();
+    return()=>{cancelled=true;unsubscribe();};
   }, [loadAuthenticatedProfile]);
   useEffect(()=>{
     let cancelled=false;
@@ -5547,14 +5648,14 @@ function App() {
     if(signingIn)return;
     setSigningIn(true);setErr('');trackTtwEvent('sign_in_started',{method:'google'});
     try{await window._fb.signIn();}
-    catch(e){setErr(e?.message||'Google sign-in could not be completed.');}
+    catch(e){const message=window._fb.authErrorMessage(e,'Google sign-in could not be completed.');if(message)setErr(message);}
     finally{setSigningIn(false);}
   };
   const handleAppleSignIn = async () => {
     if(signingIn)return;
     setSigningIn(true);setErr('');trackTtwEvent('sign_in_started',{method:'apple'});
     try{await window._fb.signInApple();}
-    catch(e){setErr(e?.message||'Apple sign-in could not be completed.');}
+    catch(e){const message=window._fb.authErrorMessage(e,'Apple sign-in could not be completed.');if(message)setErr(message);}
     finally{setSigningIn(false);}
   };
   const handleEmailSignIn = async event => {
@@ -5563,14 +5664,14 @@ function App() {
     if(!email||emailAuthSending)return;
     setEmailAuthSending(true);setErr('');trackTtwEvent('sign_in_started',{method:'email_link'});
     try{await window._fb.sendEmailSignInLink(email);setEmailAuthSent(true);}
-    catch(e){console.error(e);setErr(e?.message||'The sign-in link could not be sent.');}
+    catch(e){console.error(e);const message=window._fb.authErrorMessage(e,'The sign-in link could not be sent.');if(message)setErr(message);}
     finally{setEmailAuthSending(false);}
   };
   const handleSignOut = async () => {
     if(signingOut||!await confirmExitWithUnsavedChanges())return;
     setSigningOut(true);setErr('');setShowSettings(false);
     try{await window._fb.signOut();setActivePool(null);resetRuntimeConfig();}
-    catch(e){setErr(e?.message||'You could not be signed out. Please try again.');}
+    catch(e){setErr(window._fb.authErrorMessage(e,'You could not be signed out. Please try again.'));}
     finally{setSigningOut(false);}
   };
   const saveUsername = async () => {
@@ -6180,7 +6281,7 @@ function App() {
       </button>
       <button className="btn-secondary" disabled={signingIn} onClick={handleAppleSignIn}>{signingIn?'Opening sign-in…':'Sign in with Apple'}</button>
       <div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>
-      {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on this device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className="btn-secondary" type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
+      {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on any device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className="btn-secondary" type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
       <p className="subtle" style={{marginTop:14}}>By continuing, you agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p>
       {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     </div>

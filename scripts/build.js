@@ -256,6 +256,9 @@ async function build() {
   if(!match) throw new Error('Could not find the editable text/babel script in index.html.');
   const babelCdn=/\s*<script[^>]+babel-standalone[^>]*><\/script>/;
   if(!babelCdn.test(buildSource)) throw new Error('Could not find the browser-only Babel CDN script.');
+  const reactCdn=/\s*<script[^>]+src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/react\/18\.2\.0\/umd\/react\.production\.min\.js"[^>]*><\/script>/;
+  const reactDomCdn=/\s*<script[^>]+src="https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/react-dom\/18\.2\.0\/umd\/react-dom\.production\.min\.js"[^>]*><\/script>/;
+  if(!reactCdn.test(buildSource)||!reactDomCdn.test(buildSource)) throw new Error('Could not find the editable React CDN scripts.');
   const styleTag=/<style>([\s\S]*?)<\/style>/;
   const styleMatch=buildSource.match(styleTag);
   if(!styleMatch) throw new Error('Could not find the app stylesheet.');
@@ -265,14 +268,23 @@ async function build() {
   fs.rmSync(assetsDirectory,{recursive:true,force:true});
   fs.mkdirSync(assetsDirectory,{recursive:true});
   const compiled=Babel.transform(match[1],{presets:['react'],compact:true,minified:true,comments:false}).code;
+  const reactSource=fs.readFileSync(path.join(root,'node_modules','react','umd','react.production.min.js'),'utf8');
+  const reactDomSource=fs.readFileSync(path.join(root,'node_modules','react-dom','umd','react-dom.production.min.js'),'utf8');
   const scriptFile=`app.${contentHash(compiled)}.js`;
   const styleFile=`app.${contentHash(styleMatch[1])}.css`;
+  const reactFile=`react.${contentHash(reactSource)}.js`;
+  const reactDomFile=`react-dom.${contentHash(reactDomSource)}.js`;
   fs.writeFileSync(path.join(assetsDirectory,scriptFile),`${compiled}\n`);
   fs.writeFileSync(path.join(assetsDirectory,styleFile),styleMatch[1]);
+  fs.writeFileSync(path.join(assetsDirectory,reactFile),reactSource);
+  fs.writeFileSync(path.join(assetsDirectory,reactDomFile),reactDomSource);
   const app=buildSource
     .replace(babelCdn,'')
+    .replace(reactCdn,`\n<script defer src="assets/${reactFile}"></script>`)
+    .replace(reactDomCdn,`\n<script defer src="assets/${reactDomFile}"></script>`)
     .replace(styleTag,`<link rel="stylesheet" href="assets/${styleFile}">`)
     .replace(babelScript,`<script defer src="assets/${scriptFile}"></script>`);
+  if(app.includes('cdnjs.cloudflare.com/ajax/libs/react'))throw new Error('The production app still depends on CDN-hosted React.');
   fs.writeFileSync(path.join(dist,'index.html'),app);
 
   const optimizedCount=await optimizeImages();

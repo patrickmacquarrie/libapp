@@ -19,13 +19,16 @@
 
 1. Deploy `firestore.rules` and `functions/` together.
 2. Install Firebase's Trigger Email extension, point it at the `mail` collection, and configure the production SMTP sender.
-3. Enable Apple and Email link providers in Firebase Authentication. Add the GitHub Pages domain to Authorized domains.
-4. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
-5. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Heat Check saved/shared, result card shared, and return visit.
+3. Enable Google, Apple, and Email link providers in Firebase Authentication. Add `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains.
+4. Connect the production custom domain in Firebase Hosting and wait for its certificate to become active before changing DNS. Add the `FIREBASE_SERVICE_ACCOUNT_LIB_OAUTH` repository secret for the hosting workflow.
+5. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
+6. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Heat Check saved/shared, result card shared, and return visit.
 
 ## Post-deploy verification
 
 After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
+
+Also confirm Google, Apple, and cross-device email-link sign-in on `throughthewall.ca`; verify redirect sign-in preserves invite links; and inspect the browser console for CSP violations or missing local React assets.
 
 ```sh
 gcloud run services update reopenphase \

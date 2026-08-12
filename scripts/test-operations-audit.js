@@ -12,6 +12,9 @@ const publisher=read('scripts/season-publisher/Code.gs');
 const seasonAdmin=read('scripts/season-publisher/Admin.html');
 const workflow=read('.github/workflows/deploy-pages.yml');
 const runbook=read('SEASON-LAUNCH-RUNBOOK.md');
+const buildSource=read('scripts/build.js');
+const firebaseConfig=read('firebase.json');
+const packageJson=JSON.parse(read('package.json'));
 
 new Function(functionsSource);
 new Function(publisher);
@@ -142,9 +145,55 @@ assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPay
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,datingResults:[{market:'sex',coupleId:'alex-blair',episode:'9',confirmed:'TRUE'}]}),/Episodes 5 and 7/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:'0'}}),/live season/i);
 
+const authHelpersStart=html.indexOf('/* AUTH HELPERS START */');
+const authHelpersEnd=html.indexOf('/* AUTH HELPERS END */');
+assert(authHelpersStart>=0&&authHelpersEnd>authHelpersStart,'The authentication helpers must remain independently testable.');
+const authContext={URL,Set};
+vm.createContext(authContext);
+vm.runInContext(`${html.slice(authHelpersStart,authHelpersEnd)}
+this.__authErrorMessage=authErrorMessage;
+this.__shouldFallbackToRedirect=shouldFallbackToRedirect;
+this.__isLikelyInAppBrowser=isLikelyInAppBrowser;
+this.__emailFromSignInUrl=emailFromSignInUrl;
+this.__cleanEmailSignInUrl=cleanEmailSignInUrl;`,authContext);
+['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].forEach(code=>{
+  assert.equal(authContext.__shouldFallbackToRedirect({code}),true,`${code} must fall back to redirect sign-in.`);
+});
+assert.equal(authContext.__shouldFallbackToRedirect({code:'auth/network-request-failed'}),false);
+assert.equal(authContext.__isLikelyInAppBrowser('Mozilla/5.0 (iPhone) AppleWebKit Instagram 320.0'),true);
+assert.equal(authContext.__isLikelyInAppBrowser('Mozilla/5.0 (Linux; Android 13; wv) Version/4.0 Chrome/120 Mobile'),true);
+assert.equal(authContext.__isLikelyInAppBrowser('Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15'),false);
+assert.equal(authContext.__authErrorMessage({code:'auth/popup-closed-by-user'}),'');
+assert.equal(authContext.__authErrorMessage({code:'auth/cancelled-popup-request'}),'');
+assert.match(authContext.__authErrorMessage({code:'auth/network-request-failed'}),/connection/i);
+assert.equal(authContext.__authErrorMessage({code:'auth/invalid-email'}),'Enter a valid email address.');
+assert(!authContext.__authErrorMessage({code:'auth/unauthorized-domain'}).includes('Firebase'));
+assert.equal(authContext.__emailFromSignInUrl('https://throughthewall.ca/?join=pool.code&signInEmail=Player%40Example.com'),'player@example.com');
+assert.equal(authContext.__emailFromSignInUrl('https://throughthewall.ca/?mode=signIn&continueUrl=https%3A%2F%2Fthroughthewall.ca%2F%3Fjoin%3Dpool.code%26signInEmail%3DPlayer%2540Example.com'),'player@example.com');
+const cleanEmailUrl=new URL(authContext.__cleanEmailSignInUrl('https://throughthewall.ca/?join=pool.code&signInEmail=player%40example.com&mode=signIn&oobCode=secret&apiKey=key'));
+assert.equal(cleanEmailUrl.searchParams.get('join'),'pool.code');
+['signInEmail','mode','oobCode','apiKey'].forEach(key=>assert.equal(cleanEmailUrl.searchParams.has(key),false,`${key} must be removed after email sign-in.`));
+assert(html.includes('signInWithRedirect, getRedirectResult'),'Firebase redirect auth must be imported.');
+assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
+assert(html.includes("localStorage.getItem('through-the-wall-email-signin')||emailFromSignInUrl(window.location.href)||window.prompt"),'Cross-device email sign-in must use URL state before prompting.');
+assert(html.includes('Open the sign-in link on any device to continue.'),'Email sign-in copy must describe cross-device support.');
+assert(!html.includes("setErr(e?.message||'Google sign-in"),'Google auth errors must use the friendly mapper.');
+assert(!html.includes("setErr(e?.message||'Apple sign-in"),'Apple auth errors must use the friendly mapper.');
+assert(!html.includes("setErr(e?.message||'The sign-in link"),'Email auth errors must use the friendly mapper.');
+assert(!html.includes("setErr(e?.message||'You could not be signed out"),'Sign-out errors must use the friendly mapper.');
+assert.equal(packageJson.devDependencies.react,'18.2.0');
+assert.equal(packageJson.devDependencies['react-dom'],'18.2.0');
+assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
+assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');
+assert(!firebaseConfig.includes('https://cdnjs.cloudflare.com'),'The production CSP must not allow the former React CDN.');
+
 assert(workflow.includes('actions/checkout@v6'));
 assert(workflow.includes('actions/setup-node@v6'));
 assert(workflow.includes('actions/setup-java@v5'));
+assert(workflow.includes('google-github-actions/auth@v3'));
+assert(workflow.includes('FIREBASE_SERVICE_ACCOUNT_LIB_OAUTH'));
+assert(workflow.includes('firebase deploy --only hosting --project lib-oauth --non-interactive'));
+assert(!workflow.includes('actions/deploy-pages'),'The release workflow must not deploy to GitHub Pages.');
 assert(runbook.includes('rollbackSeasonSnapshot'));
 assert(runbook.includes('jsonPayload.message="Client operation failed"'));
 

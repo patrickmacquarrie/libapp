@@ -1,10 +1,14 @@
 # Through the Wall friends beta smoke test
 
-Run this two-account checklist against production before the August 13, 2026 friends beta. Budget 20 minutes. Use two separate browser profiles so Account A and Account B stay signed in at the same time. Use a throwaway Account C only for account deletion.
+Run this two-account checklist against production before the August 19, 2026 UK3 launch. Budget 25 minutes. Use two separate browser profiles so Account A and Account B stay signed in at the same time. Use a throwaway Account C only for account deletion.
 
 ## Before starting (2 minutes)
 
 - [ ] Open the app in two browser profiles and sign in as Account A and Account B.
+- [ ] Confirm the production response includes the CSP and other security headers from `firebase.json`, with no blocked app scripts in the browser console.
+- [ ] Block pop-ups, then start Google sign-in and confirm the app automatically continues with redirect sign-in without displaying a Firebase error code.
+- [ ] Open the app inside one common in-app browser and confirm Google sign-in uses the full-page redirect flow. If an invite link contains `?join=`, confirm it still joins the intended pool after sign-in.
+- [ ] Request an email sign-in link in Account A's browser, open it in Account B's browser profile or another device, and confirm sign-in completes without asking for the email address. Confirm the address and Firebase action parameters disappear from the address bar while any `join` parameter remains.
 - [ ] Keep the Firebase console open to Firestore Database for project `lib-oauth`.
 - [ ] Confirm `seasons/love-is-blind-uk-3` exists and its top-level `status` is `upcoming`, not `live`. **Pre-verified in production on August 8:** the document exists with `status=upcoming`; all six tab fields are arrays of row maps. Stored row counts (including header rows) are Cast 1, Couples 1, Dating Results 1, Reunion Results 1, Settings 38, and Retro Events 0.
 - [ ] Use Brazil Season 1 for the live-season walkthrough while it is being entered episode by episode. Choose a completed historical season for any later-phase checks Brazil has not reached yet. Use a season with at least one `*_BOUNDARY_FINAL = FALSE` setting for the successful `reopenPhase` check; do not temporarily mark UK3 live.
