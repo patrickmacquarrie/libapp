@@ -179,7 +179,8 @@ assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('uns
 assert(html.includes("localStorage.getItem('through-the-wall-email-signin')||emailFromSignInUrl(window.location.href)||window.prompt"),'Cross-device email sign-in must use URL state before prompting.');
 assert(html.includes('Open the sign-in link on any device to continue.'),'Email sign-in copy must describe cross-device support.');
 assert(!html.includes("setErr(e?.message||'Google sign-in"),'Google auth errors must use the friendly mapper.');
-assert(!html.includes("setErr(e?.message||'Apple sign-in"),'Apple auth errors must use the friendly mapper.');
+assert(!html.includes('Sign in with Apple'),'Apple sign-in must stay hidden until its developer credentials are configured.');
+assert(!html.includes("OAuthProvider('apple.com')"),'Unconfigured Apple authentication code must not ship.');
 assert(!html.includes("setErr(e?.message||'The sign-in link"),'Email auth errors must use the friendly mapper.');
 assert(!html.includes("setErr(e?.message||'You could not be signed out"),'Sign-out errors must use the friendly mapper.');
 assert.equal(packageJson.devDependencies.react,'18.2.0');
@@ -187,7 +188,8 @@ assert.equal(packageJson.devDependencies['react-dom'],'18.2.0');
 assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
 assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');
 assert(!firebaseConfig.includes('https://cdnjs.cloudflare.com'),'The production CSP must not allow the former React CDN.');
-assert(firebaseConfig.includes("frame-src 'self' https://accounts.google.com https://appleid.apple.com"),'The production CSP must allow same-origin Firebase Auth handlers.');
+assert(firebaseConfig.includes("frame-src 'self' https://accounts.google.com"),'The production CSP must allow same-origin Firebase Auth handlers.');
+assert(!firebaseConfig.includes('https://appleid.apple.com'),'The production CSP must not allow the disabled Apple provider.');
 
 assert(workflow.includes('actions/checkout@v6'));
 assert(workflow.includes('actions/setup-node@v6'));
