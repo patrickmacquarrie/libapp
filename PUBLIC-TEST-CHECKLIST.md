@@ -20,7 +20,7 @@
 1. Deploy `firestore.rules` and `functions/` together.
 2. Install Firebase's Trigger Email extension, point it at the `mail` collection, and configure the production SMTP sender.
 3. Enable Google, Apple, and Email link providers in Firebase Authentication. Add `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains.
-4. Connect the production custom domain in Firebase Hosting and wait for its certificate to become active before changing DNS. Add the `FIREBASE_SERVICE_ACCOUNT_LIB_OAUTH` repository secret for the hosting workflow.
+4. Connect the production custom domain in Firebase Hosting and wait for its certificate to become active before changing DNS. Confirm the `github-actions/libapp` Workload Identity provider can impersonate the dedicated `github-firebase-hosting` service account; no persistent JSON key or repository secret should exist.
 5. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
 6. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Heat Check saved/shared, result card shared, and return visit.
 

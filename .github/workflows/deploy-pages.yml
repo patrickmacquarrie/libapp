@@ -51,5 +51,7 @@ jobs:
       - id: auth
         uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_LIB_OAUTH }}
+          project_id: lib-oauth
+          workload_identity_provider: projects/737647208245/locations/global/workloadIdentityPools/github-actions/providers/libapp
+          service_account: github-firebase-hosting@lib-oauth.iam.gserviceaccount.com
       - run: npx firebase deploy --only hosting --project lib-oauth --non-interactive

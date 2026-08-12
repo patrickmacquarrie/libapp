@@ -42,7 +42,7 @@ Two notification events are currently queued:
 
 Before testing Google, Apple, or email-link sign-in, enable those providers in Firebase Authentication and add both `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Apple also requires its service ID, team ID, key ID, and private key.
 
-The production workflow authenticates with the `FIREBASE_SERVICE_ACCOUNT_LIB_OAUTH` GitHub Actions secret. Confirm the custom domain is connected and its certificate is active in Firebase Hosting before merging a release that changes DNS or hosting providers.
+The production workflow authenticates without a stored key: GitHub's OIDC token is exchanged through the `github-actions/libapp` Workload Identity provider for the dedicated `github-firebase-hosting` service account. Confirm the custom domain is connected and its certificate is active in Firebase Hosting before merging a release that changes DNS or hosting providers.
 
 ## Season publishing
 
