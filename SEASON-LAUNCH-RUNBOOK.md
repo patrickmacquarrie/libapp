@@ -6,7 +6,7 @@ Use this checklist for the first launch and every episode drop. UK3 is the first
 
 - Update the season sheet only after confirming the episode results and phase boundary fields. Keep `SEASON_ID` and `SPREADSHEET_ID` paired in the publisher's Script properties.
 - Run `previewSeasonSnapshot`. Confirm the intended season, status, available-through episode, non-zero required-tab row counts, and a document size below 900,000 bytes.
-- Confirm the latest GitHub `main` deployment is green. For a first-season launch, also run `npm run check` locally.
+- Confirm the latest Firebase Hosting deployment from GitHub `main` is green. For a first-season launch, also run `npm run check` locally.
 - Keep one test friend pool and one Global Pool account available for verification.
 
 ## Publish and verify

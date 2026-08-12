@@ -11,6 +11,8 @@
   "devDependencies": {
     "@babel/standalone": "7.23.5",
     "firebase-tools": "15.25.1",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
     "sharp": "^0.35.3"
   }
 }
