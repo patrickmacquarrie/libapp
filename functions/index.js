@@ -321,6 +321,8 @@ exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
   return {ok:true};
 });
 
+const DAILY_EMAIL_INVITE_LIMIT=20;
+
 exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
@@ -334,16 +336,18 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   const day=new Date(createdAt).toISOString().slice(0,10);
   const limitRef=db.doc(`inviteRateLimits/${uid}__${day}`);
   const profileSnap=await db.doc(`users/${uid}`).get();
+  let invitationCount=0;
   await db.runTransaction(async tx=>{
     const limitSnap=await tx.get(limitRef);
     const count=Number(limitSnap.data()?.count)||0;
-    if(count>=20)throw new HttpsError('resource-exhausted','You have reached today’s invitation limit. Share the pool link instead.');
+    if(count>=DAILY_EMAIL_INVITE_LIMIT)throw new HttpsError('resource-exhausted','You have reached today’s invitation limit. Share the pool link instead.');
     const pool=poolSnap.data();
     const inviteRef=db.doc(`invites/${poolId}__${toEmail}`);
     const existing=await tx.get(inviteRef);
     if(existing.exists&&existing.data().status!=='pending')throw new HttpsError('already-exists','That invitation was already answered. Share the pool link instead.');
     tx.set(inviteRef,{poolId,poolName:pool.name,seasonLabel:pool.season?.label||'',fromUid:uid,fromUsername:profileSnap.data()?.username||'A friend',toEmail,status:'pending',createdAt});
     tx.set(limitRef,{uid,day,count:count+1,updatedAt:Date.now()},{merge:true});
+    invitationCount=count+1;
   });
   const pool=poolSnap.data();
   const inviter=safeHeaderText(profileSnap.data()?.username||'A friend',40)||'A friend';
@@ -365,7 +369,7 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
           <tr><td style="padding:28px 32px;background:linear-gradient(135deg,#351263 0%,#7b2cbf 55%,#ef5da8 100%);color:#ffffff;">
             <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
               <td width="50" valign="middle"><img src="${escapeHtml(logoUrlWithVersion)}" width="42" height="42" alt="Through the Wall" style="display:block;width:42px;height:42px;border:0;"></td>
-              <td valign="middle" style="padding-left:11px;"><div style="font-size:13px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;opacity:.9;">Through the Wall</div><div style="margin-top:5px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.78;">An unofficial Love Is Blind predictions pool</div></td>
+              <td valign="middle" style="padding-left:11px;"><div style="font-size:13px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;opacity:.9;">Through the Wall</div><div style="margin-top:5px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.78;">An unofficial Love Is Blind prediction pool</div></td>
             </tr></table>
             <div style="margin-top:14px;font-size:32px;line-height:1.12;font-weight:800;">You’re in the pods. 💜</div>
             <div style="margin-top:10px;font-size:16px;line-height:1.5;color:#f6ecff;">${escapeHtml(inviter)} is building their pod squad. You’re on the list.</div>
@@ -406,7 +410,7 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
     const code=String(error?.code??'').toLowerCase();
     if(code!=='6'&&code!=='already-exists'&&code!=='already_exists')throw error;
   }
-  return {ok:true};
+  return {ok:true,limit:DAILY_EMAIL_INVITE_LIMIT,remaining:Math.max(0,DAILY_EMAIL_INVITE_LIMIT-invitationCount)};
 });
 
 exports.openGlobalPool=onCall(FUNCTION_LIMITS,async request=>{

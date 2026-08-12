@@ -67,7 +67,7 @@ async function createUser(email){
   });
   const auth=await signup.json();
   assert.equal(signup.status,200,JSON.stringify(auth));
-  return {uid:auth.localId,token:auth.idToken};
+  return {uid:auth.localId,token:auth.idToken,email};
 }
 
 function playerFields(phase,screen){
@@ -78,6 +78,14 @@ function phasePickFields(uid,phase,{lockedAt,updatedAt=Date.now()}={}){
   const fields={uid:stringValue(uid),phase:stringValue(phase),picks:arrayValue([]),updatedAt:numberValue(updatedAt)};
   if(Number.isFinite(lockedAt))fields.lockedAt=numberValue(lockedAt);
   return fields;
+}
+
+function inviteFields(poolId,ownerUid,toEmail){
+  return {
+    poolId:stringValue(poolId),poolName:stringValue('Invite privacy test'),seasonLabel:stringValue('Love Is Blind'),
+    fromUid:stringValue(ownerUid),fromUsername:stringValue('Owner'),toEmail:stringValue(toEmail),
+    status:stringValue('pending'),createdAt:numberValue(Date.now()),
+  };
 }
 
 function clientErrorFields(uid,category='save_failed',overrides={}){
@@ -93,6 +101,7 @@ function clientErrorFields(uid,category='save_failed',overrides={}){
 async function main(){
   const first=await createUser('rules@example.test');
   const second=await createUser('rules-second@example.test');
+  const invited=await createUser('rules-invited@example.test');
   const {uid,token}=first;
 
   await expectStatus(
@@ -120,6 +129,18 @@ async function main(){
   await expectStatus(await writeDocument('pools/v3-missing-race',poolFields(uid,rulesSnapshot(3)),token),403,'v3 snapshot without RACE_MULT');
   await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5)),token),200,'v5 snapshot without RACE_MULT');
   await expectStatus(await writeDocument('pools/v5-invalid-race',poolFields(uid,rulesSnapshot(5,'string')),token),403,'v5 snapshot with invalid optional RACE_MULT');
+
+  const invitePool='invite-privacy';
+  const invitePath=`invites/${invitePool}__${invited.email}`;
+  await expectStatus(
+    await writeDocument(`pools/${invitePool}`,poolFields(uid,rulesSnapshot(5),[uid,second.uid]),'owner'),
+    200,
+    'admin seeds invitation privacy pool'
+  );
+  await expectStatus(await writeDocument(invitePath,inviteFields(invitePool,uid,invited.email),token),200,'pool owner creates invitation');
+  await expectStatus(await readDocument(invitePath,token),200,'pool owner reads invitation address');
+  await expectStatus(await readDocument(invitePath,second.token),403,'non-owner pool member cannot read invitation address');
+  await expectStatus(await readDocument(invitePath,invited.token),200,'invitation recipient reads own invitation');
 
   const clientErrorPath=`clientErrors/${uid}/categories/save_failed`;
   await expectStatus(

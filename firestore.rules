@@ -527,15 +527,16 @@ service cloud.firestore {
           resource.data.toEmail == authEmail();
       }
 
+      // Raw invitee addresses are visible only to the recipient and pool owner.
       allow read: if viewerIsRecipient() ||
-        poolMember(resource.data.poolId);
+        poolOwner(resource.data.poolId);
 
       allow create: if signedIn() &&
         validInviteDocument() &&
         request.resource.data.fromUid == request.auth.uid &&
         poolOwner(request.resource.data.poolId);
 
-      // Pool members may resend/replace a deterministic invitation.
+      // Pool owners may resend/replace a deterministic invitation.
       allow update: if
         (
           signedIn() &&
