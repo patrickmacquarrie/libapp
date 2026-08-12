@@ -14,11 +14,14 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://throughthewall.ca/images/through-the-wall-social-card.png">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="canonical" href="https://throughthewall.ca/">
 <link rel="apple-touch-icon" href="images/through-the-wall-app-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#431127">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Cpath%20fill='%23ed0c72'%20d='M30%2056S8%2042%208%2024C8%2012%2020%207%2030%2017v39Z'/%3E%3Cpath%20fill='%237b2ee5'%20d='M34%2056V17C44%207%2056%2012%2056%2024c0%2018-22%2032-22%2032Z'/%3E%3Cpath%20fill='%23fff'%20d='M30%2012h4v44h-4z'/%3E%3Cpath%20fill='%237b2ee5'%20d='m32%205%202%205%205%202-5%202-2%205-2-5-5-2%205-2Z'/%3E%3Cpath%20fill='%23f2c85f'%20d='m10%2035%201.5%204L16%2041l-4.5%202L10%2047l-1.5-4L4%2041l4.5-2Z'/%3E%3Cpath%20fill='%23f2c85f'%20d='m54%2034%201.2%203.2L59%2039l-3.8%201.8L54%2044l-1.2-3.2L49%2039l3.8-1.8Z'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script defer data-domain="throughthewall.ca" src="https://plausible.io/js/script.js"></script>
 <script>window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments);};window.addEventListener('ttw:conversion',event=>{const payload=event.detail||{},name=payload.event;if(!name)return;const props={...payload};delete props.event;window.plausible(name,{props});});</script>
@@ -440,11 +443,13 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 @media(max-width:560px){.how-phases{grid-template-columns:1fr}.prediction-demo{height:270px;margin-inline:14px}.demo-wager-row{grid-template-columns:minmax(0,1fr) 62px 112px;gap:8px}.demo-heart-count{width:62px;font-size:24px}.demo-confirm{padding-inline:6px;font-size:10px}.how-content{padding-inline:14px}.how-hero{padding-inline:18px}.how-modal .how-hero h2{font-size:27px}.phase-guide-hero{padding-inline:18px}.phase-guide-hero h2{font-size:27px}.phase-guide-body{padding-inline:14px}.danger-row{align-items:flex-start;flex-wrap:wrap}.pool-management-actions{width:100%}.modal-actions{display:grid;grid-template-columns:1fr}.modal-actions .btn-primary,.modal-actions .btn-secondary{width:100%}.lock-phase-row{align-items:flex-start;flex-wrap:wrap}.lock-phase-row span{flex:1 1 100%;min-width:0;text-align:left;overflow-wrap:anywhere}}
 @media(max-width:480px){.modal-backdrop{padding:12px 0}.modal{width:calc(100% - 24px);max-width:none}}
 .login-card{text-align:center}
+.quick-signin{position:absolute;z-index:2;right:0;top:4px;padding:8px 13px;border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--card) 94%,transparent);box-shadow:0 5px 16px rgba(67,17,39,.08);color:var(--wine);font-size:12px;font-weight:800;text-decoration:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.quick-signin:hover{border-color:var(--rose);color:var(--rose)}
 .login-card .heart-hero{font-size:52px;line-height:1;margin-bottom:8px}
 .public-hero{position:relative;overflow:hidden;padding:26px 22px;text-align:center;border-color:color-mix(in srgb,var(--rose) 35%,var(--line));background:radial-gradient(circle at 88% 8%,color-mix(in srgb,var(--purple) 16%,transparent),transparent 34%),radial-gradient(circle at 8% 94%,color-mix(in srgb,var(--rose) 14%,transparent),transparent 38%),linear-gradient(135deg,var(--blush-soft),var(--card))}
 .public-hero::after{content:'\2726';position:absolute;right:22px;top:16px;color:var(--gold);font-size:25px;animation:howSparkle 2.8s ease-in-out infinite}
 .public-kicker{color:var(--rose);font-size:10px;font-weight:900;letter-spacing:.17em;text-transform:uppercase}
-.public-hero h2{max-width:570px;margin:7px auto;color:var(--wine);font:700 clamp(31px,7vw,47px)/1.02 'Playfair Display',Georgia,serif}
+.public-hero h1{max-width:570px;margin:7px auto;color:var(--wine);font:700 clamp(31px,7vw,47px)/1.02 'Playfair Display',Georgia,serif}
 .public-hero>p{max-width:540px;margin:0 auto;color:var(--muted);font-size:14px;line-height:1.55}
 .public-demo-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:19px 0 13px;padding:5px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--surface) 78%,var(--blush-soft))}
 .public-demo-tabs button{min-height:42px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:800 12px Inter,sans-serif;cursor:pointer}
@@ -721,10 +726,10 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 </style>
 </head>
 <body>
-<div id="root"><div class="root-boot" role="status" aria-live="polite">
+<main id="root"><div class="root-boot" role="status" aria-live="polite">
   <svg class="root-boot-mark" viewBox="0 0 64 64" aria-hidden="true"><path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/><path fill="#7b2ee5" d="M34 56V17C44 7 56 12 56 24c0 18-22 32-22 32Z"/><path fill="#fff" d="M30 12h4v44h-4z"/><path fill="#f2c85f" d="m32 5 2 5 5 2-5 2-2 5-2-5-5-2 5-2Zm-22 30 1.5 4L16 41l-4.5 2L10 47l-1.5-4L4 41l4.5-2Zm44-1 1.2 3.2L59 39l-3.8 1.8L54 44l-1.2-3.2L49 39l3.8-1.8Z"/></svg>
   <h1>Through the Wall</h1><p>Getting the pods ready…</p><span class="root-boot-heart" aria-hidden="true">♥</span>
-</div></div>
+</div></main>
 <noscript><div class="root-boot"><h1>JavaScript is turned off</h1><p>Through the Wall needs JavaScript to run. You can still visit the <a href="/welcome/">welcome page</a>.</p></div></noscript>
 <script>
 window.__ttwAppMounted=false;
@@ -3023,8 +3028,9 @@ function Panel({title,defaultOpen,children}) {
   const bodyId=useId();
   return <div className="panel"><button className="phead" aria-expanded={open} aria-controls={bodyId} onClick={()=>setOpen(!open)}><span>{title}</span><span aria-hidden="true">{open?'−':'+'}</span></button>{open&&<div className="pbody" id={bodyId}>{children}</div>}</div>;
 }
-function BrandHeader({season=null,children}) {
+function BrandHeader({season=null,children,showSignIn=false}) {
   return <div className="hdr">
+    {showSignIn&&<a className="quick-signin" href="#sign-in">Sign in</a>}
     <svg className="brand-logo" viewBox="0 0 920 205" role="img" aria-label="Through the Wall - a social prediction pool for friends">
       <g transform="translate(34 25) scale(3.1)">
         <path fill="#ed0c72" d="M30 56S8 42 8 24C8 12 20 7 30 17v39Z"/>
@@ -3156,7 +3162,7 @@ const drawGroupChatCard=(ctx,options)=>{
   if(options.rank){ctx.fillStyle='#fffaf7';ctx.font='900 19px Inter,Arial,sans-serif';ctx.letterSpacing='2px';ctx.textAlign='center';ctx.fillText('YOUR POOL RANK: #'+options.rank+(options.total?' OF '+options.total:''),540,930);ctx.letterSpacing='0px';ctx.textAlign='left';}
   ctx.fillStyle='#fffaf7';ctx.font='700 38px Georgia,serif';ctx.textAlign='center';ctx.fillText('“I watched the vibes. You watched the show.”',540,967);ctx.textAlign='left';
   ctx.strokeStyle='#f3c553';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(220,1005);ctx.lineTo(860,1005);ctx.stroke();
-  ctx.fillStyle='#fffaf7';ctx.font='800 19px Inter,Arial,sans-serif';ctx.textAlign='center';ctx.fillText('throughthewall.ca  ·  Unofficial Love Is Blind predictions pool',540,1044);ctx.textAlign='left';
+  ctx.fillStyle='#fffaf7';ctx.font='800 19px Inter,Arial,sans-serif';ctx.textAlign='center';ctx.fillText('throughthewall.ca  ·  Unofficial Love Is Blind prediction pool',540,1044);ctx.textAlign='left';
 };
 const drawStoryCard=(ctx,options)=>{
   drawReceiptBackground(ctx,1080,1920);drawReceiptBrand(ctx,{x:148,y:150,scale:1});
@@ -3167,7 +3173,7 @@ const drawStoryCard=(ctx,options)=>{
   ctx.font='italic 52px Georgia,serif';ctx.fillText('“I watched the vibes. You watched the show.”',540,1590);ctx.textAlign='left';
   ctx.strokeStyle='#f3c553';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(178,1690);ctx.lineTo(902,1690);ctx.stroke();
   ctx.fillStyle='#fffaf7';ctx.font='800 25px Inter,Arial,sans-serif';ctx.textAlign='center';ctx.fillText('throughthewall.ca',540,1750);
-  ctx.font='600 18px Inter,Arial,sans-serif';ctx.fillText('Unofficial Love Is Blind predictions pool',540,1791);ctx.textAlign='left';
+  ctx.font='600 18px Inter,Arial,sans-serif';ctx.fillText('Unofficial Love Is Blind prediction pool',540,1791);ctx.textAlign='left';
 };
 const createShareCardBlob=({...options})=>new Promise((resolve,reject)=>{
   const format=options.format==='story'?'story':'chat',canvas=document.createElement('canvas');
@@ -3340,7 +3346,7 @@ class AppErrorBoundary extends React.Component {
   };
   render(){
     if(!this.state.error)return this.props.children;
-    return <main className="app fatal-app">
+    return <div className="app fatal-app">
       <div className="card" role="alert">
         <div className="crown" aria-hidden="true">♥</div>
         <h1 style={{fontFamily:"'Playfair Display',Georgia,serif",color:'var(--wine)',margin:'4px 0 8px'}}>The vibes hit a wall</h1>
@@ -3352,7 +3358,7 @@ class AppErrorBoundary extends React.Component {
         </div>
         <p className="fatal-copy-status" role="status" aria-live="polite">{this.state.copyStatus}</p>
       </div>
-    </main>;
+    </div>;
   }
 }
 const pickLabelFor=(phase,p,eng)=>{
@@ -3391,7 +3397,7 @@ function PhaseHero({phase,w,RULES}) {
     <p>{copy}</p>
   </section>;
 }
-function PoolTabs({tabs,active,onChange}) {
+function AccessibleTabs({tabs,active,onChange,baseId,className,ariaLabel}) {
   const tabRefs=useRef([]);
   const moveFocus=(event,index)=>{
     let next=index;
@@ -3404,7 +3410,10 @@ function PoolTabs({tabs,active,onChange}) {
     onChange(tabs[next].id);
     requestAnimationFrame(()=>tabRefs.current[next]?.focus());
   };
-  return <div className="tabbar" role="tablist" aria-label="Pool sections">{tabs.map((tab,index)=><button type="button" role="tab" id={'pool-tab-'+tab.id} aria-selected={active===tab.id} aria-controls={'pool-panel-'+tab.id} tabIndex={active===tab.id?0:-1} className={active===tab.id?'active':''} onClick={()=>onChange(tab.id)} onKeyDown={event=>moveFocus(event,index)} ref={node=>{tabRefs.current[index]=node;}} key={tab.id}>{tab.label}</button>)}</div>;
+  return <div className={className} role="tablist" aria-label={ariaLabel}>{tabs.map((tab,index)=><button type="button" role="tab" id={baseId+'-tab-'+tab.id} aria-selected={active===tab.id} aria-controls={baseId+'-panel-'+tab.id} tabIndex={active===tab.id?0:-1} className={active===tab.id?'active':''} onClick={()=>onChange(tab.id)} onKeyDown={event=>moveFocus(event,index)} ref={node=>{tabRefs.current[index]=node;}} key={tab.id}>{tab.label}</button>)}</div>;
+}
+function PoolTabs({tabs,active,onChange}) {
+  return <AccessibleTabs tabs={tabs} active={active} onChange={onChange} baseId="pool" className="tabbar" ariaLabel="Pool sections"/>;
 }
 function SeasonProgressTracker({eng,playersById,memberLabels,meId}) {
   const {RULES,PH_SPAN:spans,PH_STARTW:starts}=eng;
@@ -3549,7 +3558,7 @@ function CastRatingCard({person,values,flag,onChange,onFlagChange}) {
     })}</div>
   </article>;
 }
-function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc,community,globalCommunity,memberLabels,onSave,saving,feedback,onRefresh}) {
+function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc,community,globalCommunity,memberLabels,onSave,saving,feedback,onRefresh,panelLabelledBy='pool-tab-chemistry'}) {
   const [view,setView]=useState('mine');
   const [gender,setGender]=useState('all');
   const [sort,setSort]=useState('overall');
@@ -3713,18 +3722,21 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   const breakdownPages=Math.max(1,Math.ceil(expandedScores.length/breakdownPageSize));
   const safeExpandedPage=Math.min(expandedPage,breakdownPages-1);
   const visibleExpandedScores=expandedScores.slice(safeExpandedPage*breakdownPageSize,(safeExpandedPage+1)*breakdownPageSize);
-  return <div id="pool-panel-chemistry" role="tabpanel" aria-labelledby="pool-tab-chemistry">
+  const heatCheckTabs=[{id:'mine',label:'💘 My ratings'},{id:'tea',label:'☕ The tea'}];
+  const teaTabs=[
+    ...(!globalPool?[{id:'leaderboard',label:'Pool averages'},{id:'friends',label:'Friend scorecards'}]:[]),
+    {id:'global',label:'🌎 Global rankings'},
+    {id:'compare',label:'⚖️ Compare'},
+  ];
+  return <div id="pool-panel-chemistry" role="tabpanel" aria-labelledby={panelLabelledBy||undefined} aria-label={panelLabelledBy?undefined:'Heat Check preview'}>
     <section className="chemistry-hero">
       <span className="chemistry-orbit one"></span><span className="chemistry-orbit two"></span>
       <span className="chemistry-kicker">Just for fun · zero points attached</span>
       <h2>Heat Check</h2>
       <p>Rate the cast! This has no impact on game scoring. It's strictly for the group chat, the hot takes, and the data.</p>
     </section>
-    <div className="chemistry-segmented" role="tablist" aria-label="Heat Check views">
-      <button type="button" className={view==='mine'?'active':''} aria-selected={view==='mine'} onClick={()=>setView('mine')}>💘 My ratings</button>
-      <button type="button" className={view==='tea'?'active':''} aria-selected={view==='tea'} onClick={()=>setView('tea')}>☕ The tea</button>
-    </div>
-    {view==='mine'?<React.Fragment>
+    <AccessibleTabs tabs={heatCheckTabs} active={view} onChange={setView} baseId="chemistry-view" className="chemistry-segmented" ariaLabel="Heat Check views"/>
+    {view==='mine'?<div id="chemistry-view-panel-mine" role="tabpanel" aria-labelledby="chemistry-view-tab-mine">
       <div className="card">
         {globalPool?<div className="chemistry-privacy"><div className="chemistry-privacy-icon">◉</div><div><strong>Your picks stay private in the Global Pool</strong><p>Other players see only combined averages and rating counts—not your name or individual scorecard.</p></div></div>:<label className="chemistry-toggle"><input type="checkbox" checked={shareWithFriends} onChange={event=>{setShareWithFriends(event.target.checked);setDirty(true);}}/><span><strong>Let this friend pool see my picks</strong><span>When on, friends can open your scorecard in “The tea.” Turn it off anytime to remove your individual ratings from this pool.</span></span></label>}
         <div className="chemistry-toolbar"><div><h3 style={{marginBottom:3}}>Who are you rating?</h3><p className="subtle" style={{margin:0}}>Do a side, do everyone, or come back later.</p></div></div>
@@ -3741,15 +3753,10 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
         {myRanked.length>0&&<div className="chemistry-fingerprint"><h3>{fingerprintCategory.icon} Your Heat Check fingerprint: {fingerprintCategory.label}</h3><p>Your highest average category is {fingerprintCategory.label.toLowerCase()}. Right now, {myRanked[0].person.name} tops your complete scorecards with {myRanked[0].score}/40.</p><button className="btn-secondary" disabled={sharingLeaderboard} onClick={()=>shareLeaderboard('mine')}>{sharingLeaderboard?'Getting the share ready…':'Share my top three'}</button>{shareFeedback&&<p className="subtle" role={shareFeedbackError?'alert':'status'} style={{marginTop:8}}>{shareFeedback}</p>}</div>}
       </div>
       <div className="chemistry-savebar"><button className="btn-primary" disabled={saving||!dirty} onClick={save}>{saving?'Saving the tea…':dirty?'Save my ratings':feedback||'No changes to save'}</button></div>
-    </React.Fragment>:<React.Fragment>
+    </div>:<div id="chemistry-view-panel-tea" role="tabpanel" aria-labelledby="chemistry-view-tab-tea">
       {showingGlobal&&<div className="chemistry-privacy"><div className="chemistry-privacy-icon">◉</div><div><strong>Global means averaged, not exposed</strong><p>This board combines everyone’s ratings. Individual picks and player names are never shown here.</p></div></div>}
-      <div className={'chemistry-segmented chemistry-tea-tabs'+(globalPool?' global':'')} role="tablist" aria-label="Rating views">
-        {!globalPool&&<button type="button" className={teaView==='leaderboard'?'active':''} onClick={()=>setTeaView('leaderboard')}>Pool averages</button>}
-        {!globalPool&&<button type="button" className={teaView==='friends'?'active':''} onClick={()=>setTeaView('friends')}>Friend scorecards</button>}
-        <button type="button" className={teaView==='global'?'active':''} onClick={()=>setTeaView('global')}>🌎 Global rankings</button>
-        <button type="button" className={teaView==='compare'?'active':''} onClick={()=>setTeaView('compare')}>⚖️ Compare</button>
-      </div>
-      <div className="card">
+      <AccessibleTabs tabs={teaTabs} active={teaView} onChange={setTeaView} baseId="chemistry-tea" className={'chemistry-segmented chemistry-tea-tabs'+(globalPool?' global':'')} ariaLabel="Rating views"/>
+      <div className="card" id={'chemistry-tea-panel-'+teaView} role="tabpanel" aria-labelledby={'chemistry-tea-tab-'+teaView}>
         <div className="chemistry-toolbar">
           <div><h2 style={{marginBottom:3}}>{teaView==='compare'?'Side-by-side tea':showingGlobal?'The global pulse':teaView==='friends'?'Friend scorecards':'Your pool’s verdict'}</h2><p className="subtle" style={{margin:0}}>{teaView==='compare'?'Pick two perspectives and find where the opinions split.':`${audienceCount} player${audienceCount===1?' has':'s have'} ${showingGlobal?'contributed':'shared'} ratings`}</p></div>
           <button className="btn-small" onClick={onRefresh}>Refresh</button>
@@ -3813,7 +3820,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
           <button className="btn-secondary" disabled={sharingLeaderboard} onClick={()=>shareLeaderboard('community')}>{sharingLeaderboard?'Getting the share ready…':'Share this leaderboard'}</button>{shareFeedback&&<p className="subtle" role={shareFeedbackError?'alert':'status'} style={{marginTop:8}}>{shareFeedback}</p>}
         </React.Fragment>:<div className="chemistry-empty"><div className="chemistry-empty-icon">🫖</div><h3>The tea is still steeping</h3><p>Be the first to rate the cast. This board wakes up as players save their picks.</p></div>}
       </div>
-    </React.Fragment>}
+    </div>}
   </div>;
 }
 function ChemistryPreview() {
@@ -3878,10 +3885,11 @@ function ChemistryPreview() {
     ],loadedAt:updatedAt}));
     setFeedback(globalPool?'Saved privately and added to the global averages.':'Ratings saved.');
   };
+  const closePreview=()=>{const url=new URL(window.location.href);url.searchParams.delete('chemistryPreview');window.location.assign(url.toString());};
   return <div className="app">
     <BrandHeader season={globalPool?'Love Is Blind UK: Season 3':'Love Is Blind US: Season 6'}><h1>{globalPool?'Global Pool':'Pod Squad'}</h1></BrandHeader>
-    <PoolTabs tabs={[{id:'play',label:'Play'},{id:'standings',label:'Standings'},{id:'chemistry',label:'Heat Check'},{id:'rules',label:'Rules'}]} active="chemistry" onChange={()=>{}}/>
-    <ChemistryPanel eng={{CAST:cast}} seasonId="chemistry-preview" poolName="Pod Squad" globalPool={globalPool} currentUid="demo-me" myRatingDoc={mine} community={community} globalCommunity={{kind:'global',aggregate,loadedAt:1}} memberLabels={{'demo-me':'You','demo-maya':'Maya','demo-lex':'Lex'}} onSave={savePreview} saving={false} feedback={feedback} onRefresh={()=>setFeedback('Preview refreshed.')}/>
+    <button type="button" className="btn-small" style={{width:'auto',marginBottom:12}} onClick={closePreview}>← Back to app demo</button>
+    <ChemistryPanel eng={{CAST:cast}} seasonId="chemistry-preview" poolName="Pod Squad" globalPool={globalPool} currentUid="demo-me" myRatingDoc={mine} community={community} globalCommunity={{kind:'global',aggregate,loadedAt:1}} memberLabels={{'demo-me':'You','demo-maya':'Maya','demo-lex':'Lex'}} onSave={savePreview} saving={false} feedback={feedback} onRefresh={()=>setFeedback('Preview refreshed.')} panelLabelledBy={null}/>
   </div>;
 }
 function Sel({label,value,onChange,options,placeholder}) {
@@ -4096,7 +4104,7 @@ const drawPodiumShareCard=(ctx,options)=>{
   });
   ctx.fillStyle='#fffaf7';ctx.font='italic 37px Georgia,serif';ctx.fillText('“The standings have receipts.”',540,930);
   ctx.strokeStyle='#f3c553';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(235,968);ctx.lineTo(845,968);ctx.stroke();
-  ctx.font='800 19px Inter,Arial,sans-serif';ctx.fillText('throughthewall.ca  ·  Unofficial Love Is Blind predictions pool',540,1018);ctx.textAlign='left';
+  ctx.font='800 19px Inter,Arial,sans-serif';ctx.fillText('throughthewall.ca  ·  Unofficial Love Is Blind prediction pool',540,1018);ctx.textAlign='left';
 };
 const createPodiumShareBlob=options=>new Promise((resolve,reject)=>{
   const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1080;
@@ -4860,21 +4868,18 @@ function PublicTaste() {
   return <React.Fragment>
     <section className="card public-hero">
       <span className="public-kicker">Love Is Blind is better with receipts</span>
-      <h2>Predict the mess before it happens.</h2>
+      <h1>Predict the mess before it happens.</h1>
       <p>Predict the engagements, breakups, weddings, and reunion chaos. Wager Hearts, beat your friends, and own every “I knew it” moment.</p>
-      <div className="public-demo-tabs" role="tablist" aria-label="Try the app">
-        <button type="button" role="tab" aria-selected={view==='pick'} className={view==='pick'?'active':''} onClick={()=>setView('pick')}>Make a pick</button>
-        <button type="button" role="tab" aria-selected={view==='standings'} className={view==='standings'?'active':''} onClick={()=>setView('standings')}>See the payoff</button>
-      </div>
-      {view==='pick'?<div className="public-demo" role="tabpanel">
+      <AccessibleTabs tabs={[{id:'pick',label:'Make a pick'},{id:'standings',label:'See the payoff'}]} active={view} onChange={setView} baseId="public-demo" className="public-demo-tabs" ariaLabel="Try the app"/>
+      {view==='pick'?<div className="public-demo" id="public-demo-panel-pick" role="tabpanel" aria-labelledby="public-demo-tab-pick">
         <div className="public-demo-head"><div><h3>Who gets engaged?</h3><p className="subtle" style={{margin:'3px 0 0'}}>Try a real prediction with fictional names. Nothing is saved.</p></div><span>Spoiler-free demo</span></div>
         <div className="public-couple-grid">{demoCouples.map(([name,icon])=><button type="button" className={'public-couple '+(couple===name?'active':'')} aria-pressed={couple===name} onClick={()=>{setCouple(name);setCalled(false);}} key={name}><span>{icon}</span>{name}</button>)}</div>
         <div className="budget-card phase-pods public-demo-budget"><div className="budgetrow"><span>Pods budget</span><span aria-live="polite"><span className="n">{heartsLeft}</span> / {demoBudget} Hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(heartsLeft/demoBudget*100)+'%'}}/></div><span className="budget-note">Move the slider to see your budget change</span></div>
         <label className="demo-stake-label" htmlFor="public-stake">How sure are you?</label>
         <div className="stakebox public-stakebox"><input id="public-stake" type="range" min="5" max="60" step="5" value={stake} aria-valuetext={stake+' Hearts'} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/><span className="stakeval public-stake-value" aria-live="polite">{stake}♥</span></div>
         <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Lock prediction →</button>
-        {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you're right, you win points. You get bonus points for predictions that are early and/or unique</div>}
-      </div>:<div className="public-demo" role="tabpanel">
+        {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you’re right, you win points. The earlier you call it—and the fewer players who agree—the more it can score.</div>}
+      </div>:<div className="public-demo" id="public-demo-panel-standings" role="tabpanel" aria-labelledby="public-demo-tab-standings">
         <div className="public-demo-head"><div><h3>After the reveal</h3><p className="subtle" style={{margin:'3px 0 0'}}>Every checkpoint turns predictions into live standings.</p></div><span>Global demo</span></div>
         <div className="public-mini-board">{board.map(([name,score],index)=><div className={'public-mini-row '+(name==='You'?'you':'')} key={name}><span className="public-mini-rank">#{index+1}</span><span className="public-mini-avatar">{initialsFor(name)}</span><strong>{name}{name==='You'&&<span className="player-badge gold" style={{marginLeft:6}}>🔥 2 streak</span>}</strong><span className="public-mini-score">{score}</span></div>)}</div>
         <div className="public-demo-result"><strong>Your best prediction: Avery + Rowan get engaged</strong>Predicted after episode 1. Only 12% of the pool predicted it. Share the “I called it” card, then let the group chat cope.</div>
@@ -5090,6 +5095,7 @@ function App() {
   const [poolInviteEmail, setPoolInviteEmail] = useState('');
   const [poolInviteFeedback, setPoolInviteFeedback] = useState('');
   const [poolInviteError, setPoolInviteError] = useState(false);
+  const [poolInviteRemaining, setPoolInviteRemaining] = useState(null);
   const [sendingPoolInvite, setSendingPoolInvite] = useState(false);
   const [globalShareFeedback, setGlobalShareFeedback] = useState('');
   const [sharingPool,setSharingPool]=useState(false);
@@ -5196,6 +5202,7 @@ function App() {
   useEffect(() => {
     window._fb.completeEmailSignIn().catch(error=>{console.error(error);setErr('That email sign-in link could not be completed. Request a new one.');});
     return window._fb.onAuthStateChanged(u => {
+      setPoolInviteRemaining(null);
       if (u) loadAuthenticatedProfile(u);
       else {
         setUser(null);setProfile(null);setAuthError('');setAuthState('signedout');
@@ -5320,7 +5327,7 @@ function App() {
       const [{players, status}, users, pending] = await Promise.all([
         window._fb.loadAllPlayers(pool.id,user.uid,enteredPool.global===true),
         window._fb.getUsers(enteredPool.members),
-        enteredPool.global===true?Promise.resolve([]):window._fb.poolInvites(pool.id),
+        enteredPool.global===true||enteredPool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id),
       ]);
       setPoolPlayers(players); setPoolUsers(users); setPoolStatus(status); setPendingPoolInvites(pending);
       // Load my state
@@ -5715,8 +5722,9 @@ function App() {
     if (pendingPoolInvites.some(inv=>inv.toEmail===email)) { setPoolInviteFeedback('That person already has a pending invitation.');setPoolInviteError(true);return; }
     setSendingPoolInvite(true);
     try {
-      await window._fb.sendInvite(activePool.id,activePool.name,seasonLabelForPool(activePool),user.uid,profile.username,email);
+      const inviteResult=await window._fb.sendInvite(activePool.id,activePool.name,seasonLabelForPool(activePool),user.uid,profile.username,email);
       const pending=await window._fb.poolInvites(activePool.id);
+      if(Number.isInteger(inviteResult?.data?.remaining))setPoolInviteRemaining(inviteResult.data.remaining);
       setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback('Invitation sent to '+email+'.');
     } catch(e) {
       console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
@@ -5955,7 +5963,7 @@ function App() {
       setErr('');
       let pool = await window._fb.getPool(activePool.id);
       if (!pool) throw new Error('Pool not found');
-      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,pool.global===true),window._fb.getUsers(pool.members),window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id,{force:forceSeasonData})]);
+      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,pool.global===true),window._fb.getUsers(pool.members),pool.global===true||pool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id,{force:forceSeasonData})]);
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
         if(pool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
         const frozenRules=rulesSnapshotFrom(liveCfg);
@@ -6160,11 +6168,11 @@ function App() {
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
   if (authState==='signedout') return <div className="app">
     <AppLoadingState label={loadingMessage}/>
-    <BrandHeader/>
+    <BrandHeader showSignIn/>
     <PublicTaste/>
-    <div className="card login-card">
+    <div className="card login-card" id="sign-in">
       <div className="signin-divider">Ready to play for real?</div>
-      <h2>Save your picks and join the chat</h2>
+      <h2>Save your picks and play with friends</h2>
       <p className="lede">Sign in to create or join a friend pool and keep every prediction on the record.</p>
       <button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -6230,7 +6238,7 @@ function App() {
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       {userBar}
     </BrandHeader>
-    {offline&&<div className="offline-banner" role="status">You’re offline. Changes will be saved automatically when your connection returns.</div>}
+    {offline&&<div className="offline-banner" role="status">You’re offline. Prediction changes will retry automatically when your connection returns; wait to change other settings.</div>}
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     {invites.length>0 && <div className="card">
       <h2>Invites</h2>
@@ -6367,14 +6375,14 @@ function App() {
         <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
       </div>
     </BrandHeader>
-    {offline&&<div className="offline-banner" role="status">You’re offline. Changes will be saved automatically when your connection returns.</div>}
+    {offline&&<div className="offline-banner" role="status">You’re offline. Prediction changes will retry automatically when your connection returns; wait to change other settings.</div>}
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     <PoolTabs tabs={availablePoolTabs} active={poolTab} onChange={switchPoolTab}/>
     {poolTab==='standings' && poolPlayers && <div id="pool-panel-standings" role="tabpanel" aria-labelledby="pool-tab-standings">
       <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
         ? <button className="btn-small" style={{width:'auto'}} onClick={exitGlobalDemo}>Exit demo preview</button>
         : <button className="btn-small" style={{width:'auto'}} disabled={refreshingPool} onClick={refreshStandings}>{refreshingPool?'Refreshing…':'Refresh standings'}</button>}</div>
-      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||EMPTY_PHASE_SCORES} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
+      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData||activePool.ownerUid!==user.uid?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||EMPTY_PHASE_SCORES} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
       {activePool.global&&!globalDemoData&&<div className="card">
         <h3>Share the Global Pool</h3>
         <p className="lede">The Global Pool is open to everyone. Share the app with friends and they can join from their own account.</p>
@@ -6386,7 +6394,7 @@ function App() {
         <p className="lede">{activePool.membershipClosed===true?'Existing members can keep watching and predicting at their own pace.':'Friends can join at any time and begin their own game from Episode 1.'}</p>
         {activePool.membershipClosed!==true&&activePool.joinCode&&<button className="btn-secondary" disabled={sharingPool} onClick={shareFriendPool}>{sharingPool?'Getting the link…':'Share pool link'}</button>}
         {activePool.membershipClosed!==true&&activePool.ownerUid===user.uid&&<React.Fragment>
-          <p className="subtle" style={{marginTop:10}}>Or send up to 10 email invitations per day.</p>
+          <p className="subtle" style={{marginTop:10}}>{Number.isInteger(poolInviteRemaining)?`${poolInviteRemaining} of 20 email invitations remaining today.`:'Or send up to 20 email invitations per day.'}</p>
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>
               <input id="pool-invite-email" type="email" value={poolInviteEmail} onChange={e=>setPoolInviteEmail(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')doSendPoolInvite();}} placeholder="friend@email.com"/>

@@ -1,6 +1,7 @@
 const fs=require('fs');
 const path=require('path');
 const vm=require('vm');
+const crypto=require('crypto');
 const Babel=require('@babel/standalone');
 const sharp=require('sharp');
 
@@ -17,6 +18,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({
 const slugFile=value=>String(value||'').split('/').pop().split('?')[0]
   .replace(/\.(png|jpe?g|webp)$/i,'').replace(/[^a-z0-9 _.-]/gi,'').trim();
 const titleCase=value=>String(value||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').replace(/\b\w/g,ch=>ch.toUpperCase());
+const contentHash=value=>crypto.createHash('sha256').update(value).digest('hex').slice(0,12);
 
 function readBalancedArray(source,marker) {
   const markerAt=source.indexOf(marker);
@@ -246,18 +248,31 @@ function seasonPage(season,data,availableSeasons) {
 
 async function build() {
   const source=fs.readFileSync(sourcePath,'utf8');
+  const buildSource=source.replaceAll('__APP_BUILD_TIMESTAMP__',new Date().toISOString());
   const seasons=seasonBankFrom(source);
   const available=seasons.filter(season=>season.available);
   const babelScript=/<script\s+type="text\/babel"[^>]*>([\s\S]*?)<\/script>/;
-  const match=source.match(babelScript);
+  const match=buildSource.match(babelScript);
   if(!match) throw new Error('Could not find the editable text/babel script in index.html.');
   const babelCdn=/\s*<script[^>]+babel-standalone[^>]*><\/script>/;
-  if(!babelCdn.test(source)) throw new Error('Could not find the browser-only Babel CDN script.');
+  if(!babelCdn.test(buildSource)) throw new Error('Could not find the browser-only Babel CDN script.');
+  const styleTag=/<style>([\s\S]*?)<\/style>/;
+  const styleMatch=buildSource.match(styleTag);
+  if(!styleMatch) throw new Error('Could not find the app stylesheet.');
 
   fs.mkdirSync(dist,{recursive:true});
-  const compiled=Babel.transform(match[1],{presets:['react']}).code;
-  const app=source.replace(babelCdn,'').replace(babelScript,`<script>\n${compiled}\n</script>`)
-    .replaceAll('__APP_BUILD_TIMESTAMP__',new Date().toISOString());
+  const assetsDirectory=path.join(dist,'assets');
+  fs.rmSync(assetsDirectory,{recursive:true,force:true});
+  fs.mkdirSync(assetsDirectory,{recursive:true});
+  const compiled=Babel.transform(match[1],{presets:['react'],compact:true,minified:true,comments:false}).code;
+  const scriptFile=`app.${contentHash(compiled)}.js`;
+  const styleFile=`app.${contentHash(styleMatch[1])}.css`;
+  fs.writeFileSync(path.join(assetsDirectory,scriptFile),`${compiled}\n`);
+  fs.writeFileSync(path.join(assetsDirectory,styleFile),styleMatch[1]);
+  const app=buildSource
+    .replace(babelCdn,'')
+    .replace(styleTag,`<link rel="stylesheet" href="assets/${styleFile}">`)
+    .replace(babelScript,`<script defer src="assets/${scriptFile}"></script>`);
   fs.writeFileSync(path.join(dist,'index.html'),app);
 
   const optimizedCount=await optimizeImages();
