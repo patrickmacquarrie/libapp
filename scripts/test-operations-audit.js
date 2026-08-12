@@ -174,6 +174,7 @@ const cleanEmailUrl=new URL(authContext.__cleanEmailSignInUrl('https://throughth
 assert.equal(cleanEmailUrl.searchParams.get('join'),'pool.code');
 ['signInEmail','mode','oobCode','apiKey'].forEach(key=>assert.equal(cleanEmailUrl.searchParams.has(key),false,`${key} must be removed after email sign-in.`));
 assert(html.includes('signInWithRedirect, getRedirectResult'),'Firebase redirect auth must be imported.');
+assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("localStorage.getItem('through-the-wall-email-signin')||emailFromSignInUrl(window.location.href)||window.prompt"),'Cross-device email sign-in must use URL state before prompting.');
 assert(html.includes('Open the sign-in link on any device to continue.'),'Email sign-in copy must describe cross-device support.');
@@ -186,6 +187,7 @@ assert.equal(packageJson.devDependencies['react-dom'],'18.2.0');
 assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
 assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');
 assert(!firebaseConfig.includes('https://cdnjs.cloudflare.com'),'The production CSP must not allow the former React CDN.');
+assert(firebaseConfig.includes("frame-src 'self' https://accounts.google.com https://appleid.apple.com"),'The production CSP must allow same-origin Firebase Auth handlers.');
 
 assert(workflow.includes('actions/checkout@v6'));
 assert(workflow.includes('actions/setup-node@v6'));

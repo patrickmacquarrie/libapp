@@ -28,7 +28,7 @@
 
 After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
 
-Also confirm Google, Apple, and cross-device email-link sign-in on `throughthewall.ca`; verify redirect sign-in preserves invite links; and inspect the browser console for CSP violations or missing local React assets.
+Also confirm Google, Apple, and cross-device email-link sign-in on `throughthewall.ca`; verify each provider allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets.
 
 ```sh
 gcloud run services update reopenphase \
