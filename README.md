@@ -40,7 +40,7 @@ Two notification events are currently queued:
 - a friend locks a Pods, Retreats, Weddings, or Reunion checkpoint;
 - a published season snapshot increases `AVAILABLE_THROUGH_EP`.
 
-Before testing Google, Apple, or email-link sign-in, enable those providers in Firebase Authentication and add both `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Apple also requires its service ID, team ID, key ID, and private key.
+Before testing Google or email-link sign-in, enable those providers in Firebase Authentication and add both `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Apple sign-in is intentionally hidden until its service ID, team ID, key ID, and private key are configured.
 
 The production workflow authenticates without a stored key: GitHub's OIDC token is exchanged through the `github-actions/libapp` Workload Identity provider for the dedicated `github-firebase-hosting` service account. Confirm the custom domain is connected and its certificate is active in Firebase Hosting before merging a release that changes DNS or hosting providers.
 
