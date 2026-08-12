@@ -152,17 +152,8 @@ const authContext={URL,Set};
 vm.createContext(authContext);
 vm.runInContext(`${html.slice(authHelpersStart,authHelpersEnd)}
 this.__authErrorMessage=authErrorMessage;
-this.__shouldFallbackToRedirect=shouldFallbackToRedirect;
-this.__isLikelyInAppBrowser=isLikelyInAppBrowser;
 this.__emailFromSignInUrl=emailFromSignInUrl;
 this.__cleanEmailSignInUrl=cleanEmailSignInUrl;`,authContext);
-['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].forEach(code=>{
-  assert.equal(authContext.__shouldFallbackToRedirect({code}),true,`${code} must fall back to redirect sign-in.`);
-});
-assert.equal(authContext.__shouldFallbackToRedirect({code:'auth/network-request-failed'}),false);
-assert.equal(authContext.__isLikelyInAppBrowser('Mozilla/5.0 (iPhone) AppleWebKit Instagram 320.0'),true);
-assert.equal(authContext.__isLikelyInAppBrowser('Mozilla/5.0 (Linux; Android 13; wv) Version/4.0 Chrome/120 Mobile'),true);
-assert.equal(authContext.__isLikelyInAppBrowser('Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15'),false);
 assert.equal(authContext.__authErrorMessage({code:'auth/popup-closed-by-user'}),'');
 assert.equal(authContext.__authErrorMessage({code:'auth/cancelled-popup-request'}),'');
 assert.match(authContext.__authErrorMessage({code:'auth/network-request-failed'}),/connection/i);
@@ -174,6 +165,8 @@ const cleanEmailUrl=new URL(authContext.__cleanEmailSignInUrl('https://throughth
 assert.equal(cleanEmailUrl.searchParams.get('join'),'pool.code');
 ['signInEmail','mode','oobCode','apiKey'].forEach(key=>assert.equal(cleanEmailUrl.searchParams.has(key),false,`${key} must be removed after email sign-in.`));
 assert(html.includes('signInWithRedirect, getRedirectResult'),'Firebase redirect auth must be imported.');
+assert(!html.includes('signInWithPopup'),'Google sign-in must avoid popups in link-opening and in-app browsers.');
+assert(html.includes('rememberJoinForRedirect();\n  await signInWithRedirect(auth,provider);'),'Google sign-in must always use the redirect flow while preserving invite state.');
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("localStorage.getItem('through-the-wall-email-signin')||emailFromSignInUrl(window.location.href)||window.prompt"),'Cross-device email sign-in must use URL state before prompting.');
