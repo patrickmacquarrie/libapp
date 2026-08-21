@@ -39,6 +39,26 @@ async function readDocument(path,token){
   });
 }
 
+async function deleteDocument(path,token){
+  return fetch(documentUrl(path),{
+    method:'DELETE',headers:token?{Authorization:`Bearer ${token}`}:{},
+  });
+}
+
+async function runFieldQuery(collectionId,filters,token){
+  const fieldFilters=filters.map(({fieldPath,op='EQUAL',value})=>({
+    fieldFilter:{field:{fieldPath},op,value:stringValue(value)},
+  }));
+  const where=fieldFilters.length===1
+    ? fieldFilters[0]
+    : {compositeFilter:{op:'AND',filters:fieldFilters}};
+  return fetch(`http://${firestoreHost}/v1/${databaseName}/documents:runQuery`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},
+    body:JSON.stringify({structuredQuery:{from:[{collectionId}],where}}),
+  });
+}
+
 async function expectStatus(response,status,label){
   const body=await response.text();
   assert.equal(response.status,status,`${label}: expected ${status}, received ${response.status}: ${body}`);
@@ -54,14 +74,14 @@ function rulesSnapshot(version,race='omit'){
   return mapValue(fields);
 }
 
-function poolFields(uid,snapshot,members=[uid]){
+function poolFields(uid,snapshot,members=[uid],joinCode='123456789012',createdAt=Date.now()){
   return {
     name:stringValue('Rules test'),ownerUid:stringValue(uid),members:arrayValue(members.map(stringValue)),
-    rulesSnapshot:snapshot,joinCode:stringValue('123456789012'),membershipClosed:boolValue(false),season:mapValue({}),createdAt:numberValue(Date.now()),
+    rulesSnapshot:snapshot,joinCode:stringValue(joinCode),membershipClosed:boolValue(false),season:mapValue({}),createdAt:numberValue(createdAt),
   };
 }
 
-async function createUser(email){
+async function createUnverifiedUser(email){
   const signup=await fetch(`http://${authHost}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=fake-key`,{
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:'test-password',returnSecureToken:true}),
   });
@@ -70,8 +90,28 @@ async function createUser(email){
   return {uid:auth.localId,token:auth.idToken,email};
 }
 
+async function createUser(email){
+  const requestLink=await fetch(`http://${authHost}/identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=fake-key`,{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requestType:'EMAIL_SIGNIN',email,continueUrl:'http://localhost'}),
+  });
+  assert.equal(requestLink.status,200,await requestLink.text());
+  const codesResponse=await fetch(`http://${authHost}/emulator/v1/projects/${projectId}/oobCodes`);
+  const codes=await codesResponse.json();
+  const code=(codes.oobCodes||[]).find(item=>item.email===email&&item.requestType==='EMAIL_SIGNIN');
+  assert(code?.oobCode,`Email-link code was not created for ${email}.`);
+  const signin=await fetch(`http://${authHost}/identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink?key=fake-key`,{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,oobCode:code.oobCode}),
+  });
+  const auth=await signin.json();
+  assert.equal(signin.status,200,JSON.stringify(auth));
+  return {uid:auth.localId,token:auth.idToken,email};
+}
+
 function playerFields(phase,screen){
-  return {phase:stringValue(phase),screen:stringValue(screen),updatedAt:numberValue(Date.now())};
+  return {
+    username:stringValue('Rules Player'),phase:stringValue(phase),screen:stringValue(screen),
+    w:numberValue(1),watchThrough:numberValue(1),completed:mapValue({}),
+  };
 }
 
 function phasePickFields(uid,phase,{lockedAt,updatedAt=Date.now()}={}){
@@ -102,6 +142,7 @@ async function main(){
   const first=await createUser('rules@example.test');
   const second=await createUser('rules-second@example.test');
   const invited=await createUser('rules-invited@example.test');
+  const unverified=await createUnverifiedUser('rules-unverified@example.test');
   const {uid,token}=first;
 
   await expectStatus(
@@ -127,8 +168,36 @@ async function main(){
   await expectStatus(await writeDocument('pools/v3-valid',poolFields(uid,rulesSnapshot(3,'number')),token),200,'v3 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v4-valid',poolFields(uid,rulesSnapshot(4,'number')),token),200,'v4 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v3-missing-race',poolFields(uid,rulesSnapshot(3)),token),403,'v3 snapshot without RACE_MULT');
-  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5)),token),200,'v5 snapshot without RACE_MULT');
+  const v5CreatedAt=Date.now();
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'123456789012',v5CreatedAt),token),200,'v5 snapshot without RACE_MULT');
   await expectStatus(await writeDocument('pools/v5-invalid-race',poolFields(uid,rulesSnapshot(5,'string')),token),403,'v5 snapshot with invalid optional RACE_MULT');
+  await expectStatus(await readDocument('pools/does-not-exist',token),404,'signed-in missing pool read returns not found');
+  await expectStatus(await readDocument('pools/does-not-exist',''),403,'signed-out missing pool read stays private');
+  await expectStatus(
+    await writeDocument('pools/season-query',{...poolFields(uid,rulesSnapshot(5)),season:mapValue({id:stringValue('love-is-blind-uk-3')})},'owner'),
+    200,
+    'admin seeds a season pool query fixture'
+  );
+  await expectStatus(
+    await runFieldQuery('pools',[{fieldPath:'season.id',value:'love-is-blind-uk-3'}],'owner'),
+    200,
+    'trusted season automation queries pools by nested season id'
+  );
+  await expectStatus(
+    await runFieldQuery('pools',[{fieldPath:'members',op:'ARRAY_CONTAINS',value:uid}],token),
+    200,
+    'signed-in user queries their pool memberships'
+  );
+
+  const profileCreatedAt=Date.now()-1000;
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Original'),createdAt:numberValue(profileCreatedAt)},token),200,'user creates profile');
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Renamed'),createdAt:numberValue(profileCreatedAt)},token),200,'username update preserves account creation date');
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Wrong date'),createdAt:numberValue(Date.now())},token),403,'username update cannot move account creation date');
+
+  const rotatedJoinCode='abcdefghijklmnop';
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],rotatedJoinCode,v5CreatedAt),token),200,'owner rotates friend-pool join code');
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'qrstuvwxyzabcdef',v5CreatedAt),second.token),403,'non-owner cannot rotate friend-pool join code');
+  await expectStatus(await deleteDocument('pools/v5-valid',token),403,'pool owner must use recursive delete callable');
 
   const invitePool='invite-privacy';
   const invitePath=`invites/${invitePool}__${invited.email}`;
@@ -141,6 +210,19 @@ async function main(){
   await expectStatus(await readDocument(invitePath,token),200,'pool owner reads invitation address');
   await expectStatus(await readDocument(invitePath,second.token),403,'non-owner pool member cannot read invitation address');
   await expectStatus(await readDocument(invitePath,invited.token),200,'invitation recipient reads own invitation');
+  await expectStatus(
+    await runFieldQuery('invites',[{fieldPath:'toEmail',value:invited.email},{fieldPath:'status',value:'pending'}],invited.token),
+    200,
+    'recipient queries pending invitations by verified email and status'
+  );
+  await expectStatus(
+    await runFieldQuery('invites',[{fieldPath:'poolId',value:invitePool},{fieldPath:'status',value:'pending'}],token),
+    200,
+    'pool owner queries pending invitations by pool and status'
+  );
+  const unverifiedInvitePath=`invites/${invitePool}__${unverified.email}`;
+  await expectStatus(await writeDocument(unverifiedInvitePath,inviteFields(invitePool,uid,unverified.email),token),200,'pool owner creates invitation for unverified address');
+  await expectStatus(await readDocument(unverifiedInvitePath,unverified.token),403,'unverified token email cannot claim invitation');
 
   const clientErrorPath=`clientErrors/${uid}/categories/save_failed`;
   await expectStatus(
@@ -183,9 +265,15 @@ async function main(){
   );
 
   const statusPath='pools/v5-valid/phaseStatus/pods';
-  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([]),revealed:boolValue(false),updatedAt:numberValue(Date.now())},'owner'),200,'admin phase seed');
-  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([stringValue(uid)]),revealed:boolValue(false),updatedAt:numberValue(Date.now()+1)},token),200,'member locks own phase');
-  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([]),revealed:boolValue(false),updatedAt:numberValue(Date.now()+2)},token),403,'member cannot reopen own phase directly');
+  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([]),updatedAt:numberValue(Date.now())},'owner'),200,'admin phase seed');
+  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([stringValue(uid)]),updatedAt:numberValue(Date.now()+1)},token),200,'member locks own phase');
+  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([]),updatedAt:numberValue(Date.now()+2)},token),403,'member cannot reopen own phase directly');
+  await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([stringValue(uid)]),revealed:boolValue(false),updatedAt:numberValue(Date.now()+3)},token),403,'removed phase status field cannot be restored');
+
+  const playerPath=`pools/${invitePool}/players/${second.uid}`;
+  await expectStatus(await writeDocument(playerPath,playerFields('pods','intro'),second.token),200,'player writes bounded public state');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),arbitrary:stringValue('not allowed')},second.token),403,'player cannot add arbitrary public fields');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),username:stringValue('x'.repeat(41))},second.token),403,'player username size is bounded');
 
   const reunionPool='reunion-privacy';
   await expectStatus(

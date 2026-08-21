@@ -7,8 +7,14 @@
 - Only the pool owner can freeze a validated scoring-rules snapshot.
 - Global Heat Check aggregates are written by a trusted Firestore trigger; browser aggregate writes are denied.
 - Email invitations are owner-only, capped at 20 per owner per UTC day, and answered invites cannot be reset to pending.
+- Invitation matching requires a verified provider email address, including the verified Apple relay address when Hide My Email is used.
+- Same-day invitation resends create a fresh delivery message instead of colliding with the first send.
 - Shareable friend-pool join links avoid exact email matching.
-- Members can leave pools and users can delete their account through trusted callable functions.
+- Pool owners can invalidate an old share link immediately, and only the new link remains valid.
+- Pool deletion, leaving pools, and account deletion run through trusted callable functions; account deletion also removes queued mail and bounded client diagnostics.
+- Entering a new pool remains usable when one mirrored phase is already locked; the app reports and skips only that phase.
+- Phase status has one source of truth (`completedMembers`) and no stale `revealed` flag.
+- Required Firestore composite and collection-group indexes are versioned in `firestore.indexes.json`.
 - Google and email-link authentication UI is present. Apple remains hidden until its developer credentials are configured.
 - Firestore season snapshots are the primary live data source.
 - PWA manifest, app icon, absolute social-preview image, privacy page, terms page, and repository README are included.
@@ -17,7 +23,7 @@
 
 ## Console activation required
 
-1. Deploy `firestore.rules` and `functions/` together.
+1. Deploy `firestore.rules`, `firestore.indexes.json`, and `functions/` together.
 2. Install Firebase's Trigger Email extension, point it at the `mail` collection, and configure the production SMTP sender.
 3. Enable Google and Email link providers in Firebase Authentication. Add `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Keep Apple hidden until its service ID, team ID, key ID, and private key are configured.
 4. Connect the production custom domain in Firebase Hosting and wait for its certificate to become active before changing DNS. Confirm the `github-actions/libapp` Workload Identity provider can impersonate the dedicated `github-firebase-hosting` service account; no persistent JSON key or repository secret should exist.
@@ -28,7 +34,7 @@
 
 After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
 
-Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets.
+Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address on the same UTC day and confirm both create delivery attempts. Rotate a friend-pool invite link and confirm the old link is rejected while the new link joins successfully.
 
 ```sh
 gcloud run services update reopenphase \
