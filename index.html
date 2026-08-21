@@ -776,6 +776,27 @@ import { getFunctions, httpsCallable }
 /* AUTH HELPERS START */
 const AUTH_SILENT_CODES=new Set(['auth/popup-closed-by-user','auth/cancelled-popup-request']);
 const EMAIL_SIGN_IN_QUERY='signInEmail';
+const AUTH_RETURN_JOIN_TTL_MS=30*60*1000;
+const normalizedPendingJoin=value=>{
+  const join=String(value||'').trim();
+  return join&&join.length<=512?join:'';
+};
+const pendingJoinRecord=(join,now=Date.now())=>{
+  const normalized=normalizedPendingJoin(join);
+  return normalized?JSON.stringify({join:normalized,expiresAt:now+AUTH_RETURN_JOIN_TTL_MS}):'';
+};
+const pendingJoinFromRecord=(raw,now=Date.now(),allowLegacy=false)=>{
+  if(!raw)return '';
+  try{
+    const record=JSON.parse(raw);
+    return record&&Number(record.expiresAt)>now?normalizedPendingJoin(record.join):'';
+  }catch(error){
+    // Read the session-only value used before expiring redirect storage shipped.
+    return allowLegacy?normalizedPendingJoin(raw):'';
+  }
+};
+const pendingJoinFromStorageValues=(sessionValue,localValue,now=Date.now())=>
+  pendingJoinFromRecord(sessionValue,now,true)||pendingJoinFromRecord(localValue,now);
 const authErrorCode=error=>String(error?.code||'').trim().toLowerCase();
 const authErrorMessage=(error,fallback='Sign-in could not be completed. Please try again.')=>{
   const code=authErrorCode(error);
@@ -861,22 +882,41 @@ const markAuthRedirectPending=()=>{
 const clearAuthRedirectPending=()=>{
   try{sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);}catch(error){}
 };
+const clearAuthReturnJoin=()=>{
+  try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(error){}
+  try{localStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(error){}
+};
+const readAuthReturnJoin=()=>{
+  let sessionValue='',localValue='';
+  try{sessionValue=sessionStorage.getItem(AUTH_RETURN_JOIN_KEY)||'';}catch(error){}
+  try{localValue=localStorage.getItem(AUTH_RETURN_JOIN_KEY)||'';}catch(error){}
+  const join=pendingJoinFromStorageValues(sessionValue,localValue);
+  if(!join&&(sessionValue||localValue))clearAuthReturnJoin();
+  return join;
+};
 const rememberJoinForRedirect=()=>{
   try{
     const join=new URL(window.location.href).searchParams.get('join');
-    if(join)sessionStorage.setItem(AUTH_RETURN_JOIN_KEY,join);
+    const record=pendingJoinRecord(join);
+    if(!record)return;
+    try{sessionStorage.setItem(AUTH_RETURN_JOIN_KEY,record);}catch(error){}
+    try{localStorage.setItem(AUTH_RETURN_JOIN_KEY,record);}catch(error){}
   }catch(error){}
 };
 const restoreJoinAfterRedirect=()=>{
   try{
-    const join=sessionStorage.getItem(AUTH_RETURN_JOIN_KEY);
+    const join=readAuthReturnJoin();
     if(!join)return;
     const url=new URL(window.location.href);
     if(!url.searchParams.has('join'))url.searchParams.set('join',join);
     history.replaceState({},'',url.toString());
   }finally{
-    try{sessionStorage.removeItem(AUTH_RETURN_JOIN_KEY);}catch(error){}
+    clearAuthReturnJoin();
   }
+};
+const hasPendingFriendInvitation=()=>{
+  try{return Boolean(new URL(window.location.href).searchParams.get('join')||readAuthReturnJoin());}
+  catch(error){return Boolean(readAuthReturnJoin());}
 };
 const signInWithProvider=async provider=>{
   rememberJoinForRedirect();
@@ -5178,6 +5218,7 @@ function App() {
   const [emailAuthSent,setEmailAuthSent]=useState(false);
   const [signingIn,setSigningIn]=useState(false);
   const [signingOut,setSigningOut]=useState(false);
+  const pendingFriendInvitation=hasPendingFriendInvitation();
   const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
@@ -5260,6 +5301,7 @@ function App() {
   const latestSaveSequence = useRef(0);
   const saveChain = useRef(Promise.resolve());
   const pickMirrorLinks = useRef([]);
+  const pendingJoinedPool = useRef(null);
   const confirmResolver=useRef(null);
   const lastStandingsRefresh=useRef(0);
   const globalPoolSeason=seasonById(defaultSeasonId)||seasonById(DEFAULT_SEASON_ID);
@@ -5371,11 +5413,13 @@ function App() {
           const separator=joinToken.indexOf('.');
           if(separator<=0||separator===joinToken.length-1)throw new Error('That pool invitation link is incomplete.');
           const poolId=joinToken.slice(0,separator),joinCode=joinToken.slice(separator+1);
-          if(!availablePools.some(pool=>pool.id===poolId)){
+          let invitationPool=availablePools.find(pool=>pool.id===poolId)||null;
+          if(!invitationPool){
             const joined=await window._fb.joinPoolByCode(poolId,joinCode,user.uid);
-            if(joined)availablePools=[...availablePools,joined];
+            if(joined){invitationPool=joined;availablePools=[...availablePools,joined];}
             else throw new Error('That pool invitation could not be found.');
           }
+          pendingJoinedPool.current=invitationPool;
         }catch(joinError){
           console.warn('Pool invitation link could not be used.',joinError);
           setErr('That invite link is no longer valid — ask for a new one. Your existing pools are still here.');
@@ -5566,6 +5610,13 @@ function App() {
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({});
     } finally { setLobbyLoading(false); setEnteringPool(false); }
   };
+  useEffect(()=>{
+    if(authState!=='signedin'||!profile?.username||activePool||enteringPool)return;
+    const invitedPool=pendingJoinedPool.current;
+    if(!invitedPool)return;
+    pendingJoinedPool.current=null;
+    enterPool(invitedPool);
+  },[authState,profile?.username,pools,activePool,enteringPool]);
   /* ── Save player state ── */
   const flushSave = useCallback(async () => {
     clearTimeout(saveTimer.current);
@@ -6303,11 +6354,12 @@ function App() {
     <PublicTaste/>
     <div className="card login-card" id="sign-in">
       <div className="signin-divider">Ready to play for real?</div>
-      <h2>Save your picks and play with friends</h2>
-      <p className="lede">Sign in to create or join a friend pool and keep every prediction on the record.</p>
+      <h2>{pendingFriendInvitation?'Your pool invitation is ready':'Save your picks and play with friends'}</h2>
+      <p className="lede">{pendingFriendInvitation?'Sign in and we’ll take you straight to your friend’s pool.':'Sign in to create or join a friend pool and keep every prediction on the record.'}</p>
+      {pendingFriendInvitation&&<div className="notice" role="status"><b>Invitation detected.</b> You won’t need to open the link again after signing in.</div>}
       <button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        {signingIn?'Opening sign-in…':'Sign in with Google'}
+        {signingIn?'Opening sign-in…':pendingFriendInvitation?'Sign in with Google to join':'Sign in with Google'}
       </button>
       <div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>
       {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on any device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className="btn-secondary" type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
