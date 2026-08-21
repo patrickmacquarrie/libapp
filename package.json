@@ -6,12 +6,14 @@
     "test:engine": "node scripts/test-engine-audit.js",
     "test:operations": "node scripts/test-operations-audit.js",
     "test:rules": "CI=true firebase emulators:exec --only firestore,auth \"node scripts/test-firestore-rules.js\"",
+    "test:smoke": "node scripts/test-built-app-smoke.js",
     "verify:live-rules": "node scripts/verify-live-firestore-rules.js",
-    "check": "npm test && npm run build"
+    "check": "npm test && npm run build && npm run test:smoke"
   },
   "devDependencies": {
     "@babel/standalone": "7.23.5",
     "firebase-tools": "15.25.1",
+    "playwright-chromium": "1.62.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "sharp": "^0.35.3"

@@ -20,6 +20,7 @@ const privacy=read('privacy.html');
 const readme=read('README.md');
 const packageJson=JSON.parse(read('package.json'));
 const liveRulesVerifier=read('scripts/verify-live-firestore-rules.js');
+const builtAppSmoke=read('scripts/test-built-app-smoke.js');
 
 new Function(functionsSource);
 new Function(publisher);
@@ -211,8 +212,6 @@ assert(!html.includes('signInWithPopup'),'Google sign-in must avoid popups in li
 assert(html.includes("rememberJoinForRedirect();\n  markAuthRedirectPending();\n  try{await signInWithRedirect(auth,provider);}"),'Google sign-in must preserve invite state and mark the redirect before navigation.');
 assert(html.includes('localStorage.setItem(AUTH_RETURN_JOIN_KEY,record)'),'Google sign-in must preserve an expiring invite outside sessionStorage for mobile auth returns.');
 assert(html.includes('hasPendingFriendInvitation,\n  sendEmailSignInLink'),'The module-scoped invitation helper must be exported through the Firebase bridge.');
-assert(html.includes('const pendingFriendInvitation=window._fb.hasPendingFriendInvitation();'),'The separately built React app must call the invitation helper through the Firebase bridge.');
-assert(!html.includes('const pendingFriendInvitation=hasPendingFriendInvitation();'),'The React bundle must not reference a helper trapped in the separate Firebase module scope.');
 assert(html.includes('pendingJoinedPool.current=invitationPool'),'A consumed invitation must open its pool without requiring the link a second time.');
 assert(html.includes('<b>Invitation detected.</b> You won’t need to open the link again after signing in.'),'Signed-out invite links must explain that the invitation was detected.');
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
@@ -235,6 +234,14 @@ assert(!html.includes("setErr(e?.message||'The sign-in link"),'Email auth errors
 assert(!html.includes("setErr(e?.message||'You could not be signed out"),'Sign-out errors must use the friendly mapper.');
 assert.equal(packageJson.devDependencies.react,'18.2.0');
 assert.equal(packageJson.devDependencies['react-dom'],'18.2.0');
+assert.equal(packageJson.devDependencies['playwright-chromium'],'1.62.1');
+assert.equal(packageJson.scripts.check,'npm test && npm run build && npm run test:smoke','The release gate must smoke-test the production build.');
+assert(builtAppSmoke.includes("process.env.SMOKE_DIST_DIR||path.join(root,'dist')"),'The browser smoke test must serve built output, not source.');
+assert(builtAppSmoke.includes("{pathname:'/',react:true")&&builtAppSmoke.includes("{pathname:'/?join=smoke-pool.smoke-code',react:true")&&builtAppSmoke.includes("{pathname:'/welcome/',react:false"),'The browser smoke test must cover the signed-out, invite, and welcome routes.');
+assert(builtAppSmoke.includes("path.join(dist,'seasons')"),'The browser smoke test must cover a generated season page.');
+assert(builtAppSmoke.includes("page.locator('#root .fatal-app').count()")&&builtAppSmoke.includes("page.locator('#root .root-boot[role=\"alert\"]').count()"),'The browser smoke test must reject both render-boundary and pre-mount fallbacks.');
+assert(builtAppSmoke.includes("texts:['Getting the pods ready…','Save your picks and play with friends']"),'The signed-out smoke test must tolerate Firebase Auth still checking.');
+assert(builtAppSmoke.includes("message.type()==='error'")&&builtAppSmoke.includes("page.on('pageerror'")&&builtAppSmoke.includes("window.addEventListener('unhandledrejection'"),'The browser smoke test must fail on console errors, page errors, and unhandled rejections.');
 assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
 assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');
 assert(!productionCsp.includes('https://cdnjs.cloudflare.com'),'The production CSP must not allow the former React CDN.');
@@ -249,6 +256,8 @@ assert(firebaseConfig.includes('"source": "/assets/**"')&&firebaseConfig.include
 assert(workflow.includes('actions/checkout@v6'));
 assert(workflow.includes('actions/setup-node@v6'));
 assert(workflow.includes('actions/setup-java@v5'));
+assert(workflow.includes('actions/cache@v5')&&workflow.includes('path: ~/.cache/ms-playwright'),'The verify job must cache Playwright browser binaries.');
+assert(workflow.includes('npx playwright install --with-deps chromium'),'The verify job must install Chromium and its Linux dependencies explicitly.');
 assert(workflow.includes('google-github-actions/auth@v3'));
 assert(workflow.includes('workload_identity_provider: projects/737647208245/locations/global/workloadIdentityPools/github-actions/providers/libapp'));
 assert(workflow.includes('service_account: github-firebase-hosting@lib-oauth.iam.gserviceaccount.com'));

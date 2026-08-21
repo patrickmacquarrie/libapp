@@ -20,7 +20,7 @@ npm ci
 npm run check
 ```
 
-The gate runs the prediction-engine audit, starts local Firestore and Authentication emulators for the security-rules tests, and produces the deployable build. Pull requests run the full gate, and a push to `main` deploys only after it passes.
+The gate runs the prediction-engine audit, starts local Firestore and Authentication emulators for the security-rules tests, produces the deployable build, and opens the built landing, invitation, season, and welcome routes in headless Chromium. The browser smoke test fails on boot/render errors or a missing recognisable app state. Pull requests run the full gate, and a push to `main` deploys only after it passes.
 
 ## Firebase deployment
 
