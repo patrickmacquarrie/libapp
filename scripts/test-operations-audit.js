@@ -210,6 +210,9 @@ assert(html.includes('signInWithRedirect, getRedirectResult'),'Firebase redirect
 assert(!html.includes('signInWithPopup'),'Google sign-in must avoid popups in link-opening and in-app browsers.');
 assert(html.includes("rememberJoinForRedirect();\n  markAuthRedirectPending();\n  try{await signInWithRedirect(auth,provider);}"),'Google sign-in must preserve invite state and mark the redirect before navigation.');
 assert(html.includes('localStorage.setItem(AUTH_RETURN_JOIN_KEY,record)'),'Google sign-in must preserve an expiring invite outside sessionStorage for mobile auth returns.');
+assert(html.includes('hasPendingFriendInvitation,\n  sendEmailSignInLink'),'The module-scoped invitation helper must be exported through the Firebase bridge.');
+assert(html.includes('const pendingFriendInvitation=window._fb.hasPendingFriendInvitation();'),'The separately built React app must call the invitation helper through the Firebase bridge.');
+assert(!html.includes('const pendingFriendInvitation=hasPendingFriendInvitation();'),'The React bundle must not reference a helper trapped in the separate Firebase module scope.');
 assert(html.includes('pendingJoinedPool.current=invitationPool'),'A consumed invitation must open its pool without requiring the link a second time.');
 assert(html.includes('<b>Invitation detected.</b> You won’t need to open the link again after signing in.'),'Signed-out invite links must explain that the invitation was detected.');
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');

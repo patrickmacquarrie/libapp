@@ -1024,6 +1024,7 @@ window._fb = {
   },
   hasAuthRedirectParams,
   hasPendingAuthRedirect,
+  hasPendingFriendInvitation,
   sendEmailSignInLink: async email => {
     const returnUrl=new URL(window.location.href);
     returnUrl.searchParams.set(EMAIL_SIGN_IN_QUERY,email);
@@ -5218,7 +5219,7 @@ function App() {
   const [emailAuthSent,setEmailAuthSent]=useState(false);
   const [signingIn,setSigningIn]=useState(false);
   const [signingOut,setSigningOut]=useState(false);
-  const pendingFriendInvitation=hasPendingFriendInvitation();
+  const pendingFriendInvitation=window._fb.hasPendingFriendInvitation();
   const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
