@@ -270,6 +270,23 @@ async function main(){
   await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([]),updatedAt:numberValue(Date.now()+2)},token),403,'member cannot reopen own phase directly');
   await expectStatus(await writeDocument(statusPath,{completedMembers:arrayValue([stringValue(uid)]),revealed:boolValue(false),updatedAt:numberValue(Date.now()+3)},token),403,'removed phase status field cannot be restored');
 
+  const legacyStatusPath='pools/v5-valid/phaseStatus/dating';
+  await expectStatus(
+    await writeDocument(legacyStatusPath,{completedMembers:arrayValue([]),revealed:boolValue(false),updatedAt:numberValue(Date.now()+4)},'owner'),
+    200,
+    'admin seeds legacy phase status'
+  );
+  await expectStatus(
+    await writeDocument(legacyStatusPath,{completedMembers:arrayValue([stringValue(uid)]),updatedAt:numberValue(Date.now()+5)},token),
+    200,
+    'member lock replaces a legacy phase status and removes revealed'
+  );
+  await expectStatus(
+    await writeDocument(legacyStatusPath,{completedMembers:arrayValue([stringValue(uid)]),revealed:boolValue(false),updatedAt:numberValue(Date.now()+6)},token),
+    403,
+    'legacy field cannot be added again after cleanup'
+  );
+
   const playerPath=`pools/${invitePool}/players/${second.uid}`;
   await expectStatus(await writeDocument(playerPath,playerFields('pods','intro'),second.token),200,'player writes bounded public state');
   await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),arbitrary:stringValue('not allowed')},second.token),403,'player cannot add arbitrary public fields');

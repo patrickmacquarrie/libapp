@@ -1137,7 +1137,8 @@ window._fb = {
     // Every player follows their own streaming schedule. Checkpoints therefore
     // stay live and provisional as later players finish them.
     const nextStatus={completedMembers,updatedAt:Date.now()};
-    tx.set(statusRef,nextStatus,{merge:true});
+    // Replace the status document so deprecated fields cannot survive a lock.
+    tx.set(statusRef,nextStatus);
     return nextStatus;
   }),
   reopenPhase: (poolId, phase) => httpsCallable(functions,'reopenPhase')({poolId,phase}),

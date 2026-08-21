@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      backend_deployed:
+        description: Confirm matching Firestore rules, indexes, and Functions are already deployed
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v6
         with:
           node-version: 22
@@ -42,16 +50,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
+      - id: backend_changes
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          BACKEND_DEPLOYED: ${{ inputs.backend_deployed }}
+        run: |
+          hold_hosting=false
+          if [ "${{ github.event_name }}" = "push" ] && [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            if ! git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json firebase.json functions; then
+              hold_hosting=true
+            fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$BACKEND_DEPLOYED" != "true" ]; then
+            hold_hosting=true
+          fi
+          echo "hold_hosting=$hold_hosting" >> "$GITHUB_OUTPUT"
+      - if: steps.backend_changes.outputs.hold_hosting == 'true'
+        run: echo "Hosting held. Deploy the matching backend, then dispatch this workflow with backend_deployed=true."
       - id: auth
+        if: steps.backend_changes.outputs.hold_hosting != 'true'
         uses: google-github-actions/auth@v3
         with:
           project_id: lib-oauth
           workload_identity_provider: projects/737647208245/locations/global/workloadIdentityPools/github-actions/providers/libapp
           service_account: github-firebase-hosting@lib-oauth.iam.gserviceaccount.com
-      - run: npx firebase deploy --only hosting --project lib-oauth --non-interactive
+      - if: steps.backend_changes.outputs.hold_hosting != 'true'
+        run: npx firebase deploy --only hosting --project lib-oauth --non-interactive

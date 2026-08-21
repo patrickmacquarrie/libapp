@@ -436,9 +436,12 @@ service cloud.firestore {
             /databases/$(database)/documents/pools/$(poolId)/phaseStatus/$(phase)
           ) &&
           validStatusShape() &&
+          // A full replacement may remove the deprecated `revealed` field.
+          // validStatusShape prevents clients from adding it again.
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'completedMembers',
-            'updatedAt'
+            'updatedAt',
+            'revealed'
           ]) &&
           viewerOnlyAddedOwnCompletion();
 

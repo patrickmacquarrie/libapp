@@ -24,14 +24,16 @@ The gate runs the prediction-engine audit, starts local Firestore and Authentica
 
 ## Firebase deployment
 
-The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, global Heat Check aggregation, and opt-in comeback nudges use Firebase Functions.
+The browser app is static, but security-sensitive cleanup, invitation limiting, account deletion, global Heat Check aggregation, and opt-in comeback nudges use Firebase Functions. Because the release identity is deliberately limited to Hosting, a push that changes `firestore.rules`, `firestore.indexes.json`, `firebase.json`, or `functions/` holds the Hosting release. Deploy the backend first with the commands below, then manually dispatch **Deploy Firebase Hosting** with `backend_deployed=true`.
 
 ```sh
 cd functions
 npm install
 cd ..
-firebase deploy --only firestore:rules,functions
+firebase deploy --only firestore:rules,firestore:indexes,functions
 ```
+
+After the backend deploy succeeds, run **Deploy Firebase Hosting** from the GitHub Actions page with `backend_deployed=true`. The manual confirmation releases the exact revision on `main` that passed the repository checks.
 
 Email nudges use the official Firebase **Trigger Email** extension. Install the extension in the `lib-oauth` project, configure its SMTP provider, and keep its mail collection set to `mail`. The app never grants browser access to that collection: trusted Functions atomically create each deterministic mail document once, so a retried trigger cannot replace it or send the same nudge twice.
 
