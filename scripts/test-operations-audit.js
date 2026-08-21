@@ -257,6 +257,8 @@ assert(workflow.includes('backend_deployed'),'A manual Hosting release must expl
 assert(workflow.includes("if: github.event_name == 'workflow_dispatch' && inputs.backend_deployed == true\n        run: npm run verify:live-rules"),'A confirmed manual release must compare the published Firestore rules before Hosting deploys.');
 assert(workflow.includes('id-token: write'),'The verification job must be able to request a short-lived identity for the live-rules check.');
 assert(liveRulesVerifier.includes('/releases/cloud.firestore'),'The live-rules check must resolve the published Firestore release.');
+assert(liveRulesVerifier.includes("scopes:['https://www.googleapis.com/auth/cloud-platform']"),'The Firebase Rules API requires the cloud-platform OAuth scope; IAM remains the permission boundary.');
+assert(!liveRulesVerifier.includes('cloud-platform.read-only'),'The unsupported read-only OAuth scope must not silently block live-rules verification.');
 assert(liveRulesVerifier.includes('release.rulesetName'),'The live-rules check must fetch the exact released ruleset.');
 assert(liveRulesVerifier.includes("createHash('sha256')")&&liveRulesVerifier.includes('if(localHash!==liveHash)'),'The live-rules check must fail on content drift.');
 assert(workflow.includes("if: steps.backend_changes.outputs.hold_hosting != 'true'\n        run: npx firebase deploy --only hosting"),'Hosting must remain gated by the backend-deployment check.');

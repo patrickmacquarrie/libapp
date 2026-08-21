@@ -11,7 +11,9 @@ const sha256=value=>crypto.createHash('sha256').update(value).digest('hex');
 
 async function accessToken(){
   if(process.env.FIREBASE_ACCESS_TOKEN)return process.env.FIREBASE_ACCESS_TOKEN;
-  const auth=new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform.read-only']});
+  // Firebase Rules does not accept the read-only variant. IAM still limits
+  // this short-lived workload identity to its explicitly assigned roles.
+  const auth=new GoogleAuth({scopes:['https://www.googleapis.com/auth/cloud-platform']});
   const token=await auth.getAccessToken();
   if(!token)throw new Error('No Google access token is available for the live-rules check.');
   return token;
