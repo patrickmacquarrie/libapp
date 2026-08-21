@@ -6,6 +6,7 @@
     "test:engine": "node scripts/test-engine-audit.js",
     "test:operations": "node scripts/test-operations-audit.js",
     "test:rules": "CI=true firebase emulators:exec --only firestore,auth \"node scripts/test-firestore-rules.js\"",
+    "verify:live-rules": "node scripts/verify-live-firestore-rules.js",
     "check": "npm test && npm run build"
   },
   "devDependencies": {
