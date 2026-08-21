@@ -14,6 +14,9 @@ const workflow=read('.github/workflows/deploy-pages.yml');
 const runbook=read('SEASON-LAUNCH-RUNBOOK.md');
 const buildSource=read('scripts/build.js');
 const firebaseConfig=read('firebase.json');
+const firestoreIndexes=JSON.parse(read('firestore.indexes.json'));
+const privacy=read('privacy.html');
+const readme=read('README.md');
 const packageJson=JSON.parse(read('package.json'));
 
 new Function(functionsSource);
@@ -63,6 +66,32 @@ assert(publisher.includes("APP_CONFIG_PATH = 'appConfig/public'"),'The publisher
 assert(publisher.includes('Choose another live/default season before publishing this season as Completed.'),'The active default must not be completed before its successor is chosen.');
 assert(functionsSource.includes('function globalPoolSeasonFromConfig(data)'),'The Global Pool callable must resolve the active season from runtime configuration.');
 assert(!functionsSource.includes('GLOBAL_POOL_SEASONS'),'The Global Pool callable must not retain a hardcoded season allow-list.');
+assert(!functionsSource.includes('exports.reportClientError'),'The dead client-error callable must stay removed.');
+assert(!functionsSource.includes('clientErrorWindows'),'Client error throttling must stay in Firestore rules, not process memory.');
+assert(functionsSource.includes('exports.deletePool=onCall'),'Pool deletion must run through a trusted callable.');
+assert(functionsSource.includes('await db.recursiveDelete(poolRef)'),'Pool deletion must recursively remove every subcollection.');
+assert(html.includes("deletePool: pool => httpsCallable(functions,'deletePool')"),'The browser must use recursive server-side pool deletion.');
+assert(!html.includes('6 * members'),'Pool deletion must not rely on one member-sized browser batch.');
+assert(functionsSource.includes("_${day}_${invitationCount}`"),'Each deliberate same-day invitation resend must create a distinct mail document.');
+assert(!html.includes('already has a pending invitation'),'The invitation form must allow a deliberate same-day resend.');
+assert(html.includes("resendingPendingInvite?'Invitation sent again to '"),'The invitation form must clearly confirm a resend.');
+assert(functionsSource.includes("db.collection('mail').where('to','array-contains',email)"),'Account deletion must remove queued mail addressed to the user.');
+assert(functionsSource.includes('db.recursiveDelete(db.doc(`clientErrors/${uid}`))'),'Account deletion must remove client diagnostics.');
+assert(!functionsSource.includes("collectionGroup('members')"),'Half-finished member-subcollection cleanup must not abort account deletion before Phase 5.');
+assert(html.includes('updateProfileUsername'),'Username changes must use an update that preserves createdAt.');
+assert(firestoreRules.includes('request.resource.data.createdAt == resource.data.createdAt'),'Rules must reject creation-date changes on profile updates.');
+assert(firestoreRules.includes("request.auth.token.get('email_verified', false) == true"),'Only verified provider emails may claim invitations.');
+assert(readme.includes('Hide My Email'),'Apple relay-address invitation behaviour must be documented before Apple sign-in is enabled.');
+assert(html.includes('Reset invite link'),'Pool owners must be able to invalidate a leaked invitation link.');
+assert(firestoreRules.includes('function canOwnerChangeJoinCode()'),'Rules must allow owner-only join-code rotation.');
+assert(!firestoreRules.includes("'revealed',"),'The dead phase-status revealed field must stay removed.');
+assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
+assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
+assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='toEmail')&&index.fields.some(field=>field.fieldPath==='status')),'Invite recipient/status index must be versioned.');
+assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='poolId')&&index.fields.some(field=>field.fieldPath==='status')),'Pool invitation/status index must be versioned.');
+assert(firestoreIndexes.fieldOverrides.some(index=>index.collectionGroup==='pools'&&index.fieldPath==='season.id'),'Season pool-query index must be versioned.');
+assert(privacy.includes('queued email addressed to you'),'Privacy deletion copy must include queued recipient mail.');
+assert(privacy.includes('Firebase Hosting hosts the website'),'Privacy service-provider copy must name the actual host.');
 assert(seasonAdmin.includes('Engagements & Weddings'),'The admin must cover engagement and wedding outcomes.');
 assert(seasonAdmin.includes('Retreat outcomes'),'The admin must cover retreat outcomes.');
 assert(seasonAdmin.includes('Reunion outcomes'),'The admin must cover Reunion outcomes.');
@@ -197,4 +226,21 @@ assert(!workflow.includes('actions/deploy-pages'),'The release workflow must not
 assert(runbook.includes('rollbackSeasonSnapshot'));
 assert(runbook.includes('jsonPayload.message="Client operation failed"'));
 
-console.log('Live-operations audit assertions passed.');
+async function assertMirrorEntryRegression(){
+  const helperStart=html.indexOf('/* MIRROR ENTRY HELPERS START */');
+  const helperEnd=html.indexOf('/* MIRROR ENTRY HELPERS END */');
+  assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
+  const context={Promise};
+  vm.createContext(context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;`,context);
+  const attempted=[],skipped=[];
+  await context.__syncMirroredPicksOnEntry({
+    phases:['pods','reunion'],
+    savePhasePicks:async phase=>{attempted.push(phase);if(phase==='reunion')throw Object.assign(new Error('locked'),{code:'permission-denied'});},
+    onSkipped:(phase,error)=>skipped.push([phase,error.code]),
+  });
+  assert.deepEqual(attempted,['pods','reunion']);
+  assert.deepEqual(skipped,[['reunion','permission-denied']]);
+}
+
+assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});

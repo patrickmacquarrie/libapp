@@ -963,6 +963,7 @@ window._fb = {
     return snapshots.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
   },
   setProfile: (uid, data) => setDoc(doc(db,'users',uid), data),
+  updateProfileUsername: (uid,username) => updateDoc(doc(db,'users',uid),{username}),
   myPools: async (uid) => {
     const q1 = query(collection(db,'pools'), where('members','array-contains',uid));
     const snap = await getDocs(q1);
@@ -997,6 +998,13 @@ window._fb = {
     await updateDoc(doc(db,'pools',poolId),{joinCode});
     return joinCode;
   },
+  resetPoolJoinCode: async (poolId,uid) => runTransaction(db,async tx=>{
+    const poolRef=doc(db,'pools',poolId),poolSnap=await tx.get(poolRef);
+    if(!poolSnap.exists()||poolSnap.data().ownerUid!==uid||poolSnap.data().global===true)throw new Error('Only the pool owner can reset this invite link.');
+    const joinCode=newPoolJoinCode();
+    tx.update(poolRef,{joinCode});
+    return joinCode;
+  }),
   getNotificationPreferences: async uid => {
     const snapshot=await getDoc(doc(db,'notificationPreferences',uid));
     return normalizeNotificationPreferences(snapshot.exists()?snapshot.data():NOTIFICATION_DEFAULTS);
@@ -1093,32 +1101,7 @@ window._fb = {
     tx.update(poolRef,{name:String(name||'').trim().slice(0,100),nameUpdatedAt:Date.now()});
   }),
   declineInvite: (inviteId) => updateDoc(doc(db,'invites',inviteId), {status:'declined'}),
-  deletePool: async (pool) => {
-    // Pool members can send invitations, so an owner deleting the pool must
-    // remove every invitation associated with it, regardless of sender.
-    const invites = await getDocs(query(
-      collection(db,'invites'),
-      where('poolId','==',pool.id)
-    ));
-    const batch = writeBatch(db);
-    const members = Array.isArray(pool.members) ? pool.members : [];
-
-    // These document IDs are deterministic. Delete them directly instead of
-    // reading other players' unrevealed predictions into the owner's browser.
-    members.forEach(uid => {
-      batch.delete(doc(db,'pools',pool.id,'players',uid));
-      batch.delete(doc(db,'pools',pool.id,'castRatings',uid));
-      GAME_PHASES.forEach(phase => {
-        batch.delete(doc(db,'pools',pool.id,'phasePicks',phase+'__'+uid));
-      });
-    });
-    GAME_PHASES.forEach(phase => {
-      batch.delete(doc(db,'pools',pool.id,'phaseStatus',phase));
-    });
-    invites.docs.forEach(invite => batch.delete(invite.ref));
-    batch.delete(doc(db,'pools',pool.id));
-    await batch.commit();
-  },
+  deletePool: pool => httpsCallable(functions,'deletePool')({poolId:pool.id}),
   savePlayer: async (poolId, uid, data) => {
     const batch = writeBatch(db);
     const {picks={},predictionPhases,skipPickWriteFor=[],lockPicks={}, ...publicState} = data;
@@ -1153,7 +1136,7 @@ window._fb = {
     const completedMembers = [...new Set([...(statusSnap.exists()?statusSnap.data().completedMembers||[]:[]),uid])];
     // Every player follows their own streaming schedule. Checkpoints therefore
     // stay live and provisional as later players finish them.
-    const nextStatus={completedMembers,revealed:false,updatedAt:Date.now()};
+    const nextStatus={completedMembers,updatedAt:Date.now()};
     tx.set(statusRef,nextStatus,{merge:true});
     return nextStatus;
   }),
@@ -1343,6 +1326,14 @@ const reportTtwError=(category,error,context={})=>{
     if(report?.catch)report.catch(()=>{});
   }catch(reportError){}
 };
+/* MIRROR ENTRY HELPERS START */
+const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>{
+  await Promise.all(phases.map(async phase=>{
+    try{await savePhasePicks(phase);}
+    catch(error){onSkipped(phase,error);}
+  }));
+};
+/* MIRROR ENTRY HELPERS END */
 if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_click',{placement:'app_intent'});
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
@@ -2440,7 +2431,7 @@ function buildGlobalDemoData(meId,meName) {
   const firstNames=['Aaliyah','Alex','Amara','Ben','Bianca','Cam','Carmen','Chris','Dani','Dev','Elena','Eli','Farah','Finn','Gabby','Grace','Hana','Harper','Imani','Ivy','Jalen','Jamie','Kai','Keira','Leo','Lina','Mara','Mateo','Nadia','Noah','Omar','Priya','Quinn','Rae','Remy','Sage','Sam','Talia','Theo','Zara'];
   const phaseEnds={pods:6,dating:9,weddings:12,reunion:13};
   const players={},labels={},statusDocs={},phaseScores={};
-  PH_ORDER.forEach(ph=>{phaseScores[ph]={};statusDocs[ph]={completedMembers:[],revealed:false,updatedAt:Date.now()};});
+  PH_ORDER.forEach(ph=>{phaseScores[ph]={};statusDocs[ph]={completedMembers:[],updatedAt:Date.now()};});
   const addPlayer=(id,name,throughIndex,index,isMe=false)=>{
     const completed={};
     PH_ORDER.forEach((ph,phaseIndex)=>{
@@ -4993,13 +4984,14 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
   const [deleteError,setDeleteError]=useState('');
   const [renamePool,setRenamePool]=useState(null);
   const [renameValue,setRenameValue]=useState('');
+  const [resetLinkPool,setResetLinkPool]=useState(null);
   const [accountUsername,setAccountUsername]=useState(profileUsername);
   const [settingsFeedback,setSettingsFeedback]=useState('');
   const [savingProfile,setSavingProfile]=useState(false);
@@ -5020,6 +5012,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
     finally{setDeleting(false);}
   };
   const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(e?.message||'The pool name could not be changed.');}finally{setSavingProfile(false);}};
+  const finishResetLink=async()=>{if(!resetLinkPool||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onResetPoolJoinCode?.(resetLinkPool);setSettingsFeedback('Invite link reset. Share the new link with anyone who should still join.');setResetLinkPool(null);}catch(e){setSettingsFeedback(e?.message||'The invite link could not be reset.');}finally{setSavingProfile(false);}};
   const finishUsername=async()=>{if(savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(e?.message||'The username could not be changed.');}finally{setSavingProfile(false);}};
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -5033,8 +5026,9 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {ownedPools.length>0&&<div className="danger-zone">
         <h3>Pool management</h3>
         <p>Rename a pool, control new membership, or permanently remove it.</p>
-        {!confirmPool&&!renamePool&&ownedPools.map(pool=><div className="danger-row" key={pool.id}><div><b>{pool.name}</b><div className="subtle">{pool.members.length} member{pool.members.length!==1?'s':''} · {pool.membershipClosed===true?'Closed to new members':'Open to new members'}</div></div><div className="pool-management-actions"><button className="btn-secondary" disabled={membershipUpdating} onClick={()=>{setRenamePool(pool);setRenameValue(pool.name);}}>Rename</button>{activePool?.id===pool.id&&onSetPoolMembershipClosed&&<button className="btn-secondary" disabled={membershipUpdating} onClick={()=>onSetPoolMembershipClosed(pool.membershipClosed!==true)}>{membershipUpdating?'Updating...':pool.membershipClosed===true?'Reopen pool':'Close to new members'}</button>}<button className="btn-danger" disabled={membershipUpdating} onClick={()=>{setConfirmPool(pool);setTypedName('');}}>Delete pool</button></div></div>)}
+        {!confirmPool&&!renamePool&&!resetLinkPool&&ownedPools.map(pool=><div className="danger-row" key={pool.id}><div><b>{pool.name}</b><div className="subtle">{pool.members.length} member{pool.members.length!==1?'s':''} · {pool.membershipClosed===true?'Closed to new members':'Open to new members'}</div></div><div className="pool-management-actions"><button className="btn-secondary" disabled={membershipUpdating} onClick={()=>{setRenamePool(pool);setRenameValue(pool.name);}}>Rename</button><button className="btn-secondary" disabled={membershipUpdating} onClick={()=>setResetLinkPool(pool)}>Reset invite link</button>{activePool?.id===pool.id&&onSetPoolMembershipClosed&&<button className="btn-secondary" disabled={membershipUpdating} onClick={()=>onSetPoolMembershipClosed(pool.membershipClosed!==true)}>{membershipUpdating?'Updating...':pool.membershipClosed===true?'Reopen pool':'Close to new members'}</button>}<button className="btn-danger" disabled={membershipUpdating} onClick={()=>{setConfirmPool(pool);setTypedName('');}}>Delete pool</button></div></div>)}
         {renamePool&&<div className="danger-confirm"><label htmlFor="rename-pool-name">New name for <b>{renamePool.name}</b></label><input id="rename-pool-name" type="text" maxLength="100" value={renameValue} onChange={event=>setRenameValue(event.target.value)}/><button className="btn-primary" disabled={!renameValue.trim()||savingProfile} onClick={finishRename}>{savingProfile?'Saving…':'Save pool name'}</button><button className="btn-secondary" disabled={savingProfile} onClick={()=>setRenamePool(null)}>Cancel</button></div>}
+        {resetLinkPool&&<div className="danger-confirm"><p>Reset the invite link for <b>{resetLinkPool.name}</b>? The old link will stop working immediately.</p><button className="btn-primary" disabled={savingProfile} onClick={finishResetLink}>{savingProfile?'Resetting…':'Reset invite link'}</button><button className="btn-secondary" disabled={savingProfile} onClick={()=>setResetLinkPool(null)}>Cancel</button></div>}
         {confirmPool&&<div className="danger-confirm">
           <label htmlFor="delete-pool-name">Type <b>{confirmPool.name}</b> to confirm permanent deletion.</label>
           <input id="delete-pool-name" type="text" value={typedName} onChange={e=>setTypedName(e.target.value)} autoComplete="off"/>
@@ -5408,9 +5402,15 @@ function App() {
         if(mine.duplicateFromPoolId) {
           const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid,false);
           const sourcePicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
-          await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
-            window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph])
-          ));
+          const mirroredPhases=PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid));
+          await syncMirroredPicksOnEntry({
+            phases:mirroredPhases,
+            savePhasePicks:ph=>window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph]),
+            onSkipped:(ph,e)=>{
+              console.info('Mirrored pick sync skipped while opening the pool.',e);
+              reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_mirror_sync',poolId:mine.duplicateFromPoolId,targetPoolId:enteredPool.id,phase:ph});
+            },
+          });
           mine={...mine,picks:sourcePicks};
           players[user.uid]=mine;
         }
@@ -5434,7 +5434,7 @@ function App() {
           await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted});
           mine={...mine,screen:'watch',completed:reopenedCompleted};
           players[user.uid]=mine;
-          status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid),revealed:false};
+          status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid)};
         }
         setPicks(normalizePicks(mine.picks));
         setPhase(minePhase);
@@ -5645,8 +5645,9 @@ function App() {
     setUsernameInput(uname);
     setSavingUsername(true);setUsernameError('');
     try {
-      await window._fb.setProfile(user.uid, {username:uname, createdAt:Date.now()});
-      setProfile({username:uname});
+      const createdAt=Date.now();
+      await window._fb.setProfile(user.uid, {username:uname,createdAt});
+      setProfile({username:uname,createdAt});
     } catch(e) {
       console.error(e);setUsernameError('Your username could not be saved. Please try again.');
     } finally { setSavingUsername(false); }
@@ -5655,8 +5656,8 @@ function App() {
     const uname=cleanUsername(rawValue);
     const validationMessage=usernameValidationMessage(uname);
     if(validationMessage)throw new Error(validationMessage);
-    await window._fb.setProfile(user.uid,{username:uname,createdAt:Date.now()});
-    setProfile({username:uname});setUsernameInput(uname);
+    await window._fb.updateProfileUsername(user.uid,uname);
+    setProfile(current=>({...current,username:uname}));setUsernameInput(uname);
     return uname;
   };
   const addInviteEmail = () => {
@@ -5756,6 +5757,13 @@ function App() {
     setActivePool(current=>current?.id===pool.id?{...current,name:nextName}:current);
     return nextName;
   };
+  const doResetPoolJoinCode = async pool => {
+    if(!pool||pool.ownerUid!==user.uid||pool.global===true)throw new Error('Only the pool owner can reset this invite link.');
+    const joinCode=await window._fb.resetPoolJoinCode(pool.id,user.uid);
+    setPools(current=>current.map(item=>item.id===pool.id?{...item,joinCode}:item));
+    setActivePool(current=>current?.id===pool.id?{...current,joinCode}:current);
+    return joinCode;
+  };
   const doLeavePool = async pool => {
     if(!pool||pool.ownerUid===user.uid||destructiveActionPending)return;
     if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:'Your predictions, progress, and shared Heat Check ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
@@ -5779,17 +5787,17 @@ function App() {
   const doSendPoolInvite = async () => {
     if (!activePool || sendingPoolInvite) return;
     const email=poolInviteEmail.trim().toLowerCase();
+    const resendingPendingInvite=pendingPoolInvites.some(inv=>inv.toEmail===email);
     setPoolInviteFeedback('');setPoolInviteError(false);
     if (!email || !email.includes('@')) { setPoolInviteFeedback('Enter a valid email address.');setPoolInviteError(true);return; }
     if (activePool.membershipClosed===true) { setPoolInviteFeedback('This pool is locked for new players. Reopen it when the group chat grows.');setPoolInviteError(true);return; }
     if (email===(user.email||'').toLowerCase()) { setPoolInviteFeedback('You are already in this pool.');setPoolInviteError(true);return; }
-    if (pendingPoolInvites.some(inv=>inv.toEmail===email)) { setPoolInviteFeedback('That person already has a pending invitation.');setPoolInviteError(true);return; }
     setSendingPoolInvite(true);
     try {
       const inviteResult=await window._fb.sendInvite(activePool.id,activePool.name,seasonLabelForPool(activePool),user.uid,profile.username,email);
       const pending=await window._fb.poolInvites(activePool.id);
       if(Number.isInteger(inviteResult?.data?.remaining))setPoolInviteRemaining(inviteResult.data.remaining);
-      setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback('Invitation sent to '+email+'.');
+      setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback((resendingPendingInvite?'Invitation sent again to ':'Invitation sent to ')+email+'.');
     } catch(e) {
       console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
     } finally { setSendingPoolInvite(false); }
@@ -6373,7 +6381,7 @@ function App() {
       {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={availableHistoricalSeasonCount()>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
@@ -6547,7 +6555,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }

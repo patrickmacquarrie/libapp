@@ -17,7 +17,8 @@ service cloud.firestore {
     }
 
     function authEmail() {
-      return signedIn()
+      return signedIn() &&
+        request.auth.token.get('email_verified', false) == true
         ? request.auth.token.get('email', '').lower()
         : '';
     }
@@ -98,13 +99,22 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if false;
 
-      allow create, update: if signedIn() &&
+      allow create: if signedIn() &&
         request.auth.uid == userId &&
         request.resource.data.keys().hasOnly(['username', 'createdAt']) &&
         request.resource.data.username is string &&
         request.resource.data.username.size() >= 1 &&
         request.resource.data.username.size() <= 40 &&
         request.resource.data.createdAt is number;
+
+      allow update: if signedIn() &&
+        exists(/databases/$(database)/documents/users/$(userId)) &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['username', 'createdAt']) &&
+        request.resource.data.username is string &&
+        request.resource.data.username.size() >= 1 &&
+        request.resource.data.username.size() <= 40 &&
+        request.resource.data.createdAt == resource.data.createdAt;
 
       allow delete: if false;
     }
@@ -134,12 +144,14 @@ service cloud.firestore {
     match /pools/{poolId} {
 
       function onlyMembersChanged() {
-        return request.resource.data.diff(resource.data).affectedKeys()
+        return poolExists(poolId) &&
+          request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['members']);
       }
 
       function membersAreOldMembersPlusViewer() {
-        return request.resource.data.members is list &&
+        return poolExists(poolId) &&
+          request.resource.data.members is list &&
           resource.data.members is list &&
           request.resource.data.members.toSet() ==
             resource.data.members.toSet().union([request.auth.uid].toSet());
@@ -147,6 +159,7 @@ service cloud.firestore {
 
       function canJoinGlobalPool() {
         return signedIn() &&
+          poolExists(poolId) &&
           resource.data.get('global', false) == true &&
           resource.data.get('globalSeasonId', '') is string &&
           poolId == 'global__' + resource.data.globalSeasonId &&
@@ -156,6 +169,7 @@ service cloud.firestore {
 
       function canAcceptFriendInvite() {
         return signedIn() &&
+          poolExists(poolId) &&
           resource.data.get('global', false) != true &&
           resource.data.get('membershipClosed', false) != true &&
           onlyMembersChanged() &&
@@ -165,6 +179,7 @@ service cloud.firestore {
 
       function canJoinFriendPoolWithCode() {
         return signedIn() &&
+          poolExists(poolId) &&
           resource.data.get('global', false) != true &&
           resource.data.get('membershipClosed', false) != true &&
           resource.data.get('joinCode', '') is string &&
@@ -178,10 +193,10 @@ service cloud.firestore {
           request.resource.data.lastJoinProof == resource.data.joinCode;
       }
 
-      function canOwnerSetInitialJoinCode() {
+      function canOwnerChangeJoinCode() {
         return poolOwner(poolId) &&
+          poolExists(poolId) &&
           resource.data.get('global', false) != true &&
-          resource.data.get('joinCode', '') == '' &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['joinCode']) &&
           request.resource.data.joinCode is string &&
@@ -191,6 +206,7 @@ service cloud.firestore {
 
       function canFreezeRules() {
         return poolOwner(poolId) &&
+          poolExists(poolId) &&
           resource.data.get('rulesSnapshot', null) == null &&
           validRulesSnapshot(request.resource.data.get('rulesSnapshot', null)) &&
           request.resource.data.diff(resource.data).affectedKeys()
@@ -233,6 +249,7 @@ service cloud.firestore {
 
       function canOwnerChangeMembershipSetting() {
         return poolOwner(poolId) &&
+          poolExists(poolId) &&
           resource.data.get('global', false) != true &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'membershipClosed',
@@ -249,6 +266,7 @@ service cloud.firestore {
 
       function canOwnerRenamePool() {
         return poolOwner(poolId) &&
+          poolExists(poolId) &&
           resource.data.get('global', false) != true &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'name',
@@ -262,6 +280,7 @@ service cloud.firestore {
 
       allow get: if signedIn() &&
         (
+          !poolExists(poolId) ||
           resource.data.get('global', false) == true ||
           request.auth.uid in resource.data.members ||
           pendingInviteFor(poolId)
@@ -269,6 +288,8 @@ service cloud.firestore {
 
       // The app queries pools with:
       // where('members', 'array-contains', request.auth.uid)
+      // A list result always represents an existing document, so an explicit
+      // exists() lookup here would make an otherwise valid query fail.
       allow list: if signedIn() &&
         request.auth.uid in resource.data.members;
 
@@ -305,12 +326,12 @@ service cloud.firestore {
         canJoinGlobalPool() ||
         canAcceptFriendInvite() ||
         canJoinFriendPoolWithCode() ||
-        canOwnerSetInitialJoinCode() ||
+        canOwnerChangeJoinCode() ||
         canFreezeRules() ||
         canOwnerChangeMembershipSetting() ||
         canOwnerRenamePool();
 
-      allow delete: if poolOwner(poolId);
+      allow delete: if false;
 
       // ----------------------------------------------------------
       // Public player progress. Prediction picks are never stored
@@ -319,7 +340,54 @@ service cloud.firestore {
 
       match /players/{userId} {
         function validPublicPlayerState() {
-          return !request.resource.data.keys().hasAny(['picks']);
+          let data = request.resource.data;
+          return data.keys().hasAll([
+              'username',
+              'phase',
+              'screen',
+              'w',
+              'watchThrough',
+              'completed'
+            ]) &&
+            data.keys().hasOnly([
+              'username',
+              'phase',
+              'screen',
+              'w',
+              'watchThrough',
+              'completed',
+              'lastPredictionAt',
+              'duplicateFromPoolId'
+            ]) &&
+            data.username is string &&
+            data.username.size() >= 1 &&
+            data.username.size() <= 40 &&
+            validPhase(data.phase) &&
+            data.screen in ['intro', 'board', 'watch', 'close', 'final'] &&
+            data.w is int &&
+            data.w >= 0 &&
+            data.w <= 100 &&
+            data.watchThrough is int &&
+            data.watchThrough >= 0 &&
+            data.watchThrough <= 100 &&
+            data.completed is map &&
+            data.completed.keys().hasOnly(['pods', 'dating', 'weddings', 'reunion']) &&
+            data.completed.get('pods', false) is bool &&
+            data.completed.get('dating', false) is bool &&
+            data.completed.get('weddings', false) is bool &&
+            data.completed.get('reunion', false) is bool &&
+            (
+              !data.keys().hasAny(['lastPredictionAt']) ||
+              data.lastPredictionAt is number
+            ) &&
+            (
+              !data.keys().hasAny(['duplicateFromPoolId']) ||
+              (
+                data.duplicateFromPoolId is string &&
+                data.duplicateFromPoolId.size() >= 1 &&
+                data.duplicateFromPoolId.size() <= 128
+              )
+            );
         }
 
         allow read: if poolMember(poolId);
@@ -342,16 +410,17 @@ service cloud.firestore {
           return validPhase(phase) &&
             request.resource.data.keys().hasOnly([
               'completedMembers',
-              'revealed',
               'updatedAt'
             ]) &&
             request.resource.data.completedMembers is list &&
-            request.resource.data.revealed == false &&
             request.resource.data.updatedAt is number;
         }
 
         function viewerOnlyAddedOwnCompletion() {
-          return request.resource.data.completedMembers.toSet() ==
+          return exists(
+              /databases/$(database)/documents/pools/$(poolId)/phaseStatus/$(phase)
+            ) &&
+            request.resource.data.completedMembers.toSet() ==
               resource.data.get('completedMembers', []).toSet()
                 .union([request.auth.uid].toSet());
         }
@@ -363,10 +432,12 @@ service cloud.firestore {
           request.resource.data.completedMembers == [request.auth.uid];
 
         allow update: if poolMember(poolId) &&
+          exists(
+            /databases/$(database)/documents/pools/$(poolId)/phaseStatus/$(phase)
+          ) &&
           validStatusShape() &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'completedMembers',
-            'revealed',
             'updatedAt'
           ]) &&
           viewerOnlyAddedOwnCompletion();
@@ -379,6 +450,12 @@ service cloud.firestore {
       // ----------------------------------------------------------
 
       match /phasePicks/{pickId} {
+        function pickExists() {
+          return exists(
+            /databases/$(database)/documents/pools/$(poolId)/phasePicks/$(pickId)
+          );
+        }
+
         function viewerOwnsPickId() {
           return signedIn() &&
             pickId.matches(
@@ -420,22 +497,35 @@ service cloud.firestore {
                 request.resource.data.phase == 'reunion' &&
                 reunionLocked(poolId, request.auth.uid)
               ) ||
-              request.resource.data == resource.data
+              (
+                pickExists() &&
+                request.resource.data == resource.data
+              )
             );
         }
 
         function viewerMayReadAnotherPick() {
-          let targetUid = resource.data.uid;
-          let targetPhase = resource.data.phase;
-          let bothCompleted =
-            phaseCompleted(poolId, targetPhase, request.auth.uid) &&
-            phaseCompleted(poolId, targetPhase, targetUid);
-          let bothLockedReunion =
-            targetPhase == 'reunion' &&
-            reunionLocked(poolId, request.auth.uid) &&
-            reunionLocked(poolId, targetUid);
-          return poolMember(poolId) &&
-            (bothCompleted || bothLockedReunion);
+          return pickExists() &&
+            poolMember(poolId) &&
+            (
+              (
+                phaseCompleted(
+                  poolId,
+                  resource.data.phase,
+                  request.auth.uid
+                ) &&
+                phaseCompleted(
+                  poolId,
+                  resource.data.phase,
+                  resource.data.uid
+                )
+              ) ||
+              (
+                resource.data.phase == 'reunion' &&
+                reunionLocked(poolId, request.auth.uid) &&
+                reunionLocked(poolId, resource.data.uid)
+              )
+            );
         }
 
         allow read: if viewerOwnsPickId() ||
@@ -497,6 +587,10 @@ service cloud.firestore {
     // ============================================================
 
     match /invites/{inviteId} {
+      function inviteExists() {
+        return exists(/databases/$(database)/documents/invites/$(inviteId));
+      }
+
       function validInviteDocument() {
         let data = request.resource.data;
         return data.keys().hasOnly([
@@ -528,7 +622,15 @@ service cloud.firestore {
       }
 
       // Raw invitee addresses are visible only to the recipient and pool owner.
-      allow read: if viewerIsRecipient() ||
+      allow get: if inviteExists() &&
+        (
+          viewerIsRecipient() ||
+          poolOwner(resource.data.poolId)
+        );
+
+      // Query results are existing documents by definition. Adding a second
+      // exists() lookup with the wildcard inviteId breaks query evaluation.
+      allow list: if viewerIsRecipient() ||
         poolOwner(resource.data.poolId);
 
       allow create: if signedIn() &&
@@ -540,12 +642,14 @@ service cloud.firestore {
       allow update: if
         (
           signedIn() &&
+          inviteExists() &&
           resource.data.status == 'pending' &&
           validInviteDocument() &&
           request.resource.data.fromUid == request.auth.uid &&
           poolOwner(request.resource.data.poolId)
         ) ||
         (
+          inviteExists() &&
           viewerIsRecipient() &&
           resource.data.status == 'pending' &&
           request.resource.data.diff(resource.data).affectedKeys()
@@ -553,7 +657,8 @@ service cloud.firestore {
           request.resource.data.status in ['accepted', 'declined']
         );
 
-      allow delete: if poolOwner(resource.data.poolId);
+      allow delete: if inviteExists() &&
+        poolOwner(resource.data.poolId);
     }
 
     // ============================================================
@@ -589,6 +694,9 @@ service cloud.firestore {
         );
 
       allow update: if signedIn() &&
+        exists(
+          /databases/$(database)/documents/castRatingProfiles/$(userId)/seasons/$(seasonId)
+        ) &&
         request.auth.uid == userId &&
         validPrivateRatingDocument() &&
         (
@@ -729,6 +837,9 @@ service cloud.firestore {
       allow create: if validClientErrorReport() &&
         request.resource.data.occurrenceCount == 1;
       allow update: if validClientErrorReport() &&
+        exists(
+          /databases/$(database)/documents/clientErrors/$(userId)/categories/$(category)
+        ) &&
         request.resource.data.occurrenceCount == resource.data.occurrenceCount + 1 &&
         request.time >= resource.data.lastAt + duration.value(1, 'm');
     }

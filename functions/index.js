@@ -1,6 +1,5 @@
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {onDocumentWritten}=require('firebase-functions/v2/firestore');
-const logger=require('firebase-functions/logger');
 const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
@@ -11,12 +10,6 @@ const PHASES=['pods','dating','weddings','reunion'];
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
-const CLIENT_ERROR_CATEGORIES=new Set([
-  'invite_accept_failed','invite_send_failed','lobby_load_failed','mirror_sync_failed',
-  'pool_create_failed','pool_open_failed','render_failed','save_failed',
-  'season_load_failed','startup_failed',
-]);
-const clientErrorWindows=new Map();
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
 // is a verified sending domain. Replies route to Patrick's personal inbox.
@@ -32,38 +25,6 @@ function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
   return request.auth.uid;
 }
-
-function safeTelemetryText(value,maxLength=100){
-  return String(value||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
-}
-
-function allowClientErrorReport(uid,now=Date.now()){
-  const minute=Math.floor(now/60000);
-  const key=`${uid}:${minute}`;
-  const count=clientErrorWindows.get(key)||0;
-  if(count>=12)return false;
-  clientErrorWindows.set(key,count+1);
-  if(clientErrorWindows.size>500){
-    for(const storedKey of clientErrorWindows.keys()){
-      if(!storedKey.endsWith(`:${minute}`))clientErrorWindows.delete(storedKey);
-    }
-  }
-  return true;
-}
-
-exports.reportClientError=onCall(FUNCTION_LIMITS,async request=>{
-  const uid=requireUser(request);
-  const category=safeTelemetryText(request.data?.category,60);
-  if(!CLIENT_ERROR_CATEGORIES.has(category))throw new HttpsError('invalid-argument','Choose a supported error category.');
-  if(!allowClientErrorReport(uid))return {ok:true,reported:false,reason:'rate-limited'};
-  const context={};
-  ['appBuild','code','entryStep','operation','phase','poolId','screen','seasonId','targetPoolId'].forEach(key=>{
-    const value=safeTelemetryText(request.data?.[key],key==='appBuild'?160:100);
-    if(value)context[key]=value;
-  });
-  logger.error('Client operation failed',{category,uid,...context});
-  return {ok:true,reported:true};
-});
 
 function escapeHtml(value){
   return String(value||'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
@@ -291,6 +252,26 @@ exports.leavePool=onCall(FUNCTION_LIMITS,async request=>{
   return {ok:true};
 });
 
+exports.deletePool=onCall(FUNCTION_LIMITS,async request=>{
+  const uid=requireUser(request);
+  const poolId=String(request.data?.poolId||'');
+  if(!poolId)throw new HttpsError('invalid-argument','Choose a pool to delete.');
+  const poolRef=db.doc(`pools/${poolId}`);
+  const snapshot=await poolRef.get();
+  if(!snapshot.exists)throw new HttpsError('not-found','This pool no longer exists.');
+  const pool=snapshot.data();
+  if(pool.global===true)throw new HttpsError('failed-precondition','The Global Pool cannot be deleted here.');
+  if(pool.ownerUid!==uid)throw new HttpsError('permission-denied','Only the pool owner can delete this pool.');
+  const invitations=await db.collection('invites').where('poolId','==',poolId).get();
+  for(let offset=0;offset<invitations.docs.length;offset+=400){
+    const batch=db.batch();
+    invitations.docs.slice(offset,offset+400).forEach(invitation=>batch.delete(invitation.ref));
+    await batch.commit();
+  }
+  await db.recursiveDelete(poolRef);
+  return {ok:true};
+});
+
 exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
@@ -316,7 +297,7 @@ exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
     if(!['live','active','started','airing'].includes(seasonStatus))throw new HttpsError('failed-precondition','Only a live season phase can reopen.');
     const boundaryKey=`${phase.toUpperCase()}_BOUNDARY_FINAL`;
     if(publishedBool(publishedSetting(season,boundaryKey),false))throw new HttpsError('failed-precondition','This phase boundary is final and cannot reopen.');
-    tx.update(statusRef,{completedMembers:FieldValue.arrayRemove(uid),revealed:false,updatedAt:Date.now()});
+    tx.update(statusRef,{completedMembers:FieldValue.arrayRemove(uid),updatedAt:Date.now()});
   });
   return {ok:true};
 });
@@ -395,21 +376,16 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
     </table>
   </body>
 </html>`;
-  try{
-    await db.doc(`mail/invite_${poolId}__${encodeURIComponent(toEmail)}_${day}`).create({
-      to:[toEmail],
-      message:{
-        from:MAIL_SENDERS.invites,
-        replyTo:MAIL_REPLY_TO,
-        subject,
-        text,
-        html:inviteHtml,
-      },
-    });
-  }catch(error){
-    const code=String(error?.code??'').toLowerCase();
-    if(code!=='6'&&code!=='already-exists'&&code!=='already_exists')throw error;
-  }
+  await db.doc(`mail/invite_${poolId}__${encodeURIComponent(toEmail)}_${day}_${invitationCount}`).create({
+    to:[toEmail],
+    message:{
+      from:MAIL_SENDERS.invites,
+      replyTo:MAIL_REPLY_TO,
+      subject,
+      text,
+      html:inviteHtml,
+    },
+  });
   return {ok:true,limit:DAILY_EMAIL_INVITE_LIMIT,remaining:Math.max(0,DAILY_EMAIL_INVITE_LIMIT-invitationCount)};
 });
 
@@ -454,8 +430,6 @@ exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
       await removeMemberData(poolDoc.ref,uid);
     }
   }
-  const globalMemberships=await db.collectionGroup('members').where('uid','==',uid).get();
-  await Promise.all(globalMemberships.docs.map(member=>member.ref.delete()));
   await db.recursiveDelete(db.doc(`castRatingProfiles/${uid}`));
   const inviteQueries=[db.collection('invites').where('fromUid','==',uid)];
   if(email)inviteQueries.push(db.collection('invites').where('toEmail','==',email));
@@ -463,10 +437,15 @@ exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
   const inviteRefs=new Map();
   inviteSnapshots.forEach(snapshot=>snapshot.docs.forEach(invite=>inviteRefs.set(invite.ref.path,invite.ref)));
   const rateLimits=await db.collection('inviteRateLimits').where('uid','==',uid).get();
+  const mailSnapshot=email
+    ? await db.collection('mail').where('to','array-contains',email).get()
+    : {docs:[]};
   await Promise.all([
     ...inviteRefs.values(),
     ...rateLimits.docs.map(limit=>limit.ref),
+    ...mailSnapshot.docs.map(mail=>mail.ref),
   ].map(ref=>ref.delete()));
+  await db.recursiveDelete(db.doc(`clientErrors/${uid}`));
   await db.doc(`notificationPreferences/${uid}`).delete().catch(()=>{});
   await db.doc(`users/${uid}`).delete().catch(()=>{});
   await getAuth().deleteUser(uid);

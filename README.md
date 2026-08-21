@@ -42,6 +42,8 @@ Two notification events are currently queued:
 
 Before testing Google or email-link sign-in, enable those providers in Firebase Authentication and add both `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Apple sign-in is intentionally hidden until its service ID, team ID, key ID, and private key are configured.
 
+Email invitations match only the verified email address in the recipient's authentication token. If Apple sign-in is enabled later, someone using **Hide My Email** must be invited at their Apple relay address; an invitation sent to their private address cannot safely be claimed by the unrelated relay identity.
+
 The production workflow authenticates without a stored key: GitHub's OIDC token is exchanged through the `github-actions/libapp` Workload Identity provider for the dedicated `github-firebase-hosting` service account. Confirm the custom domain is connected and its certificate is active in Firebase Hosting before merging a release that changes DNS or hosting providers.
 
 ## Season publishing
