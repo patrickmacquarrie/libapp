@@ -22,6 +22,9 @@ concurrency:
 
 jobs:
   verify:
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -37,6 +40,15 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npm run check
+      - id: live-rules-auth
+        if: github.event_name == 'workflow_dispatch' && inputs.backend_deployed == true
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: lib-oauth
+          workload_identity_provider: projects/737647208245/locations/global/workloadIdentityPools/github-actions/providers/libapp
+          service_account: github-firebase-hosting@lib-oauth.iam.gserviceaccount.com
+      - if: github.event_name == 'workflow_dispatch' && inputs.backend_deployed == true
+        run: npm run verify:live-rules
 
   deploy:
     if: github.event_name != 'pull_request'
@@ -64,16 +76,46 @@ jobs:
           BACKEND_DEPLOYED: ${{ inputs.backend_deployed }}
         run: |
           hold_hosting=false
-          if [ "${{ github.event_name }}" = "push" ] && [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
-            if ! git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json firebase.json functions; then
+          hold_reason=none
+          hold_message=""
+          if [ "${{ github.event_name }}" = "push" ]; then
+            if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE_SHA^{commit}" || ! git cat-file -e "$GITHUB_SHA^{commit}"; then
               hold_hosting=true
+              hold_reason=comparison_unavailable
+              hold_message="Hosting was not released because the push baseline is unavailable in this checkout. This can happen on a multi-commit or force push. Deploy the matching backend, then use the confirmed manual release."
+            else
+              set +e
+              git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json firebase.json functions
+              diff_status=$?
+              set -e
+              if [ "$diff_status" -eq 1 ]; then
+                hold_hosting=true
+                hold_reason=backend_changed
+                hold_message="Hosting was not released because this push changes Firestore rules, indexes, Firebase configuration, or Functions. Deploy the matching backend, then use the confirmed manual release."
+              elif [ "$diff_status" -gt 1 ]; then
+                hold_hosting=true
+                hold_reason=comparison_failed
+                hold_message="Hosting was not released because Git could not compare the backend files (git diff exit $diff_status). Investigate the checkout before releasing."
+              fi
             fi
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$BACKEND_DEPLOYED" != "true" ]; then
             hold_hosting=true
+            hold_reason=manual_confirmation_missing
+            hold_message="Hosting was not released because backend_deployed was not confirmed."
           fi
           echo "hold_hosting=$hold_hosting" >> "$GITHUB_OUTPUT"
-      - if: steps.backend_changes.outputs.hold_hosting == 'true'
-        run: echo "Hosting held. Deploy the matching backend, then dispatch this workflow with backend_deployed=true."
+          echo "hold_reason=$hold_reason" >> "$GITHUB_OUTPUT"
+          if [ "$hold_hosting" = "true" ]; then
+            {
+              echo "## Hosting release held"
+              echo
+              echo "**Reason:** \`$hold_reason\`"
+              echo
+              echo "$hold_message"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Hosting release held::$hold_message"
+            exit 1
+          fi
       - id: auth
         if: steps.backend_changes.outputs.hold_hosting != 'true'
         uses: google-github-actions/auth@v3

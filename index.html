@@ -793,6 +793,7 @@ const authErrorMessage=(error,fallback='Sign-in could not be completed. Please t
     'auth/user-disabled':'This account has been disabled. Contact support for help.',
     'auth/web-storage-unsupported':'Your browser is blocking storage needed to sign in. Allow site storage and try again.',
     'auth/expired-action-code':'That sign-in link has expired. Request a new one.',
+    'auth/redirect-result-missing':'Sign-in returned to the app but could not be completed. Please try again in your browser.',
   };
   return messages[code]||fallback;
 };
@@ -824,7 +825,42 @@ const fbApp = initializeApp(firebaseConfig);
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 const functions = getFunctions(fbApp);
+const detectBrowsingContext=()=>{
+  const userAgent=navigator.userAgent||'';
+  const standalone=window.matchMedia?.('(display-mode: standalone)')?.matches||navigator.standalone===true;
+  let browserContext='browser';
+  if(standalone)browserContext='standalone';
+  else if(/Instagram/i.test(userAgent))browserContext='instagram_in_app';
+  else if(/FBAN\/Messenger|Messenger|MESSENGER/i.test(userAgent))browserContext='messenger_in_app';
+  else if(/TikTok/i.test(userAgent))browserContext='tiktok_in_app';
+  else if(/FBAN|FBAV|FB_IAB/i.test(userAgent))browserContext='facebook_in_app';
+  else if(/; wv\)/i.test(userAgent)||(/Android/i.test(userAgent)&&/Version\/\d/i.test(userAgent)))browserContext='android_webview';
+  else if(/AppleWebKit/i.test(userAgent)&&!/Safari|CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent))browserContext='ios_webview';
+  const platform=/iPhone|iPad|iPod/i.test(userAgent)?'ios':/Android/i.test(userAgent)?'android':'desktop';
+  return {browserContext,platform};
+};
+const BROWSING_CONTEXT=Object.freeze(detectBrowsingContext());
+window.__TTW_BROWSING_CONTEXT__=BROWSING_CONTEXT;
+const dispatchAuthConversion=(event,details={})=>window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:{event,...BROWSING_CONTEXT,...details}}));
+const hasAuthRedirectParams=()=>{
+  try{
+    const params=new URL(window.location.href).searchParams;
+    return ['firebaseError','eventId','authEvent','__firebase_request_key'].some(key=>params.has(key))||
+      (params.has('state')&&(params.has('code')||params.has('error')));
+  }catch(error){return false;}
+};
 const AUTH_RETURN_JOIN_KEY='through-the-wall-auth-return-join';
+const AUTH_REDIRECT_PENDING_KEY='through-the-wall-auth-redirect-pending';
+const hasPendingAuthRedirect=()=>{
+  try{return sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY)==='1';}
+  catch(error){return false;}
+};
+const markAuthRedirectPending=()=>{
+  try{sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY,'1');}catch(error){}
+};
+const clearAuthRedirectPending=()=>{
+  try{sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);}catch(error){}
+};
 const rememberJoinForRedirect=()=>{
   try{
     const join=new URL(window.location.href).searchParams.get('join');
@@ -844,7 +880,9 @@ const restoreJoinAfterRedirect=()=>{
 };
 const signInWithProvider=async provider=>{
   rememberJoinForRedirect();
-  await signInWithRedirect(auth,provider);
+  markAuthRedirectPending();
+  try{await signInWithRedirect(auth,provider);}
+  catch(error){clearAuthRedirectPending();throw error;}
   return null;
 };
 const GAME_PHASES = ['pods','dating','weddings','reunion'];
@@ -925,9 +963,27 @@ const updateCastAggregate = (aggregate,previousRatings,nextRatings) => {
 window._fb = {
   signIn:  () => signInWithProvider(new GoogleAuthProvider()),
   completeAuthRedirect: async () => {
-    try{return await getRedirectResult(auth);}
-    finally{restoreJoinAfterRedirect();}
+    let failureTracked=false;
+    const hadPendingRedirect=hasPendingAuthRedirect();
+    try{
+      const result=await getRedirectResult(auth);
+      if(result?.user){
+        dispatchAuthConversion('sign_in_redirect_success',{provider:result.providerId||result.user.providerData?.[0]?.providerId||'google.com'});
+      }else if((hadPendingRedirect||hasAuthRedirectParams())&&!auth.currentUser){
+        const error=Object.assign(new Error('Authentication redirect returned without a resolved user.'),{code:'auth/redirect-result-missing'});
+        failureTracked=true;
+        dispatchAuthConversion('sign_in_redirect_failure',{code:error.code});
+        throw error;
+      }
+      return result;
+    }catch(error){
+      if(!failureTracked)dispatchAuthConversion('sign_in_redirect_failure',{code:authErrorCode(error)||'unknown'});
+      throw error;
+    }
+    finally{clearAuthRedirectPending();restoreJoinAfterRedirect();}
   },
+  hasAuthRedirectParams,
+  hasPendingAuthRedirect,
   sendEmailSignInLink: async email => {
     const returnUrl=new URL(window.location.href);
     returnUrl.searchParams.set(EMAIL_SIGN_IN_QUERY,email);
@@ -1312,7 +1368,7 @@ const capturedAcquisition=captureAcquisition();
 const trackTtwEvent=(event,details={})=>{
   let acquisition=capturedAcquisition;
   if(!Object.keys(acquisition).length){try{acquisition=JSON.parse(localStorage.getItem('through-the-wall-acquisition')||'{}');}catch(e){acquisition={};}}
-  const payload={event,...details,...acquisition};
+  const payload={event,...(window.__TTW_BROWSING_CONTEXT__||{}),...details,...acquisition};
   window.dataLayer=window.dataLayer||[];window.dataLayer.push(payload);
   window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));
 };
@@ -1336,6 +1392,7 @@ const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>
 };
 /* MIRROR ENTRY HELPERS END */
 if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_click',{placement:'app_intent'});
+trackTtwEvent('app_arrival');
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
@@ -5261,8 +5318,9 @@ function App() {
     const initializeAuth=async()=>{
       try{await window._fb.completeEmailSignIn();}
       catch(error){console.error(error);const message=window._fb.authErrorMessage(error,'That email sign-in link could not be completed. Request a new one.');if(message)setErr(message);}
+      const hasAuthReturn=window._fb.hasAuthRedirectParams()||window._fb.hasPendingAuthRedirect();
       try{await window._fb.completeAuthRedirect();}
-      catch(error){console.error(error);const message=window._fb.authErrorMessage(error);if(message)setErr(message);}
+      catch(error){console.error(error);if(hasAuthReturn)reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'});const message=window._fb.authErrorMessage(error);if(message)setErr(message);}
       if(cancelled)return;
       unsubscribe=window._fb.onAuthStateChanged(u => {
         setPoolInviteRemaining(null);

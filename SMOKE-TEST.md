@@ -22,6 +22,40 @@ Run this two-account checklist against production before the August 19, 2026 UK3
 - [ ] In the other browser profile, Account B joins through the ordinary share link/join-code flow.
 - [ ] Confirm Account B lands at Episode 1 rather than inheriting Account A's watch position.
 
+## Auth cutover device matrix (repeat before each public launch)
+
+Prepare one throwaway friend pool and copy its full `https://throughthewall.ca/?join=<pool>.<code>` invitation link. Use an account that is not yet in that pool. For each test below, the pass condition is: the link opens on `throughthewall.ca`, Google sign-in replaces the whole page rather than opening a popup, the app returns to `throughthewall.ca`, the intended pool is joined, and no Firebase error code or CSP violation appears. Do not reuse the same account after it joins; reset the invite link or use another throwaway account.
+
+### iOS Safari
+
+- [ ] Paste the invitation link directly into Safari and confirm it is not running inside another app's embedded browser.
+- [ ] Tap **Sign in with Google**, finish the account chooser, and confirm Safari returns to the same Through the Wall invitation.
+- [ ] Confirm the pool opens at Episode 1 and the `join` value survives the auth redirect, then disappears after the app processes the invitation.
+- [ ] In Plausible, confirm this attempt produced `app_arrival` with `browserContext=browser` and `platform=ios`, followed by `sign_in_started` and `sign_in_redirect_success`.
+
+### Android Chrome
+
+- [ ] Paste the invitation link directly into Chrome.
+- [ ] Tap **Sign in with Google**, finish the account chooser, and confirm Chrome returns to the same Through the Wall invitation.
+- [ ] Confirm the pool opens at Episode 1 and the `join` value survives the auth redirect, then disappears after the app processes the invitation.
+- [ ] In Plausible, confirm `app_arrival` has `browserContext=browser` and `platform=android`, followed by `sign_in_started` and `sign_in_redirect_success`.
+
+### Instagram in-app browser
+
+- [ ] Send the invitation link in an Instagram DM and open it without choosing **Open in external browser**.
+- [ ] Confirm `app_arrival` appears with `browserContext=instagram_in_app` and the Google button starts a full-page redirect.
+- [ ] Complete Google sign-in. Confirm the app returns, joins the intended pool, and does not strand the user on the signed-out screen.
+- [ ] If it fails, record whether the app shows “Sign-in returned to the app but could not be completed.” Confirm Plausible contains `sign_in_redirect_failure` with an auth `code` and an `app_error` with `category=startup_failed`.
+
+### Messenger in-app browser
+
+- [ ] Send the invitation link in Messenger and open it without choosing **Open in browser**.
+- [ ] Confirm `app_arrival` appears with `browserContext=messenger_in_app` and the Google button starts a full-page redirect.
+- [ ] Complete Google sign-in. Confirm the app returns, joins the intended pool, and does not strand the user on the signed-out screen.
+- [ ] If it fails, record whether the app shows the redirect-specific error. Confirm Plausible contains `sign_in_redirect_failure` with an auth `code` and an `app_error` with `category=startup_failed`.
+
+For any failed in-app-browser attempt, repeat the same invitation with that app's **Open in browser** action. Record whether the external-browser attempt succeeds; this separates an embedded-webview failure from a general Firebase configuration failure.
+
 ## Pods picks, privacy, receipts, and budgets (7 minutes)
 
 - [ ] Both accounts make Pods picks. Include one deliberate junk pair made from two real cast members who never become a couple, and wager a memorable amount on it.
