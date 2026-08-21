@@ -5219,7 +5219,7 @@ function App() {
   const [emailAuthSent,setEmailAuthSent]=useState(false);
   const [signingIn,setSigningIn]=useState(false);
   const [signingOut,setSigningOut]=useState(false);
-  const pendingFriendInvitation=hasPendingFriendInvitation();
+  const pendingFriendInvitation=window._fb.hasPendingFriendInvitation();
   const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
   // Config
