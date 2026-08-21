@@ -84,7 +84,8 @@ assert(firestoreRules.includes("request.auth.token.get('email_verified', false) 
 assert(readme.includes('Hide My Email'),'Apple relay-address invitation behaviour must be documented before Apple sign-in is enabled.');
 assert(html.includes('Reset invite link'),'Pool owners must be able to invalidate a leaked invitation link.');
 assert(firestoreRules.includes('function canOwnerChangeJoinCode()'),'Rules must allow owner-only join-code rotation.');
-assert(!firestoreRules.includes("'revealed',"),'The dead phase-status revealed field must stay removed.');
+assert(!firestoreRules.includes("request.resource.data.revealed"),'The deprecated phase-status field must never be accepted in a requested document.');
+assert(firestoreRules.includes("'updatedAt',\n            'revealed'"),'Rules must permit a full replacement to remove the deprecated phase-status field.');
 assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
 assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
 assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='toEmail')&&index.fields.some(field=>field.fieldPath==='status')),'Invite recipient/status index must be versioned.');
@@ -221,7 +222,9 @@ assert(workflow.includes('workload_identity_provider: projects/737647208245/loca
 assert(workflow.includes('service_account: github-firebase-hosting@lib-oauth.iam.gserviceaccount.com'));
 assert(!workflow.includes('credentials_json'),'The release workflow must use short-lived Workload Identity credentials.');
 assert(!workflow.includes('FIREBASE_SERVICE_ACCOUNT_LIB_OAUTH'),'The release workflow must not require a persistent service-account key.');
-assert(workflow.includes('firebase deploy --only hosting --project lib-oauth --non-interactive'));
+assert(workflow.includes('git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json firebase.json functions'),'Backend changes must hold an automatic Hosting release.');
+assert(workflow.includes('backend_deployed'),'A manual Hosting release must explicitly confirm the backend is deployed.');
+assert(workflow.includes("if: steps.backend_changes.outputs.hold_hosting != 'true'\n        run: npx firebase deploy --only hosting"),'Hosting must remain gated by the backend-deployment check.');
 assert(!workflow.includes('actions/deploy-pages'),'The release workflow must not deploy to GitHub Pages.');
 assert(runbook.includes('rollbackSeasonSnapshot'));
 assert(runbook.includes('jsonPayload.message="Client operation failed"'));
