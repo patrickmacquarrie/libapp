@@ -8,7 +8,7 @@ This rehearsal is intentionally independent of the real August 19 release. Nothi
 
 The labels in this document distinguish evidence from planned work:
 
-- **Observed** means a read-only check was actually run against production or the public source sheet on August 21, 2026.
+- **Observed** means the named check was actually run. Keep the date and environment beside it; an emulator observation is not production evidence.
 - **Code-derived** means the behaviour follows from the checked-in app, functions, publisher, or runbooks. It has not yet been exercised in this rehearsal.
 - **Operator action** means a production change or manual test to perform later. No production write described here was performed while this document was written.
 
@@ -28,7 +28,7 @@ Record these at the top of the rehearsal log:
 | Published snapshot | `seasons/love-is-blind-uk-3` |
 | Rehearsal release label | `First episodes drop August 29, 2026` |
 
-**Observed:** the source sheet and production snapshot currently use these spans:
+**Observed on the public source sheet on August 24, 2026:** `BOUNDARIES_LIVE` is blank and the sheet uses these spans:
 
 | Phase | Start | Scoring/end boundary | Player prediction windows | Closes after watching |
 | --- | ---: | ---: | --- | ---: |
@@ -37,7 +37,9 @@ Record these at the top of the rehearsal log:
 | Weddings | 7 | 11 | after Episodes 7, 8, 9, and 10 | Episode 11 |
 | Reunion | 11 | 12 | after Episode 11 only | Episode 12 |
 
-Keep these exact settings throughout the rehearsal:
+Those last two ends cannot work for an eleven-episode season. Episodes 9 and 10 are the Weddings, so the Weddings checkpoint closes after Episode 10. The Reunion is Episode 11, so its prediction window opens after Episode 10 and closes after Episode 11.
+
+Use this map before any pool is created. The Pods/Retreats transitions are provisional until Patrick has watched Episodes 1–8; the Weddings and Reunion values are fixed:
 
 ```text
 PODS_START_EP=1
@@ -47,16 +49,57 @@ DATING_END_EP=7
 RETREAT_START_EP=5
 RETREAT_END_EP=7
 WEDDINGS_START_EP=7
-WEDDINGS_END_EP=11
-REUNION_START_EP=11
-REUNION_END_EP=12
+WEDDINGS_END_EP=10
+REUNION_START_EP=10
+REUNION_END_EP=11
 ```
+
+`PODS_END_EP`, `DATING_START_EP`, `DATING_END_EP`, `RETREAT_START_EP`, `RETREAT_END_EP`, and `WEDDINGS_START_EP` may be adjusted together after Patrick identifies the actual transitions inside Episodes 1–8. Do not finalize a provisional boundary. Keep `PODS_START_EP=1`, `WEDDINGS_END_EP=10`, `REUNION_START_EP=10`, and `REUNION_END_EP=11` unchanged unless the episode facts themselves change.
 
 The product label **Retreats** maps to the internal phase ID `dating`. Firestore and mail IDs therefore use `phasePicks/dating__{uid}`, `phaseStatus/dating`, and `_dating_`; there is no `retreats` phase document.
 
 **Code-derived:** phase starts meet the previous phase ends. They do not create a dual-board crossover window here, because the next board opens at the same watched episode at which the previous phase closes. A player must complete the old phase and select **Continue** before the next board opens.
 
-The counter must therefore move from **1 through 12** to open and close all four phases. Availability does not move a player automatically; it only raises the ceiling they may reach. Even if the counter jumps several episodes, a rolling-phase player advances one watched episode per lock/finish cycle. A jump also generates only one new-episode nudge for the final published number, so use the one-by-one sequence below.
+The counter must therefore move from **1 through 11** to open and close all four phases. Availability does not move a player automatically; it only raises the ceiling they may reach. Even if the counter jumps several episodes, a rolling-phase player advances one watched episode per lock/finish cycle. A jump also generates only one new-episode nudge for the final published number, so use the one-by-one sequence below.
+
+## Pre-flight gate — run before anyone creates a pool
+
+This gate is load-bearing. Do not create even a disposable UK3 pool until it passes.
+
+**Observed in the local Firestore emulator on August 24, 2026:** a scratch pool was created while the season used the old `5/7/11/12` end map. Its persisted `pools/scratch-freeze-pool.rulesSnapshot` contained that map. After the scratch season document was changed to `4/8/10/11`, `configForPool` still returned the frozen old starts and spans with `BOUNDARIES_LIVE=false`. With the same persisted pool and `BOUNDARIES_LIVE=true`, it returned the changed live starts and spans. The season and pool documents were read back from Firestore between each step.
+
+The exact operator sequence is:
+
+1. In the private season admin, select `love-is-blind-uk-3` and confirm spreadsheet `10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY`.
+2. Set `BOUNDARIES_LIVE=TRUE` first.
+3. Set the exact phase values below. Except for `PODS_START_EP=1`, the transitions inside Episodes 1–8 are provisional pending Patrick's review; the last three values are fixed for the known Weddings/Reunion schedule.
+
+   ```text
+   PODS_START_EP=1
+   PODS_END_EP=5
+   DATING_START_EP=5
+   DATING_END_EP=7
+   RETREAT_START_EP=5
+   RETREAT_END_EP=7
+   WEDDINGS_START_EP=7
+   WEDDINGS_END_EP=10
+   REUNION_START_EP=10
+   REUNION_END_EP=11
+   ```
+
+4. Before the first pool exists, verify every other pool-frozen scoring setting listed below. A later season publish does not override these values for an existing pool:
+   - core scoring: `K`, `LEAD_STEP`, `WHO_TAG`, `WEDDINGS_LEAD_STEP`, `WEDDINGS_LEAD_CAP`;
+   - budgets and per-pick caps: `PODS_BUDGET`, `PODS_CAP`, `DATING_BUDGET`, `DATING_CAP`, `WEDDINGS_BUDGET`, `WEDDINGS_CAP`, `REUNION_BUDGET`, `REUNION_CAP`;
+   - Retreats multipliers: `DATING_SEX_MULT`, `DATING_FLIRT_MULT`, `DATING_BREAKUP_MULT`;
+   - Weddings multipliers: `WEDDINGS_MARRIED_MULT`, `WEDDINGS_SAYS_NO_MULT`, `WEDDINGS_CALLED_OFF_MULT`;
+   - Reunion multipliers: `REUNION_STILL_MULT`, `REUNION_SPLIT_MULT`, `REUNION_MARRIED_SPLIT_MULT`, `REUNION_BACK_MULT`, `REUNION_NEW_COUPLE_MULT`, `REUNION_LIFE_UPDATE_MULT`, `REUNION_ABSENT_MULT`.
+5. Save the draft and run **Save & preview**. Confirm the exact values above, the intended scoring values, non-zero Cast/Couples rows, all six tab counts, and a document below 900,000 bytes.
+6. Stop and obtain Patrick's approval for this production publish.
+7. Select **Publish to the app** and record `backupPath`.
+8. In Firestore, inspect exactly `seasons/love-is-blind-uk-3`. In its `Settings` row maps, verify `BOUNDARIES_LIVE` is the string `TRUE` and all ten phase values exactly match step 3. Also verify the expected `publishedAt`, `status`, `tabRowCounts`, and scoring settings from step 4.
+9. Only after step 8 passes, create the first UK3 pool. Inspect `pools/{poolId}` and confirm `rulesSnapshot.version=5`, the expected `PH_SPAN`/`PH_STARTW`, and the scoring settings from step 4. `BOUNDARIES_LIVE` itself is not stored in the pool; it remains a live season control.
+
+`rulesSnapshotFrom` also stores hard-coded `POINTS_PER_HEART=1` and phase labels inside `RULES`. Boundary-final flags, results-ready flags, availability, season status, cast/results, and Retro Events are not frozen into `rulesSnapshot`.
 
 ## Gate 0 — the current data is not playable
 
@@ -80,12 +123,12 @@ The repository, runbooks, source sheet, and production snapshot do not contain a
 - [ ] Add the complete Cast list, using stable, exact names and a valid `M` or `F` value. Do not rename a person after the first live publish.
 - [ ] Add every real relationship to Couples with a stable ID and exact Cast names.
 - [ ] Fill `engaged_ep` for every Pods engagement. Use the eligibility columns for any later/off-cycle relationship rather than pretending it was a Pods couple.
-- [ ] Fill `lock_ep` as soon as the last prediction episode for a wedding outcome is known. A blank value on a live outcome falls back to Episode 11 and only produces a warning.
+- [ ] Fill `lock_ep` as soon as the last prediction episode for a wedding outcome is known. A blank value on a live outcome falls back to Episode 10 and only produces a warning.
 - [ ] Before Weddings results become ready, fill `wedding` for every Weddings-eligible couple. For `saysNo` or `calledOff`, also fill `who_says_no` with exactly `him` or `her`. Fill breakup/settled episode fields where they remove a couple from a later market.
 - [ ] Add every positive Retreats `sex`, `flirt`, and `breakup` event with an episode from 5 through 7. Use the exact couple ID for sex/breakup and the exact Cast name for flirt. Leave judgment calls `confirmed=FALSE` until resolved.
 - [ ] Add every positive Reunion result. Missing Reunion rows are treated as negative results, not as pending, so audit every eligible option before marking the phase ready.
 - [ ] Add a Retro Events row only for a genuine later correction. It must reveal after the scoring end of the phase it modifies. Do not invent one merely to make the checkbox pass.
-- [ ] Keep the fixed phase span values in the table above and set `RELEASE_LABEL` to `First episodes drop August 29, 2026`.
+- [ ] Keep the phase span values from the pre-flight gate, making only Patrick-approved corrections to the provisional Episodes 1–8 transitions, and set `RELEASE_LABEL` to `First episodes drop August 29, 2026`.
 - [ ] Save the draft. This changes only the sheet.
 - [ ] Run **Save & preview**. Confirm the season and sheet IDs, non-zero Cast and Couples data rows, the intended results rows, all six tab counts, and a document below 900,000 bytes.
 - [ ] Confirm there are no validation warnings that would make a real prediction market ambiguous. In particular, do not waive missing wedding outcomes, missing `who_says_no`, invalid retreat episodes, invalid result targets, or duplicate Retro/Dating events.
@@ -123,7 +166,7 @@ REUNION_RESULTS_READY=FALSE
 
 ## Episode publishing plan
 
-Keep `SEASON_STATUS=live`, `BOUNDARIES_LIVE=TRUE`, the fixed spans, budgets, caps, and multipliers unchanged from P1 through P12. A `TRUE` below remains `TRUE` on every later publish.
+Keep `SEASON_STATUS=live`, `BOUNDARIES_LIVE=TRUE`, the fixed Weddings/Reunion values, budgets, caps, and multipliers unchanged from P1 through P11. Keep Patrick's confirmed Episodes 1–8 transitions unchanged after they are known. A `TRUE` below remains `TRUE` on every later publish.
 
 | Publish | Available | Boundary finals after publish | Results ready after publish | Expected player effect |
 | --- | ---: | --- | --- | --- |
@@ -135,21 +178,20 @@ Keep `SEASON_STATUS=live`, `BOUNDARIES_LIVE=TRUE`, the fixed spans, budgets, cap
 | P6 | 6 | Pods | Pods | One more Retreats lock/watch cycle is available. |
 | P7 | 7 | Pods, Retreats | Pods, Retreats | Retreats can close; Weddings opens after the player continues. |
 | P8 | 8 | Pods, Retreats | Pods, Retreats | One more Weddings cycle is available. |
-| P9 | 9 | Pods, Retreats | Pods, Retreats | One more Weddings cycle is available. |
-| P10 | 10 | Pods, Retreats | Pods, Retreats | Final Weddings prediction window is available. |
-| P11 | 11 | Pods, Retreats, Weddings | Pods, Retreats, Weddings | Weddings can close; the one Reunion prediction window opens. |
-| P12 | 12 | all four | all four | Reunion can close and the season-complete screen is reachable. Keep status `live` during the rehearsal. |
+| P9 | 9 | Pods, Retreats | Pods, Retreats | Final Weddings prediction window is available. |
+| P10 | 10 | Pods, Retreats, Weddings | Pods, Retreats, Weddings | Weddings can close; the one Reunion prediction window opens. |
+| P11 | 11 | all four | all four | Reunion can close and the season-complete screen is reachable. Keep status `live` during the rehearsal. |
 
 At P1 change `SEASON_STATUS` from `comingSoon` to `live`. The publisher rejects `live` with availability below the Pods start, so `live/0` is not a valid staging state.
 
 Suggested weekend split:
 
 - **August 29:** P1, complete the device/invite setup, then P2–P7 and both Pods and Retreats completion-order checks.
-- **August 30:** P8–P12, then Weddings, Reunion, Retro if applicable, and destructive-action checks.
+- **August 30:** P8–P11, then Weddings, Reunion, Retro if applicable, and destructive-action checks.
 
 Do not advance merely to stay on this clock. A failed verification stops the sequence at the last known-good publish.
 
-Before each publish P1–P12:
+Before each publish P1–P11:
 
 - [ ] Update `AVAILABLE_THROUGH_EP` to exactly the table value. Do not skip a number.
 - [ ] Enter results exposed by that episode before setting the corresponding results-ready flag. Leave unresolved Retreats rows unconfirmed.
@@ -170,8 +212,8 @@ These combinations are derived from the current client and callable code:
 | Player reaches a phase end while its boundary is false | The player remains on the locked watch screen with “This phase is still provisional.” | Publish that boundary `TRUE`, then have the player refresh season data and complete the phase. |
 | Boundary true, results false | The player can complete. Pods/Weddings/Reunion scores stay hidden; Retreats shows only confirmed points as provisional. | This is recoverable, but do not call the phase verified until results are ready. |
 | Results true before outcomes are complete | Dating or Weddings can throw a season-data error; semantically incomplete Pods/Reunion data can silently score missing positives as misses. All pools use the same snapshot. | Never publish. Correct the data and preview again. |
-| `WEDDINGS_RESULTS_READY=FALSE` when a player enters Reunion | Relationship-status choices that depend on resolved wedding outcomes are unavailable. | Make Weddings results ready at P11 before allowing the Reunion board to open. |
-| `SEASON_STATUS=comingSoon` with a positive availability | The season remains unplayable despite the counter. | Use `live` for P1–P12. |
+| `WEDDINGS_RESULTS_READY=FALSE` when a player enters Reunion | Relationship-status choices that depend on resolved wedding outcomes are unavailable. | Make Weddings results ready at P10 before allowing the Reunion board to open. |
+| `SEASON_STATUS=comingSoon` with a positive availability | The season remains unplayable despite the counter. | Use `live` for P1–P11. |
 | `SEASON_STATUS=completed` with a false boundary | The automatic provisional repair requires a live season, and `reopenPhase` also refuses a completed season. | Never publish this combination; it can strand a player permanently. |
 | A boundary is final in the current snapshot | `reopenPhase` refuses while it remains final. If a later live publish makes the player's current phase provisional again, a player still on that phase's close screen can auto-reopen; a player who already continued to a later phase is not rewound. | Do not use boundary changes as a rewind mechanism. Treat completion plus **Continue** as irreversible for this rehearsal. |
 | `BOUNDARIES_LIVE=FALSE` while existing pools have frozen rules | Those pools can retain old starts/spans instead of receiving the new boundary map. | Keep `BOUNDARIES_LIVE=TRUE` for the entire rehearsal. |
@@ -203,7 +245,7 @@ Prepare the four accounts before P1:
 - [ ] In Settings, set **New episodes drop** on for all intended recipients. Verify `notificationPreferences/{uid}.newEpisodes=true` for each.
 - [ ] Turn **A new season drops** on for at least one account and off for another. On P1, inspect `mail/season_love-is-blind-uk-3_{uid}` only for opted-in accounts. The four-player pool does not exist yet, so Episode 1 mail is not part of this run.
 - [ ] After P2, inspect each expected `mail/episodes_love-is-blind-uk-3_2_{uid}`. Confirm `delivery.state=SUCCESS`, no delivery error, and actual mailbox receipt.
-- [ ] Repeat a spot check at P5, P7, P11, and P12. A missing document means preference, pool membership, user email, or trigger execution is wrong; an existing successful document with no second email means dedupe is working as coded.
+- [ ] Repeat a spot check at P5, P7, P10, and P11. A missing document means preference, pool membership, user email, or trigger execution is wrong; an existing successful document with no second email means dedupe is working as coded.
 
 Friend phase locks have their own IDs:
 
@@ -239,7 +281,7 @@ For every UI save, wait for **saved** before navigating. Keep Firestore and four
 This gate is part of the rehearsal. Do it before entering season picks because the first operational act is sharing a real link.
 
 - [ ] Account A creates a disposable friend pool named `UK3 Device Gate` and copies its full `https://throughthewall.ca/?join={poolId}.{joinCode}` URL.
-- [ ] In `pools/{gatePoolId}`, record `joinCode`; confirm `rulesSnapshot.version=5` and the fixed UK3 starts/spans.
+- [ ] In `pools/{gatePoolId}`, record `joinCode`; confirm `rulesSnapshot.version=5` and the pre-flight UK3 starts/spans.
 - [ ] Test cross-device email-link sign-in once as B. Request B's link in one profile and open it in a signed-out second device/profile. Expect sign-in without an email prompt, Firebase action parameters removed, and `join` preserved until the pool join is processed. Leave the gate pool and sign out afterward.
 - [ ] Run the four rows below. Use an account not currently in the gate pool. After each successful join, confirm the Firestore evidence, leave the pool, reset the link, and use the new link for the next row.
 
@@ -303,8 +345,8 @@ At each boundary publish, let all four accounts catch up, but register completio
 | --- | --- |
 | P5 — Pods after Episode 5 | A, C, B, D |
 | P7 — Retreats after Episode 7 | B, A, D, C |
-| P11 — Weddings after Episode 11 | C, D, A, B |
-| P12 — Reunion after Episode 12 | D, B, C, A |
+| P10 — Weddings after Episode 10 | C, D, A, B |
+| P11 — Reunion after Episode 11 | D, B, C, A |
 
 For every individual completion:
 
@@ -319,8 +361,8 @@ Additional end-specific checks:
 
 - [ ] At P5, Pods scores appear because `PODS_RESULTS_READY=TRUE`. If they do not, stop before P6.
 - [ ] At P7, no Retreats row is pending and the provisional-results notice disappears once `DATING_RESULTS_READY=TRUE`.
-- [ ] At P11, every resolved wedding outcome scores and the Reunion relationship-status options are present.
-- [ ] At P12, the final account reaches **Season complete**. For D's first-place completion, inspect `mail/complete_{poolId}_reunion_{D}_{recipientUid}` with `friendPoolCompletions=true` on the recipient.
+- [ ] At P10, every resolved wedding outcome scores and the Reunion relationship-status options are present.
+- [ ] At P11, the final account reaches **Season complete**. For D's first-place completion, inspect `mail/complete_{poolId}_reunion_{D}_{recipientUid}` with `friendPoolCompletions=true` on the recipient.
 - [ ] Close the friend pool to new players only after the intended membership is final. In `pools/{poolId}`, expect `membershipClosed=true`. Once all four are complete and all results are ready, expect Final standings and Wrapped rather than a permanently live leaderboard.
 
 There is no trusted leaderboard document to inspect. Friend standings are computed in each client from `phaseStatus`, locked `phasePicks`, and the published season snapshot. Firestore proves the inputs, while agreement across the four UIs is the integration check.
@@ -334,7 +376,7 @@ Run this section only if the final UK3 source data contains a genuine Retro Even
 - [ ] Keep one account below `revealedEp`; its Standings must not reveal the correction.
 - [ ] Move another account through `revealedEp`. Expect the explanatory card with a `retro` chip; an unconfirmed row must also show pending/placeholder treatment.
 - [ ] After that account completes the phase owning the reveal, expect the Retro column and total adjustment. Reconcile it against the original `phasePicks/{appliesPhase}__{uid}` and the season row; there is no separate adjustment document.
-- [ ] Before P12 is accepted as final, resolve the row and publish `confirmed=TRUE`, or remove it from the approved fixture if it was not a real event. An unconfirmed Retro row is compatible with a pending-path check, not with finalized standings/Wrapped.
+- [ ] Before P11 is accepted as final, resolve the row and publish `confirmed=TRUE`, or remove it from the approved fixture if it was not a real event. An unconfirmed Retro row is compatible with a pending-path check, not with finalized standings/Wrapped.
 
 If there is no legitimate row, record **N/A — no UK3 retro event in the published data**. Adding test-only fake outcome data is not an acceptable workaround.
 
@@ -419,7 +461,7 @@ Keep these separate from ordinary rehearsal failures:
 The rehearsal passes only when:
 
 - all device-gate rows have their required result or an explicitly accepted embedded-browser limitation;
-- the twelve deliberate availability states were published and verified in order;
+- the eleven deliberate availability states were published and verified in order;
 - all four players completed every phase in the specified cross-player order;
 - picks remained hidden until the viewer's own lock, then Standings updated live as peers completed;
 - Heat Check sharing, opt-out, and live refresh matched the Firestore documents;
@@ -427,4 +469,4 @@ The rehearsal passes only when:
 - every applicable Retro Events expectation passed or was recorded N/A for lack of a legitimate row;
 - reset link, leave pool, delete pool, and delete account produced the exact cleanup listed above;
 - no season-config banner, repeated save failure, exposed UI pick, callable platform 403, or unexplained mail failure occurred; and
-- UK3 is left either at the explicitly approved P12 state or the explicitly approved parked state, with its final backup path recorded.
+- UK3 is left either at the explicitly approved P11 state or the explicitly approved parked state, with its final backup path recorded.

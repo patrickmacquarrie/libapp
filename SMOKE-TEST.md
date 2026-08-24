@@ -24,6 +24,8 @@ Run this two-account checklist against production before the August 19, 2026 UK3
 
 ## Auth cutover device matrix (repeat before each public launch)
 
+**Recorded result — PASS (August 24, 2026).** Patrick reported that the full four-row device matrix passed against the production build then live. Read-only release verification identified that build as main commit `b8f9d80f4d869c30ced55c30223cfb0f161dcb3d`, deployed by GitHub Actions run `32541755756` on August 21 at 6:54 PM Mountain time. That revision contains `cf1afbe` through merge commit `4d8e7c1`, and the fetched production app contains the expiring `localStorage` fallback for `?join=`. The result therefore covers the invitation round trip across Google redirect, not only bare sign-in. Do not repeat this matrix for the current release; retain the checklist below for the next public launch.
+
 Prepare one throwaway friend pool and copy its full `https://throughthewall.ca/?join=<pool>.<code>` invitation link. Use an account that is not yet in that pool. For each test below, the pass condition is: the link opens on `throughthewall.ca`, Google sign-in replaces the whole page rather than opening a popup, the app returns to `throughthewall.ca`, the intended pool is joined, and no Firebase error code or CSP violation appears. Do not reuse the same account after it joins; reset the invite link or use another throwaway account.
 
 ### iOS Safari
