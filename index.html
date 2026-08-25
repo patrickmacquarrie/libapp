@@ -1432,6 +1432,21 @@ const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>
   }));
 };
 /* MIRROR ENTRY HELPERS END */
+/* EPISODE GATE HELPERS START */
+const clampWatchTarget=(phase,currentWatch,requestedWatch,spans,availableThrough)=>{
+  const current=Number.isFinite(Number(currentWatch))?Number(currentWatch):0;
+  const requested=Number.isFinite(Number(requestedWatch))?Number(requestedWatch):current;
+  const phaseEnd=Number(spans?.[phase]?.endEp);
+  const available=Number(availableThrough);
+  const ceiling=Math.min(
+    Number.isFinite(phaseEnd)?phaseEnd:current,
+    Number.isFinite(available)?available:current,
+  );
+  // Never pretend someone has not watched an episode they already confirmed.
+  // Only pending or future progress is constrained when availability moves back.
+  return Math.max(current,Math.min(requested,ceiling));
+};
+/* EPISODE GATE HELPERS END */
 if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_click',{placement:'app_intent'});
 trackTtwEvent('app_arrival');
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
@@ -5540,11 +5555,19 @@ function App() {
           players[user.uid]=mine;
           status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid)};
         }
+        const restoredW=mine.w != null ? mine.w : (minePhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[minePhase]);
+        const restoredWatchThrough=clampWatchTarget(
+          minePhase,
+          restoredW,
+          Number.isFinite(mine.watchThrough)?mine.watchThrough:restoredW,
+          poolCfg.PH_SPAN,
+          poolCfg.AVAILABLE_THROUGH_EP,
+        );
         setPicks(normalizePicks(mine.picks));
         setPhase(minePhase);
         setScreen(mine.screen || 'intro');
-        setW(mine.w != null ? mine.w : (minePhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[minePhase]));
-        setWatchThrough(Number.isFinite(mine.watchThrough)?mine.watchThrough:(mine.w||0));
+        setW(restoredW);
+        setWatchThrough(restoredWatchThrough);
         setCompleted(mine.completed || {});
         setSeenRetroNotices(savedRetroNotices);
         // Recompute reveal/closeInfo from state
@@ -6005,11 +6028,15 @@ function App() {
     : watchedEp>=PH_STARTW[phaseId]&&watchedEp<predictionEndFor(phaseId);
   const finalPredictionWindowFor=phaseId=>!!eng&&phaseId!=='reunion'&&w===predictionEndFor(phaseId)-1&&
     (completedSeason||(BOUNDARIES_FINAL[phaseId]!==false&&AVAILABLE_THROUGH_EP>=predictionEndFor(phaseId)));
-  const nextAvailableEnd = () => rollingPhase
-    ? Math.min(PH_SPAN[phase].endEp,w+1,AVAILABLE_THROUGH_EP)
-    : Math.min(PH_SPAN[phase].endEp,AVAILABLE_THROUGH_EP);
+  const nextAvailableEnd = () => clampWatchTarget(
+    phase,w,rollingPhase?w+1:PH_SPAN[phase].endEp,PH_SPAN,AVAILABLE_THROUGH_EP,
+  );
   const startPods = async () => {
     if(gating) return;
+    if(PH_STARTW.pods>AVAILABLE_THROUGH_EP) {
+      setErr('The first Pods episode is not available yet. Refresh after the season is published.');
+      return;
+    }
     setGatingLabel('Opening the prediction board…');setGating(true);
     const start=PH_STARTW.pods;
     try {
@@ -6081,7 +6108,8 @@ function App() {
     } finally { setRetryingPhaseCompletion(false); }
   },[]);
   const finishWatch = async (targetOverride=null) => {
-    const target=Number.isFinite(targetOverride)?targetOverride:watchThrough;
+    const requestedTarget=Number.isFinite(targetOverride)?targetOverride:watchThrough;
+    const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);
     if(gating||target<=w) return;
     setGatingLabel('Saving your watch-through…');setGating(true);
     try {

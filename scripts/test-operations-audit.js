@@ -207,6 +207,21 @@ assert.equal(authContext.__pendingJoinFromRecord(storedJoin,1_000+30*60*1000+1),
 assert.equal(authContext.__pendingJoinFromStorageValues('legacy.pool-code','',1_001),'legacy.pool-code');
 assert.equal(authContext.__pendingJoinFromStorageValues('','legacy.pool-code',1_001),'','A non-expiring legacy invite must never be accepted from persistent storage.');
 assert.equal(authContext.__pendingJoinFromStorageValues('',storedJoin,1_001),'pool.code','A local fallback must preserve the invite when a mobile auth return loses sessionStorage.');
+
+const gateHelpersStart=html.indexOf('/* EPISODE GATE HELPERS START */');
+const gateHelpersEnd=html.indexOf('/* EPISODE GATE HELPERS END */');
+assert(gateHelpersStart>=0&&gateHelpersEnd>gateHelpersStart,'Episode gate helpers must remain independently testable.');
+const gateContext={};
+vm.createContext(gateContext);
+vm.runInContext(`${html.slice(gateHelpersStart,gateHelpersEnd)}\nthis.__clampWatchTarget=clampWatchTarget;`,gateContext);
+const liveSpans={pods:{endEp:4},dating:{endEp:7}};
+assert.equal(gateContext.__clampWatchTarget('pods',1,2,liveSpans,1),1,'A lowered availability ceiling must revoke pending Episode 2 access.');
+assert.equal(gateContext.__clampWatchTarget('pods',1,3,liveSpans,2),2,'Pending watch access must stop at the published ceiling.');
+assert.equal(gateContext.__clampWatchTarget('pods',2,3,liveSpans,1),2,'Confirmed watched progress must not be rewound when availability moves back.');
+assert.equal(gateContext.__clampWatchTarget('pods',3,9,liveSpans,9),4,'Pending watch access must stop at the phase end.');
+assert(html.includes('const restoredWatchThrough=clampWatchTarget('),'Pool entry must revalidate saved pending watch access.');
+assert(html.includes('const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);'),'Watch completion must revalidate its target immediately before saving.');
+assert(html.includes('if(PH_STARTW.pods>AVAILABLE_THROUGH_EP)'),'Pods start must refuse to cross the availability ceiling.');
 assert(html.includes('signInWithRedirect, getRedirectResult'),'Firebase redirect auth must be imported.');
 assert(!html.includes('signInWithPopup'),'Google sign-in must avoid popups in link-opening and in-app browsers.');
 assert(html.includes("rememberJoinForRedirect();\n  markAuthRedirectPending();\n  try{await signInWithRedirect(auth,provider);}"),'Google sign-in must preserve invite state and mark the redirect before navigation.');
