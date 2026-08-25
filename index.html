@@ -1432,21 +1432,6 @@ const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>
   }));
 };
 /* MIRROR ENTRY HELPERS END */
-/* EPISODE GATE HELPERS START */
-const clampWatchTarget=(phase,currentWatch,requestedWatch,spans,availableThrough)=>{
-  const current=Number.isFinite(Number(currentWatch))?Number(currentWatch):0;
-  const requested=Number.isFinite(Number(requestedWatch))?Number(requestedWatch):current;
-  const phaseEnd=Number(spans?.[phase]?.endEp);
-  const available=Number(availableThrough);
-  const ceiling=Math.min(
-    Number.isFinite(phaseEnd)?phaseEnd:current,
-    Number.isFinite(available)?available:current,
-  );
-  // Never pretend someone has not watched an episode they already confirmed.
-  // Only pending or future progress is constrained when availability moves back.
-  return Math.max(current,Math.min(requested,ceiling));
-};
-/* EPISODE GATE HELPERS END */
 if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_click',{placement:'app_intent'});
 trackTtwEvent('app_arrival');
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
@@ -2002,11 +1987,6 @@ function toObjects(rows) {
     Object.fromEntries(headers.map((h, i) => [h, r[i] || ''])));
 }
 const pBool = v => String(v).toUpperCase() === 'TRUE';
-/* CAST RELEASE HELPERS START */
-const castCompleteSetting=(value,seasonStatus)=>value==null||value===''
-  ? seasonStatus==='completed'
-  : pBool(value);
-/* CAST RELEASE HELPERS END */
 const alphaByName = (a,b) => String(a).localeCompare(String(b),undefined,{sensitivity:'base'});
 const cleanUsername = value => String(value||'').trim().replace(/\s+/g,' ');
 const usernameKey = value => cleanUsername(value).normalize('NFKC').toLocaleLowerCase();
@@ -2199,8 +2179,7 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     : (['complete','completed','finished','historical','closed','done'].includes(rawSeasonStatus)
       ? 'completed'
       : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live')));
-  const castComplete = castCompleteSetting(S.CAST_COMPLETE,seasonStatus);
-  const playable = castReady && castComplete && seasonStatus!=='comingSoon';
+  const playable = castReady && seasonStatus!=='comingSoon';
   // Live seasons default to movable, provisional act boundaries. Historical
   // seasons remain frozen unless their sheet explicitly opts into live bounds.
   const boundariesLive = boolSetting('BOUNDARIES_LIVE',seasonStatus==='live');
@@ -2497,7 +2476,7 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     }
     return {id:'retro-'+(index+1),market,target,voidMarket,appliesPhase,revealedEp,note,confirmed:pBool(r.confirmed),revealingPhase};
   });
-  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,CAST_COMPLETE:castComplete,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
+  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -5561,19 +5540,11 @@ function App() {
           players[user.uid]=mine;
           status[minePhase]={...status[minePhase],completedMembers:(status[minePhase].completedMembers||[]).filter(id=>id!==user.uid)};
         }
-        const restoredW=mine.w != null ? mine.w : (minePhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[minePhase]);
-        const restoredWatchThrough=clampWatchTarget(
-          minePhase,
-          restoredW,
-          Number.isFinite(mine.watchThrough)?mine.watchThrough:restoredW,
-          poolCfg.PH_SPAN,
-          poolCfg.AVAILABLE_THROUGH_EP,
-        );
         setPicks(normalizePicks(mine.picks));
         setPhase(minePhase);
         setScreen(mine.screen || 'intro');
-        setW(restoredW);
-        setWatchThrough(restoredWatchThrough);
+        setW(mine.w != null ? mine.w : (minePhase==='pods'?Math.max(0,PH_STARTW.pods-1):PH_STARTW[minePhase]));
+        setWatchThrough(Number.isFinite(mine.watchThrough)?mine.watchThrough:(mine.w||0));
         setCompleted(mine.completed || {});
         setSeenRetroNotices(savedRetroNotices);
         // Recompute reveal/closeInfo from state
@@ -6034,15 +6005,11 @@ function App() {
     : watchedEp>=PH_STARTW[phaseId]&&watchedEp<predictionEndFor(phaseId);
   const finalPredictionWindowFor=phaseId=>!!eng&&phaseId!=='reunion'&&w===predictionEndFor(phaseId)-1&&
     (completedSeason||(BOUNDARIES_FINAL[phaseId]!==false&&AVAILABLE_THROUGH_EP>=predictionEndFor(phaseId)));
-  const nextAvailableEnd = () => clampWatchTarget(
-    phase,w,rollingPhase?w+1:PH_SPAN[phase].endEp,PH_SPAN,AVAILABLE_THROUGH_EP,
-  );
+  const nextAvailableEnd = () => rollingPhase
+    ? Math.min(PH_SPAN[phase].endEp,w+1,AVAILABLE_THROUGH_EP)
+    : Math.min(PH_SPAN[phase].endEp,AVAILABLE_THROUGH_EP);
   const startPods = async () => {
     if(gating) return;
-    if(PH_STARTW.pods>AVAILABLE_THROUGH_EP) {
-      setErr('The first Pods episode is not available yet. Refresh after the season is published.');
-      return;
-    }
     setGatingLabel('Opening the prediction board…');setGating(true);
     const start=PH_STARTW.pods;
     try {
@@ -6114,8 +6081,7 @@ function App() {
     } finally { setRetryingPhaseCompletion(false); }
   },[]);
   const finishWatch = async (targetOverride=null) => {
-    const requestedTarget=Number.isFinite(targetOverride)?targetOverride:watchThrough;
-    const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);
+    const target=Number.isFinite(targetOverride)?targetOverride:watchThrough;
     if(gating||target<=w) return;
     setGatingLabel('Saving your watch-through…');setGating(true);
     try {

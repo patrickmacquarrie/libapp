@@ -25,16 +25,7 @@ Set the real `PODS`, `DATING`, `WEDDINGS`, and `REUNION` start and end episode v
 
 ## Publish and verify
 
-Editing the Google Sheet changes nothing in the live app until the Firestore `seasons/{seasonId}` snapshot is published. It is the app's primary season-data source; the Google Sheet is only the fallback.
-
-Before publishing, inspect the preview's published-versus-pending values and resolve any unexpected warning. A backward `AVAILABLE_THROUGH_EP` warning is informational, not a hard block, because an intentional rollback may be necessary.
-
-After every publish:
-
-1. Reload the app once.
-2. Confirm the available episode and release state match the published values.
-3. Confirm there is no season-config error banner.
-4. If there is an error, correct the sheet, publish again, and repeat these checks before walking away.
+After significant updates, publish the Firestore `seasons/{seasonId}` snapshot. It is the app's primary season-data source; the Google Sheet is the fallback.
 
 ## Post-deploy verification
 
@@ -50,3 +41,9 @@ gcloud run services update reopenphase \
 ```
 
 This only lets requests reach the callable. `reopenPhase` still requires Firebase sign-in, pool membership, a live season, and a provisional phase boundary.
+
+After every sheet edit:
+
+1. Reload the app once.
+2. Confirm there is no season-config error banner.
+3. If there is an error, correct the sheet and verify again before walking away.
