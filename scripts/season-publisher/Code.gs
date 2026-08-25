@@ -7,7 +7,7 @@ const APP_CONFIG_PATH = 'appConfig/public';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const MAX_SNAPSHOT_BYTES = 900000;
 const RELEASE_COMPARISON_SETTINGS = [
-  'SEASON_STATUS', 'CAST_COMPLETE', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL',
   'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'
 ];
@@ -26,7 +26,7 @@ const ADMIN_TABLE_KEYS = {
   retroEvents: ['market', 'target', 'voidMarket', 'appliesPhase', 'revealedEp', 'note', 'confirmed']
 };
 const ADMIN_EDITABLE_SETTINGS = [
-  'SEASON_STATUS', 'CAST_COMPLETE', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_START_EP', 'PODS_END_EP', 'DATING_START_EP', 'DATING_END_EP',
   'RETREAT_START_EP', 'RETREAT_END_EP', 'WEDDINGS_START_EP', 'WEDDINGS_END_EP',
   'REUNION_START_EP', 'REUNION_END_EP',
@@ -531,6 +531,11 @@ function seasonReleaseComparison_(built, current) {
   if (published && Number.isFinite(publishedAvailable) && Number.isFinite(pendingAvailable) && pendingAvailable < publishedAvailable) {
     warnings.push('AVAILABLE_THROUGH_EP moves backward from ' + publishedAvailable + ' to ' + pendingAvailable + '. Publishing will revoke pending episode access; confirmed watched progress is preserved.');
   }
+  const pendingCastComplete = String(pendingSettings.CAST_COMPLETE).toUpperCase() === 'TRUE';
+  const pendingAllowsIncompleteCast = String(pendingSettings.ALLOW_INCOMPLETE_CAST).toUpperCase() === 'TRUE';
+  if (pendingAllowsIncompleteCast && !pendingCastComplete) {
+    warnings.push('Incomplete-cast predictions are enabled. Once the season is Live, cast members and couples added later will change the prediction field and may change against-the-grain scoring.');
+  }
   return {publishedExists: !!published, settings: settings, rowCounts: rowCounts, warnings: warnings};
 }
 
@@ -889,7 +894,7 @@ function validateAdminSettings_(raw) {
     const maximum = key.includes('BUDGET') || key.includes('CAP') ? 10000 : (key.includes('_EP') ? 100 : 100);
     settings[key] = cleanAdminNumber_(settings[key], key, key.includes('_EP') ? 1 : 0, maximum);
   });
-  ['CAST_COMPLETE', 'BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
+  ['CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
     settings[key] = cleanAdminBoolean_(settings[key], false);
   });
 

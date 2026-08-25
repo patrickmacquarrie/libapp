@@ -158,7 +158,7 @@ const connectedModel=publisherContext.connectSeasonFromAdmin({
 assert.equal(connectedModel.seasonId,'love-is-blind-se-1');
 assert.equal(JSON.parse(mockScriptProperties.SEASONS_JSON).at(-1).label,'Sweden Season 1');
 const baseAdminSettings={
-  SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE',RELEASE_LABEL:'First episodes soon',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
+  SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE',ALLOW_INCOMPLETE_CAST:'FALSE',RELEASE_LABEL:'First episodes soon',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
   PODS_START_EP:'1',PODS_END_EP:'5',DATING_START_EP:'5',DATING_END_EP:'7',RETREAT_START_EP:'5',RETREAT_END_EP:'7',
   WEDDINGS_START_EP:'7',WEDDINGS_END_EP:'11',REUNION_START_EP:'11',REUNION_END_EP:'12',
   PODS_BOUNDARY_FINAL:'FALSE',DATING_BOUNDARY_FINAL:'FALSE',WEDDINGS_BOUNDARY_FINAL:'FALSE',REUNION_BOUNDARY_FINAL:'FALSE',
@@ -178,25 +178,27 @@ assert.equal(validatedAdmin.cast.length,2);
 assert.equal(validatedAdmin.couples[0].id,'alex-blair');
 assert.equal(validatedAdmin.settings.SEASON_STATUS,'upcoming');
 assert.equal(validatedAdmin.settings.CAST_COMPLETE,'FALSE');
+assert.equal(validatedAdmin.settings.ALLOW_INCOMPLETE_CAST,'FALSE');
 assert.equal(publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'comingSoon'}}).settings.SEASON_STATUS,'upcoming','The legacy status spelling must be saved canonically.');
 assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:''}),/love-is-blind-br-1.*SEASON_STATUS is empty/i);
 assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live'}));
 const releaseComparison=publisherContext.__seasonReleaseComparison({snapshot:{
   status:'live',
-  Settings:[{key:'CAST_COMPLETE',value:'TRUE'},{key:'AVAILABLE_THROUGH_EP',value:'1'},{key:'BOUNDARIES_LIVE',value:'FALSE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
+  Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'ALLOW_INCOMPLETE_CAST',value:'TRUE'},{key:'AVAILABLE_THROUGH_EP',value:'1'},{key:'BOUNDARIES_LIVE',value:'FALSE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
   Cast:[{name:'Alex'}],Couples:[]
 }}, {exists:true,fields:publisherContext.__mapFields({
   status:'live',
-  Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'AVAILABLE_THROUGH_EP',value:'2'},{key:'BOUNDARIES_LIVE',value:'TRUE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
+  Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'ALLOW_INCOMPLETE_CAST',value:'FALSE'},{key:'AVAILABLE_THROUGH_EP',value:'2'},{key:'BOUNDARIES_LIVE',value:'TRUE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
   Cast:[{name:'Alex'},{name:'Blair'}],Couples:[{id:'alex-blair'}]
 })});
 assert.equal(releaseComparison.publishedExists,true);
-assert.equal(releaseComparison.settings.find(item=>item.key==='CAST_COMPLETE').changed,true);
+assert.equal(releaseComparison.settings.find(item=>item.key==='ALLOW_INCOMPLETE_CAST').changed,true);
 assert.deepEqual(JSON.parse(JSON.stringify(releaseComparison.rowCounts)),[
   {tab:'Cast',published:2,pending:1,changed:true},
   {tab:'Couples',published:1,pending:0,changed:true}
 ]);
 assert.match(releaseComparison.warnings[0],/AVAILABLE_THROUGH_EP moves backward from 2 to 1/i);
+assert.match(releaseComparison.warnings[1],/Incomplete-cast predictions are enabled/i);
 assert.equal(publisherContext.__seasonReleaseComparison({snapshot:{status:'live',Settings:[{key:'AVAILABLE_THROUGH_EP',value:'3'}],Cast:[],Couples:[]}},{exists:false,fields:{}}).warnings.length,0);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,cast:[...baseAdminPayload.cast,{gender:'M',name:'alex'}]}),/duplicated/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,datingResults:[{market:'sex',coupleId:'alex-blair',episode:'9',confirmed:'TRUE'}]}),/Episodes 5 and 7/i);
@@ -207,20 +209,28 @@ const castReleaseEnd=html.indexOf('/* CAST RELEASE HELPERS END */');
 assert(castReleaseStart>=0&&castReleaseEnd>castReleaseStart,'Cast release helpers must remain independently testable.');
 const castReleaseContext={};
 vm.createContext(castReleaseContext);
-vm.runInContext(`const pBool=v=>String(v).toUpperCase()==='TRUE';\n${html.slice(castReleaseStart,castReleaseEnd)}\nthis.__castCompleteSetting=castCompleteSetting;`,castReleaseContext);
+vm.runInContext(`const pBool=v=>String(v).toUpperCase()==='TRUE';\n${html.slice(castReleaseStart,castReleaseEnd)}\nthis.__castCompleteSetting=castCompleteSetting;this.__seasonPlayable=seasonPlayable;`,castReleaseContext);
 assert.equal(castReleaseContext.__castCompleteSetting('', 'live'),false,'Old live snapshots must default to an incomplete cast.');
 assert.equal(castReleaseContext.__castCompleteSetting('', 'comingSoon'),false,'Old upcoming snapshots must default to an incomplete cast.');
 assert.equal(castReleaseContext.__castCompleteSetting('', 'completed'),true,'Old completed snapshots must retain historical playability.');
 assert.equal(castReleaseContext.__castCompleteSetting('TRUE', 'live'),true,'A live cast can be released explicitly.');
 assert.equal(castReleaseContext.__castCompleteSetting('FALSE', 'completed'),false,'An explicit false value must override the compatibility default.');
-assert(html.includes("const playable = castReady && castComplete && seasonStatus!=='comingSoon';"),'Playability must require both a viable and explicitly complete cast.');
-assert(seasonAdmin.includes("SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE'"),'New admin forms must use the canonical upcoming status and keep cast release off.');
+assert.equal(castReleaseContext.__seasonPlayable(true,true,false,'live'),true,'A complete viable live cast must be playable.');
+assert.equal(castReleaseContext.__seasonPlayable(true,false,true,'live'),true,'A deliberate incomplete-cast release must be playable.');
+assert.equal(castReleaseContext.__seasonPlayable(true,false,false,'live'),false,'An incomplete cast must remain blocked by default.');
+assert.equal(castReleaseContext.__seasonPlayable(false,false,true,'live'),false,'The override must not bypass the viable-cast requirement.');
+assert.equal(castReleaseContext.__seasonPlayable(true,false,true,'comingSoon'),false,'The override must not make an upcoming season playable.');
+assert.equal(castReleaseContext.__seasonPlayable(true,false,true,'completed'),false,'The override must apply only to live staged releases.');
+assert(html.includes("const playable = seasonPlayable(castReady,castComplete,allowIncompleteCast,seasonStatus);"),'Playability must use the explicit incomplete-cast release control.');
+assert(seasonAdmin.includes("SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE',ALLOW_INCOMPLETE_CAST:'FALSE'"),'New admin forms must keep incomplete-cast release off by default.');
+assert(seasonAdmin.includes('Allow predictions before cast is complete'),'The admin must expose the explicit incomplete-cast release control.');
 assert(seasonAdmin.includes("['upcoming','Upcoming']"),'The admin status control must emit the canonical upcoming value.');
 const previewPublisherSource=publisher.match(/function previewSeasonSnapshot[\s\S]*?\n}\n\n\/\*\*\n \* Backs up/)[0];
 assert(previewPublisherSource.includes('readFirestoreDocument_'),'Preview must read the current published snapshot for comparison.');
 assert(!previewPublisherSource.includes('writeFirestoreDocument_'),'Preview must remain strictly read-only.');
 assert(seasonAdmin.includes('Backward episode availability appears as a warning.'),'The admin must explain the non-blocking backward-availability warning.');
 assert(liveRunbook.includes('Editing the Google Sheet changes nothing in the live app until'),'The live runbook must state that sheet edits require publishing.');
+assert(liveRunbook.includes('ALLOW_INCOMPLETE_CAST'),'The live runbook must document deliberate staged-cast releases.');
 assert(liveRunbook.includes('After every publish:'),'The live runbook must require verification after each publish.');
 
 const authHelpersStart=html.indexOf('/* AUTH HELPERS START */');

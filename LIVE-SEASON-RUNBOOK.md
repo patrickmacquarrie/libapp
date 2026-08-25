@@ -15,6 +15,12 @@ Use this procedure while updating an active season from the Google Sheet.
 
 Never set `PODS_RESULTS_READY`, `DATING_RESULTS_READY`, `WEDDINGS_RESULTS_READY`, or `REUNION_RESULTS_READY` to `TRUE` until every required outcome for that phase has been entered. Incomplete data after a phase is marked ready causes a season-config error and pauses predictions for every player in every pool on that season.
 
+## Staged cast release
+
+Leave `CAST_COMPLETE=FALSE` while cast members may still be added. By default, this keeps predictions closed. For a deliberate staged launch, set `ALLOW_INCOMPLETE_CAST=TRUE`; the season can then open once it is Live and the published cast includes at least one man and one woman.
+
+Adding cast members or couples later changes the available prediction field and may change against-the-grain scoring. After each addition, publish a new snapshot and complete the verification steps below. Turn `ALLOW_INCOMPLETE_CAST` back off when `CAST_COMPLETE` becomes `TRUE` so the override does not remain enabled unnecessarily.
+
 ## Phase boundaries
 
 Set the real `PODS`, `DATING`, `WEDDINGS`, and `REUNION` start and end episode values in Settings as soon as the UK Season 3 episode structure is confirmed.
