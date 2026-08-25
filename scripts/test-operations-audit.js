@@ -12,6 +12,7 @@ const publisher=read('scripts/season-publisher/Code.gs');
 const seasonAdmin=read('scripts/season-publisher/Admin.html');
 const workflow=read('.github/workflows/deploy-pages.yml');
 const runbook=read('SEASON-LAUNCH-RUNBOOK.md');
+const liveRunbook=read('LIVE-SEASON-RUNBOOK.md');
 const buildSource=read('scripts/build.js');
 const firebaseConfig=read('firebase.json');
 const productionCsp=firebaseConfig.match(/"key":\s*"Content-Security-Policy",\s*"value":\s*"([^"]+)"/)?.[1]||'';
@@ -112,7 +113,7 @@ assert(seasonAdmin.includes('Phase starts must remain chronological')===false,'S
 
 const publisherContext={console};
 vm.createContext(publisherContext);
-vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;this.__publisherSeasonMetadata=publisherSeasonMetadata_;this.__assertPublishableSeasonStatus=assertPublishableSeasonStatus_',publisherContext);
+vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;this.__publisherSeasonMetadata=publisherSeasonMetadata_;this.__assertPublishableSeasonStatus=assertPublishableSeasonStatus_;this.__seasonReleaseComparison=seasonReleaseComparison_;this.__mapFields=mapFields_;',publisherContext);
 const seasons=publisherContext.__publisherSeasonRegistry({
   SEASON_ID:'love-is-blind-uk-3',
   SPREADSHEET_ID:'uk3sheet',
@@ -180,6 +181,23 @@ assert.equal(validatedAdmin.settings.CAST_COMPLETE,'FALSE');
 assert.equal(publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'comingSoon'}}).settings.SEASON_STATUS,'upcoming','The legacy status spelling must be saved canonically.');
 assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:''}),/love-is-blind-br-1.*SEASON_STATUS is empty/i);
 assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live'}));
+const releaseComparison=publisherContext.__seasonReleaseComparison({snapshot:{
+  status:'live',
+  Settings:[{key:'CAST_COMPLETE',value:'TRUE'},{key:'AVAILABLE_THROUGH_EP',value:'1'},{key:'BOUNDARIES_LIVE',value:'FALSE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
+  Cast:[{name:'Alex'}],Couples:[]
+}}, {exists:true,fields:publisherContext.__mapFields({
+  status:'live',
+  Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'AVAILABLE_THROUGH_EP',value:'2'},{key:'BOUNDARIES_LIVE',value:'TRUE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
+  Cast:[{name:'Alex'},{name:'Blair'}],Couples:[{id:'alex-blair'}]
+})});
+assert.equal(releaseComparison.publishedExists,true);
+assert.equal(releaseComparison.settings.find(item=>item.key==='CAST_COMPLETE').changed,true);
+assert.deepEqual(JSON.parse(JSON.stringify(releaseComparison.rowCounts)),[
+  {tab:'Cast',published:2,pending:1,changed:true},
+  {tab:'Couples',published:1,pending:0,changed:true}
+]);
+assert.match(releaseComparison.warnings[0],/AVAILABLE_THROUGH_EP moves backward from 2 to 1/i);
+assert.equal(publisherContext.__seasonReleaseComparison({snapshot:{status:'live',Settings:[{key:'AVAILABLE_THROUGH_EP',value:'3'}],Cast:[],Couples:[]}},{exists:false,fields:{}}).warnings.length,0);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,cast:[...baseAdminPayload.cast,{gender:'M',name:'alex'}]}),/duplicated/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,datingResults:[{market:'sex',coupleId:'alex-blair',episode:'9',confirmed:'TRUE'}]}),/Episodes 5 and 7/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:'0'}}),/live season/i);
@@ -198,6 +216,12 @@ assert.equal(castReleaseContext.__castCompleteSetting('FALSE', 'completed'),fals
 assert(html.includes("const playable = castReady && castComplete && seasonStatus!=='comingSoon';"),'Playability must require both a viable and explicitly complete cast.');
 assert(seasonAdmin.includes("SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE'"),'New admin forms must use the canonical upcoming status and keep cast release off.');
 assert(seasonAdmin.includes("['upcoming','Upcoming']"),'The admin status control must emit the canonical upcoming value.');
+const previewPublisherSource=publisher.match(/function previewSeasonSnapshot[\s\S]*?\n}\n\n\/\*\*\n \* Backs up/)[0];
+assert(previewPublisherSource.includes('readFirestoreDocument_'),'Preview must read the current published snapshot for comparison.');
+assert(!previewPublisherSource.includes('writeFirestoreDocument_'),'Preview must remain strictly read-only.');
+assert(seasonAdmin.includes('Backward episode availability appears as a warning.'),'The admin must explain the non-blocking backward-availability warning.');
+assert(liveRunbook.includes('Editing the Google Sheet changes nothing in the live app until'),'The live runbook must state that sheet edits require publishing.');
+assert(liveRunbook.includes('After every publish:'),'The live runbook must require verification after each publish.');
 
 const authHelpersStart=html.indexOf('/* AUTH HELPERS START */');
 const authHelpersEnd=html.indexOf('/* AUTH HELPERS END */');

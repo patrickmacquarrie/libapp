@@ -6,6 +6,11 @@ const BACKUP_COLLECTION = 'seasonSnapshotBackups';
 const APP_CONFIG_PATH = 'appConfig/public';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const MAX_SNAPSHOT_BYTES = 900000;
+const RELEASE_COMPARISON_SETTINGS = [
+  'SEASON_STATUS', 'CAST_COMPLETE', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL',
+  'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'
+];
 const ADMIN_TABLE_HEADERS = {
   cast: ['Gender', 'Name'],
   couples: ['ID', 'Him', 'Her', 'Engaged Ep', 'Wedding', 'Who Says No', 'Breakup Ep', 'Settled Ep', 'Together Now', 'lock_ep', 'Pods Eligible', 'Dating Eligible', 'Reunion Status Eligible'],
@@ -199,7 +204,15 @@ function rollbackSeasonFromAdmin(seasonId) {
 function previewSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
-  const summary = publishSummary_(config, built, {preview: true});
+  const seasonPath = 'seasons/' + config.seasonId;
+  const current = readFirestoreDocument_(config, seasonPath);
+  const comparison = seasonReleaseComparison_(built, current);
+  const summary = publishSummary_(config, built, {
+    preview: true,
+    documentPath: seasonPath,
+    comparison: comparison,
+    warnings: comparison.warnings
+  });
   console.log(JSON.stringify(summary));
   return summary;
 }
@@ -218,6 +231,7 @@ function publishSeasonSnapshot(seasonId) {
   }
   const seasonPath = 'seasons/' + config.seasonId;
   const current = readFirestoreDocument_(config, seasonPath);
+  const comparison = seasonReleaseComparison_(built, current);
   let backupPath = '';
 
   if (current.exists) {
@@ -232,7 +246,9 @@ function publishSeasonSnapshot(seasonId) {
   const summary = publishSummary_(config, built, {
     published: true,
     documentPath: seasonPath,
-    backupPath: backupPath || null
+    backupPath: backupPath || null,
+    comparison: comparison,
+    warnings: comparison.warnings
   });
   console.log(JSON.stringify(summary));
   return summary;
@@ -482,6 +498,72 @@ function publishSummary_(config, built, extra) {
     tabRowCounts: built.tabRowCounts,
     approximateBytes: built.approximateBytes
   }, extra || {});
+}
+
+function seasonReleaseComparison_(built, current) {
+  const pending = built.snapshot || {};
+  const published = current && current.exists ? plainFirestoreFields_(current.fields || {}) : null;
+  const pendingSettings = snapshotSettings_(pending);
+  const publishedSettings = snapshotSettings_(published);
+  const settings = RELEASE_COMPARISON_SETTINGS.map(function(key) {
+    const pendingValue = key === 'SEASON_STATUS' ? valueOrNull_(pending.status) : valueOrNull_(pendingSettings[key]);
+    const publishedValue = key === 'SEASON_STATUS' ? valueOrNull_(published && published.status) : valueOrNull_(publishedSettings[key]);
+    return {
+      key: key,
+      published: publishedValue,
+      pending: pendingValue,
+      changed: !!published && String(publishedValue) !== String(pendingValue)
+    };
+  });
+  const rowCounts = ['Cast', 'Couples'].map(function(tabName) {
+    const publishedCount = published && Array.isArray(published[tabName]) ? published[tabName].length : null;
+    const pendingCount = Array.isArray(pending[tabName]) ? pending[tabName].length : 0;
+    return {
+      tab: tabName,
+      published: publishedCount,
+      pending: pendingCount,
+      changed: publishedCount !== null && publishedCount !== pendingCount
+    };
+  });
+  const warnings = [];
+  const publishedAvailable = Number(publishedSettings.AVAILABLE_THROUGH_EP);
+  const pendingAvailable = Number(pendingSettings.AVAILABLE_THROUGH_EP);
+  if (published && Number.isFinite(publishedAvailable) && Number.isFinite(pendingAvailable) && pendingAvailable < publishedAvailable) {
+    warnings.push('AVAILABLE_THROUGH_EP moves backward from ' + publishedAvailable + ' to ' + pendingAvailable + '. Publishing will revoke pending episode access; confirmed watched progress is preserved.');
+  }
+  return {publishedExists: !!published, settings: settings, rowCounts: rowCounts, warnings: warnings};
+}
+
+function snapshotSettings_(snapshot) {
+  const result = {};
+  if (!snapshot || !Array.isArray(snapshot.Settings)) return result;
+  snapshot.Settings.forEach(function(row) {
+    if (row && row.key != null) result[String(row.key)] = row.value == null ? '' : row.value;
+  });
+  return result;
+}
+
+function valueOrNull_(value) {
+  return value == null ? null : value;
+}
+
+function plainFirestoreFields_(fields) {
+  return Object.fromEntries(Object.keys(fields || {}).map(function(key) {
+    return [key, plainFirestoreValue_(fields[key])];
+  }));
+}
+
+function plainFirestoreValue_(value) {
+  if (!value || typeof value !== 'object') return null;
+  if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
+  if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
+  if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue;
+  if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue);
+  if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
+  if (Object.prototype.hasOwnProperty.call(value, 'timestampValue')) return value.timestampValue;
+  if (value.arrayValue) return (value.arrayValue.values || []).map(plainFirestoreValue_);
+  if (value.mapValue) return plainFirestoreFields_(value.mapValue.fields || {});
+  return null;
 }
 
 function backupDocumentPath_(seasonId, reason) {
