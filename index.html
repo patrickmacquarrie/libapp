@@ -2002,6 +2002,11 @@ function toObjects(rows) {
     Object.fromEntries(headers.map((h, i) => [h, r[i] || ''])));
 }
 const pBool = v => String(v).toUpperCase() === 'TRUE';
+/* CAST RELEASE HELPERS START */
+const castCompleteSetting=(value,seasonStatus)=>value==null||value===''
+  ? seasonStatus==='completed'
+  : pBool(value);
+/* CAST RELEASE HELPERS END */
 const alphaByName = (a,b) => String(a).localeCompare(String(b),undefined,{sensitivity:'base'});
 const cleanUsername = value => String(value||'').trim().replace(/\s+/g,' ');
 const usernameKey = value => cleanUsername(value).normalize('NFKC').toLocaleLowerCase();
@@ -2194,7 +2199,8 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     : (['complete','completed','finished','historical','closed','done'].includes(rawSeasonStatus)
       ? 'completed'
       : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live')));
-  const playable = castReady && seasonStatus!=='comingSoon';
+  const castComplete = castCompleteSetting(S.CAST_COMPLETE,seasonStatus);
+  const playable = castReady && castComplete && seasonStatus!=='comingSoon';
   // Live seasons default to movable, provisional act boundaries. Historical
   // seasons remain frozen unless their sheet explicitly opts into live bounds.
   const boundariesLive = boolSetting('BOUNDARIES_LIVE',seasonStatus==='live');
@@ -2491,7 +2497,7 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     }
     return {id:'retro-'+(index+1),market,target,voidMarket,appliesPhase,revealedEp,note,confirmed:pBool(r.confirmed),revealingPhase};
   });
-  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
+  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,CAST_COMPLETE:castComplete,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */

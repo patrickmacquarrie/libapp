@@ -21,7 +21,7 @@ const ADMIN_TABLE_KEYS = {
   retroEvents: ['market', 'target', 'voidMarket', 'appliesPhase', 'revealedEp', 'note', 'confirmed']
 };
 const ADMIN_EDITABLE_SETTINGS = [
-  'SEASON_STATUS', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'SEASON_STATUS', 'CAST_COMPLETE', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_START_EP', 'PODS_END_EP', 'DATING_START_EP', 'DATING_END_EP',
   'RETREAT_START_EP', 'RETREAT_END_EP', 'WEDDINGS_START_EP', 'WEDDINGS_END_EP',
   'REUNION_START_EP', 'REUNION_END_EP',
@@ -210,6 +210,7 @@ function previewSeasonSnapshot(seasonId) {
 function publishSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
+  assertPublishableSeasonStatus_(config, built);
   const publishedStatus = firestoreStringField_(built.fields, 'status').toLowerCase();
   const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
   if (isCurrentDefault && publishedStatus === 'completed') {
@@ -446,6 +447,7 @@ function buildSeasonSnapshot_(config) {
     tabRowCounts[tabName] = rows.length;
   });
 
+  const explicitStatus = setting_(tabs.Settings, 'SEASON_STATUS');
   const status = deriveSeasonStatus_(tabs.Settings);
   const snapshot = Object.assign({
     seasonId: config.seasonId,
@@ -462,7 +464,13 @@ function buildSeasonSnapshot_(config) {
     throw new Error('Snapshot is approximately ' + approximateBytes +
       " bytes; reduce it before approaching Firestore's 1 MiB document limit.");
   }
-  return {fields: fields, status: status, tabRowCounts: tabRowCounts, approximateBytes: approximateBytes};
+  return {fields: fields, snapshot: snapshot, explicitStatus: explicitStatus, status: status, tabRowCounts: tabRowCounts, approximateBytes: approximateBytes};
+}
+
+function assertPublishableSeasonStatus_(config, built) {
+  if (!String(built && built.explicitStatus || '').trim()) {
+    throw new Error('Season "' + config.seasonId + '" cannot be published because SEASON_STATUS is empty. Choose Upcoming, Live, or Completed explicitly.');
+  }
 }
 
 function publishSummary_(config, built, extra) {
@@ -780,8 +788,9 @@ function validateAdminSettings_(raw) {
     if (Object.prototype.hasOwnProperty.call(raw, key)) settings[key] = cleanAdminString_(raw[key], 180);
   });
   const status = String(settings.SEASON_STATUS || '').trim();
-  if (!['comingSoon', 'live', 'completed'].includes(status)) throw new Error('Choose Upcoming, Live, or Completed for the season status.');
-  settings.SEASON_STATUS = status;
+  const normalizedStatus = status === 'comingSoon' ? 'upcoming' : status;
+  if (!['upcoming', 'live', 'completed'].includes(normalizedStatus)) throw new Error('Choose Upcoming, Live, or Completed for the season status.');
+  settings.SEASON_STATUS = normalizedStatus;
   settings.AVAILABLE_THROUGH_EP = cleanAdminNumber_(settings.AVAILABLE_THROUGH_EP || 0, 'Available-through episode', 0, 100);
 
   const numberKeys = [
@@ -798,7 +807,7 @@ function validateAdminSettings_(raw) {
     const maximum = key.includes('BUDGET') || key.includes('CAP') ? 10000 : (key.includes('_EP') ? 100 : 100);
     settings[key] = cleanAdminNumber_(settings[key], key, key.includes('_EP') ? 1 : 0, maximum);
   });
-  ['BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
+  ['CAST_COMPLETE', 'BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
     settings[key] = cleanAdminBoolean_(settings[key], false);
   });
 
@@ -810,7 +819,7 @@ function validateAdminSettings_(raw) {
   });
   const retreatStart = Number(settings.RETREAT_START_EP), retreatEnd = Number(settings.RETREAT_END_EP);
   if (retreatStart < starts[1] || retreatEnd < retreatStart || retreatEnd > ends[1]) throw new Error('The retreat scoring window must sit inside the Dating phase.');
-  if (status === 'live' && Number(settings.AVAILABLE_THROUGH_EP) < starts[0]) throw new Error('A live season must make at least the first Pods episode available.');
+  if (normalizedStatus === 'live' && Number(settings.AVAILABLE_THROUGH_EP) < starts[0]) throw new Error('A live season must make at least the first Pods episode available.');
   if (Number(settings.AVAILABLE_THROUGH_EP) > ends[3]) throw new Error('Available-through episode cannot exceed the Reunion end.');
   return settings;
 }
