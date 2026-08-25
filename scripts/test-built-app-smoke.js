@@ -31,7 +31,21 @@ function resolveRequestFile(requestUrl) {
 }
 
 function startServer() {
-  const server=http.createServer((request,response)=>{
+  const server=http.createServer(async(request,response)=>{
+    const pathname=new URL(request.url||'/','http://localhost').pathname;
+    const firebaseSdk=pathname.match(/^\/__\/firebase\/11\.2\.0\/(firebase-(?:app|auth|firestore|functions)\.js)$/);
+    if(firebaseSdk){
+      try{
+        const upstream=await fetch(`https://www.gstatic.com/firebasejs/11.2.0/${firebaseSdk[1]}`);
+        if(!upstream.ok)throw new Error(`Firebase SDK returned ${upstream.status}.`);
+        response.writeHead(200,{'Cache-Control':'no-store','Content-Type':'text/javascript; charset=utf-8'});
+        response.end(Buffer.from(await upstream.arrayBuffer()));
+      }catch(error){
+        response.writeHead(502,{'Content-Type':'text/plain; charset=utf-8'});
+        response.end(`Could not proxy the Firebase SDK: ${error.message}`);
+      }
+      return;
+    }
     const file=resolveRequestFile(request.url||'/');
     if(!file||!fs.existsSync(file)||!fs.statSync(file).isFile()){
       response.writeHead(404,{'Content-Type':'text/plain; charset=utf-8'});
