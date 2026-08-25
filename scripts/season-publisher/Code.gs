@@ -6,6 +6,11 @@ const BACKUP_COLLECTION = 'seasonSnapshotBackups';
 const APP_CONFIG_PATH = 'appConfig/public';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const MAX_SNAPSHOT_BYTES = 900000;
+const RELEASE_COMPARISON_SETTINGS = [
+  'SEASON_STATUS', 'CAST_COMPLETE', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL',
+  'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'
+];
 const ADMIN_TABLE_HEADERS = {
   cast: ['Gender', 'Name'],
   couples: ['ID', 'Him', 'Her', 'Engaged Ep', 'Wedding', 'Who Says No', 'Breakup Ep', 'Settled Ep', 'Together Now', 'lock_ep', 'Pods Eligible', 'Dating Eligible', 'Reunion Status Eligible'],
@@ -21,7 +26,7 @@ const ADMIN_TABLE_KEYS = {
   retroEvents: ['market', 'target', 'voidMarket', 'appliesPhase', 'revealedEp', 'note', 'confirmed']
 };
 const ADMIN_EDITABLE_SETTINGS = [
-  'SEASON_STATUS', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'SEASON_STATUS', 'CAST_COMPLETE', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_START_EP', 'PODS_END_EP', 'DATING_START_EP', 'DATING_END_EP',
   'RETREAT_START_EP', 'RETREAT_END_EP', 'WEDDINGS_START_EP', 'WEDDINGS_END_EP',
   'REUNION_START_EP', 'REUNION_END_EP',
@@ -199,7 +204,15 @@ function rollbackSeasonFromAdmin(seasonId) {
 function previewSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
-  const summary = publishSummary_(config, built, {preview: true});
+  const seasonPath = 'seasons/' + config.seasonId;
+  const current = readFirestoreDocument_(config, seasonPath);
+  const comparison = seasonReleaseComparison_(built, current);
+  const summary = publishSummary_(config, built, {
+    preview: true,
+    documentPath: seasonPath,
+    comparison: comparison,
+    warnings: comparison.warnings
+  });
   console.log(JSON.stringify(summary));
   return summary;
 }
@@ -210,6 +223,7 @@ function previewSeasonSnapshot(seasonId) {
 function publishSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
+  assertPublishableSeasonStatus_(config, built);
   const publishedStatus = firestoreStringField_(built.fields, 'status').toLowerCase();
   const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
   if (isCurrentDefault && publishedStatus === 'completed') {
@@ -217,6 +231,7 @@ function publishSeasonSnapshot(seasonId) {
   }
   const seasonPath = 'seasons/' + config.seasonId;
   const current = readFirestoreDocument_(config, seasonPath);
+  const comparison = seasonReleaseComparison_(built, current);
   let backupPath = '';
 
   if (current.exists) {
@@ -231,7 +246,9 @@ function publishSeasonSnapshot(seasonId) {
   const summary = publishSummary_(config, built, {
     published: true,
     documentPath: seasonPath,
-    backupPath: backupPath || null
+    backupPath: backupPath || null,
+    comparison: comparison,
+    warnings: comparison.warnings
   });
   console.log(JSON.stringify(summary));
   return summary;
@@ -446,6 +463,7 @@ function buildSeasonSnapshot_(config) {
     tabRowCounts[tabName] = rows.length;
   });
 
+  const explicitStatus = setting_(tabs.Settings, 'SEASON_STATUS');
   const status = deriveSeasonStatus_(tabs.Settings);
   const snapshot = Object.assign({
     seasonId: config.seasonId,
@@ -462,7 +480,13 @@ function buildSeasonSnapshot_(config) {
     throw new Error('Snapshot is approximately ' + approximateBytes +
       " bytes; reduce it before approaching Firestore's 1 MiB document limit.");
   }
-  return {fields: fields, status: status, tabRowCounts: tabRowCounts, approximateBytes: approximateBytes};
+  return {fields: fields, snapshot: snapshot, explicitStatus: explicitStatus, status: status, tabRowCounts: tabRowCounts, approximateBytes: approximateBytes};
+}
+
+function assertPublishableSeasonStatus_(config, built) {
+  if (!String(built && built.explicitStatus || '').trim()) {
+    throw new Error('Season "' + config.seasonId + '" cannot be published because SEASON_STATUS is empty. Choose Upcoming, Live, or Completed explicitly.');
+  }
 }
 
 function publishSummary_(config, built, extra) {
@@ -474,6 +498,72 @@ function publishSummary_(config, built, extra) {
     tabRowCounts: built.tabRowCounts,
     approximateBytes: built.approximateBytes
   }, extra || {});
+}
+
+function seasonReleaseComparison_(built, current) {
+  const pending = built.snapshot || {};
+  const published = current && current.exists ? plainFirestoreFields_(current.fields || {}) : null;
+  const pendingSettings = snapshotSettings_(pending);
+  const publishedSettings = snapshotSettings_(published);
+  const settings = RELEASE_COMPARISON_SETTINGS.map(function(key) {
+    const pendingValue = key === 'SEASON_STATUS' ? valueOrNull_(pending.status) : valueOrNull_(pendingSettings[key]);
+    const publishedValue = key === 'SEASON_STATUS' ? valueOrNull_(published && published.status) : valueOrNull_(publishedSettings[key]);
+    return {
+      key: key,
+      published: publishedValue,
+      pending: pendingValue,
+      changed: !!published && String(publishedValue) !== String(pendingValue)
+    };
+  });
+  const rowCounts = ['Cast', 'Couples'].map(function(tabName) {
+    const publishedCount = published && Array.isArray(published[tabName]) ? published[tabName].length : null;
+    const pendingCount = Array.isArray(pending[tabName]) ? pending[tabName].length : 0;
+    return {
+      tab: tabName,
+      published: publishedCount,
+      pending: pendingCount,
+      changed: publishedCount !== null && publishedCount !== pendingCount
+    };
+  });
+  const warnings = [];
+  const publishedAvailable = Number(publishedSettings.AVAILABLE_THROUGH_EP);
+  const pendingAvailable = Number(pendingSettings.AVAILABLE_THROUGH_EP);
+  if (published && Number.isFinite(publishedAvailable) && Number.isFinite(pendingAvailable) && pendingAvailable < publishedAvailable) {
+    warnings.push('AVAILABLE_THROUGH_EP moves backward from ' + publishedAvailable + ' to ' + pendingAvailable + '. Publishing will revoke pending episode access; confirmed watched progress is preserved.');
+  }
+  return {publishedExists: !!published, settings: settings, rowCounts: rowCounts, warnings: warnings};
+}
+
+function snapshotSettings_(snapshot) {
+  const result = {};
+  if (!snapshot || !Array.isArray(snapshot.Settings)) return result;
+  snapshot.Settings.forEach(function(row) {
+    if (row && row.key != null) result[String(row.key)] = row.value == null ? '' : row.value;
+  });
+  return result;
+}
+
+function valueOrNull_(value) {
+  return value == null ? null : value;
+}
+
+function plainFirestoreFields_(fields) {
+  return Object.fromEntries(Object.keys(fields || {}).map(function(key) {
+    return [key, plainFirestoreValue_(fields[key])];
+  }));
+}
+
+function plainFirestoreValue_(value) {
+  if (!value || typeof value !== 'object') return null;
+  if (Object.prototype.hasOwnProperty.call(value, 'nullValue')) return null;
+  if (Object.prototype.hasOwnProperty.call(value, 'stringValue')) return value.stringValue;
+  if (Object.prototype.hasOwnProperty.call(value, 'booleanValue')) return value.booleanValue;
+  if (Object.prototype.hasOwnProperty.call(value, 'integerValue')) return Number(value.integerValue);
+  if (Object.prototype.hasOwnProperty.call(value, 'doubleValue')) return Number(value.doubleValue);
+  if (Object.prototype.hasOwnProperty.call(value, 'timestampValue')) return value.timestampValue;
+  if (value.arrayValue) return (value.arrayValue.values || []).map(plainFirestoreValue_);
+  if (value.mapValue) return plainFirestoreFields_(value.mapValue.fields || {});
+  return null;
 }
 
 function backupDocumentPath_(seasonId, reason) {
@@ -780,8 +870,9 @@ function validateAdminSettings_(raw) {
     if (Object.prototype.hasOwnProperty.call(raw, key)) settings[key] = cleanAdminString_(raw[key], 180);
   });
   const status = String(settings.SEASON_STATUS || '').trim();
-  if (!['comingSoon', 'live', 'completed'].includes(status)) throw new Error('Choose Upcoming, Live, or Completed for the season status.');
-  settings.SEASON_STATUS = status;
+  const normalizedStatus = status === 'comingSoon' ? 'upcoming' : status;
+  if (!['upcoming', 'live', 'completed'].includes(normalizedStatus)) throw new Error('Choose Upcoming, Live, or Completed for the season status.');
+  settings.SEASON_STATUS = normalizedStatus;
   settings.AVAILABLE_THROUGH_EP = cleanAdminNumber_(settings.AVAILABLE_THROUGH_EP || 0, 'Available-through episode', 0, 100);
 
   const numberKeys = [
@@ -798,7 +889,7 @@ function validateAdminSettings_(raw) {
     const maximum = key.includes('BUDGET') || key.includes('CAP') ? 10000 : (key.includes('_EP') ? 100 : 100);
     settings[key] = cleanAdminNumber_(settings[key], key, key.includes('_EP') ? 1 : 0, maximum);
   });
-  ['BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
+  ['CAST_COMPLETE', 'BOUNDARIES_LIVE', 'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL', 'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'].forEach(function(key) {
     settings[key] = cleanAdminBoolean_(settings[key], false);
   });
 
@@ -810,7 +901,7 @@ function validateAdminSettings_(raw) {
   });
   const retreatStart = Number(settings.RETREAT_START_EP), retreatEnd = Number(settings.RETREAT_END_EP);
   if (retreatStart < starts[1] || retreatEnd < retreatStart || retreatEnd > ends[1]) throw new Error('The retreat scoring window must sit inside the Dating phase.');
-  if (status === 'live' && Number(settings.AVAILABLE_THROUGH_EP) < starts[0]) throw new Error('A live season must make at least the first Pods episode available.');
+  if (normalizedStatus === 'live' && Number(settings.AVAILABLE_THROUGH_EP) < starts[0]) throw new Error('A live season must make at least the first Pods episode available.');
   if (Number(settings.AVAILABLE_THROUGH_EP) > ends[3]) throw new Error('Available-through episode cannot exceed the Reunion end.');
   return settings;
 }

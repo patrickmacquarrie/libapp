@@ -12,6 +12,7 @@ const publisher=read('scripts/season-publisher/Code.gs');
 const seasonAdmin=read('scripts/season-publisher/Admin.html');
 const workflow=read('.github/workflows/deploy-pages.yml');
 const runbook=read('SEASON-LAUNCH-RUNBOOK.md');
+const liveRunbook=read('LIVE-SEASON-RUNBOOK.md');
 const buildSource=read('scripts/build.js');
 const firebaseConfig=read('firebase.json');
 const productionCsp=firebaseConfig.match(/"key":\s*"Content-Security-Policy",\s*"value":\s*"([^"]+)"/)?.[1]||'';
@@ -112,7 +113,7 @@ assert(seasonAdmin.includes('Phase starts must remain chronological')===false,'S
 
 const publisherContext={console};
 vm.createContext(publisherContext);
-vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;this.__publisherSeasonMetadata=publisherSeasonMetadata_;',publisherContext);
+vm.runInContext(publisher+'\nthis.__validateSeasonAdminPayload=validateSeasonAdminPayload_;this.__publisherSeasonRegistry=publisherSeasonRegistryFromProperties_;this.__publisherSpreadsheetId=publisherSpreadsheetId_;this.__upsertPublisherSeason=upsertPublisherSeason_;this.__publisherSeasonMetadata=publisherSeasonMetadata_;this.__assertPublishableSeasonStatus=assertPublishableSeasonStatus_;this.__seasonReleaseComparison=seasonReleaseComparison_;this.__mapFields=mapFields_;',publisherContext);
 const seasons=publisherContext.__publisherSeasonRegistry({
   SEASON_ID:'love-is-blind-uk-3',
   SPREADSHEET_ID:'uk3sheet',
@@ -157,7 +158,7 @@ const connectedModel=publisherContext.connectSeasonFromAdmin({
 assert.equal(connectedModel.seasonId,'love-is-blind-se-1');
 assert.equal(JSON.parse(mockScriptProperties.SEASONS_JSON).at(-1).label,'Sweden Season 1');
 const baseAdminSettings={
-  SEASON_STATUS:'comingSoon',RELEASE_LABEL:'First episodes soon',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
+  SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE',RELEASE_LABEL:'First episodes soon',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
   PODS_START_EP:'1',PODS_END_EP:'5',DATING_START_EP:'5',DATING_END_EP:'7',RETREAT_START_EP:'5',RETREAT_END_EP:'7',
   WEDDINGS_START_EP:'7',WEDDINGS_END_EP:'11',REUNION_START_EP:'11',REUNION_END_EP:'12',
   PODS_BOUNDARY_FINAL:'FALSE',DATING_BOUNDARY_FINAL:'FALSE',WEDDINGS_BOUNDARY_FINAL:'FALSE',REUNION_BOUNDARY_FINAL:'FALSE',
@@ -175,9 +176,52 @@ const baseAdminPayload={
 const validatedAdmin=publisherContext.__validateSeasonAdminPayload(baseAdminPayload);
 assert.equal(validatedAdmin.cast.length,2);
 assert.equal(validatedAdmin.couples[0].id,'alex-blair');
+assert.equal(validatedAdmin.settings.SEASON_STATUS,'upcoming');
+assert.equal(validatedAdmin.settings.CAST_COMPLETE,'FALSE');
+assert.equal(publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'comingSoon'}}).settings.SEASON_STATUS,'upcoming','The legacy status spelling must be saved canonically.');
+assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:''}),/love-is-blind-br-1.*SEASON_STATUS is empty/i);
+assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live'}));
+const releaseComparison=publisherContext.__seasonReleaseComparison({snapshot:{
+  status:'live',
+  Settings:[{key:'CAST_COMPLETE',value:'TRUE'},{key:'AVAILABLE_THROUGH_EP',value:'1'},{key:'BOUNDARIES_LIVE',value:'FALSE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
+  Cast:[{name:'Alex'}],Couples:[]
+}}, {exists:true,fields:publisherContext.__mapFields({
+  status:'live',
+  Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'AVAILABLE_THROUGH_EP',value:'2'},{key:'BOUNDARIES_LIVE',value:'TRUE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
+  Cast:[{name:'Alex'},{name:'Blair'}],Couples:[{id:'alex-blair'}]
+})});
+assert.equal(releaseComparison.publishedExists,true);
+assert.equal(releaseComparison.settings.find(item=>item.key==='CAST_COMPLETE').changed,true);
+assert.deepEqual(JSON.parse(JSON.stringify(releaseComparison.rowCounts)),[
+  {tab:'Cast',published:2,pending:1,changed:true},
+  {tab:'Couples',published:1,pending:0,changed:true}
+]);
+assert.match(releaseComparison.warnings[0],/AVAILABLE_THROUGH_EP moves backward from 2 to 1/i);
+assert.equal(publisherContext.__seasonReleaseComparison({snapshot:{status:'live',Settings:[{key:'AVAILABLE_THROUGH_EP',value:'3'}],Cast:[],Couples:[]}},{exists:false,fields:{}}).warnings.length,0);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,cast:[...baseAdminPayload.cast,{gender:'M',name:'alex'}]}),/duplicated/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,datingResults:[{market:'sex',coupleId:'alex-blair',episode:'9',confirmed:'TRUE'}]}),/Episodes 5 and 7/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:'0'}}),/live season/i);
+
+const castReleaseStart=html.indexOf('/* CAST RELEASE HELPERS START */');
+const castReleaseEnd=html.indexOf('/* CAST RELEASE HELPERS END */');
+assert(castReleaseStart>=0&&castReleaseEnd>castReleaseStart,'Cast release helpers must remain independently testable.');
+const castReleaseContext={};
+vm.createContext(castReleaseContext);
+vm.runInContext(`const pBool=v=>String(v).toUpperCase()==='TRUE';\n${html.slice(castReleaseStart,castReleaseEnd)}\nthis.__castCompleteSetting=castCompleteSetting;`,castReleaseContext);
+assert.equal(castReleaseContext.__castCompleteSetting('', 'live'),false,'Old live snapshots must default to an incomplete cast.');
+assert.equal(castReleaseContext.__castCompleteSetting('', 'comingSoon'),false,'Old upcoming snapshots must default to an incomplete cast.');
+assert.equal(castReleaseContext.__castCompleteSetting('', 'completed'),true,'Old completed snapshots must retain historical playability.');
+assert.equal(castReleaseContext.__castCompleteSetting('TRUE', 'live'),true,'A live cast can be released explicitly.');
+assert.equal(castReleaseContext.__castCompleteSetting('FALSE', 'completed'),false,'An explicit false value must override the compatibility default.');
+assert(html.includes("const playable = castReady && castComplete && seasonStatus!=='comingSoon';"),'Playability must require both a viable and explicitly complete cast.');
+assert(seasonAdmin.includes("SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE'"),'New admin forms must use the canonical upcoming status and keep cast release off.');
+assert(seasonAdmin.includes("['upcoming','Upcoming']"),'The admin status control must emit the canonical upcoming value.');
+const previewPublisherSource=publisher.match(/function previewSeasonSnapshot[\s\S]*?\n}\n\n\/\*\*\n \* Backs up/)[0];
+assert(previewPublisherSource.includes('readFirestoreDocument_'),'Preview must read the current published snapshot for comparison.');
+assert(!previewPublisherSource.includes('writeFirestoreDocument_'),'Preview must remain strictly read-only.');
+assert(seasonAdmin.includes('Backward episode availability appears as a warning.'),'The admin must explain the non-blocking backward-availability warning.');
+assert(liveRunbook.includes('Editing the Google Sheet changes nothing in the live app until'),'The live runbook must state that sheet edits require publishing.');
+assert(liveRunbook.includes('After every publish:'),'The live runbook must require verification after each publish.');
 
 const authHelpersStart=html.indexOf('/* AUTH HELPERS START */');
 const authHelpersEnd=html.indexOf('/* AUTH HELPERS END */');
@@ -207,6 +251,21 @@ assert.equal(authContext.__pendingJoinFromRecord(storedJoin,1_000+30*60*1000+1),
 assert.equal(authContext.__pendingJoinFromStorageValues('legacy.pool-code','',1_001),'legacy.pool-code');
 assert.equal(authContext.__pendingJoinFromStorageValues('','legacy.pool-code',1_001),'','A non-expiring legacy invite must never be accepted from persistent storage.');
 assert.equal(authContext.__pendingJoinFromStorageValues('',storedJoin,1_001),'pool.code','A local fallback must preserve the invite when a mobile auth return loses sessionStorage.');
+
+const gateHelpersStart=html.indexOf('/* EPISODE GATE HELPERS START */');
+const gateHelpersEnd=html.indexOf('/* EPISODE GATE HELPERS END */');
+assert(gateHelpersStart>=0&&gateHelpersEnd>gateHelpersStart,'Episode gate helpers must remain independently testable.');
+const gateContext={};
+vm.createContext(gateContext);
+vm.runInContext(`${html.slice(gateHelpersStart,gateHelpersEnd)}\nthis.__clampWatchTarget=clampWatchTarget;`,gateContext);
+const liveSpans={pods:{endEp:4},dating:{endEp:7}};
+assert.equal(gateContext.__clampWatchTarget('pods',1,2,liveSpans,1),1,'A lowered availability ceiling must revoke pending Episode 2 access.');
+assert.equal(gateContext.__clampWatchTarget('pods',1,3,liveSpans,2),2,'Pending watch access must stop at the published ceiling.');
+assert.equal(gateContext.__clampWatchTarget('pods',2,3,liveSpans,1),2,'Confirmed watched progress must not be rewound when availability moves back.');
+assert.equal(gateContext.__clampWatchTarget('pods',3,9,liveSpans,9),4,'Pending watch access must stop at the phase end.');
+assert(html.includes('const restoredWatchThrough=clampWatchTarget('),'Pool entry must revalidate saved pending watch access.');
+assert(html.includes('const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);'),'Watch completion must revalidate its target immediately before saving.');
+assert(html.includes('if(PH_STARTW.pods>AVAILABLE_THROUGH_EP)'),'Pods start must refuse to cross the availability ceiling.');
 assert(html.includes('signInWithRedirect, getRedirectResult'),'Firebase redirect auth must be imported.');
 assert(!html.includes('signInWithPopup'),'Google sign-in must avoid popups in link-opening and in-app browsers.');
 assert(html.includes("rememberJoinForRedirect();\n  markAuthRedirectPending();\n  try{await signInWithRedirect(auth,provider);}"),'Google sign-in must preserve invite state and mark the redirect before navigation.');
