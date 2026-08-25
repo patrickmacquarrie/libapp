@@ -244,6 +244,11 @@ assert(builtAppSmoke.includes("texts:['Getting the pods ready…','Save your pic
 assert(builtAppSmoke.includes("message.type()==='error'")&&builtAppSmoke.includes("page.on('pageerror'")&&builtAppSmoke.includes("window.addEventListener('unhandledrejection'"),'The browser smoke test must fail on console errors, page errors, and unhandled rejections.');
 assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
 assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');
+assert(!html.includes("from 'https://www.gstatic.com/firebasejs/"),'Firebase modules must load from the same-origin Hosting SDK path so content blockers cannot prevent startup.');
+for(const moduleName of ['app','auth','firestore','functions']) {
+  assert(html.includes(`from '/__/firebase/11.2.0/firebase-${moduleName}.js'`),`The ${moduleName} Firebase module must use the versioned same-origin Hosting SDK path.`);
+}
+assert(html.includes('"https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js":"/__/firebase/11.2.0/firebase-app.js"'),'The Firebase import map must keep the Hosting SDK modules on one shared app module instance.');
 assert(!productionCsp.includes('https://cdnjs.cloudflare.com'),'The production CSP must not allow the former React CDN.');
 assert(productionCsp.includes("script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://plausible.io"),'The production CSP must allow the Firebase Auth Google API script.');
 assert(productionCsp.includes("frame-src 'self' https://accounts.google.com"),'The production CSP must allow same-origin Firebase Auth handlers.');

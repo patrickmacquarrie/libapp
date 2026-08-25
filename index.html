@@ -765,14 +765,17 @@ window.__ttwFirebaseFallbackTimer=window.setTimeout(function(){
     : 'Through the Wall could not load its Firebase connection. Check your connection, then try again.'));
 },8000);
 </script>
+<script type="importmap">
+{"imports":{"https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js":"/__/firebase/11.2.0/firebase-app.js"}}
+</script>
 <script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js';
+import { initializeApp } from '/__/firebase/11.2.0/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, sendSignInLinkToEmail, signInWithEmailLink, isSignInWithEmailLink }
-  from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js';
+  from '/__/firebase/11.2.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, where, getDocs, arrayUnion, runTransaction, writeBatch, deleteField, increment, serverTimestamp, onSnapshot }
-  from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js';
+  from '/__/firebase/11.2.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
-  from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-functions.js';
+  from '/__/firebase/11.2.0/firebase-functions.js';
 /* AUTH HELPERS START */
 const AUTH_SILENT_CODES=new Set(['auth/popup-closed-by-user','auth/cancelled-popup-request']);
 const EMAIL_SIGN_IN_QUERY='signInEmail';
