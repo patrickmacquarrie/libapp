@@ -473,6 +473,19 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .lock-rally{margin:12px 0 0;text-align:center;color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:17px;font-weight:700}.lock-rally span{display:block;margin-top:3px;color:var(--muted);font:500 11px/1.4 Inter,sans-serif}
 .user-avatar-fallback{width:28px;height:28px;font-size:9px;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line)}
 @media(max-width:520px){.public-hero{padding-inline:15px}.public-demo{padding:14px}.public-couple-grid{grid-template-columns:1fr}.public-couple{min-height:54px;display:flex;align-items:center;justify-content:center;gap:7px}.public-couple span{display:inline;margin:0}.public-stake-value{min-width:68px;font-size:29px}.lb-player{min-width:128px}.picks-recap-head{display:block}.picks-recap-head span{display:block;margin-top:3px}}
+.public-hero{isolation:isolate;padding:38px 28px 32px;background:radial-gradient(circle at 92% 10%,color-mix(in srgb,var(--purple) 27%,transparent),transparent 34%),radial-gradient(circle at 5% 95%,color-mix(in srgb,var(--rose) 22%,transparent),transparent 40%),linear-gradient(145deg,color-mix(in srgb,var(--blush-soft) 76%,var(--card)),var(--card) 52%,color-mix(in srgb,var(--purple) 8%,var(--card)))}
+.public-hero::before{content:'';position:absolute;z-index:-1;left:-54px;top:-64px;width:190px;height:190px;border:28px solid color-mix(in srgb,var(--rose) 11%,transparent);border-radius:50%}
+.public-hero.invitation{border-color:color-mix(in srgb,var(--gold) 72%,var(--line));background:radial-gradient(circle at 92% 8%,color-mix(in srgb,var(--gold) 25%,transparent),transparent 32%),radial-gradient(circle at 5% 94%,color-mix(in srgb,var(--purple) 18%,transparent),transparent 38%),linear-gradient(145deg,color-mix(in srgb,var(--blush-soft) 72%,var(--card)),var(--card))}
+.public-hero h1 em{color:var(--rose);font-style:normal}.public-hero.invitation h1 em{color:var(--purple)}
+.public-hero>p{font-size:16px}.public-hero-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px}.public-hero-actions .btn-primary,.public-hero-actions .btn-secondary{width:auto;margin:0}
+.public-invite-chip{display:inline-flex;align-items:center;gap:7px;margin:16px auto 0;padding:8px 12px;border:1px solid color-mix(in srgb,var(--gold) 62%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--gold) 15%,var(--card));color:var(--wine);font-size:11px;font-weight:850}.public-invite-chip span{color:var(--purple);font-size:15px}
+.public-trust-row{display:flex;flex-wrap:wrap;justify-content:center;gap:7px 14px;margin-top:19px;color:var(--muted);font-size:10px;font-weight:800}.public-trust-row span::before{content:'\2713';margin-right:5px;color:#2e7d4f}
+.public-season-guide{position:relative;overflow:hidden;padding:26px 22px;background:linear-gradient(155deg,var(--card),color-mix(in srgb,var(--purple) 6%,var(--surface)))}.public-season-guide::after{content:'\2726';position:absolute;right:20px;top:10px;color:var(--gold);font-size:27px}.public-season-guide>h2{margin:5px 36px 7px 0}.public-season-guide>p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}
+.public-phase-track{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:19px 0}.public-phase-card{position:relative;min-width:0;padding:14px 9px;border:1px solid var(--line);border-radius:14px;background:var(--surface);text-align:center}.public-phase-card::after{content:'\2192';position:absolute;right:-10px;top:50%;z-index:2;width:19px;height:19px;display:grid;place-items:center;border-radius:50%;background:var(--card);color:var(--rose);font-weight:900;transform:translateY(-50%)}.public-phase-card:last-child::after{display:none}.public-phase-icon{display:grid;place-items:center;width:34px;height:34px;margin:0 auto 7px;border-radius:50%;background:var(--blush-soft);font-size:16px}.public-phase-card:nth-child(2) .public-phase-icon{background:color-mix(in srgb,var(--purple) 13%,var(--surface))}.public-phase-card:nth-child(3) .public-phase-icon{background:color-mix(in srgb,var(--gold) 22%,var(--surface))}.public-phase-card:nth-child(4) .public-phase-icon{background:color-mix(in srgb,var(--wine) 12%,var(--surface))}.public-phase-card strong{display:block;color:var(--wine);font-family:'Playfair Display',Georgia,serif;font-size:14px}.public-phase-card small{display:block;margin-top:3px;color:var(--soft-text);font-size:9px;line-height:1.35}
+.public-window-card{padding:18px;border:1px solid color-mix(in srgb,var(--rose) 34%,var(--line));border-radius:17px;background:linear-gradient(135deg,color-mix(in srgb,var(--rose) 7%,var(--surface)),color-mix(in srgb,var(--purple) 6%,var(--surface)))}.public-window-kicker{color:var(--purple);font-size:9px;font-weight:900;letter-spacing:.13em;text-transform:uppercase}.public-window-card h3{margin:4px 0 6px;color:var(--wine);font:700 21px/1.14 'Playfair Display',Georgia,serif}.public-window-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.52}.public-window-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:6px;margin-top:15px}.public-window-step{padding:10px 7px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--wine);font-size:10px;font-weight:850;text-align:center}.public-window-arrow{color:var(--rose);font-weight:900}.public-hearts-note{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center;margin-top:12px;padding:13px 15px;border-radius:14px;background:color-mix(in srgb,var(--gold) 14%,var(--surface))}.public-hearts-note>span{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;font-size:21px}.public-hearts-note strong{display:block;color:var(--wine);font-size:12px}.public-hearts-note p{margin:2px 0 0;color:var(--muted);font-size:10px;line-height:1.45}
+.public-support-card{margin:18px 0;padding:17px;border:1px solid color-mix(in srgb,var(--purple) 32%,var(--line));border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--purple) 7%,var(--surface)),var(--surface))}.public-support-card h3{margin:4px 0}.public-support-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.public-support-card a{display:inline-flex;margin-top:11px;color:var(--purple);font-size:12px;font-weight:850}
+.support-panel{margin:18px 0;padding:17px;border:1px solid color-mix(in srgb,var(--rose) 32%,var(--line));border-radius:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--rose) 7%,var(--surface)),color-mix(in srgb,var(--purple) 5%,var(--surface)))}.support-panel h3{margin:5px 0}.support-panel>p{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.5}.support-fields{display:grid;gap:10px}.support-fields textarea{width:100%;min-height:126px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:14px/1.45 Inter,sans-serif;resize:vertical}.support-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:11px}.support-actions .btn-primary{width:auto;margin:0}.support-email-link{color:var(--purple);font-size:11px;font-weight:800}.support-status{margin:10px 0 0;color:var(--muted);font-size:11px;font-weight:700}.support-status.success{color:#247344}.support-status.error{color:#b71f49}
+@media(max-width:620px){.public-hero{padding:31px 17px 27px}.public-hero>p{font-size:14px}.public-hero-actions{display:grid}.public-hero-actions .btn-primary,.public-hero-actions .btn-secondary{width:100%}.public-phase-track{grid-template-columns:repeat(2,minmax(0,1fr))}.public-phase-card:nth-child(2)::after{display:none}.public-window-flow{grid-template-columns:1fr}.public-window-arrow{transform:rotate(90deg)}.public-hearts-note{align-items:flex-start}.support-actions{display:grid}.support-actions .btn-primary{width:100%}}
 .pool-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:var(--surface);color:var(--ink);font:inherit;text-align:left;appearance:none;cursor:pointer;transition:box-shadow .15s,border-color .15s}
 .pool-row:hover,.pool-row:focus-visible{border-color:color-mix(in srgb,var(--rose) 48%,var(--line));box-shadow:0 4px 16px rgba(110,31,59,.1)}
 .pool-row-copy{display:block;min-width:0}
@@ -1158,6 +1171,12 @@ window._fb = {
   },
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
     httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
+  submitFeedback: ({category,message,context={}}) => httpsCallable(functions,'submitFeedback')({
+    category,
+    message,
+    context,
+    submissionId:typeof window.crypto?.randomUUID==='function'?window.crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2,12)}`,
+  }),
   reportClientError: data => {
     const user=auth.currentUser;
     const category=cleanClientErrorValue(data?.category,60);
@@ -4471,41 +4490,38 @@ function PredictionDemo() {
     <span className="demo-finger" aria-hidden="true">👈</span>
   </div>;
 }
-function PublicTaste() {
-  const demoBudget=200;
-  const demoCouples=[['Avery + Rowan','💘'],['Ellis + Jules','✨'],['Nova + Sage','🫖']];
-  const [view,setView]=useState('pick'),[couple,setCouple]=useState(demoCouples[0][0]),[stake,setStake]=useState(30),[called,setCalled]=useState(false);
-  const heartsLeft=demoBudget-stake;
-  const board=[['Maya',612],['Lex',574],['You',548],['Priya',521]];
-  const openChemistry=()=>{const url=new URL(window.location.href);url.searchParams.delete('globalDemo');url.searchParams.set('chemistryPreview','pool');window.location.assign(url.toString());};
+function PublicWelcome({invitation=false}) {
+  const phases=[
+    ['Pods','Predict engagements','💘'],
+    ['Retreats','Call the post-pod drama','🌴'],
+    ['Weddings','Forecast every “I do”','💍'],
+    ['Reunion','Make the final calls','🫖'],
+  ];
   return <React.Fragment>
-    <section className="card public-hero">
-      <span className="public-kicker">Love Is Blind is better with receipts</span>
-      <h1>Predict the mess before it happens.</h1>
-      <p>Predict the engagements, breakups, weddings, and reunion chaos. Wager Hearts, beat your friends, and own every “I knew it” moment.</p>
-      <AccessibleTabs tabs={[{id:'pick',label:'Make a pick'},{id:'standings',label:'See the payoff'}]} active={view} onChange={setView} baseId="public-demo" className="public-demo-tabs" ariaLabel="Try the app"/>
-      {view==='pick'?<div className="public-demo" id="public-demo-panel-pick" role="tabpanel" aria-labelledby="public-demo-tab-pick">
-        <div className="public-demo-head"><div><h3>Who gets engaged?</h3><p className="subtle" style={{margin:'3px 0 0'}}>Try a real prediction with fictional names. Nothing is saved.</p></div><span>Spoiler-free demo</span></div>
-        <div className="public-couple-grid">{demoCouples.map(([name,icon])=><button type="button" className={'public-couple '+(couple===name?'active':'')} aria-pressed={couple===name} onClick={()=>{setCouple(name);setCalled(false);}} key={name}><span>{icon}</span>{name}</button>)}</div>
-        <div className="budget-card phase-pods public-demo-budget"><div className="budgetrow"><span>Pods budget</span><span aria-live="polite"><span className="n">{heartsLeft}</span> / {demoBudget} Hearts left</span></div><div className="budget-bar"><div className="budget-fill" style={{width:(heartsLeft/demoBudget*100)+'%'}}/></div><span className="budget-note">Move the slider to see your budget change</span></div>
-        <label className="demo-stake-label" htmlFor="public-stake">How sure are you?</label>
-        <div className="stakebox public-stakebox"><input id="public-stake" type="range" min="5" max="60" step="5" value={stake} aria-valuetext={stake+' Hearts'} onChange={event=>{setStake(Number(event.target.value));setCalled(false);}}/><span className="stakeval public-stake-value" aria-live="polite">{stake}♥</span></div>
-        <button type="button" className="btn-primary" onClick={()=>setCalled(true)}>Lock prediction →</button>
-        {called&&<div className="public-demo-result"><strong>Locked: {couple} · {stake}♥</strong>If you’re right, you win points. The earlier you call it—and the fewer players who agree—the more it can score.</div>}
-      </div>:<div className="public-demo" id="public-demo-panel-standings" role="tabpanel" aria-labelledby="public-demo-tab-standings">
-        <div className="public-demo-head"><div><h3>After the reveal</h3><p className="subtle" style={{margin:'3px 0 0'}}>Every checkpoint turns predictions into live standings.</p></div><span>Global demo</span></div>
-        <div className="public-mini-board">{board.map(([name,score],index)=><div className={'public-mini-row '+(name==='You'?'you':'')} key={name}><span className="public-mini-rank">#{index+1}</span><span className="public-mini-avatar">{initialsFor(name)}</span><strong>{name}{name==='You'&&<span className="player-badge gold" style={{marginLeft:6}}>🔥 2 streak</span>}</strong><span className="public-mini-score">{score}</span></div>)}</div>
-        <div className="public-demo-result"><strong>Your best prediction: Avery + Rowan get engaged</strong>Predicted after episode 1. Only 12% of the pool predicted it. Share the “I called it” card, then let the group chat cope.</div>
-        <button type="button" className="btn-secondary" onClick={openChemistry}>Try the Heat Check preview</button>
-      </div>}
+    <section className={'card public-hero'+(invitation?' invitation':'')}>
+      <span className="public-kicker">{invitation?'A friend saved you a seat':'Love Is Blind is better with receipts'}</span>
+      <h1>{invitation?<React.Fragment>Your pool invitation is <em>waiting.</em></React.Fragment>:<React.Fragment>Bring your theories. We’ll keep the <em>receipts.</em></React.Fragment>}</h1>
+      <p>{invitation?'Sign in and we’ll take you straight to your friend’s pool. You’ll make predictions between episodes, compare results after each reveal, and finally have proof of who called it first.':'Through the Wall is a private Love Is Blind prediction pool for friends. Make your calls between episodes, spend Hearts on the theories you trust, and let the leaderboard settle the group chat.'}</p>
+      {invitation&&<div className="public-invite-chip"><span aria-hidden="true">✦</span> Invitation link recognized and saved</div>}
+      <div className="public-hero-actions"><a className="btn-primary" href="#sign-in">{invitation?'Sign in to join the pool':'Start a pool with friends'}</a><a className="btn-secondary" href="welcome/">See the full tour</a></div>
+      <div className="public-trust-row"><span>Free to play</span><span>No cash prizes</span><span>Spoiler-aware</span></div>
     </section>
-    <section className="card" aria-labelledby="public-how-title">
-      <span className="public-kicker">Three beats. Zero homework.</span><h2 id="public-how-title" style={{marginTop:5}}>How it works</h2>
-      <div className="public-how">
-        <div className="public-how-line"><span>1</span><p><strong>Pick before you watch.</strong> Predict the moments you think are coming next.</p></div>
-        <div className="public-how-line"><span>2</span><p><strong>Wager Hearts.</strong> Bet bigger, predict earlier, and score extra for going against the crowd.</p></div>
-        <div className="public-how-line"><span>3</span><p><strong>Reveal and roast.</strong> Watch your rank move, share the receipts, and settle the group chat.</p></div>
+    <section className="card public-season-guide" aria-labelledby="public-how-title">
+      <span className="public-kicker">The part that makes it click</span><h2 id="public-how-title">One season. Four prediction windows.</h2>
+      <p>You never make every pick at once. The game moves with your watch progress, so your predictions stay ahead of what you have seen.</p>
+      <div className="public-phase-track" aria-label="Prediction phases">{phases.map(([name,description,icon])=><div className="public-phase-card" key={name}><span className="public-phase-icon" aria-hidden="true">{icon}</span><strong>{name}</strong><small>{description}</small></div>)}</div>
+      <div className="public-window-card">
+        <span className="public-window-kicker">Between episodes</span>
+        <h3>Watch one. Pause. Make the next call.</h3>
+        <p>After you finish an available episode, the next prediction window opens. Confirm the picks you want on the record, then lock them when you continue watching. Correct calls made earlier can score more.</p>
+        <div className="public-window-flow" aria-label="Episode and prediction flow"><span className="public-window-step">Episode watched</span><span className="public-window-arrow" aria-hidden="true">→</span><span className="public-window-step">Prediction window</span><span className="public-window-arrow" aria-hidden="true">→</span><span className="public-window-step">Lock &amp; keep watching</span></div>
       </div>
+      <div className="public-hearts-note"><span aria-hidden="true">♥</span><div><strong>Hearts are confidence—not cash.</strong><p>Each phase gives you a fresh Hearts budget. Put more Hearts behind the calls you believe most; there is no wagering and no cash prize.</p></div></div>
+    </section>
+    <section className="public-support-card" aria-labelledby="public-support-title">
+      <span className="public-kicker">Need a hand?</span><h3 id="public-support-title">A real person is behind the wall.</h3>
+      <p>If an invitation will not open or you have a question before signing in, email us and we’ll help.</p>
+      <a href="mailto:support@throughthewall.ca">Contact support@throughthewall.ca</a>
     </section>
   </React.Fragment>;
 }
@@ -4544,7 +4560,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4557,6 +4573,10 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [savingProfile,setSavingProfile]=useState(false);
   const [premiumExpanded,setPremiumExpanded]=useState(false);
   const [foundingReserved,setFoundingReserved]=useState(false);
+  const [supportCategory,setSupportCategory]=useState('feedback');
+  const [supportMessage,setSupportMessage]=useState('');
+  const [supportSending,setSupportSending]=useState(false);
+  const [supportStatus,setSupportStatus]=useState({kind:'',message:''});
   const modalRef=useModalLifecycle(onClose,!deleting);
   const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
@@ -4579,6 +4599,19 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const premiumPrice=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
   const openPremium=()=>{if(!premiumPrice)return;trackTtwEvent('price_fakedoor_click',{price_variant:priceVariant,sku:'founding_premium'});setPremiumExpanded(true);};
   const reserveFoundingPrice=()=>{if(!premiumPrice||foundingReserved)return;trackTtwEvent('founding_email_captured',{price_variant:priceVariant});setFoundingReserved(true);};
+  const submitSupport=async event=>{
+    event.preventDefault();
+    const message=supportMessage.trim();
+    if(!onSubmitFeedback||supportSending||message.length<10)return;
+    setSupportSending(true);setSupportStatus({kind:'',message:''});
+    try{
+      await onSubmitFeedback({category:supportCategory,message,context:{screen:'settings',poolId:activePool?.id||'',seasonId:activePool?.season?.id||''}});
+      trackTtwEvent('support_form_submitted',{category:supportCategory,screen:'settings'});
+      setSupportMessage('');setSupportStatus({kind:'success',message:'Thanks—your message made it through the wall. We’ll reply by email if it needs a response.'});
+    }catch(error){
+      setSupportStatus({kind:'error',message:error?.message||'Your message could not be sent. Email support@throughthewall.ca instead.'});
+    }finally{setSupportSending(false);}
+  };
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
@@ -4607,12 +4640,23 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
       <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
       {premiumPrice&&<div className="premium-fakedoor">
-        <div className="premium-fakedoor-kicker">Founding beta idea</div>
-        <h3>Would premium extras be worth it?</h3>
-        <p>We’re testing interest in paid extras such as deeper stats, custom pool themes, and enhanced season recaps. Nothing is for sale yet.</p>
-        <div className="premium-price"><strong>${premiumPrice}</strong><span>one-time founding price</span></div>
-        {!premiumExpanded?<button className="btn-secondary" type="button" onClick={openPremium}>I’d consider premium</button>:foundingReserved?<p role="status" style={{marginTop:12,fontWeight:700,color:'var(--purple)'}}>You’re on the founding-interest list. No charge was made.</p>:<React.Fragment><p className="ph-no-capture" style={{marginTop:10}}>Reserve this test price with your signed-in email{userEmail?` (${userEmail})`:''}. You will not be charged.</p><button className="btn-primary" type="button" onClick={reserveFoundingPrice}>Reserve founding price</button></React.Fragment>}
+        <div className="premium-fakedoor-kicker">Help us test an idea</div>
+        <h3>Would you pay once to play a season with friends?</h3>
+        <p>We’re testing whether a one-time season pass could support Through the Wall. This is an interest check only—nothing is for sale and you will not be charged.</p>
+        <div className="premium-price"><strong>${premiumPrice}</strong><span>possible one-time price per season</span></div>
+        {!premiumExpanded?<button className="btn-secondary" type="button" onClick={openPremium}>I might pay this for a season</button>:foundingReserved?<p role="status" style={{marginTop:12,fontWeight:700,color:'var(--purple)'}}>Thanks—that interest is recorded. No charge was made.</p>:<React.Fragment><p className="ph-no-capture" style={{marginTop:10}}>Tell us this price feels reasonable using your signed-in account{userEmail?` (${userEmail})`:''}. This does not create a purchase or reservation.</p><button className="btn-primary" type="button" onClick={reserveFoundingPrice}>Yes, I’d consider this price</button></React.Fragment>}
       </div>}
+      <form className="support-panel" onSubmit={submitSupport} aria-labelledby="support-title">
+        <div className="premium-fakedoor-kicker">Feedback &amp; support</div>
+        <h3 id="support-title">Tell us what happened—or what would make this better.</h3>
+        <p>Questions, rough edges, and delightfully messy ideas are all welcome. Replies go to the email on your account.</p>
+        <div className="support-fields">
+          <div className="field"><label className="small" htmlFor="support-category">What can we help with?</label><select id="support-category" value={supportCategory} onChange={event=>setSupportCategory(event.target.value)} disabled={supportSending}><option value="feedback">Share feedback or an idea</option><option value="bug">Report something broken</option><option value="help">Ask for help</option></select></div>
+          <div className="field"><label className="small" htmlFor="support-message">Message</label><textarea className="ph-no-capture" id="support-message" value={supportMessage} onChange={event=>setSupportMessage(event.target.value)} minLength="10" maxLength="2000" placeholder="What were you trying to do, and what happened?" required disabled={supportSending}/><span className="subtle">{supportMessage.length} / 2,000</span></div>
+        </div>
+        <div className="support-actions"><button className="btn-primary" type="submit" disabled={!onSubmitFeedback||supportSending||supportMessage.trim().length<10}>{supportSending?'Sending…':'Send to support'}</button><a className="support-email-link" href="mailto:support@throughthewall.ca">Or email support@throughthewall.ca</a></div>
+        {supportStatus.message&&<p className={'support-status '+supportStatus.kind} role={supportStatus.kind==='error'?'alert':'status'}>{supportStatus.message}</p>}
+      </form>
       <div className="danger-zone"><h3>Account management</h3><p>Change the name poolmates see, sign out, or permanently delete your account.</p><div className="row"><div className="field"><label className="small" htmlFor="settings-username">Username</label><input id="settings-username" type="text" maxLength="20" value={accountUsername} onChange={event=>setAccountUsername(event.target.value)}/></div><button className="btn-secondary" disabled={savingProfile||cleanUsername(accountUsername)===profileUsername} onClick={finishUsername}>{savingProfile?'Saving…':'Change username'}</button></div>{settingsFeedback&&<p className="subtle" role="status">{settingsFeedback}</p>}<button className="btn-secondary" disabled={signingOut||deleting} onClick={onSignOut}>{signingOut?'Signing out…':'Sign out'}</button><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onDeleteAccount}>Delete my account</button><p className="subtle"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p></div>
       <button className="btn-primary" disabled={deleting} onClick={onClose}>Done</button>
     </div>
@@ -5901,12 +5945,12 @@ function App() {
   if (authState==='signedout') return <div className="app">
     <AppLoadingState label={loadingMessage}/>
     <BrandHeader showSignIn/>
-    <PublicTaste/>
+    <PublicWelcome invitation={pendingFriendInvitation}/>
     <div className="card login-card" id="sign-in">
-      <div className="signin-divider">Ready to play for real?</div>
-      <h2>{pendingFriendInvitation?'Your pool invitation is ready':'Save your picks and play with friends'}</h2>
-      <p className="lede">{pendingFriendInvitation?'Sign in and we’ll take you straight to your friend’s pool.':'Sign in to create or join a friend pool and keep every prediction on the record.'}</p>
-      {pendingFriendInvitation&&<div className="notice" role="status"><b>Invitation detected.</b> You won’t need to open the link again after signing in.</div>}
+      <div className="signin-divider">Join the fun</div>
+      <h2>{pendingFriendInvitation?'Sign in to accept your invitation':'Ready to start your season?'}</h2>
+      <p className="lede">{pendingFriendInvitation?'We saved this invitation in your browser and will take you to the pool after sign-in.':'Sign in to create a private pool or join a friend. Your confirmed predictions will be saved to your account as the season unfolds.'}</p>
+      {pendingFriendInvitation&&<div className="notice" role="status"><b>Invitation link saved.</b> You won’t need to reopen it after signing in.</div>}
       <button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         {signingIn?'Opening sign-in…':pendingFriendInvitation?'Sign in with Google to join':'Sign in with Google'}
@@ -6042,7 +6086,7 @@ function App() {
       {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={availableHistoricalSeasonCount()>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
@@ -6216,7 +6260,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }

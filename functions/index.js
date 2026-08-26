@@ -500,6 +500,8 @@ exports.reopenPhase=onCall(CALLABLE_LIMITS,async request=>{
 });
 
 const DAILY_EMAIL_INVITE_LIMIT=20;
+const DAILY_FEEDBACK_LIMIT=5;
+const FEEDBACK_CATEGORIES={feedback:'Feedback or idea',bug:'Something is broken',help:'Help request'};
 
 exports.sendPoolInvite=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
@@ -584,6 +586,62 @@ exports.sendPoolInvite=onCall(CALLABLE_LIMITS,async request=>{
     },
   });
   return {ok:true,limit:DAILY_EMAIL_INVITE_LIMIT,remaining:Math.max(0,DAILY_EMAIL_INVITE_LIMIT-invitationCount)};
+});
+
+exports.submitFeedback=onCall(CALLABLE_LIMITS,async request=>{
+  const uid=requireUser(request);
+  const category=String(request.data?.category||'').trim().toLowerCase();
+  const message=String(request.data?.message||'').trim();
+  const submissionId=String(request.data?.submissionId||'').trim().toLowerCase();
+  if(!Object.prototype.hasOwnProperty.call(FEEDBACK_CATEGORIES,category))throw new HttpsError('invalid-argument','Choose feedback, a bug report, or a help request.');
+  if(message.length<10||message.length>2000)throw new HttpsError('invalid-argument','Write a message between 10 and 2,000 characters.');
+  if(!/^[a-z0-9-]{12,80}$/.test(submissionId))throw new HttpsError('invalid-argument','This support request is missing a valid submission identifier.');
+  const context=request.data?.context&&typeof request.data.context==='object'&&!Array.isArray(request.data.context)?request.data.context:{};
+  const safeContext={
+    screen:safeHeaderText(context.screen,80),
+    poolId:safeHeaderText(context.poolId,100),
+    seasonId:safeHeaderText(context.seasonId,100),
+  };
+  const [authUser,profileSnapshot]=await Promise.all([
+    getAuth().getUser(uid),
+    db.doc(`users/${uid}`).get(),
+  ]);
+  const email=String(authUser.email||'').trim().toLowerCase();
+  const username=safeHeaderText(profileSnapshot.data()?.username||'Player',40)||'Player';
+  const createdAt=Date.now();
+  const day=new Date(createdAt).toISOString().slice(0,10);
+  const limitRef=db.doc(`feedbackRateLimits/${uid}__${day}`);
+  const mailRef=db.doc(`mail/feedback_${uid}_${submissionId}`);
+  let remaining=0,alreadySubmitted=false;
+  await db.runTransaction(async tx=>{
+    const [limitSnapshot,mailSnapshot]=await Promise.all([tx.get(limitRef),tx.get(mailRef)]);
+    if(mailSnapshot.exists){alreadySubmitted=true;remaining=Math.max(0,DAILY_FEEDBACK_LIMIT-(Number(limitSnapshot.data()?.count)||0));return;}
+    const count=Number(limitSnapshot.data()?.count)||0;
+    if(count>=DAILY_FEEDBACK_LIMIT)throw new HttpsError('resource-exhausted','You have reached today’s support-message limit. Email support@throughthewall.ca if this is urgent.');
+    const label=FEEDBACK_CATEGORIES[category];
+    const contextLines=Object.entries(safeContext).filter(([,value])=>value).map(([key,value])=>`${key}: ${value}`);
+    const text=[
+      `${label} from ${username}`,
+      `Account email: ${email||'Unavailable'}`,
+      ...contextLines,
+      '',
+      message,
+    ].join('\n');
+    const contextHtml=contextLines.map(line=>`<li>${escapeHtml(line)}</li>`).join('');
+    tx.set(limitRef,{uid,day,count:count+1,updatedAt:createdAt},{merge:true});
+    tx.create(mailRef,{
+      to:[MAIL_REPLY_TO],feedbackUserId:uid,feedbackCategory:category,createdAt,
+      message:{
+        from:MAIL_SENDERS.support,
+        replyTo:email||MAIL_REPLY_TO,
+        subject:`[Through the Wall] ${label} from ${username}`,
+        text,
+        html:`<p><b>${escapeHtml(label)} from ${escapeHtml(username)}</b></p><p>Account email: ${escapeHtml(email||'Unavailable')}</p>${contextHtml?`<ul>${contextHtml}</ul>`:''}<hr><p style="white-space:pre-wrap">${escapeHtml(message)}</p>`,
+      },
+    });
+    remaining=DAILY_FEEDBACK_LIMIT-count-1;
+  });
+  return {ok:true,alreadySubmitted,limit:DAILY_FEEDBACK_LIMIT,remaining};
 });
 
 exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
@@ -695,13 +753,17 @@ exports.deleteMyAccount=onCall(CALLABLE_LIMITS,async request=>{
   const inviteRefs=new Map();
   inviteSnapshots.forEach(snapshot=>snapshot.docs.forEach(invite=>inviteRefs.set(invite.ref.path,invite.ref)));
   const rateLimits=await db.collection('inviteRateLimits').where('uid','==',uid).get();
-  const mailSnapshot=email
-    ? await db.collection('mail').where('to','array-contains',email).get()
-    : {docs:[]};
+  const [mailSnapshot,feedbackMailSnapshot,feedbackLimitSnapshot]=await Promise.all([
+    email?db.collection('mail').where('to','array-contains',email).get():Promise.resolve({docs:[]}),
+    db.collection('mail').where('feedbackUserId','==',uid).get(),
+    db.collection('feedbackRateLimits').where('uid','==',uid).get(),
+  ]);
   await Promise.all([
     ...inviteRefs.values(),
     ...rateLimits.docs.map(limit=>limit.ref),
     ...mailSnapshot.docs.map(mail=>mail.ref),
+    ...feedbackMailSnapshot.docs.map(mail=>mail.ref),
+    ...feedbackLimitSnapshot.docs.map(limit=>limit.ref),
   ].map(ref=>ref.delete()));
   await db.recursiveDelete(db.doc(`clientErrors/${uid}`));
   await db.doc(`notificationPreferences/${uid}`).delete().catch(()=>{});

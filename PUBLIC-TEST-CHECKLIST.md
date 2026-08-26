@@ -7,6 +7,7 @@
 - Only the pool owner can freeze a validated scoring-rules snapshot.
 - Global Heat Check aggregates are written by a trusted Firestore trigger; browser aggregate writes are denied.
 - Email invitations are owner-only, capped at 20 per owner per UTC day, and answered invites cannot be reset to pending.
+- Authenticated feedback/support messages use an App Check-protected callable, idempotent submission IDs, and a five-message-per-account daily limit; browser clients cannot read the mail queue.
 - Invitation matching requires a verified provider email address, including the verified Apple relay address when Hide My Email is used.
 - Same-day invitation resends create a fresh delivery message instead of colliding with the first send.
 - Shareable friend-pool join links avoid exact email matching.

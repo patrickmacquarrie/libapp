@@ -98,6 +98,16 @@ assert(functionsSource.includes("_${day}_${invitationCount}`"),'Each deliberate 
 assert(!html.includes('already has a pending invitation'),'The invitation form must allow a deliberate same-day resend.');
 assert(html.includes("resendingPendingInvite?'Invitation sent again to '"),'The invitation form must clearly confirm a resend.');
 assert(functionsSource.includes("db.collection('mail').where('to','array-contains',email)"),'Account deletion must remove queued mail addressed to the user.');
+assert(functionsSource.includes("exports.submitFeedback=onCall(CALLABLE_LIMITS"),'Feedback must be delivered through an App Check-protected callable.');
+assert(functionsSource.includes('const DAILY_FEEDBACK_LIMIT=5'),'Feedback delivery must have a bounded daily account limit.');
+assert(functionsSource.includes("db.collection('mail').where('feedbackUserId','==',uid)"),'Account deletion must remove queued support mail associated with the user.');
+assert(functionsSource.includes("db.collection('feedbackRateLimits').where('uid','==',uid)"),'Account deletion must remove feedback rate-limit records.');
+assert(html.includes("httpsCallable(functions,'submitFeedback')"),'The Settings support form must use the trusted feedback callable.');
+assert(html.includes('supportMessage.trim().length<10'),'The support form must reject empty or trivial messages before sending.');
+assert(html.includes('className="ph-no-capture" id="support-message"'),'Feedback message text must be excluded from session replay.');
+assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
+assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
+assert(analyticsSource.includes("Object.freeze({a:'4.99',b:'9.99',c:'12.99'})"),'The price experiment must use the approved three price points.');
 assert(functionsSource.includes('db.recursiveDelete(db.doc(`clientErrors/${uid}`))'),'Account deletion must remove client diagnostics.');
 assert(!functionsSource.includes("collectionGroup('members')"),'Half-finished member-subcollection cleanup must not abort account deletion before Phase 5.');
 assert(html.includes('updateProfileUsername'),'Username changes must use an update that preserves createdAt.');
@@ -118,7 +128,8 @@ assert(productionCsp.includes('https://www.recaptcha.net')&&productionCsp.includ
 assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='toEmail')&&index.fields.some(field=>field.fieldPath==='status')),'Invite recipient/status index must be versioned.');
 assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='poolId')&&index.fields.some(field=>field.fieldPath==='status')),'Pool invitation/status index must be versioned.');
 assert(firestoreIndexes.fieldOverrides.some(index=>index.collectionGroup==='pools'&&index.fieldPath==='season.id'),'Season pool-query index must be versioned.');
-assert(privacy.includes('queued email addressed to you'),'Privacy deletion copy must include queued recipient mail.');
+assert(privacy.includes('queued email associated with your account'),'Privacy deletion copy must include queued account-associated mail.');
+assert(privacy.includes('feedback or support messages you choose to send'),'Privacy copy must disclose submitted support content.');
 assert(privacy.includes('Firebase Hosting hosts the website'),'Privacy service-provider copy must name the actual host.');
 assert(privacy.includes('technical information needed to operate, improve, and secure the service'),'Coarse browser-context telemetry must remain covered by the technical-information disclosure.');
 assert(seasonAdmin.includes('Engagements & Weddings'),'The admin must cover engagement and wedding outcomes.');
@@ -305,7 +316,7 @@ assert(html.includes("rememberJoinForRedirect();\n  markAuthRedirectPending();\n
 assert(html.includes('localStorage.setItem(AUTH_RETURN_JOIN_KEY,record)'),'Google sign-in must preserve an expiring invite outside sessionStorage for mobile auth returns.');
 assert(html.includes('hasPendingFriendInvitation,\n  sendEmailSignInLink'),'The module-scoped invitation helper must be exported through the Firebase bridge.');
 assert(html.includes('pendingJoinedPool.current=invitationPool'),'A consumed invitation must open its pool without requiring the link a second time.');
-assert(html.includes('<b>Invitation detected.</b> You won’t need to open the link again after signing in.'),'Signed-out invite links must explain that the invitation was detected.');
+assert(html.includes('<b>Invitation link saved.</b> You won’t need to reopen it after signing in.'),'Signed-out invite links must explain that the invitation was preserved.');
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Google sign-in start must emit a conversion event.');
@@ -400,7 +411,7 @@ assert(builtAppSmoke.includes("process.env.SMOKE_DIST_DIR||path.join(root,'dist'
 assert(builtAppSmoke.includes("{pathname:'/',react:true")&&builtAppSmoke.includes("{pathname:'/?join=smoke-pool.smoke-code',react:true")&&builtAppSmoke.includes("{pathname:'/welcome/',react:false"),'The browser smoke test must cover the signed-out, invite, and welcome routes.');
 assert(builtAppSmoke.includes("path.join(dist,'seasons')"),'The browser smoke test must cover a generated season page.');
 assert(builtAppSmoke.includes("page.locator('#root .fatal-app').count()")&&builtAppSmoke.includes("page.locator('#root .root-boot[role=\"alert\"]').count()"),'The browser smoke test must reject both render-boundary and pre-mount fallbacks.');
-assert(builtAppSmoke.includes("texts:['Getting the pods ready…','Save your picks and play with friends']"),'The signed-out smoke test must tolerate Firebase Auth still checking.');
+assert(builtAppSmoke.includes("texts:['Getting the pods ready…','Ready to start your season?']"),'The signed-out smoke test must tolerate Firebase Auth still checking.');
 assert(builtAppSmoke.includes("message.type()==='error'")&&builtAppSmoke.includes("page.on('pageerror'")&&builtAppSmoke.includes("window.addEventListener('unhandledrejection'"),'The browser smoke test must fail on console errors, page errors, and unhandled rejections.');
 assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
 assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');

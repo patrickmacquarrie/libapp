@@ -22,6 +22,13 @@ Run this two-account checklist against production before the August 19, 2026 UK3
 - [ ] In the other browser profile, Account B joins through the ordinary share link/join-code flow.
 - [ ] Confirm Account B lands at Episode 1 rather than inheriting Account A's watch position.
 
+## Feedback and support
+
+- [ ] From Account A, open **Settings → Feedback & support**, choose each category once across test runs, and send a non-sensitive test message.
+- [ ] Confirm the app shows the success state and the message arrives in the maintainer inbox from **Through the Wall Support**, with Reply-To set to Account A’s verified email.
+- [ ] Confirm the message body is not visible in PostHog event properties or session replay. The submission event should include only the category and screen.
+- [ ] Confirm a signed-out visitor can open the `support@throughthewall.ca` email link from the landing page.
+
 ## Auth cutover device matrix (repeat before each public launch)
 
 **Recorded result — PASS (August 24, 2026).** Patrick reported that the full four-row device matrix passed against the production build then live. Read-only release verification identified that build as main commit `b8f9d80f4d869c30ced55c30223cfb0f161dcb3d`, deployed by GitHub Actions run `32541755756` on August 21 at 6:54 PM Mountain time. That revision contains `cf1afbe` through merge commit `4d8e7c1`, and the fetched production app contains the expiring `localStorage` fallback for `?join=`. The result therefore covers the invitation round trip across Google redirect, not only bare sign-in. Do not repeat this matrix for the current release; retain the checklist below for the next public launch.

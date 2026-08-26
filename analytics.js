@@ -7,7 +7,7 @@
   const APP_BUILD='__APP_BUILD_TIMESTAMP__';
   const ACQUISITION_STORAGE_KEY='through-the-wall-acquisition';
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
-  const PRICE_VARIANTS=Object.freeze({a:'7.99',b:'9.99',c:'12.99'});
+  const PRICE_VARIANTS=Object.freeze({a:'4.99',b:'9.99',c:'12.99'});
   const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST);
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);

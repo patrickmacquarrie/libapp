@@ -131,8 +131,8 @@ async function main() {
     if(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH)launchOptions.executablePath=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
     browser=await chromium.launch(launchOptions);
     const tests=[
-      {pathname:'/',react:true,texts:['Getting the pods ready…','Save your picks and play with friends']},
-      {pathname:'/?join=smoke-pool.smoke-code',react:true,texts:['Getting the pods ready…','Your pool invitation is ready']},
+      {pathname:'/',react:true,texts:['Getting the pods ready…','Ready to start your season?']},
+      {pathname:'/?join=smoke-pool.smoke-code',react:true,texts:['Getting the pods ready…','Sign in to accept your invitation']},
       {pathname:generatedSeasonPath(),react:false,text:'Create a free pool'},
       {pathname:'/welcome/',react:false,text:'Love Is Blind is better when everyone brings'},
       {pathname:'/privacy.html',react:false,text:'Analytics and session replay'},

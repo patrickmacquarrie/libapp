@@ -35,7 +35,7 @@ firebase deploy --only firestore:rules,firestore:indexes,functions
 
 After the backend deploy succeeds, run **Deploy Firebase Hosting** from the GitHub Actions page with `backend_deployed=true`. The manual confirmation releases the exact revision on `main` that passed the repository checks.
 
-Email nudges use the official Firebase **Trigger Email** extension. Install the extension in the `lib-oauth` project, configure its SMTP provider, and keep its mail collection set to `mail`. The app never grants browser access to that collection: trusted Functions atomically create each deterministic mail document once, so a retried trigger cannot replace it or send the same nudge twice.
+Email nudges, invitations, and authenticated feedback/support messages use the official Firebase **Trigger Email** extension. Install the extension in the `lib-oauth` project, configure its SMTP provider, and keep its mail collection set to `mail`. The app never grants browser access to that collection: trusted Functions create bounded mail documents, and feedback submissions use an idempotent client identifier plus a five-message-per-day account limit.
 
 Two notification events are currently queued:
 
