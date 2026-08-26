@@ -3,12 +3,16 @@ const {onDocumentWritten}=require('firebase-functions/v2/firestore');
 const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
+const {makeEngine,PH_ORDER,DEFAULT_DATING_MULT,DEFAULT_WED_MULT,DEFAULT_REU_MULT,validateLockedPhasePicks,freezeScoredTotal}=require('./shared/scoring-engine');
 
 initializeApp();
 const db=getFirestore();
 const PHASES=['pods','dating','weddings','reunion'];
+const GLOBAL_SCORING_VERSION=1;
+const STANDINGS_DOCUMENT_SOFT_LIMIT=850000;
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
+const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
@@ -99,6 +103,191 @@ function publishedBool(value,fallback=false){
   if(value==null||value==='')return fallback;
   if(typeof value==='boolean')return value;
   return ['true','1','yes','y'].includes(String(value).trim().toLowerCase());
+}
+
+const normalizedKey=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+function publishedRows(snapshot,tabName){
+  const wanted=normalizedKey(tabName).replaceAll('_','');
+  const containers=[snapshot,snapshot?.tabs,snapshot?.sheets,snapshot?.data,snapshot?.sheetData].filter(value=>value&&typeof value==='object');
+  let raw=null;
+  for(const container of containers){
+    const key=Object.keys(container).find(candidate=>normalizedKey(candidate).replaceAll('_','')===wanted);
+    if(key){raw=container[key];break;}
+  }
+  if(raw&&typeof raw==='object'&&!Array.isArray(raw))raw=raw.rows||raw.values||raw.data||raw;
+  if(!Array.isArray(raw))return [];
+  if(raw.every(row=>row&&typeof row==='object'&&!Array.isArray(row))){
+    return raw.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[normalizedKey(key),value])));
+  }
+  if(!raw.length||!Array.isArray(raw[0]))return [];
+  const headers=raw[0].map(normalizedKey);
+  return raw.slice(1).filter(row=>Array.isArray(row)&&row.some(value=>value!==''&&value!=null)).map(row=>
+    Object.fromEntries(headers.map((header,index)=>[header,row[index]??'']))
+  );
+}
+
+function publishedSeasonConfig(snapshot,seasonId){
+  const settings=Object.fromEntries(publishedRows(snapshot,'Settings').map(row=>[String(row.key||'').trim(),row.value]));
+  const numberSetting=(key,fallback,integer=false)=>{
+    const parsed=integer?Number.parseInt(settings[key],10):Number.parseFloat(settings[key]);
+    return Number.isFinite(parsed)?parsed:fallback;
+  };
+  const boolSetting=(key,fallback)=>settings[key]==null||settings[key]===''?fallback:publishedBool(settings[key],fallback);
+  const phaseStart={
+    pods:numberSetting('PODS_START_EP',1,true),
+    dating:numberSetting('DATING_START_EP',5,true),
+    weddings:numberSetting('WEDDINGS_START_EP',9,true),
+    reunion:numberSetting('REUNION_START_EP',12,true),
+  };
+  const phaseSpan={
+    pods:{endEp:numberSetting('PODS_END_EP',6,true)},
+    dating:{
+      endEp:numberSetting('DATING_END_EP',9,true),
+      retreatStartEp:numberSetting('RETREAT_START_EP',phaseStart.dating,true),
+      retreatEndEp:numberSetting('RETREAT_END_EP',numberSetting('DATING_END_EP',9,true),true),
+    },
+    weddings:{endEp:numberSetting('WEDDINGS_END_EP',12,true)},
+    reunion:{endEp:numberSetting('REUNION_END_EP',13,true)},
+  };
+  const rules={
+    POINTS_PER_HEART:1,K:numberSetting('K',1),LEAD_STEP:numberSetting('LEAD_STEP',.5),WHO_TAG:numberSetting('WHO_TAG',.25),
+    WEDDINGS_LEAD_STEP:Math.max(0,numberSetting('WEDDINGS_LEAD_STEP',.25)),
+    WEDDINGS_LEAD_CAP:Math.max(1,numberSetting('WEDDINGS_LEAD_CAP',1.75)),
+    phases:{
+      pods:{budget:numberSetting('PODS_BUDGET',200,true),cap:numberSetting('PODS_CAP',60,true),label:'Pods'},
+      dating:{budget:numberSetting('DATING_BUDGET',150,true),cap:numberSetting('DATING_CAP',40,true),label:'Retreats'},
+      weddings:{budget:numberSetting('WEDDINGS_BUDGET',150,true),cap:numberSetting('WEDDINGS_CAP',80,true),label:'Weddings'},
+      reunion:{budget:numberSetting('REUNION_BUDGET',100,true),cap:numberSetting('REUNION_CAP',40,true),label:'Reunion'},
+    },
+  };
+  const cast=publishedRows(snapshot,'Cast').map(row=>({name:String(row.name||'').trim(),gender:String(row.gender||'').trim().toUpperCase()})).filter(person=>person.name);
+  const couples=publishedRows(snapshot,'Couples').map(row=>{
+    const engagedEp=Number.parseInt(row.engaged_ep,10),settledEp=Number.parseInt(row.settled_ep,10),breakupEp=Number.parseInt(row.breakup_ep,10);
+    const lockEp=Number.parseInt(row.lock_ep,10);
+    const wedding=String(row.wedding||'').trim()||undefined;
+    return {
+      id:String(row.id||'').trim(),him:String(row.him||'').trim(),her:String(row.her||'').trim(),
+      engagedEp:Number.isFinite(engagedEp)?engagedEp:undefined,
+      weddingEligibleFromEp:Number.isFinite(engagedEp)?engagedEp:(wedding?phaseStart.weddings:undefined),
+      podsEligible:Number.isFinite(engagedEp)&&(row.pods_eligible==null||row.pods_eligible===''?true:publishedBool(row.pods_eligible)),
+      datingEligible:row.dating_eligible==null||row.dating_eligible===''?true:publishedBool(row.dating_eligible),
+      reunionStatusEligible:row.reunion_status_eligible==null||row.reunion_status_eligible===''?true:publishedBool(row.reunion_status_eligible),
+      wedding,who:String(row.who_says_no||'').trim()||undefined,
+      breakupEp:Number.isFinite(breakupEp)?breakupEp:undefined,settledEp:Number.isFinite(settledEp)?settledEp:undefined,
+      togetherNow:row.together_now==null||row.together_now===''?undefined:publishedBool(row.together_now),
+      lockEp:Number.isFinite(lockEp)?Math.min(lockEp,phaseSpan.weddings.endEp):phaseSpan.weddings.endEp,
+      lockEpFallback:!Number.isFinite(lockEp),
+    };
+  }).filter(couple=>couple.id&&couple.him&&couple.her);
+  const datingResults={sex:{},flirt:{},breakup:{}};
+  publishedRows(snapshot,'Dating Results').forEach(row=>{
+    const market=String(row.market||'').trim().toLowerCase();
+    const target=market==='flirt'?String(row.person||'').trim():String(row.couple_id||'').trim();
+    const ep=Number.parseInt(row.episode,10);
+    if(Object.prototype.hasOwnProperty.call(datingResults,market)&&target&&Number.isFinite(ep))datingResults[market][target]={ep,confirmed:publishedBool(row.confirmed)};
+  });
+  const reunionResults={still:{},back:{},newCouples:[],lifeUpdates:[],absent:[],ready:{still:true,back:true,newCouple:true,lifeUpdate:true,absent:true},placeholders:false};
+  publishedRows(snapshot,'Reunion Results').forEach(row=>{
+    const market=String(row.market||'').trim().toLowerCase();
+    const target=String(row.couple_person_id_or_name||'').trim(),value=String(row.value||'').trim();
+    if(!target||['COMPLETE','FINAL','NONE'].includes(target.toUpperCase()))return;
+    if(market==='still')reunionResults.still[target]=publishedBool(value);
+    else if(market==='back'&&(!value||publishedBool(value)))reunionResults.back[target]=true;
+    else if(market==='newcouple')reunionResults.newCouples.push(target);
+    else if(market==='lifeupdate'&&value)reunionResults.lifeUpdates.push({person:target,update:({engagedNew:'newPartner',marriedNew:'newPartner',kid:'newBaby'}[value]||value)});
+    else if(market==='absent')reunionResults.absent.push(target);
+  });
+  const revealingPhaseForEpisode=episode=>[...PHASES].reverse().find(phase=>episode>phaseStart[phase]&&episode<=phaseSpan[phase].endEp);
+  const retroEvents=publishedRows(snapshot,'Retro Events').map((row,index)=>{
+    const market=String(row.market||'').trim().toLowerCase();
+    const target=String(row.target||'').trim();
+    const voidMarket=String(row.void_market||'').trim().toLowerCase();
+    const appliesPhase=String(row.applies_phase||'').trim().toLowerCase();
+    const revealedEp=Number.parseInt(row.revealed_ep,10);
+    const revealingPhase=revealingPhaseForEpisode(revealedEp);
+    if(!['pods','sex','flirt','breakup','still','void'].includes(market)||!PHASES.includes(appliesPhase)||!target||!revealingPhase)return null;
+    return {id:`retro-${index+1}`,market,target,voidMarket,appliesPhase,revealedEp,note:String(row.note||'').trim(),confirmed:publishedBool(row.confirmed),revealingPhase};
+  }).filter(Boolean);
+  const availableThroughEp=numberSetting('AVAILABLE_THROUGH_EP',0,true);
+  return {
+    season:{id:seasonId,historical:String(publishedSetting(snapshot,'SEASON_STATUS')||snapshot.status||'').toLowerCase()==='completed'},
+    RULES:rules,CAST:cast,MEN:cast.filter(person=>person.gender==='M').map(person=>person.name),WOMEN:cast.filter(person=>person.gender==='F').map(person=>person.name),
+    COUPLES:couples,DATING_RESULTS:datingResults,REUNION_RESULTS:reunionResults,RETRO_EVENTS:retroEvents,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,
+    BOUNDARIES_FINAL:Object.fromEntries(PHASES.map(phase=>[phase,boolSetting(`${phase.toUpperCase()}_BOUNDARY_FINAL`,true)])),
+    RESULTS_READY:Object.fromEntries(PHASES.map(phase=>[phase,boolSetting(`${phase.toUpperCase()}_RESULTS_READY`,true)])),
+    AVAILABLE_THROUGH_EP:availableThroughEp,SEASON_STATUS:String(publishedSetting(snapshot,'SEASON_STATUS')||snapshot.status||'').trim().toLowerCase(),
+    DATING_MULT:{sex:numberSetting('DATING_SEX_MULT',DEFAULT_DATING_MULT.sex),flirt:numberSetting('DATING_FLIRT_MULT',DEFAULT_DATING_MULT.flirt),breakup:numberSetting('DATING_BREAKUP_MULT',DEFAULT_DATING_MULT.breakup)},
+    WED_MULT:{married:numberSetting('WEDDINGS_MARRIED_MULT',DEFAULT_WED_MULT.married),saysNo:numberSetting('WEDDINGS_SAYS_NO_MULT',DEFAULT_WED_MULT.saysNo),calledOff:numberSetting('WEDDINGS_CALLED_OFF_MULT',DEFAULT_WED_MULT.calledOff)},
+    REU_MULT:{still:numberSetting('REUNION_STILL_MULT',DEFAULT_REU_MULT.still),split:numberSetting('REUNION_SPLIT_MULT',DEFAULT_REU_MULT.split),marriedSplit:numberSetting('REUNION_MARRIED_SPLIT_MULT',DEFAULT_REU_MULT.marriedSplit),back:numberSetting('REUNION_BACK_MULT',DEFAULT_REU_MULT.back),newCouple:numberSetting('REUNION_NEW_COUPLE_MULT',DEFAULT_REU_MULT.newCouple),lifeUpdate:numberSetting('REUNION_LIFE_UPDATE_MULT',DEFAULT_REU_MULT.lifeUpdate),absent:numberSetting('REUNION_ABSENT_MULT',DEFAULT_REU_MULT.absent)},
+  };
+}
+
+async function recomputeGlobalStandings(poolId){
+  const poolRef=db.doc(`pools/${poolId}`),standingsRef=poolRef.collection('standings').doc('current');
+  const [poolSnapshot,playersSnapshot,previousSnapshot]=await Promise.all([
+    poolRef.get(),poolRef.collection('trustedPlayers').get(),standingsRef.get(),
+  ]);
+  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)return null;
+  const pool=poolSnapshot.data(),seasonId=String(pool.globalSeasonId||pool.season?.id||'');
+  const seasonSnapshot=await db.doc(`seasons/${seasonId}`).get();
+  if(!seasonSnapshot.exists)throw new Error(`Published season ${seasonId} is unavailable for Global scoring.`);
+  const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
+  const trusted=Object.fromEntries(playersSnapshot.docs.map(document=>[document.id,document.data()]));
+  const previousRows=Object.fromEntries((previousSnapshot.data()?.rows||[]).map(row=>[row.uid,row]));
+  const recalculated={},phaseScores={},phasePoolSizes={},completedByPhase={};
+  PHASES.forEach(phase=>{recalculated[phase]={};phaseScores[phase]={};phasePoolSizes[phase]={};completedByPhase[phase]=[];});
+  for(const phase of PHASES){
+    // Do not freeze a provisional zero. The first published score for a phase
+    // is created only after its result set is explicitly marked ready.
+    if(cfg.RESULTS_READY[phase]!==true)continue;
+    const completed=Object.keys(trusted).filter(uid=>Number.isFinite(Number(trusted[uid]?.completedAt?.[phase])));
+    completedByPhase[phase]=completed;
+    const picksBy=Object.fromEntries(completed.map(uid=>[uid,trusted[uid]?.picks?.[phase]||[]]));
+    const activeCount=Math.max(completed.filter(uid=>(picksBy[uid]||[]).length>0).length,1);
+    const engine=makeEngine(cfg,activeCount);
+    const scored=engine.scorePhase(phase,picksBy);
+    completed.forEach(uid=>{
+      recalculated[phase][uid]=Number(scored.totals[uid])||0;
+      const priorSize=previousRows[uid]?.phasePoolSizes?.[phase];
+      phasePoolSizes[phase][uid]=Number.isFinite(Number(priorSize))?Number(priorSize):activeCount;
+    });
+  }
+  const picksByPhase=Object.fromEntries(PHASES.map(phase=>[
+    phase,
+    Object.fromEntries(Object.keys(trusted)
+      .filter(uid=>Number.isFinite(Number(trusted[uid]?.completedAt?.[phase])))
+      .map(uid=>[uid,trusted[uid]?.picks?.[phase]||[]])),
+  ]));
+  const revealedPhaseSet=new Set(PHASES.filter(phase=>cfg.RESULTS_READY[phase]===true));
+  const retro=makeEngine(cfg,1).scoreRetroAdjustments(picksByPhase,revealedPhaseSet);
+  retro.entries.filter(entry=>!entry.pending&&completedByPhase[entry.retroPhase]?.includes(entry.member)).forEach(entry=>{
+    recalculated[entry.retroPhase][entry.member]=(Number(recalculated[entry.retroPhase][entry.member])||0)+(Number(entry.points)||0);
+  });
+  PHASES.forEach(phase=>completedByPhase[phase].forEach(uid=>{
+    phaseScores[phase][uid]=freezeScoredTotal(previousRows[uid]?.phaseScores?.[phase],recalculated[phase][uid]);
+  }));
+  const rows=Object.keys(trusted).map(uid=>{
+    const previous=previousRows[uid]||{},scores={},sizes={},completedPhases=[];
+    PHASES.forEach(phase=>{
+      if(Object.prototype.hasOwnProperty.call(phaseScores[phase],uid)){
+        scores[phase]=phaseScores[phase][uid];sizes[phase]=phasePoolSizes[phase][uid];completedPhases.push(phase);
+      }
+    });
+    return {uid,username:safeHeaderText(trusted[uid].username||previous.username||'Player',40)||'Player',total:Object.values(scores).reduce((sum,value)=>sum+(Number(value)||0),0),phaseScores:scores,phasePoolSizes:sizes,completedPhases};
+  }).filter(row=>row.completedPhases.length).sort((a,b)=>b.total-a.total||a.username.localeCompare(b.username)||a.uid.localeCompare(b.uid));
+  let lastScore=null,rank=0;
+  rows.forEach((row,index)=>{if(row.total!==lastScore)rank=index+1;row.rank=rank;lastScore=row.total;});
+  const sourceRevision=Math.max(Date.now(),...Object.values(trusted).map(player=>Number(player.updatedAt)||0));
+  const document={schemaVersion:GLOBAL_SCORING_VERSION,engineVersion:GLOBAL_SCORING_VERSION,seasonId,sourceRevision,computedAt:Date.now(),rows};
+  const byteSize=Buffer.byteLength(JSON.stringify(document));
+  if(byteSize>STANDINGS_DOCUMENT_SOFT_LIMIT)throw new Error(`Global standings document is ${byteSize} bytes; refusing to approach Firestore's document limit.`);
+  await db.runTransaction(async transaction=>{
+    const current=await transaction.get(standingsRef);
+    if((Number(current.data()?.sourceRevision)||0)>sourceRevision)return;
+    transaction.set(standingsRef,{...document,updatedAt:FieldValue.serverTimestamp()});
+  });
+  return document;
 }
 
 function cleanRatings(value){
@@ -224,6 +413,7 @@ exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'sea
 async function removeMemberData(poolRef,uid){
   const batch=db.batch();
   batch.delete(poolRef.collection('players').doc(uid));
+  batch.delete(poolRef.collection('trustedPlayers').doc(uid));
   batch.delete(poolRef.collection('castRatings').doc(uid));
   PHASES.forEach(phase=>{
     batch.delete(poolRef.collection('phasePicks').doc(`${phase}__${uid}`));
@@ -232,7 +422,7 @@ async function removeMemberData(poolRef,uid){
   await batch.commit();
 }
 
-exports.leavePool=onCall(FUNCTION_LIMITS,async request=>{
+exports.leavePool=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
   if(!poolId)throw new HttpsError('invalid-argument','Choose a pool to leave.');
@@ -249,10 +439,11 @@ exports.leavePool=onCall(FUNCTION_LIMITS,async request=>{
     await poolRef.update({members:FieldValue.arrayRemove(uid)});
   }
   await removeMemberData(poolRef,uid);
+  if(pool.global===true)await recomputeGlobalStandings(poolId);
   return {ok:true};
 });
 
-exports.deletePool=onCall(FUNCTION_LIMITS,async request=>{
+exports.deletePool=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
   if(!poolId)throw new HttpsError('invalid-argument','Choose a pool to delete.');
@@ -272,13 +463,15 @@ exports.deletePool=onCall(FUNCTION_LIMITS,async request=>{
   return {ok:true};
 });
 
-exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
+exports.reopenPhase=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
   const phase=String(request.data?.phase||'');
   if(!poolId||!PHASES.includes(phase))throw new HttpsError('invalid-argument','Choose a valid phase to reopen.');
   const poolRef=db.doc(`pools/${poolId}`);
   const statusRef=poolRef.collection('phaseStatus').doc(phase);
+  const trustedRef=poolRef.collection('trustedPlayers').doc(uid);
+  let globalPool=false;
   await db.runTransaction(async tx=>{
     const poolSnapshot=await tx.get(poolRef);
     if(!poolSnapshot.exists)throw new HttpsError('not-found','This pool no longer exists.');
@@ -286,9 +479,11 @@ exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
     if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','You are not a member of this pool.');
     const seasonId=String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'');
     if(!seasonId)throw new HttpsError('failed-precondition','This pool has no season configured.');
-    const [seasonSnapshot,statusSnapshot]=await Promise.all([
+    globalPool=pool.global===true;
+    const [seasonSnapshot,statusSnapshot,trustedSnapshot]=await Promise.all([
       tx.get(db.doc(`seasons/${seasonId}`)),
       tx.get(statusRef),
+      globalPool?tx.get(trustedRef):Promise.resolve(null),
     ]);
     if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
     if(!statusSnapshot.exists||!(statusSnapshot.data().completedMembers||[]).includes(uid))throw new HttpsError('failed-precondition','This phase is not locked for you.');
@@ -298,13 +493,15 @@ exports.reopenPhase=onCall(FUNCTION_LIMITS,async request=>{
     const boundaryKey=`${phase.toUpperCase()}_BOUNDARY_FINAL`;
     if(publishedBool(publishedSetting(season,boundaryKey),false))throw new HttpsError('failed-precondition','This phase boundary is final and cannot reopen.');
     tx.update(statusRef,{completedMembers:FieldValue.arrayRemove(uid),updatedAt:Date.now()});
+    if(globalPool&&trustedSnapshot?.exists)tx.update(trustedRef,{[`completedAt.${phase}`]:FieldValue.delete(),updatedAt:Date.now()});
   });
+  if(globalPool)await recomputeGlobalStandings(poolId);
   return {ok:true};
 });
 
 const DAILY_EMAIL_INVITE_LIMIT=20;
 
-exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
+exports.sendPoolInvite=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
   const toEmail=String(request.data?.toEmail||'').trim().toLowerCase();
@@ -389,7 +586,11 @@ exports.sendPoolInvite=onCall(FUNCTION_LIMITS,async request=>{
   return {ok:true,limit:DAILY_EMAIL_INVITE_LIMIT,remaining:Math.max(0,DAILY_EMAIL_INVITE_LIMIT-invitationCount)};
 });
 
-exports.openGlobalPool=onCall(FUNCTION_LIMITS,async request=>{
+exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
+  const action=String(request.data?.action||'open');
+  if(action==='lockGlobalPicks')return lockGlobalPicks(request);
+  if(action==='completeGlobalPhase')return completeGlobalPhase(request);
+  if(action!=='open')throw new HttpsError('invalid-argument','Choose a valid Global Pool action.');
   const uid=requireUser(request);
   const email=String(request.auth.token?.email||'').trim().toLowerCase();
   const seasonId=String(request.data?.seasonId||'');
@@ -404,19 +605,75 @@ exports.openGlobalPool=onCall(FUNCTION_LIMITS,async request=>{
     if(snapshot.exists){
       const current=snapshot.data();
       if(current.global!==true||current.globalSeasonId!==seasonId)throw new HttpsError('failed-precondition','The global pool document is configured incorrectly.');
-      if(!Array.isArray(current.members)||!current.members.includes(uid))tx.update(ref,{members:FieldValue.arrayUnion(uid)});
+      const update={scoringVersion:GLOBAL_SCORING_VERSION};
+      if(!Array.isArray(current.members)||!current.members.includes(uid))update.members=FieldValue.arrayUnion(uid);
+      tx.update(ref,update);
       return;
     }
     if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','The app administrator needs to open this global pool first.');
     tx.create(ref,{
       name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
-      membershipClosed:false,season,rulesSnapshot:null,createdAt:Date.now(),
+      membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
   });
   return {ok:true,poolId:ref.id};
 });
 
-exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
+async function lockGlobalPicks(request){
+  const uid=requireUser(request);
+  const poolId=String(request.data?.poolId||'');
+  const submitted=request.data?.phases;
+  if(!poolId||!submitted||typeof submitted!=='object'||Array.isArray(submitted))throw new HttpsError('invalid-argument','Choose Global Pool predictions to lock.');
+  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid);
+  const [poolSnapshot,trustedSnapshot,profileSnapshot]=await Promise.all([poolRef.get(),trustedRef.get(),db.doc(`users/${uid}`).get()]);
+  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted scoring is available only in the Global Pool.');
+  const pool=poolSnapshot.data();
+  if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before locking predictions.');
+  const seasonId=String(pool.globalSeasonId||pool.season?.id||'');
+  const seasonSnapshot=await db.doc(`seasons/${seasonId}`).get();
+  if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+  const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId),engine=makeEngine(cfg,1);
+  const previous=trustedSnapshot.exists?trustedSnapshot.data():{};
+  const nextPicks={...(previous.picks||{})},lockedAt=Date.now();
+  for(const [phase,incoming] of Object.entries(submitted)){
+    if(!PHASES.includes(phase)||!Array.isArray(incoming))throw new HttpsError('invalid-argument','One submitted prediction phase is malformed.');
+    if(Number.isFinite(Number(previous.completedAt?.[phase])))continue;
+    nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming,existing:nextPicks[phase],lockedAt,authoritativeWindow:cfg.AVAILABLE_THROUGH_EP});
+  }
+  await trustedRef.set({
+    uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
+    scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,
+  });
+  const standings=await recomputeGlobalStandings(poolId);
+  return {ok:true,lockedAt,accepted:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,(nextPicks[phase]||[]).length])),standingsRevision:standings?.sourceRevision||0};
+}
+
+async function completeGlobalPhase(request){
+  const uid=requireUser(request),poolId=String(request.data?.poolId||''),phase=String(request.data?.phase||'');
+  if(!poolId||!PHASES.includes(phase))throw new HttpsError('invalid-argument','Choose a valid Global Pool phase to complete.');
+  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid),statusRef=poolRef.collection('phaseStatus').doc(phase);
+  const completedAt=Date.now();
+  await db.runTransaction(async transaction=>{
+    const [poolSnapshot,trustedSnapshot]=await Promise.all([transaction.get(poolRef),transaction.get(trustedRef)]);
+    if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted completion is available only in the Global Pool.');
+    if(!Array.isArray(poolSnapshot.data().members)||!poolSnapshot.data().members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before completing a phase.');
+    if(!trustedSnapshot.exists)throw new HttpsError('failed-precondition','Lock this phase’s predictions before completing it.');
+    const trusted=trustedSnapshot.data();
+    transaction.set(trustedRef,{...trusted,completedAt:{...(trusted.completedAt||{}),[phase]:Number(trusted.completedAt?.[phase])||completedAt},updatedAt:completedAt});
+    transaction.set(statusRef,{completedMembers:FieldValue.arrayUnion(uid),updatedAt:completedAt},{merge:true});
+  });
+  const standings=await recomputeGlobalStandings(poolId);
+  return {ok:true,completedAt,standingsRevision:standings?.sourceRevision||0};
+}
+
+exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{
+  if(!event.data?.after.exists)return;
+  const poolId=`global__${event.params.seasonId}`;
+  const pool=await db.doc(`pools/${poolId}`).get();
+  if(pool.exists&&pool.data().global===true)await recomputeGlobalStandings(poolId);
+});
+
+exports.deleteMyAccount=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   // Read the email before deleting Authentication so recipient-addressed
   // invitation documents can be included in the erasure pass.
@@ -428,6 +685,7 @@ exports.deleteMyAccount=onCall(FUNCTION_LIMITS,async request=>{
     else{
       await poolDoc.ref.update({members:FieldValue.arrayRemove(uid)});
       await removeMemberData(poolDoc.ref,uid);
+      if(poolDoc.data().global===true)await recomputeGlobalStandings(poolDoc.id);
     }
   }
   await db.recursiveDelete(db.doc(`castRatingProfiles/${uid}`));

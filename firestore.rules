@@ -539,6 +539,19 @@ service cloud.firestore {
         allow delete: if poolOwner(poolId);
       }
 
+      // Trusted Global Pool inputs and computed standings are maintained only
+      // by Admin SDK Functions. Browser drafts never become scoring authority.
+      match /trustedPlayers/{userId} {
+        allow read, write: if false;
+      }
+
+      match /standings/{standingsId} {
+        allow read: if standingsId == 'current' &&
+          poolMember(poolId) &&
+          poolData(poolId).global == true;
+        allow write: if false;
+      }
+
       // ----------------------------------------------------------
       // Opt-in friend-pool Heat Check snapshots
       // A non-shared document contains no rating values.

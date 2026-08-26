@@ -28,13 +28,13 @@
 3. Enable Google and Email link providers in Firebase Authentication. Add `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Keep Apple hidden until its service ID, team ID, key ID, and private key are configured.
 4. Connect the production custom domain in Firebase Hosting and wait for its certificate to become active before changing DNS. Confirm the `github-actions/libapp` Workload Identity provider can impersonate the dedicated `github-firebase-hosting` service account; no persistent JSON key or repository secret should exist.
 5. Register the production domain with Firebase App Check using reCAPTCHA Enterprise, initialize App Check in the client with that site key, then set callable functions to `enforceAppCheck: true`.
-6. Add the Firebase Analytics `measurementId` to the public web config and instrument the agreed funnel taxonomy: sign-in started/completed, pool created, invite or link accepted, checkpoint locked/completed, Heat Check saved/shared, result card shared, and return visit.
+6. Complete `POSTHOG-BETA-RUNBOOK.md`: create the EU Cloud project and `price_variant` flag, set the GitHub production environment variables, deploy Hosting, verify anonymous-to-identified stitching and replay masking, and confirm Plausible still receives events in parallel.
 
 ## Post-deploy verification
 
 After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
 
-Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address on the same UTC day and confirm both create delivery attempts. Rotate a friend-pool invite link and confirm the old link is rejected while the new link joins successfully.
+Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address on the same UTC day and confirm both create delivery attempts. Rotate a friend-pool invite link and confirm the old link is rejected while the new link joins successfully. Run the PostHog release verification in `POSTHOG-BETA-RUNBOOK.md` before opening beta access.
 
 ```sh
 gcloud run services update reopenphase \

@@ -188,6 +188,17 @@ async function main(){
     200,
     'signed-in user queries their pool memberships'
   );
+  const globalPoolId='global__love-is-blind-se-1';
+  await expectStatus(await writeDocument(`pools/${globalPoolId}`,{
+    ...poolFields(uid,rulesSnapshot(5),[uid,second.uid]),global:boolValue(true),globalSeasonId:stringValue('love-is-blind-se-1'),
+  },'owner'),200,'admin seeds Global Pool scoring fixture');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/standings/current`,{schemaVersion:numberValue(1),rows:arrayValue([])},'owner'),200,'trusted scorer writes current standings');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/standings/current`,token),200,'Global Pool member reads current standings');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/standings/current`,invited.token),403,'non-member cannot read Global standings');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/standings/current`,{schemaVersion:numberValue(1),rows:arrayValue([])},token),403,'browser member cannot forge Global standings');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/trustedPlayers/${uid}`,{uid:stringValue(uid)},'owner'),200,'trusted scorer seeds validated Global input');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/trustedPlayers/${uid}`,token),403,'browser member cannot read trusted scoring inputs');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/trustedPlayers/${uid}`,{uid:stringValue(uid)},token),403,'browser member cannot forge trusted scoring inputs');
 
   const profileCreatedAt=Date.now()-1000;
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Original'),createdAt:numberValue(profileCreatedAt)},token),200,'user creates profile');

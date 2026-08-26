@@ -3,13 +3,9 @@ const fs=require('node:fs');
 const path=require('node:path');
 
 const source=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
-const start=source.indexOf('const DEFAULT_DATING_MULT');
-const end=source.indexOf('const retroRevealSub');
-assert(start>=0&&end>start,'Engine extraction markers must exist.');
-const extracted=source.slice(start,end)+'\nmodule.exports={makeEngine};';
-const extractedModule={exports:{}};
-new Function('module','exports',extracted)(extractedModule,extractedModule.exports);
-const {makeEngine}=extractedModule.exports;
+const engineSource=fs.readFileSync(path.join(__dirname,'..','functions','shared','scoring-engine.js'),'utf8');
+const {makeEngine,validateLockedPhasePicks,freezeScoredTotal}=require('../functions/shared/scoring-engine');
+assert(source.includes('/* __SCORING_ENGINE_SOURCE__ */'),'The editable app must contain the shared-engine build marker.');
 
 const cast=['Alex','Blair','Casey','Drew'].map(name=>({name}));
 const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:4.25,lifeUpdate:3.75,absent:2})=>({
@@ -33,6 +29,45 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   assert(miss,'A known-cast Pods pairing absent from Couples must resolve as a miss.');
   assert.equal(miss.stake,15);
   assert.equal(miss.poolSize,2,'The member with the unknown pairing must count as an active Pods player.');
+}
+
+{
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}];
+  const liveTwo=makeEngine(cfg(couples),2).scorePhase('pods',{
+    early:[{c:'Alex|Casey',s:20,w:1}],other:[{c:'Blair|Drew',s:10,w:1}],
+  }).totals.early;
+  const liveThree=makeEngine(cfg(couples),3).scorePhase('pods',{
+    early:[{c:'Alex|Casey',s:20,w:1}],other:[{c:'Blair|Drew',s:10,w:1}],later:[{c:'Blair|Casey',s:10,w:1}],
+  }).totals.early;
+  assert.notEqual(liveTwo,liveThree,'Friend-pool live denominators must continue changing when another active player joins the phase.');
+  assert.equal(freezeScoredTotal(liveTwo,liveThree),liveTwo,'A trusted Global score must retain its first scored total after the population grows.');
+}
+
+{
+  const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}]);
+  season.RULES.phases.pods={...season.RULES.phases.pods,budget:20,cap:15};
+  const engine=makeEngine(season,1);
+  const accepted=validateLockedPhasePicks({
+    engine,phase:'pods',lockedAt:1000,authoritativeWindow:1,
+    incoming:[{c:'Alex|Casey',s:15,w:1},{c:'Blair|Drew',s:15,w:1}],
+  });
+  assert.equal(accepted.length,1,'A pick that would push the phase over its trusted budget must be rejected.');
+  assert.equal(engine.spentBy(accepted),15);
+}
+
+{
+  const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:5}]);
+  season.PH_SPAN.pods.endEp=6;
+  const engine=makeEngine(season,1);
+  const accepted=validateLockedPhasePicks({
+    engine,phase:'pods',lockedAt:5000,authoritativeWindow:4,
+    incoming:[{c:'Alex|Casey',s:20,w:1}],
+  });
+  assert.equal(accepted[0].w,4,'A client-supplied fake foresight window must be replaced by the authoritative release window.');
+  assert.equal(accepted[0].lockedAt,5000);
+  const trusted=engine.scorePhase('pods',{viewer:accepted}).totals.viewer;
+  const fabricated=engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:1}]}).totals.viewer;
+  assert(trusted<fabricated,'Replacing fake foresight must remove the fabricated lead multiplier.');
 }
 
 {

@@ -23,8 +23,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="analytics.js"></script>
 <script defer data-domain="throughthewall.ca" src="https://plausible.io/js/script.js"></script>
-<script>window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments);};window.addEventListener('ttw:conversion',event=>{const payload=event.detail||{},name=payload.event;if(!name)return;const props={...payload};delete props.event;window.plausible(name,{props});});</script>
 <script>try{const t=localStorage.getItem('prediction-pool-theme')==='dark'?'dark':'light';document.documentElement.dataset.theme=t;document.querySelector('meta[name="theme-color"]').content=t==='dark'?'#170a11':'#431127';}catch(e){document.documentElement.dataset.theme='light';}</script>
 <style>
 :root{
@@ -635,6 +635,14 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .notification-options{display:grid;gap:9px;margin:12px 0 6px}
 .notification-options .chemistry-toggle{margin:0;padding:12px 14px}
 .notification-destination{margin:9px 0 18px;color:var(--muted);font-size:11.5px;line-height:1.45}
+.premium-fakedoor{margin:18px 0;padding:17px;border:1px solid color-mix(in srgb,var(--purple) 35%,var(--line));border-radius:16px;background:radial-gradient(circle at 92% 5%,color-mix(in srgb,var(--purple) 16%,transparent),transparent 34%),linear-gradient(135deg,color-mix(in srgb,var(--blush-soft) 60%,var(--surface)),var(--surface))}
+.premium-fakedoor-kicker{color:var(--purple);font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
+.premium-fakedoor h3{margin:5px 0 6px;color:var(--wine);font:700 22px/1.1 'Playfair Display',Georgia,serif}
+.premium-fakedoor p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
+.premium-price{display:flex;align-items:baseline;gap:5px;margin:13px 0 3px;color:var(--wine)}
+.premium-price strong{font:700 31px/1 'Playfair Display',Georgia,serif}
+.premium-price span{font-size:11px;font-weight:700;color:var(--muted)}
+.premium-fakedoor .btn-secondary,.premium-fakedoor .btn-primary{margin-top:12px}
 .chemistry-savebar{position:sticky;z-index:4;bottom:12px;margin:18px 0 4px;padding:10px;border:1px solid color-mix(in srgb,var(--rose) 26%,var(--line));border-radius:17px;background:color-mix(in srgb,var(--card) 92%,transparent);box-shadow:0 12px 34px rgba(67,17,39,.15);backdrop-filter:blur(12px)}
 .chemistry-savebar .btn-primary{margin:0}
 .chemistry-empty{padding:30px 20px;text-align:center;border:1px dashed var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 72%,var(--blush-soft))}
@@ -776,6 +784,8 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query
   from '/__/firebase/11.2.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from '/__/firebase/11.2.0/firebase-functions.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider }
+  from '/__/firebase/11.2.0/firebase-app-check.js';
 /* AUTH HELPERS START */
 const AUTH_SILENT_CODES=new Set(['auth/popup-closed-by-user','auth/cancelled-popup-request']);
 const EMAIL_SIGN_IN_QUERY='signInEmail';
@@ -846,6 +856,15 @@ const firebaseConfig = {
   appId: "1:737647208245:web:df790bfdf2ca546fa80e7c"
 };
 const fbApp = initializeApp(firebaseConfig);
+const APP_CHECK_SITE_KEY='6LcyapgtAAAAABtsLKnbfiSR67KNw8oAS2RQvr_p';
+const appCheckProductionHost=['throughthewall.ca','www.throughthewall.ca'].includes(window.location.hostname);
+if(appCheckProductionHost){
+  if(APP_CHECK_SITE_KEY.startsWith('__'))throw new Error('The production App Check site key was not included in this build.');
+  initializeAppCheck(fbApp,{
+    provider:new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY),
+    isTokenAutoRefreshEnabled:true,
+  });
+}
 const auth  = getAuth(fbApp);
 const db    = getFirestore(fbApp);
 const functions = getFunctions(fbApp);
@@ -1241,6 +1260,27 @@ window._fb = {
     tx.set(statusRef,nextStatus);
     return nextStatus;
   }),
+  lockGlobalPicks: (poolId,phases) => httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases}),
+  completeGlobalPhase: (poolId,phase) => httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase}),
+  loadGlobalStandings: async poolId => {
+    const snapshot=await getDoc(doc(db,'pools',poolId,'standings','current'));
+    return snapshot.exists()?snapshot.data():null;
+  },
+  watchGlobalStandings: (poolId,onChange,onError=()=>{}) => onSnapshot(
+    doc(db,'pools',poolId,'standings','current'),
+    snapshot=>onChange(snapshot.exists()?snapshot.data():null),
+    onError,
+  ),
+  loadMyPlayer: async (poolId,uid) => {
+    const playerSnapshot=await getDoc(doc(db,'pools',poolId,'players',uid));
+    if(!playerSnapshot.exists())return null;
+    const player={...playerSnapshot.data(),picks:{pods:[],dating:[],weddings:[],reunion:[]}};
+    await Promise.all(GAME_PHASES.map(async phase=>{
+      const pickSnapshot=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
+      if(pickSnapshot.exists())player.picks[phase]=Array.isArray(pickSnapshot.data().picks)?pickSnapshot.data().picks:[];
+    }));
+    return player;
+  },
   reopenPhase: (poolId, phase) => httpsCallable(functions,'reopenPhase')({poolId,phase}),
   loadAllPlayers: async (poolId, currentUid, globalPool=false) => {
     const toPlayer = d => {
@@ -1397,25 +1437,11 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script crossorigin="anonymous" integrity="sha512-MOCpqoRoisCTwJ8vQQiciZv0qcpROCidek3GTFS6KTk2+y7munJIlKCVkFCYY+p3ErYFXCjmFjnfTTRSC1OHWQ==" src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script crossorigin="anonymous" integrity="sha512-Y37Caenc5CZqwSMwWZj+5uxkB3Loc9yJNHvb+eSwEsT6nhURSrPZo39vTnb5g8UvOGCNXRbQ+xQvnqr2rR9nRw==" src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.5/babel.min.js"></script>
 <script type="text/babel" data-presets="react">
-const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid'];
 const initialAppParams=new URLSearchParams(window.location.search);
 const APP_BUILD_TIMESTAMP='__APP_BUILD_TIMESTAMP__'.startsWith('__APP_')?'development source · '+document.lastModified:'__APP_BUILD_TIMESTAMP__';
 window.__TTW_DIAGNOSTICS__={appBuildTimestamp:APP_BUILD_TIMESTAMP};
 const MARKETING_CREATE_INTENT=initialAppParams.get('start')==='create';
-const captureAcquisition=()=>{
-  const acquisition=Object.fromEntries(ACQUISITION_KEYS.map(key=>[key,initialAppParams.get(key)]).filter(([,value])=>value));
-  if(!Object.keys(acquisition).length)return {};
-  try{localStorage.setItem('through-the-wall-acquisition',JSON.stringify({...acquisition,capturedAt:Date.now()}));}catch(e){}
-  return acquisition;
-};
-const capturedAcquisition=captureAcquisition();
-const trackTtwEvent=(event,details={})=>{
-  let acquisition=capturedAcquisition;
-  if(!Object.keys(acquisition).length){try{acquisition=JSON.parse(localStorage.getItem('through-the-wall-acquisition')||'{}');}catch(e){acquisition={};}}
-  const payload={event,...(window.__TTW_BROWSING_CONTEXT__||{}),...details,...acquisition};
-  window.dataLayer=window.dataLayer||[];window.dataLayer.push(payload);
-  window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));
-};
+const trackTtwEvent=(event,details={})=>window.ttwAnalytics?.track(event,details);
 const ERROR_CONTEXT_KEYS=['entryStep','operation','phase','poolId','screen','seasonId','targetPoolId'];
 const safeErrorContextValue=(value,maxLength=100)=>String(value||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
 const reportTtwError=(category,error,context={})=>{
@@ -1450,8 +1476,30 @@ const clampWatchTarget=(phase,currentWatch,requestedWatch,spans,availableThrough
   return Math.max(current,Math.min(requested,ceiling));
 };
 /* EPISODE GATE HELPERS END */
+const noteAvailableEpisode=(seasonId,availableThrough)=>{
+  const episode=Math.max(0,Number(availableThrough)||0);
+  if(!seasonId||!episode)return;
+  const storageKey='through-the-wall-available-episodes';
+  try{
+    const seen=JSON.parse(localStorage.getItem(storageKey)||'{}');
+    const previous=Math.max(0,Number(seen[seasonId])||0);
+    if(previous&&episode>previous)trackTtwEvent('episode_return',{seasonId,episode});
+    if(episode>previous)localStorage.setItem(storageKey,JSON.stringify({...seen,[seasonId]:episode}));
+  }catch(error){}
+};
 if(MARKETING_CREATE_INTENT)trackTtwEvent('create_pool_click',{placement:'app_intent'});
 trackTtwEvent('app_arrival');
+const landingJoinToken=initialAppParams.get('join')||'';
+if(landingJoinToken){
+  const poolId=landingJoinToken.split('.')[0];
+  const storageKey='through-the-wall-invite-opened-'+landingJoinToken;
+  try{
+    if(poolId&&!sessionStorage.getItem(storageKey)){
+      trackTtwEvent('invite_link_opened',{poolId});
+      sessionStorage.setItem(storageKey,'1');
+    }
+  }catch(error){if(poolId)trackTtwEvent('invite_link_opened',{poolId});}
+}
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
@@ -2509,638 +2557,24 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
 /*  Pods, Retreats, and Weddings roll between episodes. Reunion locks. */
 /* ================================================================== */
-const DEFAULT_DATING_MULT={sex:1,flirt:2,breakup:3};
-const DEFAULT_WED_MULT={married:1,saysNo:1.5,calledOff:1.75};
-const DEFAULT_REU_MULT={still:1,split:2,marriedSplit:2,back:2,newCouple:5,lifeUpdate:5,absent:2};
-let DATING_MULT = {...DEFAULT_DATING_MULT};
-let WED_MULT  = {...DEFAULT_WED_MULT};
-// Wedding values: married, saysNo, calledOff, notShown (engagement aired, post-Pods arc not shown).
-const WED_LABEL = {married:'Get married',saysNo:'Says no at the altar',calledOff:'Called off before the altar',notShown:'Never aired past the pods'};
-const FLIRT_SHORT = 'Flirts with someone else';
-let REU_MULT  = {...DEFAULT_REU_MULT};
-const LIFE_UPD  = {newPartner:'Married or Engaged to Someone New',newBaby:'Pregnant or New Baby'};
-const normalizeLifeUpdate = value => ({engagedNew:'newPartner',marriedNew:'newPartner',kid:'newBaby'}[value]||value);
-const PH_ORDER  = ['pods','dating','weddings','reunion'];
-const DEFAULT_PH_SPAN = {pods:{endEp:6},dating:{endEp:9,retreatStartEp:6,retreatEndEp:9},weddings:{endEp:12},reunion:{endEp:13}};
-const DEFAULT_PH_STARTW = {pods:1,dating:5,weddings:9,reunion:12};
-const DEFAULT_BOUNDARIES_FINAL = {pods:true,dating:true,weddings:true,reunion:true};
-const DEFAULT_RESULTS_READY = {pods:true,dating:true,weddings:true,reunion:true};
-const cloneDefaultPhaseSpan = () => Object.fromEntries(Object.entries(DEFAULT_PH_SPAN).map(([phase,span])=>[phase,{...span}]));
-let PH_SPAN   = cloneDefaultPhaseSpan();
-let PH_STARTW = {...DEFAULT_PH_STARTW};
-let AVAILABLE_THROUGH_EP = 13;
-let BOUNDARIES_FINAL = {...DEFAULT_BOUNDARIES_FINAL};
-let RESULTS_READY = {...DEFAULT_RESULTS_READY};
-const NEXT_PH   = {pods:'dating',dating:'weddings',weddings:'reunion',reunion:null};
-const predictionPhasesAt = (primaryPhase,watchedEp,spans=PH_SPAN,starts=PH_STARTW) => {
-  const nextPhase=NEXT_PH[primaryPhase];
-  return nextPhase&&watchedEp>=starts[nextPhase]&&watchedEp<spans[primaryPhase].endEp
-    ? [primaryPhase,nextPhase]
-    : [primaryPhase];
-};
-const freshPicks = () => ({pods:[],dating:[],weddings:[],reunion:[]});
-const legacyRelationshipMarkets=new Set(['still','split','marriedSplit','back']);
-const relationshipOutcome = pick => {
-  const outcome=pick?.m==='relationship'?pick.outcome:pick?.m;
-  return legacyRelationshipMarkets.has(outcome)?outcome:null;
-};
-const normalizeReunionPick = pick => legacyRelationshipMarkets.has(pick?.m)
-  ? {...pick,m:'relationship',outcome:pick.m}
-  : pick;
-const normalizePicks = value => Object.fromEntries(PH_ORDER.map(ph=>{
-  const phasePicks=Array.isArray(value?.[ph])?value[ph]:[];
-  return [ph,ph==='reunion'?phasePicks.map(normalizeReunionPick):phasePicks];
-}));
-const PENDING_SAVE_STORAGE_KEY='prediction-pool-pending-save';
-const EMPTY_PHASE_SCORES=Object.freeze({});
-function buildGlobalDemoData(meId,meName) {
-  const firstNames=['Aaliyah','Alex','Amara','Ben','Bianca','Cam','Carmen','Chris','Dani','Dev','Elena','Eli','Farah','Finn','Gabby','Grace','Hana','Harper','Imani','Ivy','Jalen','Jamie','Kai','Keira','Leo','Lina','Mara','Mateo','Nadia','Noah','Omar','Priya','Quinn','Rae','Remy','Sage','Sam','Talia','Theo','Zara'];
-  const phaseEnds={pods:6,dating:9,weddings:12,reunion:13};
-  const players={},labels={},statusDocs={},phaseScores={};
-  PH_ORDER.forEach(ph=>{phaseScores[ph]={};statusDocs[ph]={completedMembers:[],updatedAt:Date.now()};});
-  const addPlayer=(id,name,throughIndex,index,isMe=false)=>{
-    const completed={};
-    PH_ORDER.forEach((ph,phaseIndex)=>{
-      if(phaseIndex>throughIndex)return;
-      completed[ph]=true;
-      statusDocs[ph].completedMembers.push(id);
-      const ranges={pods:[80,420],dating:[60,330],weddings:[95,470],reunion:[70,360]};
-      const [minimum,spread]=ranges[ph];
-      phaseScores[ph][id]=isMe
-        ? ({pods:96,dating:88,weddings:112,reunion:74}[ph])
-        : minimum+((index*83+phaseIndex*127+index*index*7)%spread);
+/* __SCORING_ENGINE_SOURCE__ */
+const globalStandingsView = (standings,ownUid,ownPlayer=null) => {
+  const rows=Array.isArray(standings?.rows)?standings.rows:[];
+  const players={},users={},status=Object.fromEntries(PH_ORDER.map(phase=>[phase,{completedMembers:[],updatedAt:Number(standings?.computedAt)||0}]));
+  const phaseScores=Object.fromEntries(PH_ORDER.map(phase=>[phase,{}]));
+  rows.forEach(row=>{
+    const completed=Object.fromEntries((row.completedPhases||[]).filter(phase=>PH_ORDER.includes(phase)).map(phase=>[phase,true]));
+    players[row.uid]={username:row.username,picks:freshPicks(),completed,phase:(row.completedPhases||[]).at(-1)||'pods',screen:'close',w:0,watchThrough:0};
+    users[row.uid]={username:row.username};
+    (row.completedPhases||[]).forEach(phase=>{
+      if(!PH_ORDER.includes(phase))return;
+      status[phase].completedMembers.push(row.uid);
+      phaseScores[phase][row.uid]=Number(row.phaseScores?.[phase])||0;
     });
-    const currentPhase=PH_ORDER[throughIndex];
-    players[id]={username:name,picks:freshPicks(),completed,phase:currentPhase,screen:'close',w:phaseEnds[currentPhase],watchThrough:phaseEnds[currentPhase]};
-    labels[id]=name;
-  };
-  for(let index=0;index<125;index++) {
-    const percentile=index%100;
-    const throughIndex=percentile<28?3:percentile<55?2:percentile<80?1:0;
-    const name=firstNames[index%firstNames.length]+' '+String.fromCharCode(65+((index*11)%26))+'.';
-    addPlayer('global-demo-'+String(index+1).padStart(3,'0'),name,throughIndex,index);
-  }
-  addPlayer(meId,meName||'You',3,131,true);
-  return {players,labels,statusDocs,phaseScores};
-}
-const applyRuntimeConfig = cfg => {
-  PH_SPAN=cfg.PH_SPAN||PH_SPAN;
-  PH_STARTW=cfg.PH_STARTW||PH_STARTW;
-  AVAILABLE_THROUGH_EP=Number.isFinite(cfg.AVAILABLE_THROUGH_EP)?cfg.AVAILABLE_THROUGH_EP:AVAILABLE_THROUGH_EP;
-  BOUNDARIES_FINAL=cfg.BOUNDARIES_FINAL||BOUNDARIES_FINAL;
-  RESULTS_READY=cfg.RESULTS_READY||RESULTS_READY;
-  DATING_MULT=cfg.DATING_MULT||DATING_MULT;
-  WED_MULT=cfg.WED_MULT||WED_MULT;
-  REU_MULT=cfg.REU_MULT||REU_MULT;
-  return cfg;
+  });
+  if(ownPlayer)players[ownUid]=ownPlayer;
+  return {players,users,status,phaseScores};
 };
-const resetRuntimeConfig = () => {
-  PH_SPAN=cloneDefaultPhaseSpan();
-  PH_STARTW={...DEFAULT_PH_STARTW};
-  AVAILABLE_THROUGH_EP=13;
-  BOUNDARIES_FINAL={...DEFAULT_BOUNDARIES_FINAL};
-  RESULTS_READY={...DEFAULT_RESULTS_READY};
-  DATING_MULT={...DEFAULT_DATING_MULT};
-  WED_MULT={...DEFAULT_WED_MULT};
-  REU_MULT={...DEFAULT_REU_MULT};
-};
-const rulesSnapshotFrom = cfg => ({
-  // Keep this version inside validRulesSnapshot's accepted range in firestore.rules.
-  version:5,RULES:cfg.RULES,PH_SPAN:cfg.PH_SPAN,PH_STARTW:cfg.PH_STARTW,
-  DATING_MULT:{...(cfg.DATING_MULT||DEFAULT_DATING_MULT)},WED_MULT:{...(cfg.WED_MULT||DEFAULT_WED_MULT)},REU_MULT:{...(cfg.REU_MULT||DEFAULT_REU_MULT)},
-});
-const configForPool = (liveCfg,pool) => {
-  const frozen=pool?.rulesSnapshot;
-  if(!frozen) return liveCfg;
-  const useLiveBoundaries=liveCfg.BOUNDARIES_LIVE===true;
-  const frozenStarts=frozen.PH_STARTW||liveCfg.PH_STARTW;
-  const frozenSpans=frozen.PH_SPAN
-    ? {...frozen.PH_SPAN,dating:{
-        ...liveCfg.PH_SPAN.dating,
-        ...frozen.PH_SPAN.dating,
-        retreatStartEp:Number.isFinite(frozen.PH_SPAN.dating?.retreatStartEp)
-          ? frozen.PH_SPAN.dating.retreatStartEp
-          : frozenStarts.dating,
-      }}
-    : liveCfg.PH_SPAN;
-  return {...liveCfg,RULES:frozen.RULES||liveCfg.RULES,PH_SPAN:useLiveBoundaries?liveCfg.PH_SPAN:frozenSpans,PH_STARTW:useLiveBoundaries?liveCfg.PH_STARTW:frozenStarts,DATING_MULT:{...(liveCfg.DATING_MULT||DEFAULT_DATING_MULT),...(frozen.DATING_MULT||{})},WED_MULT:frozen.WED_MULT||WED_MULT,REU_MULT:{...(liveCfg.REU_MULT||DEFAULT_REU_MULT),...(frozen.REU_MULT||{})},RETRO_EVENTS:liveCfg.RETRO_EVENTS||[]};
-};
-const episodeRangeLabel = (start,end) => start===end?'Episode '+start:'Episodes '+start+'-'+end;
-const watchRangeLabel = (phase,start,end) => phase==='reunion'?'the Reunion':episodeRangeLabel(start,end);
-function makeEngine(cfg, poolSize) {
-  const {RULES,CAST=[],MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS=[]} = cfg;
-  const SPAN=cfg.PH_SPAN, START=cfg.PH_STARTW;
-  const DATING_MARKET_MULT=cfg.DATING_MULT||DEFAULT_DATING_MULT;
-  const WEDDING_MULT=cfg.WED_MULT, REUNION_MULT=cfg.REU_MULT;
-  const PHASE_RESULTS_READY=cfg.RESULTS_READY;
-  const RETREAT_START_EP=Number.isFinite(SPAN.dating.retreatStartEp)?SPAN.dating.retreatStartEp:START.dating;
-  const RETREAT_END_EP=Number.isFinite(SPAN.dating.retreatEndEp)?SPAN.dating.retreatEndEp:SPAN.dating.endEp;
-  const retreatClosed=Number.isFinite(cfg.AVAILABLE_THROUGH_EP)&&cfg.AVAILABLE_THROUGH_EP>=RETREAT_END_EP;
-  const POOL = Math.max(poolSize, 1);
-  const byId    = Object.fromEntries(COUPLES.map(c=>[c.id,c]));
-  const personKey = value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
-  const pairKey = (a,b)=>[personKey(a),personKey(b)].sort().join('|');
-  const pairKeyFor = value => {
-    const direct=byId[value];
-    if(direct) return pairKey(direct.him,direct.her);
-    const parts=String(value||'').split('|');
-    return parts.length===2?pairKey(parts[0],parts[1]):personKey(value);
-  };
-  const coupleFor = value => byId[value]||COUPLES.find(c=>pairKey(c.him,c.her)===pairKeyFor(value));
-  const sameCouple = (value,couple) => value===couple.id||pairKeyFor(value)===pairKey(couple.him,couple.her);
-  const isReal  = k=>!!coupleFor(k);
-  const displayName = value => String(value||'').trim().split(/\s+/).map(part=>part?part.charAt(0).toUpperCase()+part.slice(1):part).join(' ');
-  const nameOf  = k=>{const c=coupleFor(k);return c?(displayName(c.him)+' & '+displayName(c.her)):String(k).split('|').map(displayName).join(' & ');};
-  const membOf  = k=>{const c=coupleFor(k);return c?[c.him,c.her]:String(k).split('|');};
-  const whoNm   = (k,w)=>w==='both'?'both':displayName(w==='him'?membOf(k)[0]:membOf(k)[1]);
-  const reunionPickLabel = p => {
-    const outcome=relationshipOutcome(p);
-    return outcome==='still'?nameOf(p.c)+' still together'
-      :outcome==='split'?nameOf(p.c)+' no longer together'
-      :outcome==='marriedSplit'?nameOf(p.c)+' broken up since marrying'
-      :outcome==='back'?nameOf(p.c)+' back together'
-      :p.m==='newCouple'?'New couple: '+p.pair.split('|').join(' & ')
-      :p.m==='lifeUpdate'?'Life update: '+p.person+' - '+(LIFE_UPD[normalizeLifeUpdate(p.update)]||p.update)
-      :p.m==='absent'?'Absent: '+p.person
-      :'Retired reunion category';
-  };
-  const fmt     = n=>String(+n.toFixed(2));
-  const leadM   = f=>1+RULES.LEAD_STEP*Math.max(0,f);
-  // Weddings spans the long apartments/families/wedding stretch, so its
-  // smaller capped curve prevents it from outrunning the shorter uncapped
-  // Pods and Retreats curves. The difference is deliberate.
-  const weddingLeadM = f=>Math.min(
-    Number.isFinite(RULES.WEDDINGS_LEAD_CAP)?RULES.WEDDINGS_LEAD_CAP:1.75,
-    1+(Number.isFinite(RULES.WEDDINGS_LEAD_STEP)?RULES.WEDDINGS_LEAD_STEP:0.25)*Math.max(0,f)
-  );
-  const weddingMarketState = (c,watchedEp) => {
-    const lockEp=Number.isFinite(c?.lockEp)?c.lockEp:SPAN.weddings.endEp;
-    const playerWatchedThrough=Number.isFinite(watchedEp)?watchedEp:0;
-    const open=playerWatchedThrough<lockEp;
-    return {
-      open,
-      lockEp,
-      usedFallback:!!c?.lockEpFallback,
-      reason:open
-        ? `Open until Episode ${lockEp} becomes available`
-        : `Locked when Episode ${lockEp} became available`,
-    };
-  };
-  const eligibleForWeddings = (c,w) =>
-    c.wedding!=='notShown' &&
-    Number.isFinite(c.weddingEligibleFromEp) &&
-    c.weddingEligibleFromEp<=w &&
-    !(Number.isFinite(c.settledEp)&&c.settledEp<=w) &&
-    weddingMarketState(c,w).open;
-  const activePoolSize = picksBy => Math.max(Object.values(picksBy).filter(v=>Array.isArray(v)&&v.length>0).length,1);
-  const contraV = (o,p=POOL)=>1+RULES.K*(1-o/p);
-  const owTxt   = (o,p=POOL)=>o===1?'only prediction':(o===p?'everyone who played this phase predicted it':o+' of '+p+' players who played this phase predicted it');
-  const calcPts = (s,m,o,t,p=POOL)=>Math.round(RULES.POINTS_PER_HEART*s*m*contraV(o,p)*(t||1));
-  function mk({member,phase,ok,label,stake,mult,multLabel,owners,poolSize=POOL,tag,tagLabel,note,placeholder,pending,retro,retroPhase,retroEventId,predictionAfterEp}) {
-    const contra=Number.isFinite(owners)?contraV(owners,poolSize):1;
-    return {member,phase,ok:!!ok,label,stake,mult,multLabel,owners,poolSize,contra,tag:tag||1,tagLabel,note,
-            placeholder:!!placeholder,pending:!!pending,retro:!!retro,retroPhase,retroEventId,predictionAfterEp:Number.isFinite(predictionAfterEp)?predictionAfterEp:null,points:ok&&!pending?calcPts(stake,mult,owners,tag,poolSize):0};
-  }
-  const flirtResultFor = person => Object.entries(DATING_RESULTS.flirt).find(([name])=>personKey(name)===personKey(person))?.[1];
-  const knownPerson = value => CAST.some(person=>personKey(person.name)===personKey(value));
-  const reunionRelationshipGroup = couple => couple?.wedding==='married'?'married'
-    :couple?.reunionStatusEligible?'knownDating'
-    :couple?.wedding&&couple.wedding!=='notShown'?'split':null;
-  const validReunionRelationshipOutcome = (couple,outcome) => {
-    const group=reunionRelationshipGroup(couple);
-    return group==='married'?['still','marriedSplit'].includes(outcome)
-      :group==='knownDating'?['still','split'].includes(outcome)
-      :group==='split'&&outcome==='back';
-  };
-  const refundableInvalidPick = (phase,pick) => {
-    if(!pick||typeof pick!=='object'||Array.isArray(pick)) return false;
-    if(phase==='pods') {
-      const people=membOf(pick.c);
-      return people.length===2&&people.some(person=>!knownPerson(person));
-    }
-    if(phase==='dating') return pick.m==='flirt'?!knownPerson(pick.p):['sex','breakup'].includes(pick.m)&&!coupleFor(pick.c);
-    if(phase==='weddings') return !coupleFor(pick.c);
-    if(phase==='reunion') {
-      const outcome=relationshipOutcome(pick);
-      if(outcome) {
-        const coupleId=String(pick.c||'').trim();
-        if(!coupleId) return false;
-        const couple=coupleFor(coupleId);
-        // A flat refund also safely covers fabricated ineligible picks because it has no upside over a legitimate market.
-        return !couple||!validReunionRelationshipOutcome(couple,outcome);
-      }
-      if(pick.m==='newCouple') return String(pick.pair||'').split('|').some(person=>!knownPerson(person));
-      if(['lifeUpdate','absent'].includes(pick.m)) return !knownPerson(pick.person);
-    }
-    return false;
-  };
-  const validPickForPhase = (phase,pick) => {
-    if(!pick||typeof pick!=='object'||Array.isArray(pick)) return false;
-    if(phase==='pods') {
-      const people=membOf(pick.c);
-      return people.length===2&&personKey(people[0])!==personKey(people[1])&&people.every(knownPerson);
-    }
-    if(phase==='dating') {
-      if(pick.m==='flirt') return knownPerson(pick.p)&&COUPLES.some(c=>c.datingEligible&&[c.him,c.her].some(name=>personKey(name)===personKey(pick.p)));
-      return ['sex','breakup'].includes(pick.m)&&!!coupleFor(pick.c)?.datingEligible;
-    }
-    if(phase==='weddings') return !!coupleFor(pick.c)&&['married','saysNo','calledOff'].includes(pick.o)&&
-      (pick.o==='married'||['him','her'].includes(pick.who));
-    if(phase==='reunion') {
-      const outcome=relationshipOutcome(pick);
-      if(outcome) return validReunionRelationshipOutcome(coupleFor(pick.c),outcome);
-      if(pick.m==='newCouple') {
-        const people=String(pick.pair||'').split('|');
-        return people.length===2&&personKey(people[0])!==personKey(people[1])&&people.every(knownPerson);
-      }
-      if(pick.m==='lifeUpdate') return knownPerson(pick.person)&&Object.prototype.hasOwnProperty.call(LIFE_UPD,normalizeLifeUpdate(pick.update));
-      return pick.m==='absent'&&knownPerson(pick.person);
-    }
-    return false;
-  };
-  const pickIdentity = (phase,pick) => {
-    if(phase==='pods') return pairKeyFor(pick.c);
-    if(phase==='dating') return pick.m+':'+(pick.m==='flirt'?personKey(pick.p):pairKeyFor(pick.c));
-    if(phase==='weddings') return pairKeyFor(pick.c);
-    if(relationshipOutcome(pick)) return 'relationship:'+pairKeyFor(pick.c);
-    if(pick.m==='newCouple') return 'newCouple:'+pairKeyFor(pick.pair);
-    if(pick.m==='lifeUpdate') return 'lifeUpdate:'+personKey(pick.person)+':'+normalizeLifeUpdate(pick.update);
-    return 'absent:'+personKey(pick.person);
-  };
-  const sanitizePhasePickState = (phase,picks) => {
-    const phaseRules=RULES.phases[phase];
-    if(!phaseRules) return {picks:[],refunds:[]};
-    const cap=Math.max(0,Number(phaseRules.cap)||0);
-    const budget=Math.max(0,Number(phaseRules.budget)||0);
-    const seen=new Set(), refunds=[];
-    let spent=0;
-    const safe=(Array.isArray(picks)?picks:[]).slice(0,40).reduce((safe,raw)=>{
-      if(!validPickForPhase(phase,raw)) {
-        const rawStake=Number(raw?.s), stake=Number.isFinite(rawStake)?Math.floor(Math.min(cap,rawStake)/5)*5:0;
-        if(refundableInvalidPick(phase,raw)&&stake>=5&&spent+stake<=budget) {refunds.push({...raw,s:stake});spent+=stake;}
-        return safe;
-      }
-      const rawStake=Number(raw.s);
-      if(!Number.isFinite(rawStake)||rawStake<=0) return safe;
-      const stake=Math.floor(Math.min(cap,rawStake)/5)*5;
-      // Sub-5 stakes cannot come from the legitimate UI, so drop them without a refund.
-      if(stake<5||spent+stake>budget) return safe;
-      const identity=pickIdentity(phase,raw);
-      if(seen.has(identity)) return safe;
-      const pick={...raw,s:stake};
-      if(phase!=='reunion') {
-        const rawWindow=Number(raw.w);
-        if(!Number.isFinite(rawWindow)) {
-          if(phase!=='weddings') return safe;
-          delete pick.w;
-        } else {
-          const lastWindow=Math.max(START[phase],SPAN[phase].endEp-1);
-          pick.w=Math.max(START[phase],Math.min(Math.trunc(rawWindow),lastWindow));
-        }
-      } else {
-        delete pick.w;
-      }
-      spent+=stake;
-      seen.add(identity);
-      safe.push(pick);
-      return safe;
-    },[]);
-    return {picks:safe,refunds};
-  };
-  const sanitizePhasePicks = (phase,picks) => sanitizePhasePickState(phase,picks).picks;
-  const sanitizePicksBy = (phase,picksBy) => Object.fromEntries(
-    Object.entries(picksBy||{}).map(([member,picks])=>[member,sanitizePhasePicks(phase,picks)])
-  );
-  /* Resolve one episode across a set of members. picksBy = {memberUid: picks[]} */
-  function resolveEpisode(phase, ep, picksBy) {
-    picksBy=sanitizePicksBy(phase,picksBy);
-    const MEMBERS = Object.keys(picksBy);
-    const all = picksBy;
-    const poolSize=activePoolSize(picksBy);
-    const mkEntry=entry=>mk({...entry,poolSize});
-    const events=[], entries=[];
-    if(phase==='pods') {
-      const impossiblePodsMisses=new Set();
-      COUPLES.filter(c=>c.podsEligible&&Number.isFinite(c.engagedEp)&&c.engagedEp===ep).forEach(c=>{
-        const owners=MEMBERS.filter(m=>all[m].some(p=>sameCouple(p.c,c))).length;
-        events.push({title:nameOf(c.id)+' got engaged',sub:ep===START.pods?'Episode '+START.pods+' - unavailable for predictions by design; no one scores it.':'Against-the-Grain bonus stays live as more pool members finish Pods.'});
-        if(ep!==START.pods) MEMBERS.forEach(m=>all[m].filter(p=>sameCouple(p.c,c)).forEach(p=>{
-          const fore=ep-p.w-1;
-          entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' get engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners,predictionAfterEp:p.w}));
-        }));
-        const actualPeople=new Set([c.him,c.her].map(personKey));
-        MEMBERS.forEach(m=>all[m].filter(p=>!sameCouple(p.c,c)&&membOf(p.c).some(person=>actualPeople.has(personKey(person)))).forEach(p=>{
-          const missKey=m+'|'+pairKeyFor(p.c);
-          if(impossiblePodsMisses.has(missKey))return;
-          impossiblePodsMisses.add(missKey);
-          entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' did not get engaged',stake:p.s,note:'This prediction can no longer hit: '+nameOf(c.id)+' got engaged instead.'}));
-        }));
-      });
-    }
-    if(phase==='dating') {
-      Object.entries(DATING_RESULTS.sex).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
-        const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='sex'&&p.c===id)).length;
-        events.push({title:'Sleep together: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='sex'&&p.c===id).forEach(p=>{
-          const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.sex;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' sleep-together x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
-        }));
-      });
-      Object.entries(DATING_RESULTS.flirt).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([person,r])=>{
-        const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='flirt'&&flirtResultFor(p.p)===r)).length;
-        events.push({title:FLIRT_SHORT+': '+person+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='flirt'&&flirtResultFor(p.p)===r).forEach(p=>{
-          const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.flirt;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:FLIRT_SHORT+': '+person,stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' flirt x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
-        }));
-      });
-      Object.entries(DATING_RESULTS.breakup).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
-        const owners=MEMBERS.filter(m=>all[m].some(p=>p.m==='breakup'&&p.c===id)).length;
-        events.push({title:'Breaks up during the retreat: '+nameOf(id),sub:'Both members must clearly understand their relationship is over. The Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.m==='breakup'&&p.c===id).forEach(p=>{
-          const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.breakup;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Breaks up during the retreat: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' breakup x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
-        }));
-      });
-    }
-    if(phase==='weddings') {
-      COUPLES.filter(c=>c.wedding&&c.wedding!=='notShown'&&Math.max(Number.isFinite(c.settledEp)?c.settledEp:SPAN.weddings.endEp,START.weddings)===ep).forEach(c=>{
-        const out=c.wedding, noOutcomes=['saysNo','calledOff'];
-        const actualWho=noOutcomes.includes(out)&&c.who?' ('+whoNm(c.id,c.who)+')':'';
-        if (!(ep===START.weddings&&c.settledEp<=START.weddings)) events.push({title:nameOf(c.id)+': '+WED_LABEL[out]+actualWho,sub:c.settledEp===ep&&ep<SPAN.weddings.endEp?'Settled in Episode '+ep+'.':null});
-        MEMBERS.forEach(m=>all[m].filter(p=>p.c===c.id).forEach(p=>{
-          const baseCorrect=p.o===out||(noOutcomes.includes(p.o)&&noOutcomes.includes(out));
-          const predictedLabel=(WED_LABEL[p.o]||String(p.o))+(p.who?' ('+whoNm(c.id,p.who)+')':'');
-          const actualLabel=WED_LABEL[out]+actualWho;
-          if(baseCorrect) {
-            const owners=MEMBERS.filter(mm=>all[mm].some(q=>q.c===c.id&&(q.o===out||(noOutcomes.includes(q.o)&&noOutcomes.includes(out))))).length;
-            const whoBonusOutcome=noOutcomes.includes(out);
-            const outcomeAfterPick=Number.isFinite(p.w)?ep>p.w:true;
-            const timingCorrect=whoBonusOutcome&&p.o===out;
-            const whoCorrect=whoBonusOutcome&&outcomeAfterPick&&p.who===c.who;
-            // Picks saved before rolling Wedding windows have no `w`; preserve
-            // their original flat scoring instead of granting retroactive lead.
-            const foresight=Number.isFinite(p.w)?Math.max(0,ep-p.w-1):0;
-            const clock=Number.isFinite(p.w)?weddingLeadM(foresight):1;
-            const base=out==='married'?WEDDING_MULT.married:1;
-            const timingBonus=timingCorrect?WEDDING_MULT[out]:1;
-            const whoBonus=whoCorrect?1+RULES.WHO_TAG:1;
-            const bonusLabels=[];
-            if(timingCorrect) bonusLabels.push(fmt(timingBonus)+' Exact-ending Bonus ('+WED_LABEL[out]+')');
-            if(whoCorrect) bonusLabels.push(fmt(whoBonus)+' Who ends it? Bonus ('+whoNm(c.id,c.who)+')');
-            const notes=[];
-            if(whoBonusOutcome&&!timingCorrect) notes.push('Exact ending predicted '+WED_LABEL[p.o]+'; actual '+WED_LABEL[out]+' - base result points still awarded');
-            if(whoBonusOutcome&&p.who&&!whoCorrect) notes.push(outcomeAfterPick?'Person predicted '+whoNm(c.id,p.who)+'; actual '+whoNm(c.id,c.who):'Who-ended-it bonus unavailable because the outcome was not after this prediction');
-            entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' - '+(out==='married'?'Get married':'Do not get married')+' · Predicted '+predictedLabel,stake:p.s,mult:base*clock,multLabel:'x'+fmt(base)+' '+(out==='married'?'Get married':'Not married base')+' x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes of foresight)',owners,tag:timingBonus*whoBonus,tagLabel:bonusLabels.length?bonusLabels.join(' x '):null,note:notes.length?notes.join(' · '):null,predictionAfterEp:p.w}));
-          } else {
-            entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(c.id)+' - predicted '+predictedLabel,stake:p.s,note:'Actual: '+actualLabel}));
-          }
-        }));
-      });
-    }
-    if(phase==='reunion'&&ep===SPAN.reunion.endEp) {
-      if (REUNION_RESULTS.placeholders) {
-        events.push({title:'Reunion results awaiting confirmation',placeholder:true});
-        MEMBERS.forEach(m=>all[m].forEach(p=>entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:reunionPickLabel(p),stake:p.s,placeholder:true,note:'Awaiting confirmed reunion results.'}))));
-        return {events,entries};
-      }
-      Object.keys(REUNION_RESULTS.still).forEach(id=>{
-        const truth=REUNION_RESULTS.still[id];
-        events.push({title:nameOf(id)+': '+(truth?'still together':'no longer together')});
-      });
-      MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='still').forEach(p=>{
-        const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
-        const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='still'&&q.c===p.c)).length;
-        if(!known&&!REUNION_RESULTS.ready.still) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' still together',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
-        else entries.push(truth?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' still together',stake:p.s,mult:REUNION_MULT.still,multLabel:'x'+fmt(REUNION_MULT.still)+' still-together',owners}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' still together',stake:p.s,note:'They split.'}));
-      }));
-      MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='marriedSplit').forEach(p=>{
-        const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
-        const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='marriedSplit'&&q.c===p.c)).length;
-        if(!known&&!REUNION_RESULTS.ready.still) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' broken up since marrying',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
-        else entries.push(known&&truth===false?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' broken up since marrying',stake:p.s,mult:REUNION_MULT.marriedSplit,multLabel:'x'+fmt(REUNION_MULT.marriedSplit)+' married-couple breakup',owners}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' broken up since marrying',stake:p.s,note:known?'They are still together.':'No breakup was confirmed.'}));
-      }));
-      MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='split').forEach(p=>{
-        const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
-        const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='split'&&q.c===p.c)).length;
-        if(!known&&!REUNION_RESULTS.ready.still) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' no longer together',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
-        else entries.push(known&&truth===false?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' no longer together',stake:p.s,mult:REUNION_MULT.split,multLabel:'x'+fmt(REUNION_MULT.split)+' relationship ended',owners}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' no longer together',stake:p.s,note:known?'They are still together.':'No breakup was confirmed.'}));
-      }));
-      const backIds=Object.keys(REUNION_RESULTS.back).filter(id=>REUNION_RESULTS.back[id]);
-      if(REUNION_RESULTS.ready.back) events.push({title:backIds.length?'Back together: '+backIds.map(nameOf).join(', '):'No exes got back together'});
-      else events.push({title:'Back-together results awaiting confirmation',placeholder:true});
-      MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='back').forEach(p=>{
-        const truth=!!REUNION_RESULTS.back[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='back'&&q.c===p.c)).length;
-        if(truth) entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' back together',stake:p.s,mult:REUNION_MULT.back,multLabel:'x'+fmt(REUNION_MULT.back)+' back-together',owners}));
-        else if(!REUNION_RESULTS.ready.back) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' back together',stake:p.s,note:'Awaiting confirmed results.'}));
-        else entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' back together',stake:p.s,note:'Stayed split.'}));
-      }));
-      const ncs=REUNION_RESULTS.newCouples;
-      if(REUNION_RESULTS.ready.newCouple) events.push({title:ncs.length?'New couple'+(ncs.length>1?'s':'')+': '+ncs.map(v=>v.split('|').join(' & ')).join(', '):'No new couple revealed'});
-      else events.push({title:'New-couple results awaiting confirmation',placeholder:true});
-      MEMBERS.forEach(m=>all[m].filter(p=>p.m==='newCouple').forEach(p=>{
-        const predictionKey=pairKeyFor(p.pair);
-        const hit=ncs.some(value=>pairKeyFor(value)===predictionKey), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='newCouple'&&pairKeyFor(q.pair)===predictionKey)).length;
-        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,mult:REUNION_MULT.newCouple,multLabel:'x'+fmt(REUNION_MULT.newCouple)+' new couple',owners}));
-        else if(!REUNION_RESULTS.ready.newCouple) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,note:'Awaiting confirmed results.'}));
-        else entries.push(mkEntry({member:m,phase,ok:false,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s}));
-      }));
-      const lus=REUNION_RESULTS.lifeUpdates;
-      if(REUNION_RESULTS.ready.lifeUpdate) events.push({title:lus.length?'Life updates: '+lus.map(lu=>lu.person+' - '+(LIFE_UPD[lu.update]||lu.update)).join(', '):'No major life updates'});
-      else events.push({title:'Life-update results awaiting confirmation',placeholder:true});
-      MEMBERS.forEach(m=>all[m].filter(p=>p.m==='lifeUpdate').forEach(p=>{
-        const normalized=normalizeLifeUpdate(p.update);
-        const predictedPerson=personKey(p.person);
-        const hit=lus.some(lu=>personKey(lu.person)===predictedPerson&&lu.update===normalized), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='lifeUpdate'&&personKey(q.person)===predictedPerson&&normalizeLifeUpdate(q.update)===normalized)).length;
-        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,mult:REUNION_MULT.lifeUpdate,multLabel:'x'+fmt(REUNION_MULT.lifeUpdate)+' life update',owners}));
-        else if(!REUNION_RESULTS.ready.lifeUpdate) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,note:'Awaiting confirmed results.'}));
-        else entries.push(mkEntry({member:m,phase,ok:false,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s}));
-      }));
-      const abs=REUNION_RESULTS.absent;
-      if(REUNION_RESULTS.ready.absent) events.push({title:abs.length?'Absent: '+abs.join(', '):'Everyone showed up'});
-      else events.push({title:'Attendance results awaiting confirmation',placeholder:true});
-      MEMBERS.forEach(m=>all[m].filter(p=>p.m==='absent').forEach(p=>{
-        const predictedPerson=personKey(p.person);
-        const hit=abs.some(person=>personKey(person)===predictedPerson), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='absent'&&personKey(q.person)===predictedPerson)).length;
-        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'Absent: '+p.person,stake:p.s,mult:REUNION_MULT.absent,multLabel:'x'+fmt(REUNION_MULT.absent)+' absent castmate',owners}));
-        else if(!REUNION_RESULTS.ready.absent) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:'Absent: '+p.person,stake:p.s,note:'Awaiting confirmed results.'}));
-        else entries.push(mkEntry({member:m,phase,ok:false,label:'Absent: '+p.person,stake:p.s}));
-      }));
-    }
-    return {events,entries};
-  }
-  function resolvePhaseClose(phase, picksBy) {
-    picksBy=sanitizePicksBy(phase,picksBy);
-    const MEMBERS = Object.keys(picksBy), all = picksBy, entries=[];
-    const poolSize=activePoolSize(picksBy);
-    const mkEntry=entry=>mk({...entry,poolSize});
-    if(phase==='pods') MEMBERS.forEach(m=>all[m].forEach(p=>{
-      const c=coupleFor(p.c);
-      const predictedPeople=new Set(membOf(p.c).map(personKey));
-      const contradicted=COUPLES.some(actual=>actual.podsEligible&&Number.isFinite(actual.engagedEp)&&actual.engagedEp<=SPAN.pods.endEp&&!sameCouple(p.c,actual)&&[actual.him,actual.her].some(person=>predictedPeople.has(personKey(person))));
-      if(contradicted)return;
-      // Keep future relationship developments hidden at the Pods boundary.
-      // A later engagement, if applicable, is revealed only by its own retro
-      // event once the player has watched that episode.
-      if(!c||!c.podsEligible||!Number.isFinite(c.engagedEp)||c.engagedEp>SPAN.pods.endEp) {
-        entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' did not get engaged',stake:p.s}));
-      }
-    }));
-    if(phase==='dating') MEMBERS.forEach(m=>all[m].forEach(p=>{
-      if(p.m==='breakup'&&!DATING_RESULTS.breakup[p.c]) {
-        const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
-        entries.push(mkEntry({member:m,phase,ok:false,pending,label:'Breaks up during the retreat: '+nameOf(p.c),stake:p.s,note:pending?'Still possible during the retreat.':'They did not both clearly understand the relationship was over during the retreat.'}));
-      }
-      if(p.m==='sex'&&!DATING_RESULTS.sex[p.c]) {
-        const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
-        entries.push(mkEntry({member:m,phase,ok:false,pending,label:'Sleep together: '+nameOf(p.c),stake:p.s,note:pending?'Still possible during the retreat.':'Not referenced on camera during the retreat.'}));
-      }
-      if(p.m==='flirt'&&!flirtResultFor(p.p)) {
-        const pending=!PHASE_RESULTS_READY.dating&&!retreatClosed;
-        entries.push(mkEntry({member:m,phase,ok:false,pending,label:FLIRT_SHORT+': '+p.p,stake:p.s,note:pending?'Still possible during the retreat.':'Not referenced on camera during the retreat.'}));
-      }
-    }));
-    return entries;
-  }
-  /* Score a phase for the members who have individually completed it. */
-  function scorePhase(phase, picksBy) {
-    const sanitized=Object.fromEntries(Object.entries(picksBy||{}).map(([member,picks])=>[member,sanitizePhasePickState(phase,picks)]));
-    picksBy=Object.fromEntries(Object.entries(sanitized).map(([member,state])=>[member,state.picks]));
-    const startEp = phase==='dating'?RETREAT_START_EP:START[phase], endEp = phase==='dating'?RETREAT_END_EP:SPAN[phase].endEp;
-    let entries = [];
-    for (let ep = startEp; ep <= endEp; ep++) {
-      entries = entries.concat(resolveEpisode(phase, ep, picksBy).entries);
-    }
-    entries = entries.concat(resolvePhaseClose(phase, picksBy));
-    Object.entries(sanitized).forEach(([member,state])=>state.refunds.forEach(pick=>{
-      const points=Math.round(RULES.POINTS_PER_HEART*pick.s);
-      entries.push({member,phase,ok:true,label:'Prediction removed after season data changed',stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize:activePoolSize(picksBy),contra:1,tag:1,note:'This prediction no longer matches the season data. Hearts returned as points.',placeholder:false,pending:false,points});
-    }));
-    const totals = {};
-    Object.keys(picksBy).forEach(m=>totals[m]=0);
-    entries.forEach(e=>{ if(!e.pending) totals[e.member]+=e.points; });
-    return {entries, totals};
-  }
-  const retroEventsForRange = (startEp,endEp) => RETRO_EVENTS.filter(event=>event.revealedEp>=startEp&&event.revealedEp<=endEp);
-  function scoreRetroAdjustments(picksByPhase, revealedPhaseSet) {
-    picksByPhase=Object.fromEntries(PH_ORDER.map(phase=>[phase,sanitizePicksBy(phase,picksByPhase?.[phase]||{})]));
-    const memberSet=new Set();
-    PH_ORDER.forEach(phase=>Object.keys(picksByPhase?.[phase]||{}).forEach(id=>memberSet.add(id)));
-    const MEMBERS=Array.from(memberSet), totals={};
-    MEMBERS.forEach(id=>totals[id]=0);
-    const entries=[], activeEvents=[];
-    const picksFor=(phase,member)=>picksByPhase?.[phase]?.[member]||[];
-    const marketMultiplier=(event,pick)=>{
-      if(event.market==='still') return REUNION_MULT.still;
-      // A post-Pods engagement earns the lead bonus the player had accrued
-      // when the Pods closed, never extra foresight from later episodes.
-      if(event.market==='pods') return leadM(Math.max(0,SPAN.pods.endEp-(Number.isFinite(pick.w)?pick.w:SPAN.pods.endEp)-1));
-      // Retro retreat results have no precise on-screen event episode. Preserve
-      // the lead accrued by Retreats close instead of using the later reveal.
-      if(['sex','flirt','breakup'].includes(event.market)) {
-        const clock=leadM(Math.max(0,RETREAT_END_EP-(Number.isFinite(pick.w)?pick.w:RETREAT_END_EP)-1));
-        return DATING_MARKET_MULT[event.market]*clock;
-      }
-      return 1;
-    };
-    const matchingPick=(event,pick)=>{
-      if(event.market==='pods') {
-        const couple=coupleFor(event.target);
-        return !!couple&&Number.isFinite(couple.engagedEp)&&sameCouple(pick.c,couple);
-      }
-      if(event.market==='flirt') return pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
-      if(event.market==='still') return relationshipOutcome(pick)==='still'&&sameCouple(pick.c,coupleFor(event.target));
-      return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
-    };
-    const matchingVoidPick=(event,phase,pick)=>{
-      if(event.voidMarket==='pods') return phase==='pods'&&sameCouple(pick.c,coupleFor(event.target));
-      if(event.voidMarket==='weddings') return phase==='weddings'&&sameCouple(pick.c,coupleFor(event.target));
-      if(event.voidMarket==='flirt') return phase==='dating'&&pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
-      return phase==='dating'&&pick.m===event.voidMarket&&sameCouple(pick.c,coupleFor(event.target));
-    };
-    const normallyScored=(event,pick)=>{
-      if(event.market==='pods') {
-        const couple=coupleFor(event.target);
-        return !!couple&&couple.podsEligible&&Number.isFinite(couple.engagedEp)&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
-      }
-      if(event.market==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
-      if(event.market==='flirt') return !!flirtResultFor(event.target)?.confirmed;
-      if(event.market==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
-      if(event.market==='still') return REUNION_RESULTS.still[event.target]===true;
-      return false;
-    };
-    const voidNormallyScored=(event,phase,pick)=>{
-      if(event.voidMarket==='sex') return !!DATING_RESULTS.sex[event.target]?.confirmed;
-      if(event.voidMarket==='flirt') return !!flirtResultFor(event.target)?.confirmed;
-      if(event.voidMarket==='breakup') return !!DATING_RESULTS.breakup[event.target]?.confirmed;
-      if(event.voidMarket==='pods') {
-        const couple=coupleFor(event.target);
-        return !!couple&&couple.podsEligible&&Number.isFinite(couple.engagedEp)&&couple.engagedEp>=START.pods&&couple.engagedEp<=SPAN.pods.endEp;
-      }
-      if(event.voidMarket==='weddings') {
-        const couple=coupleFor(event.target), noOutcomes=['saysNo','calledOff'];
-        return !!couple&&couple.wedding&&couple.wedding!=='notShown'&&(pick.o===couple.wedding||(noOutcomes.includes(pick.o)&&noOutcomes.includes(couple.wedding)));
-      }
-      return false;
-    };
-    RETRO_EVENTS.forEach(event=>{
-      if(!revealedPhaseSet?.has(event.revealingPhase)) return;
-      activeEvents.push(event);
-      if(event.market==='void') {
-        const phasePicks=picksByPhase?.[event.appliesPhase]||{};
-        const poolSize=activePoolSize(phasePicks);
-        PH_ORDER.forEach(phase=>{
-          MEMBERS.forEach(member=>{
-            picksFor(phase,member)
-              .filter(pick=>matchingVoidPick(event,phase,pick)&&!voidNormallyScored(event,phase,pick))
-              .forEach(pick=>{
-                const pending=!event.confirmed, points=pending?0:Math.round(RULES.POINTS_PER_HEART*pick.s);
-                const voidLabel=event.voidMarket==='flirt'?FLIRT_SHORT:event.voidMarket;
-                const entry={member,phase:event.appliesPhase,ok:true,label:'Voided '+voidLabel+' prediction: '+(event.voidMarket==='flirt'?event.target:nameOf(event.target)),stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize,contra:1,tag:1,note:event.note+' Prediction voided — Hearts returned as points.'+(pending?' Awaiting confirmation.':''),placeholder:false,pending,retro:true,retroPhase:event.revealingPhase,retroEventId:event.id,points};
-                entries.push(entry);if(!pending)totals[member]+=points;
-              });
-          });
-        });
-        return;
-      }
-      const phasePicks=picksByPhase?.[event.appliesPhase]||{};
-      const poolSize=activePoolSize(phasePicks);
-      const owners=MEMBERS.filter(member=>picksFor(event.appliesPhase,member).some(pick=>matchingPick(event,pick)&&!normallyScored(event,pick))).length;
-      MEMBERS.forEach(member=>picksFor(event.appliesPhase,member).filter(pick=>matchingPick(event,pick)&&!normallyScored(event,pick)).forEach(pick=>{
-        const multiplier=marketMultiplier(event,pick), pending=!event.confirmed;
-        const podForesight=event.market==='pods'?Math.max(0,SPAN.pods.endEp-(Number.isFinite(pick.w)?pick.w:SPAN.pods.endEp)-1):0;
-        const label=event.market==='pods'?nameOf(event.target)+' got engaged after the Pods':event.market==='flirt'?FLIRT_SHORT+': '+event.target:event.market==='still'?nameOf(event.target)+' still together':event.market==='sex'?'Sleep together: '+nameOf(event.target):'Breaks up during the retreat: '+nameOf(event.target);
-        const multLabel=event.market==='pods'
-          ? 'x'+fmt(multiplier)+' Pods Against-the-Clock ('+podForesight+' episodes of foresight at Pods close)'
-          : ['sex','flirt','breakup'].includes(event.market)
-            ? 'x'+fmt(multiplier)+' '+event.market+' market with Retreats-close Against-the-Clock'
-            : 'x'+fmt(multiplier)+' '+(event.market==='still'?'still-together':'base');
-        const entry=mk({member,phase:event.appliesPhase,ok:true,pending,label,stake:pick.s,mult:multiplier,multLabel,owners,poolSize,note:event.note+(pending?' Awaiting confirmation.':''),retro:true,retroPhase:event.revealingPhase,retroEventId:event.id});
-        entries.push(entry);if(!pending)totals[member]+=entry.points;
-      }));
-    });
-    return {entries,totals,events:activeEvents};
-  }
-  const retroEventMatchesPick=(event,phase,pick)=>{
-    if(!event||!pick)return false;
-    if(event.market==='void') {
-      if(event.voidMarket==='pods') return phase==='pods'&&sameCouple(pick.c,coupleFor(event.target));
-      if(event.voidMarket==='weddings') return phase==='weddings'&&sameCouple(pick.c,coupleFor(event.target));
-      if(event.voidMarket==='flirt') return phase==='dating'&&pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
-      return phase==='dating'&&pick.m===event.voidMarket&&sameCouple(pick.c,coupleFor(event.target));
-    }
-    if(phase!==event.appliesPhase)return false;
-    if(event.market==='pods')return sameCouple(pick.c,coupleFor(event.target));
-    if(event.market==='flirt')return pick.m==='flirt'&&personKey(pick.p)===personKey(event.target);
-    if(event.market==='still')return relationshipOutcome(pick)==='still'&&sameCouple(pick.c,coupleFor(event.target));
-    return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
-  };
-  const spentBy = picks => (Array.isArray(picks)?picks:[]).reduce((total,pick)=>total+(Number.isFinite(Number(pick?.s))?Number(pick.s):0),0);
-  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
-          PH_SPAN:SPAN,PH_STARTW:START,DATING_MULT:DATING_MARKET_MULT,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
-          nameOf,membOf,coupleFor,sameCouple,whoNm,reunionPickLabel,reunionRelationshipGroup,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
-          pickIdentity,resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,retroEventMatchesPick,sanitizePhasePicks,spentBy};
-}
 const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points are included in the live standings after you complete this reveal phase.';
 const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
 const normalizeSeenRetroNotices = value => [...new Set((Array.isArray(value)?value:[]).filter(item=>typeof item==='string'&&item))];
@@ -4811,7 +4245,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     <div className="card">
       <h2>{globalPool?'Live global standings':seasonFinalized?'Final standings':latestScoredPhase?'Live standings through '+RULES.phases[latestScoredPhase].label:'Standings'}</h2>
       {demoMode&&<div className="notice"><b>Demo preview · 126 sample players.</b> This data exists only in your browser and is never saved to the real global pool.</div>}
-      {globalPool&&!demoMode&&!seasonFinalized&&<div className="notice"><b>Live standings.</b> Each checkpoint scores as players individually finish it. Against-the-Grain bonuses and positions can change whenever another player locks that checkpoint.</div>}
+      {globalPool&&!demoMode&&!seasonFinalized&&<div className="notice"><b>Trusted standings.</b> Each checkpoint is validated and scored on the server after its results are confirmed. Once a score appears, later players cannot change it.</div>}
       {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No checkpoint scores yet. The leaderboard begins when the first player completes a phase.':memberIds.some(id=>(phaseStatus.pods.completedBy||[]).includes(id))?'Complete Pods to unlock the live standings without seeing spoilers.':'No checkpoint scores yet. The leaderboard begins after you complete your first phase.'}</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
       {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions settle when the retreat ends. Against-the-Grain bonuses keep adjusting as more players finish.</div>}
@@ -4867,7 +4301,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       <h3>Invitations pending</h3>
       <p className="lede">{membershipClosed?'These invitations are paused while the pool is closed. Reopen it when you want these friends to join.':'These people have been invited but have not joined the pool yet.'}</p>
       {pendingInvites.map(inv=><div className="member-status" key={inv.id}>
-        <span className="dot waiting"></span><span>{inv.toEmail}</span>
+        <span className="dot waiting"></span><span className="ph-no-capture">{inv.toEmail}</span>
         <span className="subtle" style={{marginLeft:'auto'}}>{membershipClosed?'Paused':'Invitation pending'}</span>
       </div>)}
     </div>}
@@ -5110,7 +4544,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -5121,6 +4555,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [accountUsername,setAccountUsername]=useState(profileUsername);
   const [settingsFeedback,setSettingsFeedback]=useState('');
   const [savingProfile,setSavingProfile]=useState(false);
+  const [premiumExpanded,setPremiumExpanded]=useState(false);
+  const [foundingReserved,setFoundingReserved]=useState(false);
   const modalRef=useModalLifecycle(onClose,!deleting);
   const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
@@ -5140,6 +4576,9 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(e?.message||'The pool name could not be changed.');}finally{setSavingProfile(false);}};
   const finishResetLink=async()=>{if(!resetLinkPool||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onResetPoolJoinCode?.(resetLinkPool);setSettingsFeedback('Invite link reset. Share the new link with anyone who should still join.');setResetLinkPool(null);}catch(e){setSettingsFeedback(e?.message||'The invite link could not be reset.');}finally{setSavingProfile(false);}};
   const finishUsername=async()=>{if(savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(e?.message||'The username could not be changed.');}finally{setSavingProfile(false);}};
+  const premiumPrice=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
+  const openPremium=()=>{if(!premiumPrice)return;trackTtwEvent('price_fakedoor_click',{price_variant:priceVariant,sku:'founding_premium'});setPremiumExpanded(true);};
+  const reserveFoundingPrice=()=>{if(!premiumPrice||foundingReserved)return;trackTtwEvent('founding_email_captured',{price_variant:priceVariant});setFoundingReserved(true);};
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
@@ -5166,7 +4605,14 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
       <h3>Notifications</h3>
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
-      <p className="notification-destination" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
+      <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
+      {premiumPrice&&<div className="premium-fakedoor">
+        <div className="premium-fakedoor-kicker">Founding beta idea</div>
+        <h3>Would premium extras be worth it?</h3>
+        <p>We’re testing interest in paid extras such as deeper stats, custom pool themes, and enhanced season recaps. Nothing is for sale yet.</p>
+        <div className="premium-price"><strong>${premiumPrice}</strong><span>one-time founding price</span></div>
+        {!premiumExpanded?<button className="btn-secondary" type="button" onClick={openPremium}>I’d consider premium</button>:foundingReserved?<p role="status" style={{marginTop:12,fontWeight:700,color:'var(--purple)'}}>You’re on the founding-interest list. No charge was made.</p>:<React.Fragment><p className="ph-no-capture" style={{marginTop:10}}>Reserve this test price with your signed-in email{userEmail?` (${userEmail})`:''}. You will not be charged.</p><button className="btn-primary" type="button" onClick={reserveFoundingPrice}>Reserve founding price</button></React.Fragment>}
+      </div>}
       <div className="danger-zone"><h3>Account management</h3><p>Change the name poolmates see, sign out, or permanently delete your account.</p><div className="row"><div className="field"><label className="small" htmlFor="settings-username">Username</label><input id="settings-username" type="text" maxLength="20" value={accountUsername} onChange={event=>setAccountUsername(event.target.value)}/></div><button className="btn-secondary" disabled={savingProfile||cleanUsername(accountUsername)===profileUsername} onClick={finishUsername}>{savingProfile?'Saving…':'Change username'}</button></div>{settingsFeedback&&<p className="subtle" role="status">{settingsFeedback}</p>}<button className="btn-secondary" disabled={signingOut||deleting} onClick={onSignOut}>{signingOut?'Signing out…':'Sign out'}</button><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onDeleteAccount}>Delete my account</button><p className="subtle"><a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p></div>
       <button className="btn-primary" disabled={deleting} onClick={onClose}>Done</button>
     </div>
@@ -5249,6 +4695,7 @@ function App() {
   const pendingFriendInvitation=window._fb.hasPendingFriendInvitation();
   const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
+  const [priceVariant,setPriceVariant]=useState(null);
   // Config
   const [cfg, setCfg] = useState(null);
   const [,setSeasonCatalogVersion] = useState(0);
@@ -5289,6 +4736,8 @@ function App() {
   const [poolPlayers, setPoolPlayers] = useState(null);  // {uid: playerDoc}
   const [poolUsers, setPoolUsers] = useState(null);      // {uid: profile}
   const [poolStatus, setPoolStatus] = useState({});      // {phase: phaseStatus doc}
+  const [globalStandings,setGlobalStandings]=useState(null);
+  const [globalPhaseScores,setGlobalPhaseScores]=useState(EMPTY_PHASE_SCORES);
   const [poolTab, setPoolTab] = useState('play');        // play | standings | chemistry | rules | scoring
   const [chemistryMine,setChemistryMine]=useState(null);
   const [chemistryCommunity,setChemistryCommunity]=useState(null);
@@ -5330,6 +4779,7 @@ function App() {
   const saveChain = useRef(Promise.resolve());
   const pickMirrorLinks = useRef([]);
   const pendingJoinedPool = useRef(null);
+  const identifiedAnalyticsUid = useRef('');
   const confirmResolver=useRef(null);
   const lastStandingsRefresh=useRef(0);
   const globalPoolSeason=seasonById(defaultSeasonId)||seasonById(DEFAULT_SEASON_ID);
@@ -5351,7 +4801,10 @@ function App() {
     const previous=notificationPreferences;
     const next={...DEFAULT_NOTIFICATION_PREFERENCES,...notificationPreferences,[key]:enabled===true};
     setNotificationPreferences(next);setNotificationSaving(true);
-    try{await window._fb.setNotificationPreferences(user.uid,next);}
+    try{
+      await window._fb.setNotificationPreferences(user.uid,next);
+      if(enabled===true&&previous[key]!==true)trackTtwEvent('notif_opt_in',{types:Object.keys(next).filter(type=>next[type]===true)});
+    }
     catch(error){console.error('Notification preferences could not be saved.',error);setNotificationPreferences(previous);setErr('Your nudge setting did not save. Give it another tap.');}
     finally{setNotificationSaving(false);}
   };
@@ -5367,6 +4820,8 @@ function App() {
   },[]);
   const loadAuthenticatedProfile = useCallback(async u=>{
     setUser(u);setAuthState('checking');setAuthError('');
+    window.ttwAnalytics?.identify(u.uid,{seasonId:initialAppParams.get('season')||DEFAULT_SEASON_ID});
+    identifiedAnalyticsUid.current=u.uid;
     try {
       const [p,preferences]=await Promise.all([window._fb.getProfile(u.uid),window._fb.getNotificationPreferences(u.uid).catch(()=>DEFAULT_NOTIFICATION_PREFERENCES)]);
       await replayPendingSave(u.uid);
@@ -5396,6 +4851,7 @@ function App() {
         setPoolInviteRemaining(null);
         if (u) loadAuthenticatedProfile(u);
         else {
+          if(identifiedAnalyticsUid.current){window.ttwAnalytics?.reset();identifiedAnalyticsUid.current='';}
           setUser(null);setProfile(null);setAuthError('');setAuthState('signedout');
         }
       });
@@ -5414,6 +4870,7 @@ function App() {
     }).catch(error=>console.info('The live/default season could not be refreshed.',error));
     return()=>{cancelled=true;};
   },[]);
+  useEffect(()=>window.ttwAnalytics?.onPriceVariant(setPriceVariant),[]);
   useEffect(()=>{
     if(authState!=='signedin')return;
     let cancelled=false;
@@ -5498,6 +4955,7 @@ function App() {
       setSeenRetroNotices([]);setSessionRetroNotices([]);
       entryStep='loading the season';
       const liveCfg=await loadConfig(seasonForPool(pool).id);
+      noteAvailableEpisode(seasonForPool(pool).id,liveCfg.AVAILABLE_THROUGH_EP);
       let enteredPool=pool;
       if(pool.global!==true&&!pool.joinCode&&pool.ownerUid===user.uid){
         const joinCode=await window._fb.ensurePoolJoinCode(pool.id);
@@ -5520,11 +4978,23 @@ function App() {
       const engine = makeEngine(poolCfg, enteredPool.members.length);
       setEng(engine);
       entryStep='loading the pool data';
-      const [{players, status}, users, pending] = await Promise.all([
-        window._fb.loadAllPlayers(pool.id,user.uid,enteredPool.global===true),
-        window._fb.getUsers(enteredPool.members),
-        enteredPool.global===true||enteredPool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id),
-      ]);
+      let players,status,users,pending;
+      if(enteredPool.global===true){
+        const [mine,standings]=await Promise.all([
+          window._fb.loadMyPlayer(pool.id,user.uid),
+          window._fb.loadGlobalStandings(pool.id),
+        ]);
+        ({players,status,users}=globalStandingsView(standings,user.uid,mine));
+        pending=[];
+        setGlobalStandings(standings);setGlobalPhaseScores(globalStandingsView(standings,user.uid,mine).phaseScores);
+      }else{
+        [{players,status},users,pending]=await Promise.all([
+          window._fb.loadAllPlayers(pool.id,user.uid,false),
+          window._fb.getUsers(enteredPool.members),
+          enteredPool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id),
+        ]);
+        setGlobalStandings(null);setGlobalPhaseScores(EMPTY_PHASE_SCORES);
+      }
       setPoolPlayers(players); setPoolUsers(users); setPoolStatus(status); setPendingPoolInvites(pending);
       // Load my state
       let mine = players[user.uid];
@@ -5653,6 +5123,14 @@ function App() {
     pendingJoinedPool.current=null;
     enterPool(invitedPool);
   },[authState,profile?.username,pools,activePool,enteringPool]);
+  const analyticsRoute=authState!=='signedin'
+    ? `/app/${authState}`
+    : !profile?.username
+      ? '/app/profile'
+      : activePool
+        ? `/app/pool/${activePool.id}/${poolTab}/${phase}/${screen}`
+        : creating?'/app/create':'/app/lobby';
+  useEffect(()=>{window.ttwAnalytics?.capturePageview(analyticsRoute);},[analyticsRoute]);
   /* ── Save player state ── */
   const flushSave = useCallback(async () => {
     clearTimeout(saveTimer.current);
@@ -5826,6 +5304,7 @@ function App() {
       trackTtwEvent('pool_created',{seasonId:season.id,invitationCount:inviteList.length,mirrorsGlobalPicks:!!mirrorSourcePoolId});
       try {
         await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
+        if(inviteList.length)trackTtwEvent('invite_sent',{poolId,channel:'email',count:inviteList.length});
       } catch(inviteError) {
         console.error('The pool was created, but one or more invitations failed.',inviteError);
         reportTtwError('invite_send_failed',inviteError,{operation:'send_creation_invites',poolId,seasonId:season.id});
@@ -5926,7 +5405,7 @@ function App() {
     if(destructiveActionPending)return;
     if(!await requestConfirmation({title:'Permanently delete your account?',body:'This removes your profile, predictions, Heat Check ratings, and pool history. Pools you own will also be deleted. This cannot be undone.',confirmLabel:'Delete my account',cancelLabel:'Keep my account'}))return;
     setDestructiveActionPending(true);setErr('');
-    try{await window._fb.deleteMyAccount();setShowSettings(false);setActivePool(null);resetRuntimeConfig();}
+    try{await window._fb.deleteMyAccount();if(identifiedAnalyticsUid.current){window.ttwAnalytics?.reset();identifiedAnalyticsUid.current='';}setShowSettings(false);setActivePool(null);resetRuntimeConfig();}
     catch(e){console.error(e);setErr(e?.message||'Your account could not be deleted. Please try again.');}
     finally{setDestructiveActionPending(false);}
   };
@@ -5943,6 +5422,7 @@ function App() {
       const inviteResult=await window._fb.sendInvite(activePool.id,activePool.name,seasonLabelForPool(activePool),user.uid,profile.username,email);
       const pending=await window._fb.poolInvites(activePool.id);
       if(Number.isInteger(inviteResult?.data?.remaining))setPoolInviteRemaining(inviteResult.data.remaining);
+      trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'email',count:1});
       setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback((resendingPendingInvite?'Invitation sent again to ':'Invitation sent to ')+email+'.');
     } catch(e) {
       console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
@@ -5964,6 +5444,7 @@ function App() {
     if(typeof navigator.share==='function') {
       try {
         await navigator.share(shareData);
+        trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'link',count:1});
         setGlobalShareFeedback('Global Pool link shared.');
       } catch(e) {
         if(e?.name!=='AbortError') setGlobalShareFeedback('The share menu could not open. Try copying the link instead.');
@@ -5972,9 +5453,11 @@ function App() {
     }
     try {
       await navigator.clipboard.writeText(cleanUrl);
+      trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'link',count:1});
       setGlobalShareFeedback('Global Pool link copied.');
     } catch(e) {
       window.prompt('Copy this Global Pool link:',cleanUrl);
+      trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'link',count:1});
     }
     } finally {setSharingPool(false);}
   };
@@ -6096,6 +5579,9 @@ function App() {
     setGatingLabel('Locking in your predictions…');setGating(true);
     try {
       await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion'},true);
+      if(activePool.global===true){
+        await window._fb.lockGlobalPicks(activePool.id,Object.fromEntries(predictionPhases.map(phaseId=>[phaseId,picks[phaseId]||[]])));
+      }
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
     } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
     finally { setGating(false);setGatingLabel(''); }
@@ -6106,7 +5592,10 @@ function App() {
     phaseCompletionAttempted.current=key;
     setRetryingPhaseCompletion(true);
     try {
-      const confirmedStatus=await window._fb.completePhase(poolId,phaseId,uid);
+      const globalPool=poolId.startsWith('global__');
+      const confirmedStatus=globalPool
+        ? await window._fb.completeGlobalPhase(poolId,phaseId).then(()=>({completedMembers:[uid],updatedAt:Date.now()}))
+        : await window._fb.completePhase(poolId,phaseId,uid);
       if(phaseId==='pods'){try{const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid;if(!localStorage.getItem(analyticsKey)){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});localStorage.setItem(analyticsKey,'1');}}catch(e){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});}}
       if(confirmedStatus)setPoolStatus(current=>({...current,[phaseId]:confirmedStatus}));
       setPhaseCompletionError('');
@@ -6186,8 +5675,19 @@ function App() {
       setErr('');
       let pool = await window._fb.getPool(activePool.id);
       if (!pool) throw new Error('Pool not found');
-      const [{players, status},users,pending,liveCfg] = await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,pool.global===true),window._fb.getUsers(pool.members),pool.global===true||pool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id),loadConfig(seasonForPool(pool).id,{force:forceSeasonData})]);
-      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot) {
+      const liveCfg=await loadConfig(seasonForPool(pool).id,{force:forceSeasonData});
+      noteAvailableEpisode(seasonForPool(pool).id,liveCfg.AVAILABLE_THROUGH_EP);
+      let players,status,users,pending;
+      if(pool.global===true){
+        const [mine,standings]=await Promise.all([window._fb.loadMyPlayer(pool.id,user.uid),window._fb.loadGlobalStandings(pool.id)]);
+        const view=globalStandingsView(standings,user.uid,mine);
+        ({players,status,users}=view);pending=[];
+        setGlobalStandings(standings);setGlobalPhaseScores(view.phaseScores);
+      }else{
+        [{players,status},users,pending]=await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,false),window._fb.getUsers(pool.members),pool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id)]);
+        setGlobalStandings(null);setGlobalPhaseScores(EMPTY_PHASE_SCORES);
+      }
+      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot&&pool.global!==true) {
         if(pool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
@@ -6213,11 +5713,11 @@ function App() {
     const shareData={title:'Join '+activePool.name,text:'Join my Through the Wall prediction pool.',url:url.toString()};
     setPoolInviteFeedback('');setPoolInviteError(false);
     if(typeof navigator.share==='function'){
-      try{await navigator.share(shareData);setPoolInviteFeedback('Pool link shared.');return;}
+      try{await navigator.share(shareData);trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'link',count:1});setPoolInviteFeedback('Pool link shared.');return;}
       catch(e){if(e?.name==='AbortError')return;}
     }
-    try{await navigator.clipboard.writeText(url.toString());setPoolInviteFeedback('Pool link copied.');}
-    catch(e){window.prompt('Copy this pool link:',url.toString());}
+    try{await navigator.clipboard.writeText(url.toString());trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'link',count:1});setPoolInviteFeedback('Pool link copied.');}
+    catch(e){window.prompt('Copy this pool link:',url.toString());trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'link',count:1});}
     } finally {setSharingPool(false);}
   };
   const refreshStandings=()=>{lastStandingsRefresh.current=Date.now();return refreshPool();};
@@ -6277,14 +5777,23 @@ function App() {
     return()=>window.removeEventListener('focus',refreshOnFocus);
   },[poolTab,activePool?.id]);
   useEffect(()=>{
-    if(!['standings','chemistry'].includes(poolTab)||!activePool?.id||!window._fb?.watchPoolActivity)return;
+    if(!['standings','chemistry'].includes(poolTab)||!activePool?.id)return;
+    if(activePool.global===true){
+      if(poolTab!=='standings'||!window._fb?.watchGlobalStandings)return;
+      return window._fb.watchGlobalStandings(activePool.id,standings=>{
+        const own=poolPlayers?.[user?.uid]||null;
+        const view=globalStandingsView(standings,user?.uid,own);
+        setGlobalStandings(standings);setGlobalPhaseScores(view.phaseScores);setPoolPlayers(view.players);setPoolUsers(view.users);setPoolStatus(view.status);
+      },error=>console.warn('Live Global standings are temporarily unavailable.',error));
+    }
+    if(!window._fb?.watchPoolActivity)return;
     let refreshTimer=null;
     const stop=window._fb.watchPoolActivity(activePool.id,()=>{
       clearTimeout(refreshTimer);
       refreshTimer=setTimeout(()=>poolTab==='chemistry'?refreshChemistry():refreshStandings(),350);
     },error=>console.warn('Live pool updates are temporarily unavailable.',error));
     return()=>{clearTimeout(refreshTimer);stop?.();};
-  },[poolTab,activePool?.id]);
+  },[poolTab,activePool?.id,user?.uid]);
   useEffect(() => {
     if(!activePool||poolTab!=='play'||screen!=='close'||!completed[phase]||!user?.uid) {
       phaseCompletionAttempted.current='';
@@ -6427,8 +5936,8 @@ function App() {
     </div>
   </div>;
   const userBar = <div className="user-bar">
-    {user.photoURL?<img className="user-avatar" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback" aria-hidden="true">{initialsFor(profile.username)}</span>}
-    <span className="user-name">{profile.username}</span>
+    {user.photoURL?<img className="user-avatar ph-no-capture" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback ph-no-capture" aria-hidden="true">{initialsFor(profile.username)}</span>}
+    <span className="user-name ph-no-capture">{profile.username}</span>
     <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
   </div>;
   const startPoolFromLibrary=seasonId=>{
@@ -6467,7 +5976,7 @@ function App() {
       <h2>Invites</h2>
       {invites.map(inv=><div className="invite-row" key={inv.id}>
         <div className="iname">{inv.poolName}</div>
-        <div className="imeta">{inv.seasonLabel&&<React.Fragment>{inv.seasonLabel} · </React.Fragment>}Invited by {inv.fromUsername}</div>
+        <div className="imeta ph-no-capture">{inv.seasonLabel&&<React.Fragment>{inv.seasonLabel} · </React.Fragment>}Invited by {inv.fromUsername}</div>
         <div className="invite-actions">
           <button className="btn-small filled" disabled={!!inviteAction} onClick={()=>doAccept(inv)}>{inviteAction===inv.id+':accept'?'Accepting…':'Accept'}</button>
           <button className="btn-small" disabled={!!inviteAction} onClick={()=>doDecline(inv)}>{inviteAction===inv.id+':decline'?'Declining…':'Decline'}</button>
@@ -6516,7 +6025,7 @@ function App() {
           <button className="btn-add" onClick={addInviteEmail}>Add</button>
         </div>
         {inviteList.length>0 && <div style={{margin:'8px 0'}}>
-          {inviteList.map(em=><span className="email-chip" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
+          {inviteList.map(em=><span className="email-chip ph-no-capture" key={em}>{em}<button onClick={()=>setInviteList(inviteList.filter(x=>x!==em))}>✕</button></span>)}
         </div>}
         <button className="btn-primary" disabled={!newPoolName.trim()||!selectedSeasonId||creatingPool} onClick={doCreatePool}>{creatingPool?'Building your pool…':`Create pool${inviteList.length>0?` & send ${inviteList.length} invite${inviteList.length>1?'s':''}`:''}`}</button>
         <button className="btn-secondary" disabled={creatingPool} onClick={()=>{setCreating(false);setNewPoolName('');setSelectedSeasonId(defaultSeasonId);setMirrorGlobalPicks(false);setInviteList([]);}}>Cancel</button>
@@ -6533,7 +6042,7 @@ function App() {
       {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={availableHistoricalSeasonCount()>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
@@ -6593,8 +6102,8 @@ function App() {
       <div className="user-bar">
         <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
         <button className="backlink" disabled={leavingPool} onClick={exitPool}>{leavingPool?'Returning…':'← All pools'}</button>
-        {user.photoURL?<img className="user-avatar" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback" aria-hidden="true">{initialsFor(meName)}</span>}
-        <span className="user-name">{meName}</span>
+        {user.photoURL?<img className="user-avatar ph-no-capture" src={user.photoURL} alt=""/>:<span className="avatar-initials user-avatar-fallback ph-no-capture" aria-hidden="true">{initialsFor(meName)}</span>}
+        <span className="user-name ph-no-capture">{meName}</span>
         <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
       </div>
     </BrandHeader>
@@ -6605,7 +6114,7 @@ function App() {
       <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
         ? <button className="btn-small" style={{width:'auto'}} onClick={exitGlobalDemo}>Exit demo preview</button>
         : <button className="btn-small" style={{width:'auto'}} disabled={refreshingPool} onClick={refreshStandings}>{refreshingPool?'Refreshing…':'Refresh standings'}</button>}</div>
-      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData||activePool.ownerUid!==user.uid?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||EMPTY_PHASE_SCORES} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
+      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData||activePool.ownerUid!==user.uid?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||(activePool.global===true?globalPhaseScores:EMPTY_PHASE_SCORES)} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
       {activePool.global&&!globalDemoData&&<div className="card">
         <h3>Share the Global Pool</h3>
         <p className="lede">The Global Pool is open to everyone. Share the app with friends and they can join from their own account.</p>
@@ -6631,7 +6140,7 @@ function App() {
           </button>
           <p className="subtle" style={{marginTop:7}}>{activePool.membershipClosed===true?'Reopening makes existing pending invitations usable again.':'Closing membership is optional. It is required only if you want the completed leaderboard to become final.'}</p>
         </div>}
-        {poolInviteFeedback&&<p role={poolInviteError?'alert':'status'} style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
+        {poolInviteFeedback&&<p className="ph-no-capture" role={poolInviteError?'alert':'status'} style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
       </div>}
     </div>}
     {poolTab==='chemistry'&&(chemistryLoading||!chemistryMine||!chemistryCommunity||!chemistryGlobalCommunity)
@@ -6701,13 +6210,13 @@ function App() {
       {screen==='final'&&<div className="card gatecard">
         <div className="crown">👑</div>
         <div className="winner">Season complete!</div>
-        <p className="lede" style={{marginBottom:12}}>Your full score is live. Standings and Against-the-Grain bonuses continue updating as more pool members finish. When the final standings lock, your full-screen Wrapped story will appear there.</p>
+        <p className="lede" style={{marginBottom:12}}>Your confirmed score is live. Each Global checkpoint stays fixed once it appears, even as more players finish. When the final standings lock, your full-screen Wrapped story will appear there.</p>
         <button className="btn-primary" onClick={()=>switchPoolTab('standings')}>View standings &amp; Wrapped</button>
       </div>}
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }

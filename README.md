@@ -48,6 +48,12 @@ Email invitations match only the verified email address in the recipient's authe
 
 The production workflow authenticates without a stored key: GitHub's OIDC token is exchanged through the `github-actions/libapp` Workload Identity provider for the dedicated `github-firebase-hosting` service account. Confirm the custom domain is connected and its certificate is active in Firebase Hosting before merging a release that changes DNS or hosting providers.
 
+## Beta product analytics
+
+Plausible remains the aggregate traffic view. PostHog EU Cloud adds identified product funnels, retention, masked session replay, and the `price_variant` feature flag. The SDK is initialized by the shared `analytics.js` entry point on the app, welcome page, privacy and terms pages, and generated season pages. All named product events still flow through `trackTtwEvent` and its shared dispatcher.
+
+Follow [`POSTHOG-BETA-RUNBOOK.md`](POSTHOG-BETA-RUNBOOK.md) to create the project and flag, configure the GitHub production environment, build the invite funnel, and run the required privacy and identity checks.
+
 ## Season publishing
 
 The app reads the published Firestore `seasons/{seasonId}` snapshot first. Public Google Sheet CSV is a fallback/admin source only. Keep the Firestore snapshot current before episode traffic arrives.

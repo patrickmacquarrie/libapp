@@ -76,6 +76,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          REQUIRE_POSTHOG_CONFIG: true
       - id: backend_changes
         env:
           BEFORE_SHA: ${{ github.event.before }}

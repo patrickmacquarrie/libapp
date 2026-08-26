@@ -33,7 +33,7 @@ function resolveRequestFile(requestUrl) {
 function startServer() {
   const server=http.createServer(async(request,response)=>{
     const pathname=new URL(request.url||'/','http://localhost').pathname;
-    const firebaseSdk=pathname.match(/^\/__\/firebase\/11\.2\.0\/(firebase-(?:app|auth|firestore|functions)\.js)$/);
+    const firebaseSdk=pathname.match(/^\/__\/firebase\/11\.2\.0\/(firebase-(?:app|app-check|auth|firestore|functions)\.js)$/);
     if(firebaseSdk){
       try{
         const upstream=await fetch(`https://www.gstatic.com/firebasejs/11.2.0/${firebaseSdk[1]}`);
@@ -116,17 +116,27 @@ async function inspectPage(browser,baseUrl,test) {
 
 async function main() {
   assert(fs.existsSync(path.join(dist,'index.html')),`Built app not found at ${path.join(dist,'index.html')}. Run npm run build first.`);
+  const analyticsPath=path.join(dist,'analytics.js');
+  assert(fs.existsSync(analyticsPath),'The build did not include the shared analytics entry point.');
+  const analytics=fs.readFileSync(analyticsPath,'utf8');
+  assert(!analytics.includes('__APP_BUILD_TIMESTAMP__'),'The analytics build timestamp placeholder was not replaced.');
+  assert(!analytics.includes('__POSTHOG_HOST__'),'The PostHog host placeholder was not replaced.');
+  assert(analytics.includes("const API_HOST='https://eu.i.posthog.com'"),'The built analytics entry point must use the disclosed EU region.');
   const server=await startServer();
   const address=server.address();
   const baseUrl=`http://127.0.0.1:${address.port}`;
   let browser;
   try{
-    browser=await chromium.launch({headless:true});
+    const launchOptions={headless:true};
+    if(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH)launchOptions.executablePath=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    browser=await chromium.launch(launchOptions);
     const tests=[
       {pathname:'/',react:true,texts:['Getting the pods ready…','Save your picks and play with friends']},
       {pathname:'/?join=smoke-pool.smoke-code',react:true,texts:['Getting the pods ready…','Your pool invitation is ready']},
       {pathname:generatedSeasonPath(),react:false,text:'Create a free pool'},
       {pathname:'/welcome/',react:false,text:'Love Is Blind is better when everyone brings'},
+      {pathname:'/privacy.html',react:false,text:'Analytics and session replay'},
+      {pathname:'/terms.html',react:false,text:'Through the Wall is an unofficial'},
     ];
     for(const test of tests)await inspectPage(browser,baseUrl,test);
     console.log(`Built-app smoke test passed for ${tests.map(test=>test.pathname).join(', ')}.`);

@@ -13,8 +13,8 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://throughthewall.ca/welcome/">
   <link rel="icon" href="../images/through-the-wall-app-icon.png">
+  <script src="../analytics.js"></script>
   <script defer data-domain="throughthewall.ca" src="https://plausible.io/js/script.js"></script>
-  <script>window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments);};window.addEventListener('ttw:conversion',event=>{const payload=event.detail||{},name=payload.event;if(!name)return;const props={...payload};delete props.event;window.plausible(name,{props});});</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -95,7 +95,7 @@
     const withCampaign=(path,startCreate=false)=>{const url=new URL(path,location.href);if(startCreate)url.searchParams.set('start','create');Object.entries(campaign).forEach(([key,value])=>url.searchParams.set(key,value));return url.toString();};
     document.querySelectorAll('.create-link').forEach(link=>link.href=withCampaign('../',true));
     document.querySelectorAll('.app-link').forEach(link=>link.href=withCampaign('../'));
-    const track=(event,details={})=>{const payload={event,...details,...campaign};window.dataLayer=window.dataLayer||[];window.dataLayer.push(payload);window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));};
+    const track=(event,details={})=>window.ttwAnalytics?.track(event,{...details,...campaign});
     track('landing_view',{path:location.pathname});
     document.querySelectorAll('[data-event]').forEach(element=>element.addEventListener('click',()=>track(element.dataset.event,{placement:element.dataset.placement||''})));
     const slider=document.getElementById('heart-slider'),value=document.getElementById('heart-value'),left=document.getElementById('hearts-left'),fill=document.getElementById('budget-fill'),lock=document.getElementById('demo-lock');

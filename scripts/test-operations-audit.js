@@ -6,7 +6,9 @@ const vm=require('node:vm');
 const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const html=read('index.html');
+const analyticsSource=read('analytics.js');
 const functionsSource=read('functions/index.js');
+const scoringEngineSource=read('functions/shared/scoring-engine.js');
 const firestoreRules=read('firestore.rules');
 const publisher=read('scripts/season-publisher/Code.gs');
 const seasonAdmin=read('scripts/season-publisher/Admin.html');
@@ -25,6 +27,7 @@ const builtAppSmoke=read('scripts/test-built-app-smoke.js');
 
 new Function(functionsSource);
 new Function(publisher);
+new Function(analyticsSource);
 const seasonAdminScript=seasonAdmin.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert(seasonAdminScript,'Season admin must include browser logic.');
 new Function(seasonAdminScript);
@@ -70,6 +73,21 @@ assert(publisher.includes("APP_CONFIG_PATH = 'appConfig/public'"),'The publisher
 assert(publisher.includes('Choose another live/default season before publishing this season as Completed.'),'The active default must not be completed before its successor is chosen.');
 assert(functionsSource.includes('function globalPoolSeasonFromConfig(data)'),'The Global Pool callable must resolve the active season from runtime configuration.');
 assert(!functionsSource.includes('GLOBAL_POOL_SEASONS'),'The Global Pool callable must not retain a hardcoded season allow-list.');
+assert(functionsSource.includes("require('./shared/scoring-engine')"),'Cloud Functions must import the same scoring engine used by the browser build.');
+assert(buildSource.includes("functions','shared','scoring-engine.js"),'The browser build must inject the Functions scoring engine into the app.');
+assert(html.includes('/* __SCORING_ENGINE_SOURCE__ */'),'The editable app must retain the shared scoring-engine insertion marker.');
+assert(functionsSource.includes("if(action==='lockGlobalPicks')return lockGlobalPicks(request)"),'Global prediction locks must run through the trusted callable gateway.');
+assert(functionsSource.includes("if(action==='completeGlobalPhase')return completeGlobalPhase(request)"),'Global phase completion must run through the trusted callable gateway.');
+assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases})"),'The browser must use the existing callable gateway for Global prediction locks.');
+assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase})"),'The browser must use the existing callable gateway for Global phase completion.');
+assert(functionsSource.includes("collection('trustedPlayers').get()"),'The server scorer must use trusted Global inputs.');
+assert(functionsSource.includes("publishedRows(snapshot,'Retro Events')"),'The trusted scorer must load confirmed retroactive scoring events.');
+assert(functionsSource.includes('.scoreRetroAdjustments(picksByPhase,revealedPhaseSet)'),'The trusted scorer must use the shared engine for retroactive points.');
+assert(functionsSource.includes("collection('standings').doc('current')"),'The server scorer must publish one current standings document.');
+assert(html.includes('watchGlobalStandings'),'Global clients must subscribe to the single trusted standings document.');
+assert(html.includes("if(activePool.global===true){\n      if(poolTab!=='standings'"),'Global standings must bypass the collection fan-out watcher.');
+assert(scoringEngineSource.includes('validateLockedPhasePicks'),'Trusted pick validation must live with the shared engine.');
+assert(functionsSource.includes('authoritativeWindow:cfg.AVAILABLE_THROUGH_EP'),'The scorer must replace client foresight with authoritative published availability.');
 assert(!functionsSource.includes('exports.reportClientError'),'The dead client-error callable must stay removed.');
 assert(!functionsSource.includes('clientErrorWindows'),'Client error throttling must stay in Firestore rules, not process memory.');
 assert(functionsSource.includes('exports.deletePool=onCall'),'Pool deletion must run through a trusted callable.');
@@ -92,6 +110,11 @@ assert(!firestoreRules.includes("request.resource.data.revealed"),'The deprecate
 assert(firestoreRules.includes("'updatedAt',\n            'revealed'"),'Rules must permit a full replacement to remove the deprecated phase-status field.');
 assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
 assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
+assert(functionsSource.includes('const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true}'),'Every callable must share enforced App Check settings.');
+assert(!/onCall\(FUNCTION_LIMITS/.test(functionsSource),'No callable may bypass App Check enforcement.');
+assert(html.includes('initializeAppCheck(fbApp'),'The production client must initialize Firebase App Check.');
+assert(html.includes('new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY)'),'The production client must use reCAPTCHA Enterprise.');
+assert(productionCsp.includes('https://www.recaptcha.net')&&productionCsp.includes('https://www.google.com'),'The production CSP must allow reCAPTCHA Enterprise resources.');
 assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='toEmail')&&index.fields.some(field=>field.fieldPath==='status')),'Invite recipient/status index must be versioned.');
 assert(firestoreIndexes.indexes.some(index=>index.collectionGroup==='invites'&&index.fields.some(field=>field.fieldPath==='poolId')&&index.fields.some(field=>field.fieldPath==='status')),'Pool invitation/status index must be versioned.');
 assert(firestoreIndexes.fieldOverrides.some(index=>index.collectionGroup==='pools'&&index.fieldPath==='season.id'),'Season pool-query index must be versioned.');
@@ -289,6 +312,74 @@ assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Goog
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_success'"),'Successful redirect resolution must emit a conversion event.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_failure',{code:"),'Redirect failures must report their auth error code.');
 assert(html.includes("trackTtwEvent('app_arrival')"),'Every arrival must emit a conversion event.');
+assert(html.includes("const trackTtwEvent=(event,details={})=>window.ttwAnalytics?.track(event,details)"),'Named product analytics must retain one dispatcher.');
+assert(analyticsSource.includes('window.posthog?.capture(event,payload)'),'The shared dispatcher must fan every named event out to PostHog.');
+assert(!html.includes('posthog.capture('),'PostHog event capture must not be scattered through the app.');
+assert(analyticsSource.includes("person_profiles:'identified_only'")&&analyticsSource.includes('capture_pageview:true')&&analyticsSource.includes('autocapture:true'),'PostHog must initialize with the beta product-analytics settings.');
+assert(analyticsSource.includes('maskAllInputs:true')&&analyticsSource.includes("mask_all_text:true")&&analyticsSource.includes("mask_all_element_attributes:true"),'PostHog replay and autocapture must mask user-entered or rendered text.');
+assert(analyticsSource.includes("property_denylist:['email','username','displayName','name','toEmail','inviteEmail']"),'PostHog must drop PII-shaped event properties.');
+assert(analyticsSource.includes("['$current_url','$referrer','$initial_referrer']"),'PostHog page and referrer properties must remove query strings before sending.');
+assert(analyticsSource.includes("window.posthog.identify(String(firebaseUid),{},setOnce)"),'PostHog identity must use only the stable Firebase UID plus set-once cohort properties.');
+assert(html.includes("window.ttwAnalytics?.identify(u.uid,{seasonId:"),'Authenticated sessions must identify with the Firebase UID.');
+assert(html.includes("window.ttwAnalytics?.reset();identifiedAnalyticsUid.current=''"),'Sign-out and account deletion must reset PostHog identity.');
+assert(analyticsSource.includes("window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD})"),'Acquisition source and app build must be PostHog super-properties.');
+assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'The price fake door must wait for a resolved PostHog feature flag.');
+['invite_sent','invite_link_opened','episode_return','notif_opt_in','price_fakedoor_click','founding_email_captured'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+assert(html.includes('ph-no-capture'),'Rendered account and invitation details must be blocked from session replay.');
+
+const analyticsListeners=new Map();
+const analyticsStorage=new Map();
+class AnalyticsCustomEvent{
+  constructor(type,options={}){this.type=type;this.detail=options.detail;}
+}
+const analyticsWindow={
+  location:{search:'?utm_source=launch_list&utm_medium=email',origin:'https://throughthewall.ca',pathname:'/'},
+  addEventListener:(type,listener)=>analyticsListeners.set(type,listener),
+  dispatchEvent:event=>{analyticsListeners.get(event.type)?.(event);return true;},
+  __TTW_BROWSING_CONTEXT__:{browser_context:'browser'},
+};
+const analyticsDocument={
+  referrer:'',
+  createElement:()=>({}),
+  getElementsByTagName:()=>[{parentNode:{insertBefore:()=>{}}}],
+};
+const analyticsContext={
+  window:analyticsWindow,
+  document:analyticsDocument,
+  localStorage:{
+    getItem:key=>analyticsStorage.get(key)||null,
+    setItem:(key,value)=>analyticsStorage.set(key,String(value)),
+  },
+  URL,
+  URLSearchParams,
+  Date,
+  Object,
+  String,
+  CustomEvent:AnalyticsCustomEvent,
+};
+vm.createContext(analyticsContext);
+vm.runInContext(
+  analyticsSource
+    .replaceAll('__POSTHOG_PROJECT_TOKEN__','phc_runtime_audit_token')
+    .replaceAll('__POSTHOG_HOST__','https://eu.i.posthog.com')
+    .replaceAll('__APP_BUILD_TIMESTAMP__','runtime-audit-build'),
+  analyticsContext
+);
+assert.equal(analyticsWindow.ttwAnalytics.enabled,true,'A built phc_ project token must enable PostHog.');
+assert.equal(analyticsWindow.ttwAnalytics.acquisitionSource,'organic_launch_list');
+const analyticsPayload=analyticsWindow.ttwAnalytics.track('invite_sent',{count:2,event:'cannot_override'});
+assert.equal(analyticsPayload.event,'invite_sent','Event details must not overwrite the named event.');
+assert.equal(analyticsPayload.app_build,'runtime-audit-build');
+assert.equal(analyticsPayload.browser_context,'browser');
+assert(analyticsWindow.posthog.some(call=>call[0]==='capture'&&call[1]==='invite_sent'),'The runtime dispatcher must enqueue PostHog captures.');
+assert.equal(analyticsWindow.plausible.q.at(-1)[0],'invite_sent','The runtime dispatcher must preserve the Plausible conversion bridge.');
+analyticsWindow.ttwAnalytics.identify('firebase-uid',{seasonId:'love-is-blind-us-10'});
+const identifyCall=analyticsWindow.posthog.find(call=>call[0]==='identify');
+assert.deepEqual(JSON.parse(JSON.stringify(identifyCall)),['identify','firebase-uid',{}, {acquisition_source:'organic_launch_list',first_seen_season:'love-is-blind-us-10'}]);
+const posthogConfig=analyticsWindow.posthog._i[0][1];
+const sanitizedEvent=posthogConfig.before_send({properties:{$current_url:'https://throughthewall.ca/?join=secret-token',$referrer:'https://example.test/path?private=yes'}});
+assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/');
+assert.equal(sanitizedEvent.properties.$referrer,'https://example.test/path');
 assert(html.includes("browserContext='instagram_in_app'")&&html.includes("browserContext='messenger_in_app'")&&html.includes("browserContext='tiktok_in_app'"),'Arrival telemetry must distinguish common in-app browsers.');
 assert(html.includes("reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'})"),'Unresolved auth returns must emit the bounded startup failure diagnostic.');
 assert(html.includes('const hasAuthReturn=window._fb.hasAuthRedirectParams()||window._fb.hasPendingAuthRedirect();'),'Startup diagnostics must retain redirect intent after Firebase removes its handler parameters.');
@@ -314,13 +405,16 @@ assert(builtAppSmoke.includes("message.type()==='error'")&&builtAppSmoke.include
 assert(buildSource.includes("'node_modules','react','umd','react.production.min.js'"),'The production build must self-host React.');
 assert(buildSource.includes("'node_modules','react-dom','umd','react-dom.production.min.js'"),'The production build must self-host ReactDOM.');
 assert(!html.includes("from 'https://www.gstatic.com/firebasejs/"),'Firebase modules must load from the same-origin Hosting SDK path so content blockers cannot prevent startup.');
-for(const moduleName of ['app','auth','firestore','functions']) {
+for(const moduleName of ['app','app-check','auth','firestore','functions']) {
   assert(html.includes(`from '/__/firebase/11.2.0/firebase-${moduleName}.js'`),`The ${moduleName} Firebase module must use the versioned same-origin Hosting SDK path.`);
 }
 assert(html.includes('"https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js":"/__/firebase/11.2.0/firebase-app.js"'),'The Firebase import map must keep the Hosting SDK modules on one shared app module instance.');
 assert(!productionCsp.includes('https://cdnjs.cloudflare.com'),'The production CSP must not allow the former React CDN.');
-assert(productionCsp.includes("script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://plausible.io"),'The production CSP must allow the Firebase Auth Google API script.');
+assert(productionCsp.includes("script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com"),'The production CSP must allow the Firebase Auth Google API script.');
 assert(productionCsp.includes("frame-src 'self' https://accounts.google.com"),'The production CSP must allow same-origin Firebase Auth handlers.');
+assert(productionCsp.includes('https://eu-assets.i.posthog.com'),'The production CSP must allow the disclosed PostHog EU asset host.');
+assert(productionCsp.includes('https://eu.i.posthog.com'),'The production CSP must allow the disclosed PostHog EU ingestion host.');
+assert(productionCsp.includes("worker-src 'self' blob:"),'The production CSP must allow PostHog replay workers.');
 assert(!productionCsp.includes('https://appleid.apple.com'),'The production CSP must not allow the disabled Apple provider.');
 assert(firebaseConfig.includes('// Apple sign-in: restore https://appleid.apple.com to frame-src before re-enabling the provider.'),'The Hosting config must preserve the Apple CSP re-enable warning beside frame-src.');
 assert(firebaseConfig.includes('"source": "/"')&&firebaseConfig.includes('"source": "**/*.html"'),'The app shell and direct HTML pages must have explicit cache rules.');
@@ -343,6 +437,7 @@ assert(workflow.includes('hold_reason=comparison_unavailable')&&workflow.include
 assert(workflow.includes('>> "$GITHUB_STEP_SUMMARY"'),'A held release must explain itself in the GitHub step summary.');
 assert(workflow.includes('echo "::error title=Hosting release held::$hold_message"')&&workflow.includes('exit 1'),'A held release must fail rather than report a false green deployment.');
 assert(workflow.includes('backend_deployed'),'A manual Hosting release must explicitly confirm the backend is deployed.');
+assert(workflow.includes('POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_TOKEN }}')&&workflow.includes('REQUIRE_POSTHOG_CONFIG: true'),'Production deploys must inject and require the public PostHog project token.');
 assert(workflow.includes("if: github.event_name == 'workflow_dispatch' && inputs.backend_deployed == true\n        run: npm run verify:live-rules"),'A confirmed manual release must compare the published Firestore rules before Hosting deploys.');
 assert(workflow.includes('id-token: write'),'The verification job must be able to request a short-lived identity for the live-rules check.');
 assert(liveRulesVerifier.includes('/releases/cloud.firestore'),'The live-rules check must resolve the published Firestore release.');
