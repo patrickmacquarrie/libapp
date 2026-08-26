@@ -1171,7 +1171,8 @@ window._fb = {
   },
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
     httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
-  submitFeedback: ({category,message,context={}}) => httpsCallable(functions,'submitFeedback')({
+  submitFeedback: ({category,message,context={}}) => httpsCallable(functions,'sendPoolInvite')({
+    action:'feedback',
     category,
     message,
     context,

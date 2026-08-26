@@ -98,11 +98,11 @@ assert(functionsSource.includes("_${day}_${invitationCount}`"),'Each deliberate 
 assert(!html.includes('already has a pending invitation'),'The invitation form must allow a deliberate same-day resend.');
 assert(html.includes("resendingPendingInvite?'Invitation sent again to '"),'The invitation form must clearly confirm a resend.');
 assert(functionsSource.includes("db.collection('mail').where('to','array-contains',email)"),'Account deletion must remove queued mail addressed to the user.');
-assert(functionsSource.includes("exports.submitFeedback=onCall(CALLABLE_LIMITS"),'Feedback must be delivered through an App Check-protected callable.');
+assert(functionsSource.includes("if(request.data?.action==='feedback')return submitFeedback(request)"),'Feedback must be routed through the existing App Check-protected email callable.');
 assert(functionsSource.includes('const DAILY_FEEDBACK_LIMIT=5'),'Feedback delivery must have a bounded daily account limit.');
 assert(functionsSource.includes("db.collection('mail').where('feedbackUserId','==',uid)"),'Account deletion must remove queued support mail associated with the user.');
 assert(functionsSource.includes("db.collection('feedbackRateLimits').where('uid','==',uid)"),'Account deletion must remove feedback rate-limit records.');
-assert(html.includes("httpsCallable(functions,'submitFeedback')"),'The Settings support form must use the trusted feedback callable.');
+assert(html.includes("httpsCallable(functions,'sendPoolInvite')")&&html.includes("action:'feedback'"),'The Settings support form must use the trusted email callable.');
 assert(html.includes('supportMessage.trim().length<10'),'The support form must reject empty or trivial messages before sending.');
 assert(html.includes('className="ph-no-capture" id="support-message"'),'Feedback message text must be excluded from session replay.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
