@@ -114,8 +114,8 @@ function playerFields(phase,screen){
   };
 }
 
-function phasePickFields(uid,phase,{lockedAt,updatedAt=Date.now()}={}){
-  const fields={uid:stringValue(uid),phase:stringValue(phase),picks:arrayValue([]),updatedAt:numberValue(updatedAt)};
+function phasePickFields(uid,phase,{lockedAt,picks=[],updatedAt=Date.now()}={}){
+  const fields={uid:stringValue(uid),phase:stringValue(phase),picks:arrayValue(picks),updatedAt:numberValue(updatedAt)};
   if(Number.isFinite(lockedAt))fields.lockedAt=numberValue(lockedAt);
   return fields;
 }
@@ -302,6 +302,17 @@ async function main(){
   await expectStatus(await writeDocument(playerPath,playerFields('pods','intro'),second.token),200,'player writes bounded public state');
   await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),arbitrary:stringValue('not allowed')},second.token),403,'player cannot add arbitrary public fields');
   await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),username:stringValue('x'.repeat(41))},second.token),403,'player username size is bounded');
+  await expectStatus(
+    await writeDocument(
+      `pools/${invitePool}/phasePicks/pods__${second.uid}`,
+      phasePickFields(second.uid,'pods',{picks:[mapValue({
+        c:stringValue('Alex|Casey'),s:numberValue(20),w:numberValue(1),releasedThroughAtLock:numberValue(5),
+      })]}),
+      second.token,
+    ),
+    200,
+    'phase-pick maps tolerate the release reference stored beside the scored window'
+  );
 
   const reunionPool='reunion-privacy';
   await expectStatus(

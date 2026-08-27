@@ -13,6 +13,7 @@ Use this checklist for the first launch and every episode drop. UK3 is the first
 
 1. Run `publishSeasonSnapshot` and save its logged `backupPath`.
 2. In Firestore, confirm `seasons/{SEASON_ID}` has the new `publishedAt`, expected `status`, and correct `tabRowCounts`.
+   - Cast, Couples, and Settings must be present. Dating Results and Reunion Results may have zero data rows before those episodes air.
 3. Open [Through the Wall](https://throughthewall.ca/) in a private browser window. Sign in and verify:
    - the season opens;
    - the correct episodes and cast are visible;
@@ -21,6 +22,8 @@ Use this checklist for the first launch and every episode drop. UK3 is the first
    - the Global Pool and a friend pool both load;
    - an invitation can be sent or accepted when invitation behaviour changed.
 4. Check again on a phone-sized screen. Do not edit the sheet during verification.
+
+Normal player pages fail closed when the published snapshot is missing or incomplete; they do not silently read the Google Sheet. For an admin-only source comparison, deliberately append `?adminSeasonSource=sheet`. Cloud Functions will still use Firestore, so do not share that URL or treat it as a live workaround.
 
 ## Monitor
 

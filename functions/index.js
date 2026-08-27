@@ -4,6 +4,7 @@ const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
 const {makeEngine,PH_ORDER,DEFAULT_DATING_MULT,DEFAULT_WED_MULT,DEFAULT_REU_MULT,validateLockedPhasePicks,freezeScoredTotal}=require('./shared/scoring-engine');
+const {advanceGlobalWatchValue,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('./shared/global-watch-ledger');
 
 initializeApp();
 const db=getFirestore();
@@ -649,24 +650,39 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
   const action=String(request.data?.action||'open');
   if(action==='lockGlobalPicks')return lockGlobalPicks(request);
   if(action==='completeGlobalPhase')return completeGlobalPhase(request);
+  if(action==='advanceGlobalWatch')return advanceGlobalWatch(request);
   if(action!=='open')throw new HttpsError('invalid-argument','Choose a valid Global Pool action.');
   const uid=requireUser(request);
   const email=String(request.auth.token?.email||'').trim().toLowerCase();
   const seasonId=String(request.data?.seasonId||'');
   const ref=db.doc(`pools/global__${seasonId}`);
+  const trustedRef=ref.collection('trustedPlayers').doc(uid);
   const configRef=db.doc('appConfig/public');
   await db.runTransaction(async tx=>{
     const configSnapshot=await tx.get(configRef);
     const season=globalPoolSeasonFromConfig(configSnapshot.exists?configSnapshot.data():null);
     if(seasonId!==season.id)throw new HttpsError('invalid-argument','That season is not the active Global Pool season.');
     if(season.status==='completed')throw new HttpsError('failed-precondition','A completed season cannot open the active Global Pool.');
-    const snapshot=await tx.get(ref);
+    const [snapshot,seasonSnapshot,trustedSnapshot]=await Promise.all([
+      tx.get(ref),tx.get(db.doc(`seasons/${seasonId}`)),tx.get(trustedRef),
+    ]);
+    if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+    const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
     if(snapshot.exists){
       const current=snapshot.data();
       if(current.global!==true||current.globalSeasonId!==seasonId)throw new HttpsError('failed-precondition','The global pool document is configured incorrectly.');
+      const alreadyMember=Array.isArray(current.members)&&current.members.includes(uid);
       const update={scoringVersion:GLOBAL_SCORING_VERSION};
-      if(!Array.isArray(current.members)||!current.members.includes(uid))update.members=FieldValue.arrayUnion(uid);
+      if(!alreadyMember)update.members=FieldValue.arrayUnion(uid);
       tx.update(ref,update);
+      const ledgerFields=globalLedgerFieldsForJoin(
+        trustedSnapshot.exists?trustedSnapshot.data():{},
+        // Existing controlled-test members are treated as early joiners. The
+        // migration writes the same zero floor before this fallback is needed.
+        alreadyMember?0:cfg.AVAILABLE_THROUGH_EP,
+      );
+      if(!trustedSnapshot.exists)ledgerFields.uid=uid;
+      if(Object.keys(ledgerFields).length)tx.set(trustedRef,ledgerFields,{merge:true});
       return;
     }
     if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','The app administrator needs to open this global pool first.');
@@ -674,9 +690,34 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
       membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
+    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({},cfg.AVAILABLE_THROUGH_EP)});
   });
   return {ok:true,poolId:ref.id};
 });
+
+async function advanceGlobalWatch(request){
+  const uid=requireUser(request),poolId=String(request.data?.poolId||'');
+  const requested=Number(request.data?.watchedThrough);
+  if(!poolId||!Number.isFinite(requested))throw new HttpsError('invalid-argument','Choose a valid watch-through episode.');
+  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid);
+  let watchedThrough=0;
+  await db.runTransaction(async transaction=>{
+    const poolSnapshot=await transaction.get(poolRef);
+    if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted watch progress is available only in the Global Pool.');
+    const pool=poolSnapshot.data();
+    if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before advancing watch progress.');
+    const seasonId=String(pool.globalSeasonId||pool.season?.id||'');
+    const [trustedSnapshot,seasonSnapshot]=await Promise.all([
+      transaction.get(trustedRef),transaction.get(db.doc(`seasons/${seasonId}`)),
+    ]);
+    if(!trustedSnapshot.exists||!globalWatchLedgerReady(trustedSnapshot.data()))throw new HttpsError('failed-precondition','Open the Global Pool before advancing watch progress.');
+    if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+    const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
+    watchedThrough=advanceGlobalWatchValue(trustedSnapshot.data().watchedThrough,requested,cfg.AVAILABLE_THROUGH_EP);
+    transaction.set(trustedRef,{watchedThrough},{merge:true});
+  });
+  return {ok:true,watchedThrough};
+}
 
 async function lockGlobalPicks(request){
   const uid=requireUser(request);
@@ -693,16 +734,20 @@ async function lockGlobalPicks(request){
   if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
   const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId),engine=makeEngine(cfg,1);
   const previous=trustedSnapshot.exists?trustedSnapshot.data():{};
-  const nextPicks={...(previous.picks||{})},lockedAt=Date.now();
+  if(!globalWatchLedgerReady(previous))throw new HttpsError('failed-precondition','Open the Global Pool before locking predictions.');
+  const nextPicks={...(previous.picks||{})},lockedAt=Date.now(),authoritativeWindow=resolveGlobalWatchWindow(previous);
   for(const [phase,incoming] of Object.entries(submitted)){
     if(!PHASES.includes(phase)||!Array.isArray(incoming))throw new HttpsError('invalid-argument','One submitted prediction phase is malformed.');
     if(Number.isFinite(Number(previous.completedAt?.[phase])))continue;
-    nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming,existing:nextPicks[phase],lockedAt,authoritativeWindow:cfg.AVAILABLE_THROUGH_EP});
+    const serverStampedIncoming=incoming.map(raw=>raw&&typeof raw==='object'&&!Array.isArray(raw)
+      ? {...raw,releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP}
+      : raw);
+    nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming:serverStampedIncoming,existing:nextPicks[phase],lockedAt,authoritativeWindow});
   }
   await trustedRef.set({
     uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
     scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,
-  });
+  },{merge:true});
   const standings=await recomputeGlobalStandings(poolId);
   return {ok:true,lockedAt,accepted:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,(nextPicks[phase]||[]).length])),standingsRevision:standings?.sourceRevision||0};
 }

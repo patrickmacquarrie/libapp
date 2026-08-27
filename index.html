@@ -1282,6 +1282,7 @@ window._fb = {
   }),
   lockGlobalPicks: (poolId,phases) => httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases}),
   completeGlobalPhase: (poolId,phase) => httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase}),
+  advanceGlobalWatch: (poolId,watchedThrough) => httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough}),
   loadGlobalStandings: async poolId => {
     const snapshot=await getDoc(doc(db,'pools',poolId,'standings','current'));
     return snapshot.exists()?snapshot.data():null;
@@ -1461,6 +1462,9 @@ const initialAppParams=new URLSearchParams(window.location.search);
 const APP_BUILD_TIMESTAMP='__APP_BUILD_TIMESTAMP__'.startsWith('__APP_')?'development source · '+document.lastModified:'__APP_BUILD_TIMESTAMP__';
 window.__TTW_DIAGNOSTICS__={appBuildTimestamp:APP_BUILD_TIMESTAMP};
 const MARKETING_CREATE_INTENT=initialAppParams.get('start')==='create';
+// Emergency/admin-only diagnostic path. Player traffic must use the same
+// published Firestore snapshot as Cloud Functions.
+const ADMIN_SEASON_SHEET_FALLBACK=initialAppParams.get('adminSeasonSource')==='sheet';
 const trackTtwEvent=(event,details={})=>window.ttwAnalytics?.track(event,details);
 const ERROR_CONTEXT_KEYS=['entryStep','operation','phase','poolId','screen','seasonId','targetPoolId'];
 const safeErrorContextValue=(value,maxLength=100)=>String(value||'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
@@ -2106,7 +2110,7 @@ function disambiguateMemberLabels(memberIds,rawLabels) {
 const playerSeasonError = (error,fallback) => {
   const message=String(error?.message||'');
   return /^(Season data|Season config)/.test(message)
-    ? "This season's setup has a problem and predictions are paused. The pool admin needs to correct the season sheet."
+    ? "This season's published setup has a problem and predictions are paused. The pool admin needs to republish the season."
     : (message||fallback);
 };
 const CONFIG_CACHE_TTL_MS=60*1000;
@@ -2130,21 +2134,38 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
   const season=seasonById(seasonId);
   if(!season?.available||!season.sheetId) throw new Error('This season is not available yet.');
   let publishedSnapshot=null;
+  let publishedSnapshotError=null;
   try {
     publishedSnapshot=await window._fb?.getSeasonSnapshot?.(seasonId);
   } catch(e) {
-    console.info('The published season snapshot is unavailable; using the season sheet.',e);
+    publishedSnapshotError=e;
   }
   const publishedTabs=publishedSnapshot?{
     cast:publishedTabRows(publishedSnapshot,'Cast'),
     couples:publishedTabRows(publishedSnapshot,'Couples'),
-    dating:publishedTabRows(publishedSnapshot,'Dating Results'),
-    reunion:publishedTabRows(publishedSnapshot,'Reunion Results'),
+    dating:publishedTabRows(publishedSnapshot,'Dating Results')||[PUBLISHED_TAB_HEADERS.datingresults],
+    reunion:publishedTabRows(publishedSnapshot,'Reunion Results')||[PUBLISHED_TAB_HEADERS.reunionresults],
     settings:publishedTabRows(publishedSnapshot,'Settings'),
     retro:publishedTabRows(publishedSnapshot,'Retro Events')||[],
   }:null;
   const publishedReady=publishedTabs&&publishedTabs.cast?.length&&publishedTabs.couples?.length&&
-    publishedTabs.dating?.length&&publishedTabs.reunion?.length&&publishedTabs.settings?.length;
+    publishedTabs.settings?.length;
+  const useAdminSheetFallback=!publishedReady&&ADMIN_SEASON_SHEET_FALLBACK;
+  if(!publishedReady&&!useAdminSheetFallback) {
+    if(publishedSnapshotError) console.error('The published season snapshot could not be loaded.',publishedSnapshotError);
+    const reason=publishedSnapshot
+      ? 'the Firestore snapshot is missing Cast, Couples, or Settings.'
+      : 'the Firestore snapshot is unavailable.';
+    throw new Error(`Season data unavailable: ${reason} Republish the season before opening predictions.`);
+  }
+  const seasonDataSource=publishedReady?'firestore':'admin-sheet-fallback';
+  window.__TTW_DIAGNOSTICS__.seasonDataSources={
+    ...(window.__TTW_DIAGNOSTICS__.seasonDataSources||{}),
+    [seasonId]:seasonDataSource,
+  };
+  if(useAdminSheetFallback) {
+    console.warn(`[Admin season fallback] ${seasonId} is loading Google Sheet CSV data because adminSeasonSource=sheet was explicitly set. Cloud Functions still use Firestore.`);
+  }
   const retroPromise=publishedReady?Promise.resolve(publishedTabs.retro):fetchTab('Retro Events',season.sheetId).then(rows=>{
     const headers=(rows[0]||[]).map(h=>String(h).toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_'));
     // The gviz fallback can return the sheet's first tab when an optional tab
@@ -2164,9 +2185,6 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
         fetchTab('Cast',season.sheetId), fetchTab('Couples',season.sheetId), fetchTab('Dating Results',season.sheetId),
         fetchTab('Reunion Results',season.sheetId), fetchTab('Settings',season.sheetId), retroPromise,
       ]);
-  if(publishedSnapshot&&!publishedReady) {
-    console.warn('The published season snapshot did not contain every required tab; using the season sheet instead.');
-  }
   const S = Object.fromEntries(toObjects(settR).map(r => [r.key, r.value]));
   const numSetting = (key, fallback, integer=false) => {
     const value = integer ? Number.parseInt(S[key],10) : Number.parseFloat(S[key]);
@@ -2571,7 +2589,7 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     }
     return {id:'retro-'+(index+1),market,target,voidMarket,appliesPhase,revealedEp,note,confirmed:pBool(r.confirmed),revealingPhase};
   });
-  return {season,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,CAST_COMPLETE:castComplete,ALLOW_INCOMPLETE_CAST:allowIncompleteCast,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
+  return {season,DATA_SOURCE:seasonDataSource,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,CAST_COMPLETE:castComplete,ALLOW_INCOMPLETE_CAST:allowIncompleteCast,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
@@ -5625,13 +5643,33 @@ function App() {
     </div>;
     if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
     setGatingLabel('Locking in your predictions…');setGating(true);
+    let globalLockAccepted=false;
     try {
-      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion'},true);
       if(activePool.global===true){
-        await window._fb.lockGlobalPicks(activePool.id,Object.fromEntries(predictionPhases.map(phaseId=>[phaseId,picks[phaseId]||[]])));
+        const submittedGlobalPicks=Object.fromEntries(predictionPhases.map(phaseId=>[phaseId,picks[phaseId]||[]]));
+        const lockResult=await window._fb.lockGlobalPicks(activePool.id,submittedGlobalPicks);
+        const acceptedGlobalPicks=lockResult?.data?.accepted;
+        const mismatchedPhases=predictionPhases.filter(phaseId=>
+          !acceptedGlobalPicks||Number(acceptedGlobalPicks[phaseId])!==submittedGlobalPicks[phaseId].length
+        );
+        if(mismatchedPhases.length){
+          const mismatch=mismatchedPhases.map(phaseId=>RULES.phases[phaseId].label).join(', ');
+          const error=new Error('Some Global Pool predictions could not be locked ('+mismatch+'). Refresh the season data and review those picks before continuing.');
+          error.code='global-picks-rejected';
+          throw error;
+        }
+        globalLockAccepted=true;
       }
+      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion'},true);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
-    } catch(e) { console.error('Locking predictions failed.',e);setErr('Your predictions could not be locked. Nothing changed, so please try again.'); }
+    } catch(e) {
+      console.error('Locking predictions failed.',e);
+      setErr(e?.code==='global-picks-rejected'
+        ? e.message
+        : globalLockAccepted
+          ? 'Your predictions were locked, but the watch screen could not be saved. Please retry to continue.'
+          : 'Your predictions could not be locked. Nothing changed, so please try again.');
+    }
     finally { setGating(false);setGatingLabel(''); }
   };
   const registerPhaseCompletion = useCallback(async (poolId,phaseId,uid) => {
@@ -5682,6 +5720,7 @@ function App() {
       const nc=canClose?{...completed,[phase]:true}:completed;
       const closing=canClose?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
       await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
+      if(activePool.global===true)await window._fb.advanceGlobalWatch(activePool.id,target);
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
       writeSeenRetroNotices(activePool.id,user.uid,nextSeenRetroNotices);
       setSessionRetroNotices(current=>normalizeSeenRetroNotices([...current,...revealedRetroEvents.map(retroNoticeKey)]));
@@ -6155,6 +6194,7 @@ function App() {
         <button className="btn-how" onClick={()=>setShowHowItWorks(true)}>How It Works</button>
       </div>
     </BrandHeader>
+    {eng.DATA_SOURCE==='admin-sheet-fallback'&&<div className="notice" role="alert"><b>Admin sheet fallback is active.</b> This browser may not match server scoring. Republish Firestore before testing gameplay or sharing the app.</div>}
     {offline&&<div className="offline-banner" role="status">You’re offline. Prediction changes will retry automatically when your connection returns; wait to change other settings.</div>}
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     <PoolTabs tabs={availablePoolTabs} active={poolTab} onChange={switchPoolTab}/>

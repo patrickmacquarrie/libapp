@@ -31,7 +31,9 @@ Set the real `PODS`, `DATING`, `WEDDINGS`, and `REUNION` start and end episode v
 
 ## Publish and verify
 
-Editing the Google Sheet changes nothing in the live app until the Firestore `seasons/{seasonId}` snapshot is published. It is the app's primary season-data source; the Google Sheet is only the fallback.
+Editing the Google Sheet changes nothing in the live app until the Firestore `seasons/{seasonId}` snapshot is published. The app and Cloud Functions use that same published snapshot. Cast, Couples, and Settings must be present; Dating Results and Reunion Results may legitimately be empty until their episodes air.
+
+If you need to compare the unpublished source sheet while diagnosing a publish problem, append `?adminSeasonSource=sheet` to the app URL. This is an explicit admin-only browser fallback and logs a warning; Cloud Functions still use Firestore. Never send that URL to players, and republish Firestore rather than leaving the fallback in use.
 
 Before publishing, inspect the preview's published-versus-pending values and resolve any unexpected warning. A backward `AVAILABLE_THROUGH_EP` warning is informational, not a hard block, because an intentional rollback may be necessary.
 

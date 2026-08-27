@@ -5,6 +5,7 @@ const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const engineSource=fs.readFileSync(path.join(__dirname,'..','functions','shared','scoring-engine.js'),'utf8');
 const {makeEngine,validateLockedPhasePicks,freezeScoredTotal}=require('../functions/shared/scoring-engine');
+const {advanceGlobalWatchValue,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('../functions/shared/global-watch-ledger');
 assert(source.includes('/* __SCORING_ENGINE_SOURCE__ */'),'The editable app must contain the shared-engine build marker.');
 
 const cast=['Alex','Blair','Casey','Drew'].map(name=>({name}));
@@ -59,15 +60,54 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:5}]);
   season.PH_SPAN.pods.endEp=6;
   const engine=makeEngine(season,1);
+  const ledgerWindow=resolveGlobalWatchWindow({watchedThrough:3,joinedAtEp:0});
   const accepted=validateLockedPhasePicks({
-    engine,phase:'pods',lockedAt:5000,authoritativeWindow:4,
-    incoming:[{c:'Alex|Casey',s:20,w:1}],
+    engine,phase:'pods',lockedAt:5000,authoritativeWindow:ledgerWindow,
+    incoming:[{c:'Alex|Casey',s:20,w:0,releasedThroughAtLock:5}],
   });
-  assert.equal(accepted[0].w,4,'A client-supplied fake foresight window must be replaced by the authoritative release window.');
+  assert.equal(accepted[0].w,3,'A client-supplied fake foresight window must be replaced by the authoritative ledger window.');
+  assert.equal(accepted[0].releasedThroughAtLock,5,'The release-based reference must be retained separately from the scored window.');
   assert.equal(accepted[0].lockedAt,5000);
   const trusted=engine.scorePhase('pods',{viewer:accepted}).totals.viewer;
-  const fabricated=engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:1}]}).totals.viewer;
-  assert(trusted<fabricated,'Replacing fake foresight must remove the fabricated lead multiplier.');
+  const honestUiScore=engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:3}]}).totals.viewer;
+  const releaseBasedScore=engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:5}]}).totals.viewer;
+  assert.equal(trusted,honestUiScore,'An honest player behind the release schedule must keep the multiplier shown by the board.');
+  assert(trusted>releaseBasedScore,'The per-player ledger must restore foresight that the season-wide release window erased.');
+}
+
+{
+  assert.equal(advanceGlobalWatchValue(3,1,5),3,'The watch ledger must refuse to move backward.');
+  assert.equal(advanceGlobalWatchValue(3,9,5),5,'The watch ledger must clamp forward progress to the published release ceiling.');
+  assert.equal(advanceGlobalWatchValue(5,3,3),5,'A temporary release rollback must not move the stored ledger backward.');
+  assert.equal(globalWatchLedgerReady({watchedThrough:3,joinedAtEp:0}),true,'Both server-held ledger fields make a member ready to lock.');
+  assert.equal(globalWatchLedgerReady({watchedThrough:3}),false,'A missing join floor must never silently fall back during a lock.');
+  assert.deepEqual(globalLedgerFieldsForJoin({watchedThrough:2,joinedAtEp:1},5),{},'A repeat open must never rewrite an existing join floor.');
+  assert.deepEqual(globalLedgerFieldsForJoin({},5),{watchedThrough:0,joinedAtEp:5},'A new member must receive the server release position as their join floor.');
+}
+
+{
+  const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:5}]);
+  season.PH_SPAN.pods.endEp=6;
+  const engine=makeEngine(season,1);
+  const lateJoinWindow=resolveGlobalWatchWindow({watchedThrough:0,joinedAtEp:5});
+  const accepted=validateLockedPhasePicks({
+    engine,phase:'pods',lockedAt:6000,authoritativeWindow:lateJoinWindow,
+    incoming:[{c:'Alex|Casey',s:20,w:0,releasedThroughAtLock:5}],
+  });
+  assert.equal(accepted[0].w,5,'A late joiner who watched nothing must be stamped with the join floor.');
+  assert.equal(engine.scorePhase('pods',{viewer:accepted}).totals.viewer,20,'The join floor must suppress foresight for episodes released before joining.');
+}
+
+{
+  const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:5}]);
+  season.PH_SPAN.pods.endEp=6;
+  const engine=makeEngine(season,1);
+  const existing=[{c:'Alex|Casey',s:20,w:4,releasedThroughAtLock:5,lockedAt:7000}];
+  const accepted=validateLockedPhasePicks({
+    engine,phase:'pods',lockedAt:8000,authoritativeWindow:1,
+    existing,incoming:[{c:'Alex|Casey',s:20,w:0,releasedThroughAtLock:9}],
+  });
+  assert.deepEqual(accepted,existing,'Previously locked picks must remain unchanged when a duplicate lock is submitted.');
 }
 
 {

@@ -286,8 +286,12 @@ function makeEngine(cfg, poolSize) {
           const lastWindow=Math.max(START[phase],SPAN[phase].endEp-1);
           pick.w=Math.max(START[phase],Math.min(Math.trunc(rawWindow),lastWindow));
         }
+        const releasedThroughAtLock=Number(raw.releasedThroughAtLock);
+        if(Number.isFinite(releasedThroughAtLock))pick.releasedThroughAtLock=Math.max(0,Math.trunc(releasedThroughAtLock));
+        else delete pick.releasedThroughAtLock;
       } else {
         delete pick.w;
+        delete pick.releasedThroughAtLock;
       }
       spent+=stake;
       seen.add(identity);

@@ -56,7 +56,9 @@ Follow [`POSTHOG-BETA-RUNBOOK.md`](POSTHOG-BETA-RUNBOOK.md) to create the projec
 
 ## Season publishing
 
-The app reads the published Firestore `seasons/{seasonId}` snapshot first. Public Google Sheet CSV is a fallback/admin source only. Keep the Firestore snapshot current before episode traffic arrives.
+The app and Cloud Functions both use the published Firestore `seasons/{seasonId}` snapshot. A season is loadable once that snapshot contains Cast, Couples, and Settings; empty Dating Results and Reunion Results are valid during an airing season. The browser does not silently fall back when Firestore is missing or incomplete.
+
+For an emergency admin-only comparison with the source sheet, append `?adminSeasonSource=sheet` to the app URL. This explicit diagnostic fallback affects only that browser page—Cloud Functions still use Firestore—so never share that URL with players or use it as a substitute for publishing. Keep the Firestore snapshot current before episode traffic arrives.
 
 Use the reusable publisher in [`scripts/season-publisher`](scripts/season-publisher/README.md) and follow [`SEASON-LAUNCH-RUNBOOK.md`](SEASON-LAUNCH-RUNBOOK.md) for preview, publish, verification, monitoring, and rollback.
 
