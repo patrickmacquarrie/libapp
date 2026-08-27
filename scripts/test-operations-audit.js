@@ -335,7 +335,9 @@ assert(html.includes("window.ttwAnalytics?.identify(u.uid,{seasonId:"),'Authenti
 assert(html.includes("window.ttwAnalytics?.reset();identifiedAnalyticsUid.current=''"),'Sign-out and account deletion must reset PostHog identity.');
 assert(analyticsSource.includes("window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD})"),'Acquisition source and app build must be PostHog super-properties.');
 assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'The price fake door must wait for a resolved PostHog feature flag.');
-['invite_sent','invite_link_opened','episode_return','notif_opt_in','price_fakedoor_click','founding_email_captured'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+['invite_sent','invite_link_opened','invite_accepted','episode_return','notif_opt_in','price_fakedoor_click','founding_email_captured'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+assert(html.includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'})"),'A successful invitation-link join must emit invite_accepted.');
+assert(html.includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'})"),'An accepted email invitation must identify its acceptance channel.');
 assert(html.includes('ph-no-capture'),'Rendered account and invitation details must be blocked from session replay.');
 
 const analyticsListeners=new Map();

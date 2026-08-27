@@ -4946,7 +4946,10 @@ function App() {
           let invitationPool=availablePools.find(pool=>pool.id===poolId)||null;
           if(!invitationPool){
             const joined=await window._fb.joinPoolByCode(poolId,joinCode,user.uid);
-            if(joined){invitationPool=joined;availablePools=[...availablePools,joined];}
+            if(joined){
+              invitationPool=joined;availablePools=[...availablePools,joined];
+              trackTtwEvent('invite_accepted',{poolId,channel:'link'});
+            }
             else throw new Error('That pool invitation could not be found.');
           }
           pendingJoinedPool.current=invitationPool;
@@ -5390,7 +5393,7 @@ function App() {
     try {
       setErr('');
       await window._fb.acceptInvite(inv, user.uid);
-      trackTtwEvent('invite_accepted',{poolId:inv.poolId});
+      trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'});
       setEnteringPool(true);
       const joinedPool=await window._fb.getPool(inv.poolId);
       if(!joinedPool) throw new Error('This pool is no longer available.');

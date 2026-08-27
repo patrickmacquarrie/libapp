@@ -7,7 +7,7 @@ The browser integration is built for PostHog EU Cloud and stays disabled in ordi
 1. Create the Through the Wall project in PostHog EU Cloud (`https://eu.posthog.com`). Copy its public project token from Project settings.
 2. In the GitHub production environment, create `POSTHOG_PROJECT_TOKEN` as an environment variable containing that `phc_...` token. Set `POSTHOG_HOST` to `https://eu.i.posthog.com`, or leave it unset to use the same EU default.
 3. Enable Session Replay for the project. Keep the project’s default recording retention unless a shorter beta-specific retention period is required; the client already masks form inputs, rendered text, sensitive elements, and URL query strings.
-4. Create a multivariate feature flag named `price_variant`. Give variants `a`, `b`, and `c` equal rollout percentages. The app maps them to `$7.99`, `$9.99`, and `$12.99` respectively. Do not enable a fourth variant without adding its price to `analytics.js`.
+4. Create a multivariate feature flag named `price_variant`. Give variants `a`, `b`, and `c` equal rollout percentages. The app maps them to `$4.99`, `$9.99`, and `$12.99` respectively. Do not enable a fourth variant without adding its price to `analytics.js`.
 5. Create the invite funnel using these ordered events: `app_arrival`, `sign_in_completed`, `pool_created`, `invite_sent`, and `invite_accepted`. Add `acquisition_source` as a breakdown. Use `invite_link_opened` as a diagnostic step or a second funnel between `invite_sent` and sign-in.
 6. Create retention views from `sign_in_completed`, `episode_return`, `first_checkpoint_locked`, and `return_visit`. Create a pricing view broken down by `price_variant` for `price_fakedoor_click` and `founding_email_captured`.
 
