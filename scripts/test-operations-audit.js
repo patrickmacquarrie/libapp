@@ -513,7 +513,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
@@ -535,6 +535,16 @@ async function assertMirrorEntryRegression(){
     loadAllPlayers:async()=>({players:{},status:{}}),
     getPool:async()=>null,
   }),error=>error.code==='not-found','A genuinely deleted source must still detach cleanly.');
+  assert.equal(
+    JSON.stringify(context.__linkedMirrorPeers([{poolId:'global',sourcePoolId:'friend'}],'friend')),
+    JSON.stringify([{poolId:'global'}]),
+    'Saving the source pool must synchronize its linked target.',
+  );
+  assert.equal(
+    JSON.stringify(context.__linkedMirrorPeers([{poolId:'global',sourcePoolId:'friend'}],'global')),
+    JSON.stringify([{poolId:'friend'}]),
+    'Saving the target pool must synchronize back to its source.',
+  );
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],
@@ -585,7 +595,7 @@ async function assertMirrorEntryRegression(){
   assert(html.includes('clearMirrorSource: (poolId,uid) => setDoc'),'A stale mirror source must be removable without deleting copied Global state.');
   assert(html.includes('Your copied Global picks and progress were kept'),'A repaired Global Pool must explain that its copied state was preserved.');
   assert(html.includes('pending.data.screen===\'watch\''),'A source prediction window must trusted-lock its linked Global copy before progress advances.');
-  const linkedSaveStart=html.indexOf('const linkedTargets=pickMirrorLinks.current.filter');
+  const linkedSaveStart=html.indexOf('const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId)');
   const linkedTrustedLock=html.indexOf('const lockResult=await window._fb.lockGlobalPicks(link.poolId,submitted);',linkedSaveStart);
   const linkedProgress=html.indexOf('await syncMirroredTargetProgress({',linkedTrustedLock);
   assert(linkedSaveStart>=0&&linkedTrustedLock>linkedSaveStart&&linkedProgress>linkedTrustedLock,'A mirrored Global prediction must trusted-lock before its watch ledger advances.');
