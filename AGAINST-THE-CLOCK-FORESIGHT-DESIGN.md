@@ -16,6 +16,8 @@ Both inputs will be held by the server in `pools/{poolId}/trustedPlayers/{uid}`:
 - `watchedThrough` is an integer that can only increase through the existing `openGlobalPool` callable.
 - `joinedAtEp` is the published `AVAILABLE_THROUGH_EP` captured when the player first joins the Global Pool and is never rewritten.
 
+For a fully released season, `joinedAtEp` resolves to `0` instead. Once every scoring episode is public, the app is being played as a historical simulation: using the final release episode as the floor would permanently erase every Against-the-Clock bonus. Live and partially released seasons continue using the current `AVAILABLE_THROUGH_EP` floor.
+
 The client-supplied `w` on a pick remains untrusted. At lock time, the server will continue replacing it, but with the resolved per-player value above instead of the season-wide release position. Reunion remains exempt.
 
 ## Why this policy
@@ -33,7 +35,11 @@ Record both values on every newly locked non-Reunion pick:
 - `w`: the resolved ledger value used for scoring;
 - `releasedThroughAtLock`: `AVAILABLE_THROUGH_EP` at lock time.
 
-This keeps today's release-based reference alongside the scored value, so a later policy review can compare or re-evaluate new picks without reconstructing historical season state. Existing locked picks remain byte-identical and are never recomputed or restamped.
+This keeps today's release-based reference alongside the scored value, so a later policy review can compare or re-evaluate new picks without reconstructing historical season state. Existing locked picks remain byte-identical and are never recomputed or restamped during ordinary joins, saves, or locks.
+
+### Controlled historical repair exception
+
+The administrator-only `relaxHistoricalJoinFloor` action is the sole exception. On a fully released Global test season, it may set existing trusted members' `joinedAtEp` to `0`, re-stamp only non-Reunion locked-pick `w` values from each member's repaired monotonic ledger, mirror those values to the public receipt documents, discard the frozen standings snapshot, and recompute it. The action preserves watch progress, pick content and stakes, completion timestamps, and Reunion picks. It is a narrowly scoped data repair for a previously incorrect ceiling floor, not a general mechanism for rewriting locked predictions.
 
 ## Migration and rollout
 

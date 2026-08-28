@@ -263,6 +263,19 @@ If this exact rehearsal is repeated later, the episode IDs created this weekend 
 3. If delivery itself is not under test, keep the documents and record that repeat nudges are knowingly suppressed.
 4. Use another season only if the goal changes from “UK3 behaves as an August 29 drop.” It is not the preferred solution for this rehearsal.
 
+## Linked Global/friend two-account regression
+
+Run these checks before the broader four-account rehearsal. Use two accounts linked to the same historical Global Pool through two separate friend pools, and keep the accounts at different watch positions.
+
+1. Reset the controlled Global simulation, then have Account A link a friend pool before Episode 1. Confirm both pool headers say they are synced and neither shows **Linked pool out of sync**.
+2. In Account A's friend pool, lock a recognisable Pods pick after Episode 1 and advance to Episode 3. Open Global and confirm the same pick, `w=1`, watch position, phase, screen, and completed checkpoints followed forward.
+3. Keep Account B at Episode 1, make the same prediction and stake, then advance Account A farther. Confirm neither account inherits the other account's watch position.
+4. Advance and lock in the Global Pool first. Open the linked friend pool and confirm picks, watch position, phase, screen, and completed checkpoints all followed forward. If the header reports **Linked pool out of sync**, use **Retry now** and repeat the verification.
+5. Finish Pods from opposite directions: Account A completes it in the friend pool; Account B completes it in Global. Confirm Pods is closed in each linked peer, later Pods predictions remain unavailable, and opening the next phase never rewinds either game.
+6. Inspect both Global and friend receipts, not only their totals. Each receipt must show **Credited after Episode …** and the expected Against-the-Clock multiplier. For a 20-Heart Episode 5 engagement, a pick credited after Episode 3 should show ×1.5 and 30 base clock points; one credited after Episode 1 should show ×2.5 and 50 base clock points before any Against-the-Grain adjustment.
+
+Also inspect both player documents. Each must contain the other pool ID in `duplicateFromPoolId`; `w`, `watchThrough`, `phase`, `screen`, and `completed` may move only forward. In friend `phasePicks`, an existing matching pick must retain its original per-pick `w` and must not receive Global-only `lockedAt` or `releasedThroughAtLock` fields.
+
 ## Four-account rehearsal
 
 Run this section **after P1 is verified and before P2 is published**. Use four separate browser profiles and four disposable accounts. Record their emails and Firebase UIDs privately; do not put them in this repository.

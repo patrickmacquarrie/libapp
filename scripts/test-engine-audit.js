@@ -5,7 +5,7 @@ const path=require('node:path');
 const source=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const engineSource=fs.readFileSync(path.join(__dirname,'..','functions','shared','scoring-engine.js'),'utf8');
 const {makeEngine,validateLockedPhasePicks,freezeScoredTotal}=require('../functions/shared/scoring-engine');
-const {advanceGlobalWatchValue,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('../functions/shared/global-watch-ledger');
+const {advanceGlobalWatchValue,globalJoinFloorForSeason,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('../functions/shared/global-watch-ledger');
 assert(source.includes('/* __SCORING_ENGINE_SOURCE__ */'),'The editable app must contain the shared-engine build marker.');
 
 const cast=['Alex','Blair','Casey','Drew'].map(name=>({name}));
@@ -83,6 +83,21 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   assert.equal(globalWatchLedgerReady({watchedThrough:3}),false,'A missing join floor must never silently fall back during a lock.');
   assert.deepEqual(globalLedgerFieldsForJoin({watchedThrough:2,joinedAtEp:1},5),{},'A repeat open must never rewrite an existing join floor.');
   assert.deepEqual(globalLedgerFieldsForJoin({},5),{watchedThrough:0,joinedAtEp:5},'A new member must receive the server release position as their join floor.');
+}
+
+{
+  const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:5}]);
+  season.PH_SPAN.pods.endEp=6;
+  season.AVAILABLE_THROUGH_EP=9;
+  season.SEASON_STATUS='completed';
+  assert.equal(globalJoinFloorForSeason(season),0,'A fully released historical season must start new Global members at Episode 0.');
+  const engine=makeEngine(season,1);
+  assert.equal(engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:3}]}).totals.viewer,30,'A pick after Episode 3 for an Episode 5 outcome must earn x1.5.');
+  assert.equal(engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:1}]}).totals.viewer,50,'A pick after Episode 1 for an Episode 5 outcome must earn x2.5.');
+  const liveSeason={...season,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:3};
+  assert.equal(globalJoinFloorForSeason(liveSeason),3,'A partially released live season must retain the current release position as its join floor.');
+  const repaired={watchedThrough:3,joinedAtEp:0};
+  assert.equal(resolveGlobalWatchWindow(repaired),3,'Relaxing a historical join floor must preserve the monotonic watched-through ledger.');
 }
 
 {

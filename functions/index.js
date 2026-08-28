@@ -4,7 +4,7 @@ const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
 const {makeEngine,PH_ORDER,DEFAULT_DATING_MULT,DEFAULT_WED_MULT,DEFAULT_REU_MULT,validateLockedPhasePicks,freezeScoredTotal}=require('./shared/scoring-engine');
-const {advanceGlobalWatchValue,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('./shared/global-watch-ledger');
+const {advanceGlobalWatchValue,globalJoinFloorForSeason,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('./shared/global-watch-ledger');
 
 initializeApp();
 const db=getFirestore();
@@ -652,6 +652,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
   if(action==='completeGlobalPhase')return completeGlobalPhase(request);
   if(action==='advanceGlobalWatch')return advanceGlobalWatch(request);
   if(action==='resetHistoricalSimulation')return resetHistoricalGlobalSimulation(request);
+  if(action==='relaxHistoricalJoinFloor')return relaxHistoricalJoinFloor(request);
   if(action!=='open')throw new HttpsError('invalid-argument','Choose a valid Global Pool action.');
   const uid=requireUser(request);
   const email=String(request.auth.token?.email||'').trim().toLowerCase();
@@ -678,9 +679,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       tx.update(ref,update);
       const ledgerFields=globalLedgerFieldsForJoin(
         trustedSnapshot.exists?trustedSnapshot.data():{},
-        // Existing controlled-test members are treated as early joiners. The
-        // migration writes the same zero floor before this fallback is needed.
-        alreadyMember?0:cfg.AVAILABLE_THROUGH_EP,
+        globalJoinFloorForSeason(cfg,PHASES),
       );
       if(!trustedSnapshot.exists)ledgerFields.uid=uid;
       if(Object.keys(ledgerFields).length)tx.set(trustedRef,ledgerFields,{merge:true});
@@ -691,7 +690,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
       membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
-    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({},cfg.AVAILABLE_THROUGH_EP)});
+    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({},globalJoinFloorForSeason(cfg,PHASES))});
   });
   return {ok:true,poolId:ref.id};
 });
@@ -869,6 +868,57 @@ async function resetHistoricalGlobalSimulation(request){
     ok:true,resetAt,membersReset:trustedSnapshot.size,linksPreserved,
     linkedPlayersReset:resettableLinks.length,linkedPlayersSkipped:linkedPlayers.length-resettableLinks.length,
   };
+}
+
+async function relaxHistoricalJoinFloor(request){
+  const uid=requireUser(request),email=String(request.auth.token?.email||'').trim().toLowerCase();
+  if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','Only the app administrator can repair a historical Global simulation.');
+  const poolId=String(request.data?.poolId||'');
+  if(!poolId)throw new HttpsError('invalid-argument','Choose a Global Pool to repair.');
+  const poolRef=db.doc(`pools/${poolId}`),poolSnapshot=await poolRef.get();
+  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Historical join-floor repair is available only for the Global Pool.');
+  const pool=poolSnapshot.data();
+  if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join this Global Pool before repairing its historical join floor.');
+  if(pool.members.length>50)throw new HttpsError('failed-precondition','This Global Pool is too large for the controlled historical repair.');
+  const seasonId=String(pool.globalSeasonId||pool.season?.id||''),seasonSnapshot=await db.doc(`seasons/${seasonId}`).get();
+  if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+  const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
+  const seasonEnd=Math.max(...PHASES.map(phase=>Number(cfg.PH_SPAN[phase]?.endEp)||0));
+  if(cfg.AVAILABLE_THROUGH_EP<seasonEnd)throw new HttpsError('failed-precondition','A live or partially released season cannot use the historical join-floor repair.');
+  const trustedSnapshot=await poolRef.collection('trustedPlayers').get();
+  const restampedByMember=new Map();
+  let picksRestamped=0;
+  trustedSnapshot.docs.forEach(document=>{
+    const trusted=document.data(),repairedLedger={...trusted,joinedAtEp:0};
+    const repairedWindow=resolveGlobalWatchWindow(repairedLedger),repairedPicks={...(trusted.picks||{})};
+    PHASES.filter(phase=>phase!=='reunion').forEach(phase=>{
+      const current=Array.isArray(repairedPicks[phase])?repairedPicks[phase]:[];
+      repairedPicks[phase]=current.map(pick=>{
+        if(!pick||typeof pick!=='object'||Array.isArray(pick))return pick;
+        picksRestamped++;
+        return {...pick,w:repairedWindow};
+      });
+    });
+    restampedByMember.set(document.id,{trustedRef:document.ref,picks:repairedPicks});
+  });
+  const writeCount=trustedSnapshot.size+(trustedSnapshot.size*(PHASES.length-1))+1;
+  if(writeCount>450)throw new HttpsError('failed-precondition','This Global Pool has too many stored predictions for the controlled historical repair.');
+  const repairedAt=Date.now(),batch=db.batch();
+  restampedByMember.forEach(({trustedRef,picks},memberUid)=>{
+    // Deliberate, tightly scoped exception: this admin-only repair corrects
+    // ceiling-stamped historical test picks. Normal locks remain immutable.
+    batch.set(trustedRef,{joinedAtEp:0,picks,updatedAt:repairedAt},{merge:true});
+    PHASES.filter(phase=>phase!=='reunion').forEach(phase=>batch.set(
+      poolRef.collection('phasePicks').doc(`${phase}__${memberUid}`),
+      {uid:memberUid,phase,picks:picks[phase],updatedAt:repairedAt},
+      {merge:true},
+    ));
+  });
+  // Remove the frozen snapshot so the repaired windows are actually scored.
+  batch.delete(poolRef.collection('standings').doc('current'));
+  await batch.commit();
+  const standings=await recomputeGlobalStandings(poolId);
+  return {ok:true,membersRepaired:trustedSnapshot.size,picksRestamped,standingsRevision:standings?.sourceRevision||0};
 }
 
 exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{

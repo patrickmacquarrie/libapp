@@ -63,6 +63,7 @@ body{
 .hdr h1{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;margin:8px 0 6px;color:var(--wine)}
 .pool-sync-note{display:flex;align-items:center;justify-content:center;gap:6px;margin:-1px 0 5px;color:var(--muted);font-size:11px;font-weight:700;line-height:1.35}
 .pool-sync-note span{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:999px;background:var(--blush-soft);color:var(--rose);font-size:11px}
+.pool-sync-note.out-of-sync{color:#a41843}.pool-sync-note.out-of-sync button{border:0;background:transparent;color:inherit;font:800 11px Inter,sans-serif;text-decoration:underline;cursor:pointer;padding:2px}
 .seasonpill{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--wine);background:linear-gradient(135deg,var(--blush-soft),#f5d7e4);padding:4px 14px;border-radius:999px}
 .stepper{position:relative;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;margin:24px 0 18px;padding:0 4px}
 .stepper::before{content:"";position:absolute;z-index:0;left:12.5%;right:12.5%;top:23px;height:1.5px;background:linear-gradient(90deg,#ec9fc0 0%,#cba4ea 46%,#d7b969 72%,#b996a4 100%)}
@@ -1286,6 +1287,7 @@ window._fb = {
   completeGlobalPhase: (poolId,phase) => httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase}),
   advanceGlobalWatch: (poolId,watchedThrough) => httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough}),
   resetHistoricalGlobalSimulation: poolId => httpsCallable(functions,'openGlobalPool')({action:'resetHistoricalSimulation',poolId}),
+  relaxHistoricalJoinFloor: poolId => httpsCallable(functions,'openGlobalPool')({action:'relaxHistoricalJoinFloor',poolId}),
   loadGlobalStandings: async poolId => {
     const snapshot=await getDoc(doc(db,'pools',poolId,'standings','current'));
     return snapshot.exists()?snapshot.data():null;
@@ -1454,16 +1456,23 @@ window._fb = {
   savePhasePicks: (poolId,phase,uid,picks) => setDoc(
     doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),{uid,phase,picks:Array.isArray(picks)?picks:[],updatedAt:Date.now()}
   ),
-  syncMirroredProgress: (poolId,uid,confirmedWatch) => runTransaction(db,async transaction=>{
+  loadPhasePicks: async (poolId,phase,uid) => {
+    const snapshot=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
+    return snapshot.exists()&&Array.isArray(snapshot.data().picks)?snapshot.data().picks:[];
+  },
+  linkMirrorPeers: async (poolId,peerPoolId,uid) => {
+    const batch=writeBatch(db);
+    batch.set(doc(db,'pools',poolId,'players',uid),{duplicateFromPoolId:peerPoolId},{merge:true});
+    batch.set(doc(db,'pools',peerPoolId,'players',uid),{duplicateFromPoolId:poolId},{merge:true});
+    await batch.commit();
+  },
+  syncMirroredProgress: (poolId,uid,sourceState,spans,availableThrough) => runTransaction(db,async transaction=>{
     const playerRef=doc(db,'pools',poolId,'players',uid);
     const playerSnapshot=await transaction.get(playerRef);
     if(!playerSnapshot.exists())throw new Error('Open the linked Global Pool before syncing watch progress.');
-    const player=playerSnapshot.data();
-    const requested=Math.max(0,Math.trunc(Number(confirmedWatch)||0));
-    const w=Math.max(Math.max(0,Number(player.w)||0),requested);
-    const watchThrough=Math.max(Math.max(0,Number(player.watchThrough)||0),w);
-    transaction.update(playerRef,{w,watchThrough});
-    return {w,watchThrough};
+    const next=window.__ttwMergeMirroredCheckpointState(playerSnapshot.data(),sourceState,spans,availableThrough);
+    transaction.update(playerRef,next);
+    return next;
   }),
   syncMirroredCompletion: (poolId,uid,phase,confirmedWatch) => runTransaction(db,async transaction=>{
     const playerRef=doc(db,'pools',poolId,'players',uid);
@@ -1480,9 +1489,17 @@ window._fb = {
     });
     return {w,watchThrough,completed,screen:player.phase===phase?'close':player.screen};
   }),
-  clearMirrorSource: (poolId,uid) => setDoc(
-    doc(db,'pools',poolId,'players',uid),{duplicateFromPoolId:deleteField()},{merge:true}
-  ),
+  clearMirrorSource: async (poolId,uid,peerPoolId='') => {
+    const poolRef=doc(db,'pools',poolId,'players',uid);
+    const refs=[poolRef];
+    if(peerPoolId&&peerPoolId!==poolId){
+      const peerRef=doc(db,'pools',peerPoolId,'players',uid);
+      try{if((await getDoc(peerRef)).exists())refs.push(peerRef);}catch(error){}
+    }
+    const batch=writeBatch(db);
+    refs.forEach(reference=>batch.set(reference,{duplicateFromPoolId:deleteField()},{merge:true}));
+    await batch.commit();
+  },
 };
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -1516,9 +1533,61 @@ const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>
     catch(error){onSkipped(phase,error);}
   }));
 };
-const syncMirroredTargetProgress=async({poolId,uid,confirmedWatch,globalTarget,advanceGlobalWatch,syncPublicProgress})=>{
+const mirrorText=value=>String(value||'').trim().toLowerCase().replace(/\s+/g,' ');
+const mirrorPair=value=>mirrorText(value).split('|').sort().join('|');
+const mirroredPickIdentity=(phase,pick)=>{
+  if(!pick||typeof pick!=='object')return '';
+  if(phase==='pods')return 'pods|'+mirrorPair(pick.c);
+  if(phase==='dating')return ['dating',mirrorText(pick.m),mirrorPair(pick.c),mirrorText(pick.person)].join('|');
+  if(phase==='weddings')return 'weddings|'+mirrorPair(pick.c);
+  return ['reunion',mirrorText(pick.m),mirrorPair(pick.c),mirrorPair(pick.pair),mirrorText(pick.person),mirrorText(pick.update),mirrorText(pick.outcome||pick.o)].join('|');
+};
+const friendSafeMirroredPicks=(phase,incoming,existing,targetWindow)=>{
+  const existingByIdentity=new Map((Array.isArray(existing)?existing:[]).map(pick=>[mirroredPickIdentity(phase,pick),pick]));
+  return (Array.isArray(incoming)?incoming:[]).map(raw=>{
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return raw;
+    const cleaned={...raw};
+    delete cleaned.w;delete cleaned.lockedAt;delete cleaned.releasedThroughAtLock;
+    if(phase==='reunion')return cleaned;
+    const previous=existingByIdentity.get(mirroredPickIdentity(phase,raw));
+    const preservedWindow=Number(previous?.w);
+    return {...cleaned,w:Number.isFinite(preservedWindow)?preservedWindow:Math.max(0,Math.trunc(Number(targetWindow)||0))};
+  });
+};
+const saveMirroredPhasePicks=async({poolId,phase,uid,picks,friendTarget,loadPhasePicks,getPlayer,savePhasePicks})=>{
+  if(!friendTarget)return savePhasePicks(poolId,phase,uid,picks);
+  const [existing,targetPlayer]=await Promise.all([loadPhasePicks(poolId,phase,uid),getPlayer(poolId,uid)]);
+  if(!targetPlayer)throw new Error('Open the linked friend pool before syncing predictions.');
+  const targetWindow=Math.max(Number(targetPlayer.w)||0,Number(targetPlayer.watchThrough)||0);
+  return savePhasePicks(poolId,phase,uid,friendSafeMirroredPicks(phase,picks,existing,targetWindow));
+};
+const mirrorScreenRank={intro:0,board:1,watch:2,close:3,final:4};
+const mergeMirroredCheckpointState=(target={},source={},spans={},availableThrough=0)=>{
+  const phaseIndex=phase=>Math.max(0,PH_ORDER.indexOf(PH_ORDER.includes(phase)?phase:'pods'));
+  const targetPhase=PH_ORDER.includes(target.phase)?target.phase:'pods';
+  const sourcePhase=PH_ORDER.includes(source.phase)?source.phase:targetPhase;
+  const completed={...(target.completed||{})};
+  Object.entries(source.completed||{}).forEach(([phase,value])=>{if(value===true)completed[phase]=true;});
+  let phase=targetPhase;
+  if(phaseIndex(sourcePhase)>phaseIndex(targetPhase)){
+    const intervening=PH_ORDER.slice(phaseIndex(targetPhase),phaseIndex(sourcePhase));
+    if(intervening.every(phaseId=>completed[phaseId]===true))phase=sourcePhase;
+  }
+  const targetWatch=Math.max(Number(target.w)||0,Number(target.watchThrough)||0);
+  const sourceWatch=Math.max(Number(source.w)||0,Number(source.watchThrough)||0);
+  const w=clampWatchTarget(phase,targetWatch,sourceWatch,spans,availableThrough);
+  const watchThrough=Math.max(Number(target.watchThrough)||0,w);
+  let screen=target.screen||'intro';
+  if(phase!==targetPhase)screen=source.screen||'intro';
+  else if(sourcePhase===targetPhase&&(mirrorScreenRank[source.screen]||0)>(mirrorScreenRank[screen]||0))screen=source.screen;
+  if(completed[phase]===true&&(mirrorScreenRank[screen]||0)<mirrorScreenRank.close)screen='close';
+  return {phase,screen,w,watchThrough,completed};
+};
+window.__ttwMergeMirroredCheckpointState=mergeMirroredCheckpointState;
+const syncMirroredTargetProgress=async({poolId,uid,sourceState,spans,availableThrough,globalTarget,advanceGlobalWatch,syncPublicProgress})=>{
+  const confirmedWatch=Math.max(Number(sourceState?.w)||0,Number(sourceState?.watchThrough)||0);
   if(globalTarget)await advanceGlobalWatch(poolId,confirmedWatch);
-  return syncPublicProgress(poolId,uid,confirmedWatch);
+  return syncPublicProgress(poolId,uid,sourceState,spans,availableThrough);
 };
 const syncMirroredPhaseCompletion=async({poolId,uid,phase,picks,globalTarget,lockGlobalPicks,completeGlobalPhase,completeFriendPhase,syncPublicCompletion,confirmedWatch})=>{
   if(globalTarget){
@@ -2803,7 +2872,7 @@ function Receipt({e,eng,meId,memberLabels={}}) {
   const cv=e.owners?e.contra:null;
   const retroPending=e.retro&&e.pending;
   const minimumPoints=e.ok&&e.pending&&!retroPending?Math.round(RULES.POINTS_PER_HEART*e.stake*(e.mult||1)*(e.tag||1)):null;
-  return <div className={cls}><span className="pts">{e.pending?(retroPending?'⏳':(e.ok?'≥'+minimumPoints+' pts':'⏳')):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.retro&&<span className="warnchip">retro</span>}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel}{e.owners!=null?' x '+String(+cv.toFixed(2))+' Against-the-Grain (fewer players picked this) ('+owTxt(e.owners,e.poolSize)+')':''}{e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts{e.note?' · '+e.note:''}</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
+  return <div className={cls}><span className="pts">{e.pending?(retroPending?'⏳':(e.ok?'≥'+minimumPoints+' pts':'⏳')):(e.ok?'+'+e.points+' pts':'0 pts')}</span><div className="who">{e.member===meId?'You':(memberLabels[e.member]||e.member)} {e.ok?'✓':(e.pending?'·':'✗')} {e.label}{e.retro&&<span className="warnchip">retro</span>}{e.placeholder&&<span className="warnchip">placeholder</span>}</div>{Number.isFinite(e.predictionAfterEp)&&<div className="math"><b>Credited after Episode {e.predictionAfterEp}</b>{e.multLabel?' · '+e.multLabel:''}</div>}{e.ok&&!e.pending?<div className="math">{e.stake} ♥ {e.multLabel}{e.owners!=null?' x '+String(+cv.toFixed(2))+' Against-the-Grain (fewer players picked this) ('+owTxt(e.owners,e.poolSize)+')':''}{e.tagLabel?' x '+e.tagLabel:''} = {e.points} pts{e.note?' · '+e.note:''}</div>:<div className="math">{e.stake} ♥ wagered{minimumPoints!=null?' · Minimum '+minimumPoints+' points won':''}{e.note?' · '+e.note:''}</div>}</div>;
 }
 const outcomeDisplayKey=value=>String(value||'').toLowerCase()
   .replace(/\([^)]*\)/g,'').replace(/\b(got|get|gets) engaged\b/g,'engaged')
@@ -4671,7 +4740,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4749,6 +4818,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
       {activePool?.global===true&&userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onResetHistoricalGlobalSimulation&&<div className="danger-zone">
         <h3>Historical Global simulation</h3>
+        <p>Repair only the historical scoring floor and credited prediction windows without clearing anyone’s progress, picks, or completed checkpoints.</p>
+        <button className="btn-secondary" disabled={deleting||membershipUpdating} onClick={onRelaxHistoricalJoinFloor}>Repair historical scoring windows</button>
         <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Established Global-to-friend sync links are preserved; each linked tester’s game progress is also cleared in their paired friend pool so old progress cannot immediately sync back. Other friend-pool members and settings are not changed.</p>
         <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset Global + linked testers</button>
       </div>}
@@ -4918,6 +4989,7 @@ function App() {
   const [reveal, setReveal] = useState(null);
   const [closeInfo, setCloseInfo] = useState(null);
   const [saveState, setSaveState] = useState(null);
+  const [linkedSyncError,setLinkedSyncError]=useState('');
   const [gating, setGating] = useState(false);
   const [gatingLabel,setGatingLabel]=useState('');
   const [refreshingPool,setRefreshingPool]=useState(false);
@@ -4938,6 +5010,7 @@ function App() {
   const latestSaveSequence = useRef(0);
   const saveChain = useRef(Promise.resolve());
   const pickMirrorLinks = useRef([]);
+  const mirrorSeasonConfig=useRef({spans:{},availableThrough:0});
   const pendingMirroredGlobalLocks = useRef(new Set());
   const pendingJoinedPool = useRef(null);
   const identifiedAnalyticsUid = useRef('');
@@ -5112,6 +5185,7 @@ function App() {
   /* ── Enter a pool ── */
   const enterPool = async (pool, duplicateFromPoolId='') => {
     let entryStep='starting the pool';
+    let entryMirrorFailed=false;
     try {
       setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab(pool.global===true&&GLOBAL_POOL_DEMO_MODE?'standings':'play');
       setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
@@ -5138,6 +5212,7 @@ function App() {
         }
       }
       const poolCfg=applyRuntimeConfig(configForPool(liveCfg,enteredPool));
+      mirrorSeasonConfig.current={spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP};
       setCfg(liveCfg);
       const engine = makeEngine(poolCfg, enteredPool.members.length);
       setEng(engine);
@@ -5163,10 +5238,11 @@ function App() {
       // Load my state
       let mine = players[user.uid];
       if (mine) {
-        const minePhase=mine.phase||'pods';
-        setDuplicateFromPoolId(mine.duplicateFromPoolId||'');
-        if(mine.duplicateFromPoolId) {
-          const mirrorSourcePoolId=mine.duplicateFromPoolId;
+        let minePhase=mine.phase||'pods';
+        const linkedPeer=linkedMirrorPeers(pickMirrorLinks.current,enteredPool.id)[0];
+        const mirrorSourcePoolId=linkedPeer?.poolId||mine.duplicateFromPoolId||'';
+        setDuplicateFromPoolId(mirrorSourcePoolId);
+        if(mirrorSourcePoolId) {
           let sourcePlayer=null;
           let sourceStatus={};
           try{
@@ -5176,10 +5252,13 @@ function App() {
             });
             sourcePlayer=source.player;
             sourceStatus=source.status;
+            if(sourcePlayer)await window._fb.linkMirrorPeers(enteredPool.id,mirrorSourcePoolId,user.uid);
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
-            await window._fb.clearMirrorSource(enteredPool.id,user.uid);
-            pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>link.poolId!==enteredPool.id);
+            await window._fb.clearMirrorSource(enteredPool.id,user.uid,mirrorSourcePoolId);
+            pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>
+              ![link.poolId,link.sourcePoolId].includes(enteredPool.id)||![link.poolId,link.sourcePoolId].includes(mirrorSourcePoolId)
+            );
             setDuplicateFromPoolId('');
             const unlinkedMine={...mine};
             delete unlinkedMine.duplicateFromPoolId;
@@ -5197,16 +5276,28 @@ function App() {
             const sourceCompletedPhases=completedPhasesFor(sourcePlayer,sourceStatus);
             const targetWatch=Math.max(Number(mine.w)||0,Number(mine.watchThrough)||0);
             const sourceWatch=Math.max(Number(sourcePlayer.w)||0,Number(sourcePlayer.watchThrough)||0);
-            const targetLeads=targetCompletedPhases.length>sourceCompletedPhases.length||
-              (targetCompletedPhases.length===sourceCompletedPhases.length&&targetWatch>sourceWatch);
+            const targetPhaseIndex=Math.max(0,PH_ORDER.indexOf(minePhase));
+            const sourcePhaseIndex=Math.max(0,PH_ORDER.indexOf(sourcePlayer.phase||'pods'));
+            const targetLeads=targetPhaseIndex>sourcePhaseIndex||
+              (targetPhaseIndex===sourcePhaseIndex&&(
+                targetCompletedPhases.length>sourceCompletedPhases.length||
+                (targetCompletedPhases.length===sourceCompletedPhases.length&&(
+                  targetWatch>sourceWatch||
+                  (targetWatch===sourceWatch&&(mirrorScreenRank[mine.screen]||0)>(mirrorScreenRank[sourcePlayer.screen]||0))
+                ))
+              ));
             if(targetLeads){
               // If the linked target was played directly, repair the source on
               // entry instead of overwriting the newer target with stale data.
               const mirroredPhases=PH_ORDER.filter(ph=>!sourceCompletedPhases.includes(ph));
               await syncMirroredPicksOnEntry({
                 phases:mirroredPhases,
-                savePhasePicks:ph=>window._fb.savePhasePicks(mirrorSourcePoolId,ph,user.uid,targetPicks[ph]),
+                savePhasePicks:ph=>saveMirroredPhasePicks({
+                  poolId:mirrorSourcePoolId,phase:ph,uid:user.uid,picks:targetPicks[ph],friendTarget:!mirrorSourcePoolId.startsWith('global__'),
+                  loadPhasePicks:window._fb.loadPhasePicks,getPlayer:window._fb.getPlayer,savePhasePicks:window._fb.savePhasePicks,
+                }),
                 onSkipped:(ph,e)=>{
+                  entryMirrorFailed=true;setLinkedSyncError('The linked pools need another sync.');
                   console.info('Reverse mirrored pick repair skipped while opening the pool.',e);
                   reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_reverse_mirror_sync',poolId:enteredPool.id,targetPoolId:mirrorSourcePoolId,phase:ph});
                 },
@@ -5221,11 +5312,8 @@ function App() {
                 });
                 if(completionResult?.credited?.[completedPhase])targetPicks[completedPhase]=completionResult.credited[completedPhase];
               }
-              const mirroredWatch=clampWatchTarget(
-                sourcePlayer.phase||'pods',sourceWatch,targetWatch,poolCfg.PH_SPAN,poolCfg.AVAILABLE_THROUGH_EP,
-              );
-              if(mirroredWatch>sourceWatch)await syncMirroredTargetProgress({
-                poolId:mirrorSourcePoolId,uid:user.uid,confirmedWatch:mirroredWatch,globalTarget:mirrorSourcePoolId.startsWith('global__'),
+              if(targetWatch>sourceWatch||mine.phase!==sourcePlayer.phase||mine.screen!==sourcePlayer.screen)await syncMirroredTargetProgress({
+                poolId:mirrorSourcePoolId,uid:user.uid,sourceState:mine,spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP,globalTarget:mirrorSourcePoolId.startsWith('global__'),
                 advanceGlobalWatch:window._fb.advanceGlobalWatch,syncPublicProgress:window._fb.syncMirroredProgress,
               });
               mine={...mine,picks:targetPicks};
@@ -5233,8 +5321,12 @@ function App() {
               const mirroredPhases=PH_ORDER.filter(ph=>!targetCompletedPhases.includes(ph));
               await syncMirroredPicksOnEntry({
                 phases:mirroredPhases,
-                savePhasePicks:ph=>window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph]),
+                savePhasePicks:ph=>saveMirroredPhasePicks({
+                  poolId:enteredPool.id,phase:ph,uid:user.uid,picks:sourcePicks[ph],friendTarget:enteredPool.global!==true,
+                  loadPhasePicks:window._fb.loadPhasePicks,getPlayer:window._fb.getPlayer,savePhasePicks:window._fb.savePhasePicks,
+                }),
                 onSkipped:(ph,e)=>{
+                  entryMirrorFailed=true;setLinkedSyncError('The linked pools need another sync.');
                   console.info('Mirrored pick sync skipped while opening the pool.',e);
                   reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_mirror_sync',poolId:mirrorSourcePoolId,targetPoolId:enteredPool.id,phase:ph});
                 },
@@ -5252,19 +5344,17 @@ function App() {
                 mine={...mine,picks:sourcePicks,completed:{...(mine.completed||{}),[completedPhase]:true},...(mine.phase===completedPhase?{screen:'close'}:{})};
                 status[completedPhase]={completedMembers:[...(status[completedPhase]?.completedMembers||[]),user.uid],updatedAt:Date.now()};
               }
-              const mirroredWatch=clampWatchTarget(
-                minePhase,Number(mine.w)||0,sourceWatch,poolCfg.PH_SPAN,poolCfg.AVAILABLE_THROUGH_EP,
-              );
-              if(mirroredWatch>Number(mine.w||0)){
-                await syncMirroredTargetProgress({
-                  poolId:enteredPool.id,uid:user.uid,confirmedWatch:mirroredWatch,globalTarget:enteredPool.global===true,
+              if(sourceWatch>targetWatch||sourcePlayer.phase!==mine.phase||sourcePlayer.screen!==mine.screen){
+                const mirroredState=await syncMirroredTargetProgress({
+                  poolId:enteredPool.id,uid:user.uid,sourceState:sourcePlayer,spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP,globalTarget:enteredPool.global===true,
                   advanceGlobalWatch:window._fb.advanceGlobalWatch,
                   syncPublicProgress:window._fb.syncMirroredProgress,
                 });
-                mine={...mine,w:mirroredWatch,watchThrough:Math.max(Number(mine.watchThrough)||0,mirroredWatch)};
+                mine={...mine,...mirroredState};
               }
             }
             players[user.uid]=mine;
+            minePhase=mine.phase||minePhase;
           }
         }
         const savedRetroNotices=readSeenRetroNotices(pool.id,user.uid);
@@ -5371,9 +5461,13 @@ function App() {
         entryStep='creating your player profile';
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(activeDuplicateFrom?{duplicateFromPoolId:activeDuplicateFrom}:{})});
         if(activeDuplicateFrom) {
+          await window._fb.linkMirrorPeers(pool.id,activeDuplicateFrom,user.uid);
           pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:activeDuplicateFrom}];
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
-            window._fb.savePhasePicks(pool.id,ph,user.uid,initialPicks[ph])
+            saveMirroredPhasePicks({
+              poolId:pool.id,phase:ph,uid:user.uid,picks:initialPicks[ph],friendTarget:enteredPool.global!==true,
+              loadPhasePicks:window._fb.loadPhasePicks,getPlayer:window._fb.getPlayer,savePhasePicks:window._fb.savePhasePicks,
+            })
           ));
           const confirmedSourceCompletions=PH_ORDER.filter(ph=>(sourceStatus[ph]?.completedMembers||[]).includes(user.uid));
           for(const completedPhase of confirmedSourceCompletions){
@@ -5388,7 +5482,7 @@ function App() {
             status[completedPhase]={completedMembers:[...(status[completedPhase]?.completedMembers||[]),user.uid],updatedAt:Date.now()};
           }
           if(w0>startingW)await syncMirroredTargetProgress({
-            poolId:pool.id,uid:user.uid,confirmedWatch:w0,globalTarget:enteredPool.global===true,
+            poolId:pool.id,uid:user.uid,sourceState:sourcePlayer||{phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0},spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP,globalTarget:enteredPool.global===true,
             advanceGlobalWatch:window._fb.advanceGlobalWatch,syncPublicProgress:window._fb.syncMirroredProgress,
           });
           if(Object.keys(completed0).length){
@@ -5398,6 +5492,7 @@ function App() {
         }
       }
       // Do not leave the lobby until the engine, players, and saved state are ready.
+      if(!entryMirrorFailed)setLinkedSyncError('');
       setActivePool(enteredPool);
     } catch(e) {
       console.error(e);
@@ -5435,6 +5530,7 @@ function App() {
       // Linked games keep independent scoring populations, while picks and
       // progress move in either direction between the two player records.
       const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId);
+      let mirrorFailed=false;
       const syncedPhases=Array.isArray(pending.data.predictionPhases)
         ? [...new Set(pending.data.predictionPhases.filter(phase=>PH_ORDER.includes(phase)))]
         : (PH_ORDER.includes(pending.data.phase)?[pending.data.phase]:[]);
@@ -5442,10 +5538,14 @@ function App() {
         await Promise.all(linkedTargets.map(async link=>{
           const globalTarget=link.poolId.startsWith('global__');
           await Promise.all(syncedPhases.map(async phase=>{
-            try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,pending.data.picks?.[phase]||[]); }
+            try { await saveMirroredPhasePicks({
+              poolId:link.poolId,phase,uid:pending.uid,picks:pending.data.picks?.[phase]||[],friendTarget:!globalTarget,
+              loadPhasePicks:window._fb.loadPhasePicks,getPlayer:window._fb.getPlayer,savePhasePicks:window._fb.savePhasePicks,
+            }); }
             // A completed target checkpoint is deliberately immutable. It
             // must not prevent the source-pool prediction from saving.
             catch(e) {
+              mirrorFailed=true;setLinkedSyncError('The linked pools need another sync.');
               console.info('Mirrored pick sync skipped.',e);
               reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase});
             }
@@ -5463,6 +5563,7 @@ function App() {
               if(rejected.length)throw new Error('The linked Global Pool rejected part of the mirrored prediction lock.');
               lockKeys.forEach(key=>pendingMirroredGlobalLocks.current.delete(key));
             }catch(e){
+              mirrorFailed=true;setLinkedSyncError('The linked pools need another sync.');
               lockKeys.forEach(key=>pendingMirroredGlobalLocks.current.add(key));
               console.info('Mirrored Global prediction lock skipped.',e);
               reportTtwError('mirror_sync_failed',e,{operation:'lock_mirrored_global_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
@@ -5473,16 +5574,19 @@ function App() {
           if(Number.isFinite(Number(pending.data.w))){
             try{
               await syncMirroredTargetProgress({
-                poolId:link.poolId,uid:pending.uid,confirmedWatch:Number(pending.data.w),globalTarget,
+                poolId:link.poolId,uid:pending.uid,sourceState:pending.data,
+                spans:mirrorSeasonConfig.current.spans,availableThrough:mirrorSeasonConfig.current.availableThrough,globalTarget,
                 advanceGlobalWatch:window._fb.advanceGlobalWatch,
                 syncPublicProgress:window._fb.syncMirroredProgress,
               });
             }catch(e){
+              mirrorFailed=true;setLinkedSyncError('The linked pools need another sync.');
               console.info('Mirrored watch progress sync skipped.',e);
               reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_progress',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
             }
           }
         }));
+        if(!mirrorFailed)setLinkedSyncError('');
       }
     });
     // Keep the queue alive after a failed write, while returning the actual
@@ -5734,6 +5838,25 @@ function App() {
       setDestructiveActionPending(false);
     }
   };
+  const doRelaxHistoricalJoinFloor = async () => {
+    if(!activePool?.global||String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
+    if(!await requestConfirmation({
+      title:'Repair historical scoring windows?',
+      body:'This keeps every player’s progress, predictions, and completed checkpoints, but corrects the Episode floor and recalculates Global scores for this fully released test season.',
+      confirmLabel:'Repair scoring windows',cancelLabel:'Cancel',
+    }))return;
+    setDestructiveActionPending(true);setErr('');
+    try{
+      await flushSave();
+      const result=await window._fb.relaxHistoricalJoinFloor(activePool.id);
+      const repaired=result?.data||{};
+      setErr(`Historical scoring repaired for ${repaired.membersRepaired||0} players and ${repaired.picksRestamped||0} locked picks. Refreshing…`);
+      window.location.reload();
+    }catch(e){
+      console.error(e);setErr(e?.message||'The historical scoring windows could not be repaired.');
+      setDestructiveActionPending(false);
+    }
+  };
   const doLeavePool = async pool => {
     if(!pool||pool.ownerUid===user.uid||destructiveActionPending)return;
     if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:'Your predictions, progress, and shared Heat Check ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
@@ -5982,6 +6105,7 @@ function App() {
           });
         }catch(linkedError){
           console.error('Linked phase completion did not register.',linkedError);
+          setLinkedSyncError('The linked pools need another sync.');
           reportTtwError('mirror_sync_failed',linkedError,{operation:'sync_mirrored_completion',poolId,targetPoolId:link.poolId,phase:phaseId});
           setErr('This checkpoint completed here, but the linked pool did not close. Open the linked pool to retry the repair before making more predictions.');
         }
@@ -6453,6 +6577,11 @@ function App() {
   const linkedPoolNote=linkedPoolNames.length
     ? `Synced with ${linkedPoolNames.length===1?linkedPoolNames[0]:linkedPoolNames.join(', ')}`
     : '';
+  const retryLinkedPoolSync=async()=>{
+    if(!activePool||enteringPool)return;
+    setLinkedSyncError('Retrying linked pool sync…');
+    await enterPool(activePool);
+  };
   const lockTarget=Math.max(w,nextAvailableEnd());
   const lockLabel=lockTarget>w?'Lock it in & watch '+watchRangeLabel(phase,w+1,lockTarget):'Lock predictions';
   const readyWatchEnd=nextAvailableEnd();
@@ -6493,6 +6622,7 @@ function App() {
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <h1>{activePool.name}</h1>
       {linkedPoolNote&&<div className="pool-sync-note"><span aria-hidden="true">↔</span>{linkedPoolNote}</div>}
+      {linkedPoolNote&&linkedSyncError&&<div className="pool-sync-note out-of-sync" role="alert"><span aria-hidden="true">!</span>Linked pool out of sync. <button type="button" disabled={enteringPool} onClick={()=>retryLinkedPoolSync().catch(()=>{})}>{enteringPool?'Retrying…':'Retry now'}</button></div>}
       {saveBadge}
       <div className="user-bar">
         <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
@@ -6612,7 +6742,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }
