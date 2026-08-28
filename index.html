@@ -1451,6 +1451,17 @@ window._fb = {
   savePhasePicks: (poolId,phase,uid,picks) => setDoc(
     doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),{uid,phase,picks:Array.isArray(picks)?picks:[],updatedAt:Date.now()}
   ),
+  syncMirroredProgress: (poolId,uid,confirmedWatch) => runTransaction(db,async transaction=>{
+    const playerRef=doc(db,'pools',poolId,'players',uid);
+    const playerSnapshot=await transaction.get(playerRef);
+    if(!playerSnapshot.exists())throw new Error('Open the linked Global Pool before syncing watch progress.');
+    const player=playerSnapshot.data();
+    const requested=Math.max(0,Math.trunc(Number(confirmedWatch)||0));
+    const w=Math.max(Math.max(0,Number(player.w)||0),requested);
+    const watchThrough=Math.max(Math.max(0,Number(player.watchThrough)||0),w);
+    transaction.update(playerRef,{w,watchThrough});
+    return {w,watchThrough};
+  }),
 };
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -1483,6 +1494,10 @@ const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>
     try{await savePhasePicks(phase);}
     catch(error){onSkipped(phase,error);}
   }));
+};
+const syncMirroredGlobalProgress=async({poolId,uid,confirmedWatch,advanceGlobalWatch,syncPublicProgress})=>{
+  await advanceGlobalWatch(poolId,confirmedWatch);
+  return syncPublicProgress(poolId,uid,confirmedWatch);
 };
 /* MIRROR ENTRY HELPERS END */
 /* EPISODE GATE HELPERS START */
@@ -1936,10 +1951,16 @@ const seasonLibrarySummary = () => {
 const MARKETING_SEASON_ID = seasonById(initialAppParams.get('season'))?.available
   ? initialAppParams.get('season')
   : DEFAULT_SEASON_ID;
+/* CAST PHOTO HELPERS START */
 const localCastPhotoUrl=(seasonId,value)=>{
-  const file=String(value||'').split('/').pop().split('?')[0].replace(/\.(png|jpe?g|webp)$/i,'.webp');
-  return file?`images/cast/${seasonId}/${file}`:'';
+  const sourceFile=String(value||'').split('/').pop().split('?')[0];
+  if(!sourceFile)return '';
+  const file=/\.(png|jpe?g|webp)$/i.test(sourceFile)
+    ? sourceFile.replace(/\.(png|jpe?g|webp)$/i,'.webp')
+    : sourceFile+'.webp';
+  return `/images/cast/${encodeURIComponent(seasonId)}/${encodeURIComponent(file)}`;
 };
+/* CAST PHOTO HELPERS END */
 const seasonForPool = pool => seasonById(pool?.season?.id||pool?.seasonId||DEFAULT_SEASON_ID)||seasonById(DEFAULT_SEASON_ID);
 const formatSeasonLabel = season => {
   if(!season) return 'Love Is Blind season';
@@ -4731,7 +4752,7 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onJoin,onC
         <option value="">No thanks — I’ll make separate global picks</option>
         {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
       </select>
-      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks are copied to the global pool and future changes in that pool will keep its matching global picks updated until you complete that global checkpoint.</p>}
+      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks and confirmed watch progress are copied to the Global Pool. Future changes keep matching Global picks and episode timing updated until you complete that Global checkpoint. Picks made before you joined Global are never credited earlier than your Global join episode.</p>}
       <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
     </div>
   </div>;
@@ -5065,10 +5086,12 @@ function App() {
       // Load my state
       let mine = players[user.uid];
       if (mine) {
+        const minePhase=mine.phase||'pods';
         setDuplicateFromPoolId(mine.duplicateFromPoolId||'');
         if(mine.duplicateFromPoolId) {
           const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid,false);
-          const sourcePicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
+          const sourcePlayer=source.players?.[user.uid]||null;
+          const sourcePicks=normalizePicks(sourcePlayer?.picks||freshPicks());
           const mirroredPhases=PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid));
           await syncMirroredPicksOnEntry({
             phases:mirroredPhases,
@@ -5078,11 +5101,27 @@ function App() {
               reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_mirror_sync',poolId:mine.duplicateFromPoolId,targetPoolId:enteredPool.id,phase:ph});
             },
           });
+          if(enteredPool.global===true&&sourcePlayer){
+            const mirroredWatch=clampWatchTarget(
+              minePhase,
+              Number(mine.w)||0,
+              Number(sourcePlayer.w)||0,
+              poolCfg.PH_SPAN,
+              poolCfg.AVAILABLE_THROUGH_EP,
+            );
+            if(mirroredWatch>Number(mine.w||0)){
+              await syncMirroredGlobalProgress({
+                poolId:enteredPool.id,uid:user.uid,confirmedWatch:mirroredWatch,
+                advanceGlobalWatch:window._fb.advanceGlobalWatch,
+                syncPublicProgress:window._fb.syncMirroredProgress,
+              });
+              mine={...mine,w:mirroredWatch,watchThrough:Math.max(Number(mine.watchThrough)||0,mirroredWatch)};
+            }
+          }
           mine={...mine,picks:sourcePicks};
           players[user.uid]=mine;
         }
         const savedRetroNotices=readSeenRetroNotices(pool.id,user.uid);
-        const minePhase=mine.phase||'pods';
         const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
           poolCfg.BOUNDARIES_FINAL?.[minePhase]===false &&
           mine.completed?.[minePhase]===true && mine.screen==='close' &&
@@ -5147,23 +5186,31 @@ function App() {
           } else setCloseInfo(null);
         } else { setReveal(null); setCloseInfo(null); }
       } else {
-        // A new friend always begins from Episode 1 on their own streaming
-        // timeline, regardless of how far other pool members have watched.
+        // A new unlinked player begins from Episode 1 on their own streaming
+        // timeline. A friend-linked Global entry can adopt that same player's
+        // confirmed progress without inheriting anyone else's watch position.
         const landingPhase='pods';
         const completed0={};
-        const w0=Math.max(0,PH_STARTW.pods-1);
+        const startingW=Math.max(0,PH_STARTW.pods-1);
+        let w0=startingW;
         const landingScreen='intro';
         let initialPicks=freshPicks();
+        let sourcePlayer=null;
         const duplicateFrom=duplicateFromPoolId||'';
         if(duplicateFrom) {
           const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid,false);
-          initialPicks=normalizePicks(source.players?.[user.uid]?.picks||freshPicks());
+          sourcePlayer=source.players?.[user.uid]||null;
+          initialPicks=normalizePicks(sourcePlayer?.picks||freshPicks());
+          if(enteredPool.global===true&&sourcePlayer){
+            w0=clampWatchTarget(landingPhase,startingW,Number(sourcePlayer.w)||startingW,poolCfg.PH_SPAN,poolCfg.AVAILABLE_THROUGH_EP);
+          }
         }
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
         setDuplicateFromPoolId(duplicateFrom);
         setCompleted(completed0); setSeenRetroNotices([]); setSessionRetroNotices([]); setReveal(null); setCloseInfo(null);
         entryStep='creating your player profile';
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
+        if(enteredPool.global===true&&duplicateFrom&&w0>startingW)await window._fb.advanceGlobalWatch(pool.id,w0);
         if(duplicateFrom) {
           pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:duplicateFrom}];
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
@@ -5213,15 +5260,29 @@ function App() {
         ? [...new Set(pending.data.predictionPhases.filter(phase=>PH_ORDER.includes(phase)))]
         : (PH_ORDER.includes(pending.data.phase)?[pending.data.phase]:[]);
       if(linkedTargets.length&&syncedPhases.length) {
-        await Promise.all(linkedTargets.flatMap(link=>syncedPhases.map(async phase=>{
-          try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,pending.data.picks?.[phase]||[]); }
-          // A completed target checkpoint is deliberately immutable. It
-          // must not prevent the source-pool prediction from saving.
-          catch(e) {
-            console.info('Mirrored pick sync skipped.',e);
-            reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase});
+        await Promise.all(linkedTargets.map(async link=>{
+          await Promise.all(syncedPhases.map(async phase=>{
+            try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,pending.data.picks?.[phase]||[]); }
+            // A completed target checkpoint is deliberately immutable. It
+            // must not prevent the source-pool prediction from saving.
+            catch(e) {
+              console.info('Mirrored pick sync skipped.',e);
+              reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase});
+            }
+          }));
+          if(link.poolId.startsWith('global__')&&Number.isFinite(Number(pending.data.w))){
+            try{
+              await syncMirroredGlobalProgress({
+                poolId:link.poolId,uid:pending.uid,confirmedWatch:Number(pending.data.w),
+                advanceGlobalWatch:window._fb.advanceGlobalWatch,
+                syncPublicProgress:window._fb.syncMirroredProgress,
+              });
+            }catch(e){
+              console.info('Mirrored Global watch progress sync skipped.',e);
+              reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_global_progress',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
+            }
           }
-        })));
+        }));
       }
     });
     // Keep the queue alive after a failed write, while returning the actual

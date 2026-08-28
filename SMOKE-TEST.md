@@ -88,12 +88,14 @@ For any failed in-app-browser attempt, repeat the same invitation with that app'
 - [ ] Account B locks Reunion picks, then confirm A and B can see one another's locked picks.
 - [ ] Return Account B to the prediction board or retry the save and confirm the locked Reunion picks cannot be changed. Identical network retries should still succeed.
 
-## Global-to-friend pick mirroring
+## Global/friend pick mirroring
 
 - [ ] Join the Global Pool, make at least one unlocked pick, then return to the lobby and start a friend pool for the same season.
 - [ ] Confirm “Mirror my Global Pool picks” appears only for that matching season. Select it and create the pool.
 - [ ] Confirm the new friend pool starts at Episode 1 with the existing Global Pool pick copied in.
 - [ ] Before completing the friend-pool checkpoint, change the pick in the Global Pool and confirm the matching friend-pool pick updates. Confirm a completed friend-pool checkpoint remains immutable.
+- [ ] With a separate friend pool selected while joining Global, advance that friend pool through Episode 3 and leave Global linked to it. Open Global and confirm it also shows Episode 3 as watched, while the friend pool remains the selected pick source.
+- [ ] Lock an imported Global pick made after Episode 3. Confirm its Global receipt says **Locked after Episode 3**, not the episode when the player first joined Global. Picks made before Global membership must still be floored at the Global join episode.
 
 ## Pass criteria
 

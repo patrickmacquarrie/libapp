@@ -63,6 +63,15 @@ assert(html.includes('const useAdminSheetFallback=!publishedReady&&ADMIN_SEASON_
 assert(html.includes('if(!publishedReady&&!useAdminSheetFallback)'),'Normal player traffic must fail closed when the Firestore snapshot is unavailable or incomplete.');
 assert(html.includes("eng.DATA_SOURCE==='admin-sheet-fallback'"),'The explicit admin sheet fallback must remain visibly announced in the app.');
 assert(readme.includes('?adminSeasonSource=sheet')&&liveRunbook.includes('?adminSeasonSource=sheet')&&runbook.includes('?adminSeasonSource=sheet'),'The emergency admin sheet fallback must be documented with its client/server split warning.');
+const castPhotoHelpersStart=html.indexOf('/* CAST PHOTO HELPERS START */');
+const castPhotoHelpersEnd=html.indexOf('/* CAST PHOTO HELPERS END */');
+assert(castPhotoHelpersStart>=0&&castPhotoHelpersEnd>castPhotoHelpersStart,'Cast photo URL helpers must remain independently testable.');
+const castPhotoContext={encodeURIComponent};
+vm.createContext(castPhotoContext);
+vm.runInContext(`${html.slice(castPhotoHelpersStart,castPhotoHelpersEnd)}\nthis.__localCastPhotoUrl=localCastPhotoUrl;`,castPhotoContext);
+assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','Alex'),'/images/cast/love-is-blind-us-8/Alex.webp','A cast name without a source extension must resolve to its deployed WebP portrait.');
+assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','https://example.com/cast/Sara.png?size=large'),'/images/cast/love-is-blind-us-8/Sara.webp','Published photo paths must resolve to the local optimized portrait.');
+assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8',''),'','A missing cast name and photo must not create a broken URL.');
 assert(html.includes('getPublicAppConfig'),'The app must read the public live/default season configuration.');
 assert(html.includes('const globalPoolSeason=seasonById(defaultSeasonId)'),'The active Global Pool must follow the configured default season.');
 assert(html.includes('Past Global Pools'),'Previous Global Pools must remain accessible to their members.');
@@ -96,6 +105,9 @@ assert(functionsSource.includes("if(action==='advanceGlobalWatch')return advance
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases})"),'The browser must use the existing callable gateway for Global prediction locks.');
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase})"),'The browser must use the existing callable gateway for Global phase completion.');
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough})"),'The browser must use the existing callable gateway for Global watch progress.');
+assert(html.includes('syncMirroredProgress: (poolId,uid,confirmedWatch) => runTransaction'),'Mirrored Global progress must update the public player state monotonically.');
+assert(html.includes("if(link.poolId.startsWith('global__')&&Number.isFinite(Number(pending.data.w)))"),'A friend-source save must sync only confirmed watch progress into a linked Global Pool.');
+assert(html.includes("operation:'sync_mirrored_global_progress'"),'Mirrored Global progress failures must remain observable without blocking the source pool save.');
 assert(html.includes('const acceptedGlobalPicks=lockResult?.data?.accepted;'),'The client must inspect the trusted Global lock response.');
 assert(html.includes('Number(acceptedGlobalPicks[phaseId])!==submittedGlobalPicks[phaseId].length'),'The client must compare accepted and submitted counts for every locking phase.');
 assert(html.includes("error.code='global-picks-rejected'"),'A partial Global lock must surface a distinct review error.');
@@ -501,7 +513,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredGlobalProgress=syncMirroredGlobalProgress;`,context);
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],
@@ -510,6 +522,17 @@ async function assertMirrorEntryRegression(){
   });
   assert.deepEqual(attempted,['pods','reunion']);
   assert.deepEqual(skipped,[['reunion','permission-denied']]);
+  const progressCalls=[];
+  const progressResult=await context.__syncMirroredGlobalProgress({
+    poolId:'global__season',uid:'viewer',confirmedWatch:3,
+    advanceGlobalWatch:async(...args)=>{progressCalls.push(['trusted',...args]);return {data:{watchedThrough:3}};},
+    syncPublicProgress:async(...args)=>{progressCalls.push(['public',...args]);return {w:3,watchThrough:3};},
+  });
+  assert.deepEqual(progressCalls,[
+    ['trusted','global__season',3],
+    ['public','global__season','viewer',3],
+  ],'A friend-linked Global Pool must advance the trusted ledger before reflecting the progress publicly.');
+  assert.deepEqual(progressResult,{w:3,watchThrough:3});
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
