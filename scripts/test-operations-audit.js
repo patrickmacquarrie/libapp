@@ -55,7 +55,8 @@ assert(html.includes("collection(db,'seasons')"),'Published season discovery mus
 assert(html.includes("raw.length===0&&PUBLISHED_TAB_HEADERS[wanted]"),'Empty live-result tabs must remain usable from a published snapshot.');
 assert(html.includes("dating:publishedTabRows(publishedSnapshot,'Dating Results')||[PUBLISHED_TAB_HEADERS.datingresults]"),'A missing Dating Results payload must become an empty header-only dataset.');
 assert(html.includes("reunion:publishedTabRows(publishedSnapshot,'Reunion Results')||[PUBLISHED_TAB_HEADERS.reunionresults]"),'A missing Reunion Results payload must become an empty header-only dataset.');
-assert(html.includes('publishedTabs.settings?.length;'),'Firestore readiness must depend on Cast, Couples, and Settings.');
+assert(html.includes('publishedTabs.cast?.length>1&&publishedTabs.couples?.length>1&&'),'Firestore readiness must require Cast and Couples data rows beyond their headers.');
+assert(html.includes('publishedTabs.settings?.length;'),'Firestore readiness must also depend on Settings.');
 assert(!html.includes('publishedTabs.dating?.length&&publishedTabs.reunion?.length'),'Empty live-result tabs must not force the browser onto Google Sheet CSV.');
 assert(html.includes("const ADMIN_SEASON_SHEET_FALLBACK=initialAppParams.get('adminSeasonSource')==='sheet';"),'Google Sheet loading must require the explicit admin fallback query parameter.');
 assert(html.includes('const useAdminSheetFallback=!publishedReady&&ADMIN_SEASON_SHEET_FALLBACK;'),'The runtime CSV path must be gated behind the explicit admin fallback.');

@@ -13,7 +13,7 @@ Use this checklist for the first launch and every episode drop. UK3 is the first
 
 1. Run `publishSeasonSnapshot` and save its logged `backupPath`.
 2. In Firestore, confirm `seasons/{SEASON_ID}` has the new `publishedAt`, expected `status`, and correct `tabRowCounts`.
-   - Cast, Couples, and Settings must be present. Dating Results and Reunion Results may have zero data rows before those episodes air.
+   - Cast and Couples must each have at least one data row beyond the header, and Settings must be present. Dating Results and Reunion Results may have zero data rows before those episodes air.
 3. Open [Through the Wall](https://throughthewall.ca/) in a private browser window. Sign in and verify:
    - the season opens;
    - the correct episodes and cast are visible;

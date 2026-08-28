@@ -2148,13 +2148,13 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     settings:publishedTabRows(publishedSnapshot,'Settings'),
     retro:publishedTabRows(publishedSnapshot,'Retro Events')||[],
   }:null;
-  const publishedReady=publishedTabs&&publishedTabs.cast?.length&&publishedTabs.couples?.length&&
+  const publishedReady=publishedTabs&&publishedTabs.cast?.length>1&&publishedTabs.couples?.length>1&&
     publishedTabs.settings?.length;
   const useAdminSheetFallback=!publishedReady&&ADMIN_SEASON_SHEET_FALLBACK;
   if(!publishedReady&&!useAdminSheetFallback) {
     if(publishedSnapshotError) console.error('The published season snapshot could not be loaded.',publishedSnapshotError);
     const reason=publishedSnapshot
-      ? 'the Firestore snapshot is missing Cast, Couples, or Settings.'
+      ? 'the Firestore snapshot is missing Cast, Couples, or Settings, or Cast/Couples has no data rows.'
       : 'the Firestore snapshot is unavailable.';
     throw new Error(`Season data unavailable: ${reason} Republish the season before opening predictions.`);
   }
