@@ -4749,8 +4749,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
       {activePool?.global===true&&userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onResetHistoricalGlobalSimulation&&<div className="danger-zone">
         <h3>Historical Global simulation</h3>
-        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Friend pools are not changed, and established Global-to-friend sync links are preserved.</p>
-        <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset this Global simulation</button>
+        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Established Global-to-friend sync links are preserved; each linked tester’s game progress is also cleared in their paired friend pool so old progress cannot immediately sync back. Other friend-pool members and settings are not changed.</p>
+        <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset Global + linked testers</button>
       </div>}
       <h3>Notifications</h3>
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
@@ -5720,9 +5720,9 @@ function App() {
   const doResetHistoricalGlobalSimulation = async () => {
     if(!activePool?.global||String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
     if(!await requestConfirmation({
-      title:'Reset this historical Global simulation?',
-      body:'This permanently clears every player’s picks, progress, completed checkpoints, and scores in this Global test pool. Friend pools are not changed, and established sync links are preserved.',
-      confirmLabel:'Reset Global test',cancelLabel:'Keep current test',
+      title:'Reset this linked historical test?',
+      body:'This permanently clears every player’s picks, progress, completed checkpoints, and scores in this Global test pool. Established sync links are preserved, and each linked tester’s progress is also cleared in their paired friend pool so the test starts clean. Other friend-pool members and settings are not changed.',
+      confirmLabel:'Reset linked test data',cancelLabel:'Keep current test',
     }))return;
     setDestructiveActionPending(true);setErr('');
     try{

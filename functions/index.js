@@ -808,7 +808,28 @@ async function resetHistoricalGlobalSimulation(request){
   const [trustedSnapshot,playersSnapshot,phasePicksSnapshot]=await Promise.all([
     poolRef.collection('trustedPlayers').get(),poolRef.collection('players').get(),poolRef.collection('phasePicks').get(),
   ]);
-  if(trustedSnapshot.size+playersSnapshot.size+phasePicksSnapshot.size+PHASES.length+1>450)throw new HttpsError('failed-precondition','This Global Pool is too large for the controlled simulation reset.');
+  const linkedPlayers=playersSnapshot.docs.map(document=>({
+    uid:document.id,sourcePoolId:String(document.data().duplicateFromPoolId||''),
+  })).filter(link=>link.sourcePoolId);
+  const sourcePoolIds=[...new Set(linkedPlayers.map(link=>link.sourcePoolId))];
+  const [sourcePoolSnapshots,sourcePlayerSnapshots]=await Promise.all([
+    Promise.all(sourcePoolIds.map(sourcePoolId=>db.doc(`pools/${sourcePoolId}`).get())),
+    Promise.all(linkedPlayers.map(link=>db.doc(`pools/${link.sourcePoolId}/players/${link.uid}`).get())),
+  ]);
+  const sourcePools=new Map(sourcePoolSnapshots.map(snapshot=>[snapshot.id,snapshot]));
+  const resettableLinks=linkedPlayers.filter((link,index)=>{
+    const sourceSnapshot=sourcePools.get(link.sourcePoolId),source=sourceSnapshot?.data();
+    if(!sourceSnapshot?.exists||!sourcePlayerSnapshots[index]?.exists||source?.global===true)return false;
+    const sourceSeasonId=String(source.season?.id||source.seasonId||source.globalSeasonId||'');
+    return sourceSeasonId===seasonId&&Array.isArray(source.members)&&source.members.includes(link.uid);
+  });
+  const linkedPlayersByPool=new Map();
+  resettableLinks.forEach(link=>linkedPlayersByPool.set(
+    link.sourcePoolId,[...(linkedPlayersByPool.get(link.sourcePoolId)||[]),link.uid],
+  ));
+  const writeCount=trustedSnapshot.size+playersSnapshot.size+phasePicksSnapshot.size+PHASES.length+1+
+    resettableLinks.length*(PHASES.length+1)+linkedPlayersByPool.size*PHASES.length;
+  if(writeCount>450)throw new HttpsError('failed-precondition','This Global Pool and its linked test players are too large for the controlled simulation reset.');
   const resetAt=Date.now(),batch=db.batch();
   trustedSnapshot.docs.forEach(document=>batch.set(document.ref,{
     joinedAtEp:0,watchedThrough:0,picks:{},completedAt:{},updatedAt:resetAt,
@@ -823,11 +844,31 @@ async function resetHistoricalGlobalSimulation(request){
   phasePicksSnapshot.docs.forEach(document=>batch.delete(document.ref));
   PHASES.forEach(phase=>batch.set(poolRef.collection('phaseStatus').doc(phase),{completedMembers:[],updatedAt:resetAt}));
   batch.delete(poolRef.collection('standings').doc('current'));
+  // A preserved link would otherwise replay the linked player's old friend-pool
+  // progress into Global as soon as either pool opens. Reset only that player's
+  // game state on the source side; pool membership and every other player stay intact.
+  resettableLinks.forEach(({uid,sourcePoolId})=>{
+    const sourcePoolRef=db.doc(`pools/${sourcePoolId}`);
+    batch.set(sourcePoolRef.collection('players').doc(uid),{
+      phase:'pods',screen:'intro',w:0,watchThrough:0,completed:{},
+      picks:FieldValue.delete(),lastPredictionAt:FieldValue.delete(),
+    },{merge:true});
+    PHASES.forEach(phase=>batch.delete(sourcePoolRef.collection('phasePicks').doc(`${phase}__${uid}`)));
+  });
+  linkedPlayersByPool.forEach((uids,sourcePoolId)=>{
+    const sourcePoolRef=db.doc(`pools/${sourcePoolId}`);
+    PHASES.forEach(phase=>batch.set(sourcePoolRef.collection('phaseStatus').doc(phase),{
+      completedMembers:FieldValue.arrayRemove(...uids),updatedAt:resetAt,
+    },{merge:true}));
+  });
   await batch.commit();
   const linksPreserved=playersSnapshot.docs.filter(document=>
     typeof document.data().duplicateFromPoolId==='string'&&document.data().duplicateFromPoolId
   ).length;
-  return {ok:true,resetAt,membersReset:trustedSnapshot.size,linksPreserved};
+  return {
+    ok:true,resetAt,membersReset:trustedSnapshot.size,linksPreserved,
+    linkedPlayersReset:resettableLinks.length,linkedPlayersSkipped:linkedPlayers.length-resettableLinks.length,
+  };
 }
 
 exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{

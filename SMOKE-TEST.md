@@ -98,7 +98,7 @@ For any failed in-app-browser attempt, repeat the same invitation with that app'
 - [ ] Lock an imported Global pick made after Episode 3. Confirm its Global receipt says **Locked after Episode 3**, not the episode when the player first joined Global. Picks made before Global membership must still be floored at the Global join episode.
 - [ ] Advance a linked Global source and confirm its friend-pool target advances too. Then advance a linked friend source and confirm Global advances. Neither direction may move a player backward.
 - [ ] Complete Pods in either linked source. Confirm Pods closes in the target pool as well and neither pool allows another Pods prediction.
-- [ ] In a fully released historical Global test, use the admin-only simulation reset. Confirm it clears only Global test picks/progress/scores, refuses a partially released season, preserves established friend-pool sync links, and causes new Global receipts to display the server-credited episode used for scoring.
+- [ ] In a fully released historical Global test, use the admin-only simulation reset. Confirm it clears Global test picks/progress/scores, preserves established friend-pool sync links, clears only each linked tester’s game state in the paired friend pool (not other members or pool settings), refuses a partially released season, and causes new Global receipts to display the server-credited episode used for scoring.
 - [ ] Delete a throwaway friend pool that is still selected as a Global mirror source. Reopen Global and confirm it opens, preserves its already-copied picks and progress, removes the stale link, and explains that Global is now independent.
 
 ## Pass criteria

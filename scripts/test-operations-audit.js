@@ -610,7 +610,11 @@ async function assertMirrorEntryRegression(){
   assert(historicalResetStart>=0&&historicalResetEnd>historicalResetStart,'The historical reset implementation must remain auditable.');
   assert(!historicalResetSource.includes('duplicateFromPoolId:FieldValue.delete()'),'Historical reset must preserve established friend-pool links.');
   assert(historicalResetSource.includes('linksPreserved'),'Historical reset must report how many Global-to-friend links survived.');
-  assert(html.includes('established sync links are preserved'),'The reset confirmation must explain that linked pools stay connected.');
+  assert(historicalResetSource.includes('linkedPlayersReset'),'Historical reset must report how many linked friend-player states were cleared.');
+  assert(historicalResetSource.includes('completedMembers:FieldValue.arrayRemove(...uids)'),'Historical reset must prevent old linked completions from replaying into Global.');
+  assert(historicalResetSource.includes("sourcePoolRef.collection('phasePicks').doc(`${phase}__${uid}`)"),'Historical reset must clear the linked tester picks that would otherwise replay into Global.');
+  assert(html.includes('sync links are preserved'),'The reset confirmation must explain that linked pools stay connected.');
+  assert(html.includes('Other friend-pool members and settings are not changed'),'The reset confirmation must define the linked friend-pool blast radius.');
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
