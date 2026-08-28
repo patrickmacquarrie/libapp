@@ -604,6 +604,13 @@ async function assertMirrorEntryRegression(){
   assert(functionsSource.includes("action==='resetHistoricalSimulation'"),'The controlled historical Global reset must remain an explicit callable action.');
   assert(functionsSource.includes('GLOBAL_POOL_ADMINS.has(email)'),'Historical Global reset must remain administrator-only.');
   assert(functionsSource.includes('cfg.AVAILABLE_THROUGH_EP<seasonEnd'),'Historical reset must refuse a live or partially released season.');
+  const historicalResetStart=functionsSource.indexOf('async function resetHistoricalGlobalSimulation(request)');
+  const historicalResetEnd=functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate',historicalResetStart);
+  const historicalResetSource=functionsSource.slice(historicalResetStart,historicalResetEnd);
+  assert(historicalResetStart>=0&&historicalResetEnd>historicalResetStart,'The historical reset implementation must remain auditable.');
+  assert(!historicalResetSource.includes('duplicateFromPoolId:FieldValue.delete()'),'Historical reset must preserve established friend-pool links.');
+  assert(historicalResetSource.includes('linksPreserved'),'Historical reset must report how many Global-to-friend links survived.');
+  assert(html.includes('established sync links are preserved'),'The reset confirmation must explain that linked pools stay connected.');
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});

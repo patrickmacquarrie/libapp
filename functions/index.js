@@ -815,13 +815,19 @@ async function resetHistoricalGlobalSimulation(request){
   },{merge:true}));
   playersSnapshot.docs.forEach(document=>batch.set(document.ref,{
     phase:'pods',screen:'intro',w:0,watchThrough:0,completed:{},
-    duplicateFromPoolId:FieldValue.delete(),lastPredictionAt:FieldValue.delete(),
+    // Preserve duplicateFromPoolId. Historical testers must keep their
+    // established friend-pool links after the Episode 0 scoring floor resets;
+    // leaving and rejoining would correctly reinstate the late-join floor.
+    lastPredictionAt:FieldValue.delete(),
   },{merge:true}));
   phasePicksSnapshot.docs.forEach(document=>batch.delete(document.ref));
   PHASES.forEach(phase=>batch.set(poolRef.collection('phaseStatus').doc(phase),{completedMembers:[],updatedAt:resetAt}));
   batch.delete(poolRef.collection('standings').doc('current'));
   await batch.commit();
-  return {ok:true,resetAt,membersReset:trustedSnapshot.size};
+  const linksPreserved=playersSnapshot.docs.filter(document=>
+    typeof document.data().duplicateFromPoolId==='string'&&document.data().duplicateFromPoolId
+  ).length;
+  return {ok:true,resetAt,membersReset:trustedSnapshot.size,linksPreserved};
 }
 
 exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{

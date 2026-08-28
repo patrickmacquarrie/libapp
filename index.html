@@ -4749,7 +4749,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
       {activePool?.global===true&&userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onResetHistoricalGlobalSimulation&&<div className="danger-zone">
         <h3>Historical Global simulation</h3>
-        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Friend pools are not changed—delete any throwaway friend pools before using it.</p>
+        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Friend pools are not changed, and established Global-to-friend sync links are preserved.</p>
         <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset this Global simulation</button>
       </div>}
       <h3>Notifications</h3>
@@ -5721,7 +5721,7 @@ function App() {
     if(!activePool?.global||String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
     if(!await requestConfirmation({
       title:'Reset this historical Global simulation?',
-      body:'This permanently clears every player’s picks, progress, completed checkpoints, and scores in this Global test pool. Friend pools are not changed. Use this only after deleting throwaway friend pools.',
+      body:'This permanently clears every player’s picks, progress, completed checkpoints, and scores in this Global test pool. Friend pools are not changed, and established sync links are preserved.',
       confirmLabel:'Reset Global test',cancelLabel:'Keep current test',
     }))return;
     setDestructiveActionPending(true);setErr('');
