@@ -1283,6 +1283,7 @@ window._fb = {
   lockGlobalPicks: (poolId,phases) => httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases}),
   completeGlobalPhase: (poolId,phase) => httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase}),
   advanceGlobalWatch: (poolId,watchedThrough) => httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough}),
+  resetHistoricalGlobalSimulation: poolId => httpsCallable(functions,'openGlobalPool')({action:'resetHistoricalSimulation',poolId}),
   loadGlobalStandings: async poolId => {
     const snapshot=await getDoc(doc(db,'pools',poolId,'standings','current'));
     return snapshot.exists()?snapshot.data():null;
@@ -1462,6 +1463,21 @@ window._fb = {
     transaction.update(playerRef,{w,watchThrough});
     return {w,watchThrough};
   }),
+  syncMirroredCompletion: (poolId,uid,phase,confirmedWatch) => runTransaction(db,async transaction=>{
+    const playerRef=doc(db,'pools',poolId,'players',uid);
+    const playerSnapshot=await transaction.get(playerRef);
+    if(!playerSnapshot.exists())throw new Error('Open the linked pool before syncing phase completion.');
+    const player=playerSnapshot.data();
+    const requested=Math.max(0,Math.trunc(Number(confirmedWatch)||0));
+    const w=Math.max(Math.max(0,Number(player.w)||0),requested);
+    const watchThrough=Math.max(Math.max(0,Number(player.watchThrough)||0),w);
+    const completed={...(player.completed||{}),[phase]:true};
+    transaction.update(playerRef,{
+      w,watchThrough,completed,
+      ...(player.phase===phase?{screen:'close'}:{}),
+    });
+    return {w,watchThrough,completed,screen:player.phase===phase?'close':player.screen};
+  }),
   clearMirrorSource: (poolId,uid) => setDoc(
     doc(db,'pools',poolId,'players',uid),{duplicateFromPoolId:deleteField()},{merge:true}
   ),
@@ -1498,9 +1514,20 @@ const syncMirroredPicksOnEntry=async({phases,savePhasePicks,onSkipped=()=>{}})=>
     catch(error){onSkipped(phase,error);}
   }));
 };
-const syncMirroredGlobalProgress=async({poolId,uid,confirmedWatch,advanceGlobalWatch,syncPublicProgress})=>{
-  await advanceGlobalWatch(poolId,confirmedWatch);
+const syncMirroredTargetProgress=async({poolId,uid,confirmedWatch,globalTarget,advanceGlobalWatch,syncPublicProgress})=>{
+  if(globalTarget)await advanceGlobalWatch(poolId,confirmedWatch);
   return syncPublicProgress(poolId,uid,confirmedWatch);
+};
+const syncMirroredPhaseCompletion=async({poolId,uid,phase,picks,globalTarget,lockGlobalPicks,completeGlobalPhase,completeFriendPhase,syncPublicCompletion,confirmedWatch})=>{
+  if(globalTarget){
+    const lockResult=await lockGlobalPicks(poolId,{[phase]:picks});
+    const accepted=lockResult?.data?.accepted;
+    if(!accepted||Number(accepted[phase])!==picks.length)throw new Error('The linked Global Pool did not accept every prediction before closing the checkpoint.');
+    await completeGlobalPhase(poolId,phase);
+    return lockResult?.data||null;
+  }
+  await completeFriendPhase(poolId,phase,uid);
+  return syncPublicCompletion(poolId,uid,phase,confirmedWatch);
 };
 const staleMirrorSourceError=error=>
   ['permission-denied','firestore/permission-denied','not-found','firestore/not-found'].includes(error?.code)||
@@ -4606,7 +4633,7 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4682,6 +4709,11 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         </div>}
       </div>}
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
+      {activePool?.global===true&&userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onResetHistoricalGlobalSimulation&&<div className="danger-zone">
+        <h3>Historical Global simulation</h3>
+        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Friend pools are not changed—delete any throwaway friend pools before using it.</p>
+        <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset this Global simulation</button>
+      </div>}
       <h3>Notifications</h3>
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
       <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
@@ -4758,7 +4790,7 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onJoin,onC
         <option value="">No thanks — I’ll make separate global picks</option>
         {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
       </select>
-      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your existing picks and confirmed watch progress are copied to the Global Pool. Future changes keep matching Global picks and episode timing updated until you complete that Global checkpoint. Picks made before you joined Global are never credited earlier than your Global join episode.</p>}
+      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your picks, confirmed watch progress, and completed checkpoints stay aligned with the Global Pool without ever moving backward. Global scoring shows the episode its server actually credits. Picks made before you joined Global are never credited earlier than your Global join episode.</p>}
       <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
     </div>
   </div>;
@@ -4868,6 +4900,7 @@ function App() {
   const latestSaveSequence = useRef(0);
   const saveChain = useRef(Promise.resolve());
   const pickMirrorLinks = useRef([]);
+  const pendingMirroredGlobalLocks = useRef(new Set());
   const pendingJoinedPool = useRef(null);
   const identifiedAnalyticsUid = useRef('');
   const confirmResolver=useRef(null);
@@ -5097,9 +5130,11 @@ function App() {
         if(mine.duplicateFromPoolId) {
           const mirrorSourcePoolId=mine.duplicateFromPoolId;
           let sourcePlayer=null;
+          let sourceStatus={};
           try{
             const source=await window._fb.loadAllPlayers(mirrorSourcePoolId,user.uid,false);
             sourcePlayer=source.players?.[user.uid]||null;
+            sourceStatus=source.status||{};
             if(!sourcePlayer)throw Object.assign(new Error('The mirrored pool player no longer exists.'),{code:'not-found'});
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
@@ -5123,24 +5158,35 @@ function App() {
                 reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_mirror_sync',poolId:mirrorSourcePoolId,targetPoolId:enteredPool.id,phase:ph});
               },
             });
-            if(enteredPool.global===true){
-              const mirroredWatch=clampWatchTarget(
-                minePhase,
-                Number(mine.w)||0,
-                Number(sourcePlayer.w)||0,
-                poolCfg.PH_SPAN,
-                poolCfg.AVAILABLE_THROUGH_EP,
-              );
-              if(mirroredWatch>Number(mine.w||0)){
-                await syncMirroredGlobalProgress({
-                  poolId:enteredPool.id,uid:user.uid,confirmedWatch:mirroredWatch,
-                  advanceGlobalWatch:window._fb.advanceGlobalWatch,
-                  syncPublicProgress:window._fb.syncMirroredProgress,
-                });
-                mine={...mine,w:mirroredWatch,watchThrough:Math.max(Number(mine.watchThrough)||0,mirroredWatch)};
-              }
-            }
             mine={...mine,picks:sourcePicks};
+            const confirmedSourceCompletions=PH_ORDER.filter(ph=>(sourceStatus[ph]?.completedMembers||[]).includes(user.uid));
+            for(const completedPhase of confirmedSourceCompletions){
+              if((status[completedPhase]?.completedMembers||[]).includes(user.uid))continue;
+              const completionResult=await syncMirroredPhaseCompletion({
+                poolId:enteredPool.id,uid:user.uid,phase:completedPhase,picks:sourcePicks[completedPhase]||[],
+                globalTarget:enteredPool.global===true,lockGlobalPicks:window._fb.lockGlobalPicks,
+                completeGlobalPhase:window._fb.completeGlobalPhase,completeFriendPhase:window._fb.completePhase,
+                syncPublicCompletion:window._fb.syncMirroredCompletion,confirmedWatch:poolCfg.PH_SPAN[completedPhase].endEp,
+              });
+              if(completionResult?.credited?.[completedPhase])sourcePicks[completedPhase]=completionResult.credited[completedPhase];
+              mine={...mine,picks:sourcePicks,completed:{...(mine.completed||{}),[completedPhase]:true},...(mine.phase===completedPhase?{screen:'close'}:{})};
+              status[completedPhase]={completedMembers:[...(status[completedPhase]?.completedMembers||[]),user.uid],updatedAt:Date.now()};
+            }
+            const mirroredWatch=clampWatchTarget(
+              minePhase,
+              Number(mine.w)||0,
+              Number(sourcePlayer.w)||0,
+              poolCfg.PH_SPAN,
+              poolCfg.AVAILABLE_THROUGH_EP,
+            );
+            if(mirroredWatch>Number(mine.w||0)){
+              await syncMirroredTargetProgress({
+                poolId:enteredPool.id,uid:user.uid,confirmedWatch:mirroredWatch,globalTarget:enteredPool.global===true,
+                advanceGlobalWatch:window._fb.advanceGlobalWatch,
+                syncPublicProgress:window._fb.syncMirroredProgress,
+              });
+              mine={...mine,w:mirroredWatch,watchThrough:Math.max(Number(mine.watchThrough)||0,mirroredWatch)};
+            }
             players[user.uid]=mine;
           }
         }
@@ -5219,11 +5265,13 @@ function App() {
         const landingScreen='intro';
         let initialPicks=freshPicks();
         let sourcePlayer=null;
+        let sourceStatus={};
         let activeDuplicateFrom=duplicateFromPoolId||'';
         if(activeDuplicateFrom) {
           try{
             const source=await window._fb.loadAllPlayers(activeDuplicateFrom,user.uid,false);
             sourcePlayer=source.players?.[user.uid]||null;
+            sourceStatus=source.status||{};
             if(!sourcePlayer)throw Object.assign(new Error('The mirrored pool player no longer exists.'),{code:'not-found'});
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
@@ -5234,7 +5282,7 @@ function App() {
           if(sourcePlayer){
             initialPicks=normalizePicks(sourcePlayer.picks||freshPicks());
           }
-          if(enteredPool.global===true&&sourcePlayer){
+          if(sourcePlayer){
             w0=clampWatchTarget(landingPhase,startingW,Number(sourcePlayer.w)||startingW,poolCfg.PH_SPAN,poolCfg.AVAILABLE_THROUGH_EP);
           }
         }
@@ -5243,12 +5291,31 @@ function App() {
         setCompleted(completed0); setSeenRetroNotices([]); setSessionRetroNotices([]); setReveal(null); setCloseInfo(null);
         entryStep='creating your player profile';
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(activeDuplicateFrom?{duplicateFromPoolId:activeDuplicateFrom}:{})});
-        if(enteredPool.global===true&&activeDuplicateFrom&&w0>startingW)await window._fb.advanceGlobalWatch(pool.id,w0);
         if(activeDuplicateFrom) {
           pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:activeDuplicateFrom}];
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
             window._fb.savePhasePicks(pool.id,ph,user.uid,initialPicks[ph])
           ));
+          const confirmedSourceCompletions=PH_ORDER.filter(ph=>(sourceStatus[ph]?.completedMembers||[]).includes(user.uid));
+          for(const completedPhase of confirmedSourceCompletions){
+            const completionResult=await syncMirroredPhaseCompletion({
+              poolId:pool.id,uid:user.uid,phase:completedPhase,picks:initialPicks[completedPhase]||[],
+              globalTarget:enteredPool.global===true,lockGlobalPicks:window._fb.lockGlobalPicks,
+              completeGlobalPhase:window._fb.completeGlobalPhase,completeFriendPhase:window._fb.completePhase,
+              syncPublicCompletion:window._fb.syncMirroredCompletion,confirmedWatch:poolCfg.PH_SPAN[completedPhase].endEp,
+            });
+            if(completionResult?.credited?.[completedPhase])initialPicks[completedPhase]=completionResult.credited[completedPhase];
+            completed0[completedPhase]=true;
+            status[completedPhase]={completedMembers:[...(status[completedPhase]?.completedMembers||[]),user.uid],updatedAt:Date.now()};
+          }
+          if(w0>startingW)await syncMirroredTargetProgress({
+            poolId:pool.id,uid:user.uid,confirmedWatch:w0,globalTarget:enteredPool.global===true,
+            advanceGlobalWatch:window._fb.advanceGlobalWatch,syncPublicProgress:window._fb.syncMirroredProgress,
+          });
+          if(Object.keys(completed0).length){
+            setPicks({...initialPicks});setCompleted({...completed0});
+            if(completed0[landingPhase])setScreen('close');
+          }
         }
       }
       // Do not leave the lobby until the engine, players, and saved state are ready.
@@ -5294,6 +5361,7 @@ function App() {
         : (PH_ORDER.includes(pending.data.phase)?[pending.data.phase]:[]);
       if(linkedTargets.length&&syncedPhases.length) {
         await Promise.all(linkedTargets.map(async link=>{
+          const globalTarget=link.poolId.startsWith('global__');
           await Promise.all(syncedPhases.map(async phase=>{
             try { await window._fb.savePhasePicks(link.poolId,phase,pending.uid,pending.data.picks?.[phase]||[]); }
             // A completed target checkpoint is deliberately immutable. It
@@ -5303,16 +5371,36 @@ function App() {
               reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase});
             }
           }));
-          if(link.poolId.startsWith('global__')&&Number.isFinite(Number(pending.data.w))){
+          const lockKeys=syncedPhases.map(phase=>link.poolId+'|'+phase);
+          const shouldTrustedLock=globalTarget&&(
+            pending.data.screen==='watch'||lockKeys.some(key=>pendingMirroredGlobalLocks.current.has(key))
+          );
+          if(shouldTrustedLock){
             try{
-              await syncMirroredGlobalProgress({
-                poolId:link.poolId,uid:pending.uid,confirmedWatch:Number(pending.data.w),
+              const submitted=Object.fromEntries(syncedPhases.map(phase=>[phase,pending.data.picks?.[phase]||[]]));
+              const lockResult=await window._fb.lockGlobalPicks(link.poolId,submitted);
+              const accepted=lockResult?.data?.accepted;
+              const rejected=syncedPhases.filter(phase=>!accepted||Number(accepted[phase])!==submitted[phase].length);
+              if(rejected.length)throw new Error('The linked Global Pool rejected part of the mirrored prediction lock.');
+              lockKeys.forEach(key=>pendingMirroredGlobalLocks.current.delete(key));
+            }catch(e){
+              lockKeys.forEach(key=>pendingMirroredGlobalLocks.current.add(key));
+              console.info('Mirrored Global prediction lock skipped.',e);
+              reportTtwError('mirror_sync_failed',e,{operation:'lock_mirrored_global_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
+              setErr('Your progress saved here, but the linked Global predictions did not lock. Stay on this screen and retry before watching the next episode.');
+              return;
+            }
+          }
+          if(Number.isFinite(Number(pending.data.w))){
+            try{
+              await syncMirroredTargetProgress({
+                poolId:link.poolId,uid:pending.uid,confirmedWatch:Number(pending.data.w),globalTarget,
                 advanceGlobalWatch:window._fb.advanceGlobalWatch,
                 syncPublicProgress:window._fb.syncMirroredProgress,
               });
             }catch(e){
-              console.info('Mirrored Global watch progress sync skipped.',e);
-              reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_global_progress',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
+              console.info('Mirrored watch progress sync skipped.',e);
+              reportTtwError('mirror_sync_failed',e,{operation:'sync_mirrored_progress',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
             }
           }
         }));
@@ -5346,9 +5434,10 @@ function App() {
     if (!user || !activePool) return;
     clearTimeout(saveTimer.current);
     setSaveState('saving');
-    const {seenRetroNotices:localRetroNotices,lockReunion=false,...persistedState}=state;
+    const {seenRetroNotices:localRetroNotices,lockReunion=false,skipPickWriteFor:requestedSkipPickWriteFor=[],...persistedState}=state;
     const lockingReunion=lockReunion===true&&state.phase==='reunion'&&state.screen==='watch';
-    const skipPickWriteFor=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)&&!lockingReunion?['reunion']:[];
+    const automaticSkip=state.phase==='reunion'&&['watch','close','final'].includes(state.screen)&&!lockingReunion?['reunion']:[];
+    const skipPickWriteFor=[...new Set([...automaticSkip,...requestedSkipPickWriteFor.filter(phaseId=>PH_ORDER.includes(phaseId))])];
     const lockPicks=lockingReunion?{reunion:Date.now()}:{};
     const snapshot={sequence:latestSaveSequence.current+1,poolId:activePool.id,uid:user.uid,data:{username:profile.username,...persistedState,skipPickWriteFor,lockPicks,...(duplicateFromPoolId?{duplicateFromPoolId}:{})}};
     latestSaveSequence.current=snapshot.sequence;
@@ -5549,6 +5638,23 @@ function App() {
     setActivePool(current=>current?.id===pool.id?{...current,joinCode}:current);
     return joinCode;
   };
+  const doResetHistoricalGlobalSimulation = async () => {
+    if(!activePool?.global||String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
+    if(!await requestConfirmation({
+      title:'Reset this historical Global simulation?',
+      body:'This permanently clears every player’s picks, progress, completed checkpoints, and scores in this Global test pool. Friend pools are not changed. Use this only after deleting throwaway friend pools.',
+      confirmLabel:'Reset Global test',cancelLabel:'Keep current test',
+    }))return;
+    setDestructiveActionPending(true);setErr('');
+    try{
+      await flushSave();
+      await window._fb.resetHistoricalGlobalSimulation(activePool.id);
+      window.location.reload();
+    }catch(e){
+      console.error(e);setErr(e?.message||'The historical Global simulation could not be reset.');
+      setDestructiveActionPending(false);
+    }
+  };
   const doLeavePool = async pool => {
     if(!pool||pool.ownerUid===user.uid||destructiveActionPending)return;
     if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:'Your predictions, progress, and shared Heat Check ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
@@ -5738,6 +5844,7 @@ function App() {
     if(!await requestConfirmation({title:'Ready to lock it in?',body:lockBody,confirmLabel:'Lock it in',cancelLabel:'One more look'})) return;
     setGatingLabel('Locking in your predictions…');setGating(true);
     let globalLockAccepted=false;
+    let creditedPicks=picks;
     try {
       if(activePool.global===true){
         const submittedGlobalPicks=Object.fromEntries(predictionPhases.map(phaseId=>[phaseId,picks[phaseId]||[]]));
@@ -5752,9 +5859,14 @@ function App() {
           error.code='global-picks-rejected';
           throw error;
         }
+        const creditedGlobalPicks=lockResult?.data?.credited;
+        if(creditedGlobalPicks)creditedPicks={...picks,...Object.fromEntries(predictionPhases.map(phaseId=>[
+          phaseId,Array.isArray(creditedGlobalPicks[phaseId])?creditedGlobalPicks[phaseId]:picks[phaseId]||[],
+        ]))};
         globalLockAccepted=true;
       }
-      await savePlayer({picks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion'},true);
+      await savePlayer({picks:creditedPicks,phase,predictionPhases,screen:'watch',w,watchThrough:target,completed,lockReunion:phase==='reunion',skipPickWriteFor:activePool.global===true?predictionPhases:[]},true);
+      if(creditedPicks!==picks)setPicks(creditedPicks);
       setWatchThrough(target);setScreen('watch');setReveal(null);setCloseInfo(null);
     } catch(e) {
       console.error('Locking predictions failed.',e);
@@ -5780,6 +5892,21 @@ function App() {
       if(confirmedStatus)setPoolStatus(current=>({...current,[phaseId]:confirmedStatus}));
       setPhaseCompletionError('');
       setErr(current=>current===message?'':current);
+      const linkedTargets=pickMirrorLinks.current.filter(link=>link.sourcePoolId===poolId);
+      for(const link of linkedTargets){
+        try{
+          await syncMirroredPhaseCompletion({
+            poolId:link.poolId,uid,phase:phaseId,picks:picks[phaseId]||[],
+            globalTarget:link.poolId.startsWith('global__'),lockGlobalPicks:window._fb.lockGlobalPicks,
+            completeGlobalPhase:window._fb.completeGlobalPhase,completeFriendPhase:window._fb.completePhase,
+            syncPublicCompletion:window._fb.syncMirroredCompletion,confirmedWatch:PH_SPAN[phaseId].endEp,
+          });
+        }catch(linkedError){
+          console.error('Linked phase completion did not register.',linkedError);
+          reportTtwError('mirror_sync_failed',linkedError,{operation:'sync_mirrored_completion',poolId,targetPoolId:link.poolId,phase:phaseId});
+          setErr('This checkpoint completed here, but the linked pool did not close. Open the linked pool to retry the repair before making more predictions.');
+        }
+      }
       return true;
     } catch(e) {
       console.error('Phase completion did not register.',e);
@@ -5787,7 +5914,7 @@ function App() {
       setErr(message);
       return false;
     } finally { setRetryingPhaseCompletion(false); }
-  },[]);
+  },[picks,PH_SPAN]);
   const finishWatch = async (targetOverride=null) => {
     const requestedTarget=Number.isFinite(targetOverride)?targetOverride:watchThrough;
     const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);
@@ -6197,7 +6324,7 @@ function App() {
         </div>
         {canMirrorSelectedGlobal&&<label className="chemistry-toggle">
           <input type="checkbox" checked={mirrorGlobalPicks} onChange={event=>setMirrorGlobalPicks(event.target.checked)}/>
-          <span><strong>Mirror my Global Pool picks</strong><span>Copy your current {formatSeasonLabel(seasonById(selectedSeasonId))} Global Pool picks into this friend pool. Future Global Pool changes will keep matching friend-pool picks updated until you complete each friend-pool checkpoint.</span></span>
+          <span><strong>Link my Global Pool game</strong><span>Keep your picks, confirmed watch progress, and completed checkpoints aligned between Global and this friend pool. Progress only moves forward, and a completed checkpoint stays closed everywhere.</span></span>
         </label>}
         <div className="row">
           <div className="field"><label className="small">Invite by email</label>
@@ -6398,7 +6525,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }

@@ -106,13 +106,13 @@ assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'lockGlo
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase})"),'The browser must use the existing callable gateway for Global phase completion.');
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough})"),'The browser must use the existing callable gateway for Global watch progress.');
 assert(html.includes('syncMirroredProgress: (poolId,uid,confirmedWatch) => runTransaction'),'Mirrored Global progress must update the public player state monotonically.');
-assert(html.includes("if(link.poolId.startsWith('global__')&&Number.isFinite(Number(pending.data.w)))"),'A friend-source save must sync only confirmed watch progress into a linked Global Pool.');
-assert(html.includes("operation:'sync_mirrored_global_progress'"),'Mirrored Global progress failures must remain observable without blocking the source pool save.');
+assert(html.includes('if(Number.isFinite(Number(pending.data.w)))'),'A linked source save must synchronize confirmed watch progress in either direction.');
+assert(html.includes("operation:'sync_mirrored_progress'"),'Mirrored progress failures must remain observable without blocking the source pool save.');
 assert(html.includes('const acceptedGlobalPicks=lockResult?.data?.accepted;'),'The client must inspect the trusted Global lock response.');
 assert(html.includes('Number(acceptedGlobalPicks[phaseId])!==submittedGlobalPicks[phaseId].length'),'The client must compare accepted and submitted counts for every locking phase.');
 assert(html.includes("error.code='global-picks-rejected'"),'A partial Global lock must surface a distinct review error.');
 const globalLockResponseCheck=html.indexOf('const lockResult=await window._fb.lockGlobalPicks(activePool.id,submittedGlobalPicks);');
-const persistedWatchScreen=html.indexOf("await savePlayer({picks,phase,predictionPhases,screen:'watch'",globalLockResponseCheck);
+const persistedWatchScreen=html.indexOf("await savePlayer({picks:creditedPicks,phase,predictionPhases,screen:'watch'",globalLockResponseCheck);
 assert(globalLockResponseCheck>=0&&persistedWatchScreen>globalLockResponseCheck,'A Global lock mismatch must be detected before the saved screen advances.');
 assert(functionsSource.includes("collection('trustedPlayers').get()"),'The server scorer must use trusted Global inputs.');
 assert(functionsSource.includes("publishedRows(snapshot,'Retro Events')"),'The trusted scorer must load confirmed retroactive scoring events.');
@@ -125,7 +125,7 @@ assert(functionsSource.includes('authoritativeWindow=resolveGlobalWatchWindow(pr
 assert(functionsSource.includes('releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP'),'New trusted picks must retain the release-based reference alongside the scored window.');
 assert(functionsSource.includes('transaction.set(trustedRef,{watchedThrough},{merge:true})'),'A watch advance must write only the monotonic ledger field.');
 assert(functionsSource.includes('alreadyMember?0:cfg.AVAILABLE_THROUGH_EP'),'Existing controlled-test members and new late joiners must receive distinct join-floor policies.');
-assert(functionsSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,\n  },{merge:true});'),'Trusted Global lock writes must merge so ledger fields survive.');
+assert(functionsSource.includes('batch.set(trustedRef,{')&&functionsSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
 const finishWatchSave=html.indexOf('await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);');
 const finishWatchAdvance=html.indexOf("if(activePool.global===true)await window._fb.advanceGlobalWatch(activePool.id,target);");
 const finishWatchLocalAdvance=html.indexOf('setW(target);setWatchThrough(target);',finishWatchSave);
@@ -513,7 +513,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredGlobalProgress=syncMirroredGlobalProgress;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),true);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),true);
   assert.equal(context.__staleMirrorSourceError({code:'unavailable'}),false);
@@ -526,8 +526,8 @@ async function assertMirrorEntryRegression(){
   assert.deepEqual(attempted,['pods','reunion']);
   assert.deepEqual(skipped,[['reunion','permission-denied']]);
   const progressCalls=[];
-  const progressResult=await context.__syncMirroredGlobalProgress({
-    poolId:'global__season',uid:'viewer',confirmedWatch:3,
+  const progressResult=await context.__syncMirroredTargetProgress({
+    poolId:'global__season',uid:'viewer',confirmedWatch:3,globalTarget:true,
     advanceGlobalWatch:async(...args)=>{progressCalls.push(['trusted',...args]);return {data:{watchedThrough:3}};},
     syncPublicProgress:async(...args)=>{progressCalls.push(['public',...args]);return {w:3,watchThrough:3};},
   });
@@ -536,8 +536,46 @@ async function assertMirrorEntryRegression(){
     ['public','global__season','viewer',3],
   ],'A friend-linked Global Pool must advance the trusted ledger before reflecting the progress publicly.');
   assert.deepEqual(progressResult,{w:3,watchThrough:3});
+  const friendProgressCalls=[];
+  await context.__syncMirroredTargetProgress({
+    poolId:'friend',uid:'viewer',confirmedWatch:4,globalTarget:false,
+    advanceGlobalWatch:async()=>friendProgressCalls.push('trusted'),
+    syncPublicProgress:async(...args)=>{friendProgressCalls.push(['public',...args]);return {w:4,watchThrough:4};},
+  });
+  assert.deepEqual(friendProgressCalls,[['public','friend','viewer',4]],'A Global-linked friend pool must receive monotonic public progress without calling the Global ledger.');
+  const completionCalls=[];
+  await context.__syncMirroredPhaseCompletion({
+    poolId:'global__season',uid:'viewer',phase:'pods',picks:[{c:'Alex|Casey',s:20}],globalTarget:true,confirmedWatch:6,
+    lockGlobalPicks:async()=>{completionCalls.push('lock');return {data:{accepted:{pods:1}}};},
+    completeGlobalPhase:async()=>completionCalls.push('complete-global'),
+    completeFriendPhase:async()=>completionCalls.push('complete-friend'),
+    syncPublicCompletion:async()=>completionCalls.push('public'),
+  });
+  assert.deepEqual(completionCalls,['lock','complete-global'],'A linked Global checkpoint must trusted-lock its picks before completing.');
+  const friendCompletionCalls=[];
+  await context.__syncMirroredPhaseCompletion({
+    poolId:'friend',uid:'viewer',phase:'pods',picks:[],globalTarget:false,confirmedWatch:6,
+    lockGlobalPicks:async()=>friendCompletionCalls.push('lock'),
+    completeGlobalPhase:async()=>friendCompletionCalls.push('complete-global'),
+    completeFriendPhase:async(...args)=>friendCompletionCalls.push(['complete-friend',...args]),
+    syncPublicCompletion:async(...args)=>friendCompletionCalls.push(['public',...args]),
+  });
+  assert.deepEqual(friendCompletionCalls,[
+    ['complete-friend','friend','pods','viewer'],
+    ['public','friend','viewer','pods',6],
+  ],'A linked friend checkpoint must register completion before closing its public player state.');
   assert(html.includes('clearMirrorSource: (poolId,uid) => setDoc'),'A stale mirror source must be removable without deleting copied Global state.');
   assert(html.includes('Your copied Global picks and progress were kept'),'A repaired Global Pool must explain that its copied state was preserved.');
+  assert(html.includes('pending.data.screen===\'watch\''),'A source prediction window must trusted-lock its linked Global copy before progress advances.');
+  const linkedSaveStart=html.indexOf('const linkedTargets=pickMirrorLinks.current.filter');
+  const linkedTrustedLock=html.indexOf('const lockResult=await window._fb.lockGlobalPicks(link.poolId,submitted);',linkedSaveStart);
+  const linkedProgress=html.indexOf('await syncMirroredTargetProgress({',linkedTrustedLock);
+  assert(linkedSaveStart>=0&&linkedTrustedLock>linkedSaveStart&&linkedProgress>linkedTrustedLock,'A mirrored Global prediction must trusted-lock before its watch ledger advances.');
+  assert(functionsSource.includes('credited:Object.fromEntries'),'Global locks must return the server-credited prediction windows to the client.');
+  assert(functionsSource.includes("poolRef.collection('phasePicks').doc(`${phase}__${uid}`)"),'The trusted Global lock must publish credited picks for accurate receipts after reload.');
+  assert(functionsSource.includes("action==='resetHistoricalSimulation'"),'The controlled historical Global reset must remain an explicit callable action.');
+  assert(functionsSource.includes('GLOBAL_POOL_ADMINS.has(email)'),'Historical Global reset must remain administrator-only.');
+  assert(functionsSource.includes('cfg.AVAILABLE_THROUGH_EP<seasonEnd'),'Historical reset must refuse a live or partially released season.');
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});

@@ -91,11 +91,14 @@ For any failed in-app-browser attempt, repeat the same invitation with that app'
 ## Global/friend pick mirroring
 
 - [ ] Join the Global Pool, make at least one unlocked pick, then return to the lobby and start a friend pool for the same season.
-- [ ] Confirm “Mirror my Global Pool picks” appears only for that matching season. Select it and create the pool.
-- [ ] Confirm the new friend pool starts at Episode 1 with the existing Global Pool pick copied in.
+- [ ] Confirm “Link my Global Pool game” appears only for that matching season. Select it and create the pool.
+- [ ] Confirm the new friend pool adopts the existing Global picks and confirmed watch progress without moving either pool backward.
 - [ ] Before completing the friend-pool checkpoint, change the pick in the Global Pool and confirm the matching friend-pool pick updates. Confirm a completed friend-pool checkpoint remains immutable.
 - [ ] With a separate friend pool selected while joining Global, advance that friend pool through Episode 3 and leave Global linked to it. Open Global and confirm it also shows Episode 3 as watched, while the friend pool remains the selected pick source.
 - [ ] Lock an imported Global pick made after Episode 3. Confirm its Global receipt says **Locked after Episode 3**, not the episode when the player first joined Global. Picks made before Global membership must still be floored at the Global join episode.
+- [ ] Advance a linked Global source and confirm its friend-pool target advances too. Then advance a linked friend source and confirm Global advances. Neither direction may move a player backward.
+- [ ] Complete Pods in either linked source. Confirm Pods closes in the target pool as well and neither pool allows another Pods prediction.
+- [ ] In a fully released historical Global test, use the admin-only simulation reset. Confirm it clears only Global test picks/progress/scores, refuses a partially released season, and causes new Global receipts to display the server-credited episode used for scoring.
 - [ ] Delete a throwaway friend pool that is still selected as a Global mirror source. Reopen Global and confirm it opens, preserves its already-copied picks and progress, removes the stale link, and explains that Global is now independent.
 
 ## Pass criteria

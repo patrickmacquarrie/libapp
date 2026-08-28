@@ -651,6 +651,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
   if(action==='lockGlobalPicks')return lockGlobalPicks(request);
   if(action==='completeGlobalPhase')return completeGlobalPhase(request);
   if(action==='advanceGlobalWatch')return advanceGlobalWatch(request);
+  if(action==='resetHistoricalSimulation')return resetHistoricalGlobalSimulation(request);
   if(action!=='open')throw new HttpsError('invalid-argument','Choose a valid Global Pool action.');
   const uid=requireUser(request);
   const email=String(request.auth.token?.email||'').trim().toLowerCase();
@@ -744,30 +745,83 @@ async function lockGlobalPicks(request){
       : raw);
     nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming:serverStampedIncoming,existing:nextPicks[phase],lockedAt,authoritativeWindow});
   }
-  await trustedRef.set({
+  const batch=db.batch();
+  batch.set(trustedRef,{
     uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
     scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,
   },{merge:true});
+  Object.keys(submitted).forEach(phase=>batch.set(
+    poolRef.collection('phasePicks').doc(`${phase}__${uid}`),
+    {uid,phase,picks:nextPicks[phase]||[],updatedAt:lockedAt,lockedAt},
+    {merge:true},
+  ));
+  await batch.commit();
   const standings=await recomputeGlobalStandings(poolId);
-  return {ok:true,lockedAt,accepted:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,(nextPicks[phase]||[]).length])),standingsRevision:standings?.sourceRevision||0};
+  return {
+    ok:true,lockedAt,
+    accepted:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,(nextPicks[phase]||[]).length])),
+    credited:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,nextPicks[phase]||[]])),
+    standingsRevision:standings?.sourceRevision||0,
+  };
 }
 
 async function completeGlobalPhase(request){
   const uid=requireUser(request),poolId=String(request.data?.poolId||''),phase=String(request.data?.phase||'');
   if(!poolId||!PHASES.includes(phase))throw new HttpsError('invalid-argument','Choose a valid Global Pool phase to complete.');
-  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid),statusRef=poolRef.collection('phaseStatus').doc(phase);
+  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid),playerRef=poolRef.collection('players').doc(uid),statusRef=poolRef.collection('phaseStatus').doc(phase);
   const completedAt=Date.now();
   await db.runTransaction(async transaction=>{
-    const [poolSnapshot,trustedSnapshot]=await Promise.all([transaction.get(poolRef),transaction.get(trustedRef)]);
+    const [poolSnapshot,trustedSnapshot,playerSnapshot]=await Promise.all([transaction.get(poolRef),transaction.get(trustedRef),transaction.get(playerRef)]);
     if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted completion is available only in the Global Pool.');
     if(!Array.isArray(poolSnapshot.data().members)||!poolSnapshot.data().members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before completing a phase.');
     if(!trustedSnapshot.exists)throw new HttpsError('failed-precondition','Lock this phase’s predictions before completing it.');
     const trusted=trustedSnapshot.data();
     transaction.set(trustedRef,{...trusted,completedAt:{...(trusted.completedAt||{}),[phase]:Number(trusted.completedAt?.[phase])||completedAt},updatedAt:completedAt});
     transaction.set(statusRef,{completedMembers:FieldValue.arrayUnion(uid),updatedAt:completedAt},{merge:true});
+    if(playerSnapshot.exists){
+      const player=playerSnapshot.data(),watchedThrough=Math.max(Number(player.watchThrough)||0,Number(player.w)||0,Number(trusted.watchedThrough)||0);
+      transaction.update(playerRef,{
+        completed:{...(player.completed||{}),[phase]:true},w:watchedThrough,watchThrough:watchedThrough,
+        ...(player.phase===phase?{screen:'close'}:{}),
+      });
+    }
   });
   const standings=await recomputeGlobalStandings(poolId);
   return {ok:true,completedAt,standingsRevision:standings?.sourceRevision||0};
+}
+
+async function resetHistoricalGlobalSimulation(request){
+  const uid=requireUser(request),email=String(request.auth.token?.email||'').trim().toLowerCase();
+  if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','Only the app administrator can reset a historical Global simulation.');
+  const poolId=String(request.data?.poolId||'');
+  if(!poolId)throw new HttpsError('invalid-argument','Choose a Global Pool to reset.');
+  const poolRef=db.doc(`pools/${poolId}`),poolSnapshot=await poolRef.get();
+  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Historical simulation reset is available only for the Global Pool.');
+  const pool=poolSnapshot.data();
+  if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join this Global Pool before resetting its simulation.');
+  if(pool.members.length>50)throw new HttpsError('failed-precondition','This Global Pool is too large for the controlled simulation reset.');
+  const seasonId=String(pool.globalSeasonId||pool.season?.id||''),seasonSnapshot=await db.doc(`seasons/${seasonId}`).get();
+  if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+  const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
+  const seasonEnd=Math.max(...PHASES.map(phase=>Number(cfg.PH_SPAN[phase]?.endEp)||0));
+  if(cfg.AVAILABLE_THROUGH_EP<seasonEnd)throw new HttpsError('failed-precondition','A live or partially released season cannot use the historical simulation reset.');
+  const [trustedSnapshot,playersSnapshot,phasePicksSnapshot]=await Promise.all([
+    poolRef.collection('trustedPlayers').get(),poolRef.collection('players').get(),poolRef.collection('phasePicks').get(),
+  ]);
+  if(trustedSnapshot.size+playersSnapshot.size+phasePicksSnapshot.size+PHASES.length+1>450)throw new HttpsError('failed-precondition','This Global Pool is too large for the controlled simulation reset.');
+  const resetAt=Date.now(),batch=db.batch();
+  trustedSnapshot.docs.forEach(document=>batch.set(document.ref,{
+    joinedAtEp:0,watchedThrough:0,picks:{},completedAt:{},updatedAt:resetAt,
+  },{merge:true}));
+  playersSnapshot.docs.forEach(document=>batch.set(document.ref,{
+    phase:'pods',screen:'intro',w:0,watchThrough:0,completed:{},
+    duplicateFromPoolId:FieldValue.delete(),lastPredictionAt:FieldValue.delete(),
+  },{merge:true}));
+  phasePicksSnapshot.docs.forEach(document=>batch.delete(document.ref));
+  PHASES.forEach(phase=>batch.set(poolRef.collection('phaseStatus').doc(phase),{completedMembers:[],updatedAt:resetAt}));
+  batch.delete(poolRef.collection('standings').doc('current'));
+  await batch.commit();
+  return {ok:true,resetAt,membersReset:trustedSnapshot.size};
 }
 
 exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{
