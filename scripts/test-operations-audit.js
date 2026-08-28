@@ -513,10 +513,28 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
-  assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),true);
-  assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),true);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
+  assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
+  assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
+  assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
   assert.equal(context.__staleMirrorSourceError({code:'unavailable'}),false);
+  const emptySource=await context.__loadMirrorSourceState({
+    poolId:'fresh-friend',uid:'viewer',
+    loadAllPlayers:async()=>({players:{},status:{}}),
+    getPool:async()=>({id:'fresh-friend',members:['viewer']}),
+  });
+  assert.equal(emptySource.player,null);
+  assert.equal(emptySource.empty,true,'A newly created pool without a player document must remain a valid mirror source.');
+  await assert.rejects(()=>context.__loadMirrorSourceState({
+    poolId:'read-blocked',uid:'viewer',
+    loadAllPlayers:async()=>{throw Object.assign(new Error('Missing or insufficient permissions.'),{code:'permission-denied'});},
+    getPool:async()=>({id:'read-blocked',members:['viewer']}),
+  }),error=>error.code==='permission-denied','A readable source pool must not be detached merely because one child read was denied.');
+  await assert.rejects(()=>context.__loadMirrorSourceState({
+    poolId:'deleted-source',uid:'viewer',
+    loadAllPlayers:async()=>({players:{},status:{}}),
+    getPool:async()=>null,
+  }),error=>error.code==='not-found','A genuinely deleted source must still detach cleanly.');
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],

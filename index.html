@@ -1529,9 +1529,37 @@ const syncMirroredPhaseCompletion=async({poolId,uid,phase,picks,globalTarget,loc
   await completeFriendPhase(poolId,phase,uid);
   return syncPublicCompletion(poolId,uid,phase,confirmedWatch);
 };
+const unavailableMirrorSourceError=()=>Object.assign(
+  new Error('The mirrored source pool no longer exists or is no longer available to this player.'),
+  {code:'not-found'},
+);
+const loadMirrorSourceState=async({poolId,uid,loadAllPlayers,getPool})=>{
+  let source;
+  try{
+    source=await loadAllPlayers(poolId,uid,false);
+  }catch(loadError){
+    // A deleted pool can make subcollection reads look like a permissions
+    // failure. Probe the pool itself before deciding whether to detach it.
+    // If the pool still exists for this member, preserve the link and surface
+    // the real read error instead of misreporting it as a deletion.
+    let sourcePool;
+    try{sourcePool=await getPool(poolId);}
+    catch(probeError){throw loadError;}
+    if(!sourcePool||!Array.isArray(sourcePool.members)||!sourcePool.members.includes(uid))throw unavailableMirrorSourceError();
+    throw loadError;
+  }
+  const player=source.players?.[uid]||null;
+  if(player)return {player,status:source.status||{},empty:false};
+  const sourcePool=await getPool(poolId);
+  if(!sourcePool||!Array.isArray(sourcePool.members)||!sourcePool.members.includes(uid))throw unavailableMirrorSourceError();
+  // New pools do not have a player document until they are opened. They are
+  // still valid mirror sources: start both games empty and retain the link so
+  // the first source save can synchronize into the target.
+  return {player:null,status:source.status||{},empty:true};
+};
 const staleMirrorSourceError=error=>
-  ['permission-denied','firestore/permission-denied','not-found','firestore/not-found'].includes(error?.code)||
-  /missing or insufficient permissions|no longer (available|exists)|not found/i.test(String(error?.message||''));
+  ['not-found','firestore/not-found'].includes(error?.code)||
+  /no longer (available|exists)|not found/i.test(String(error?.message||''));
 /* MIRROR ENTRY HELPERS END */
 /* EPISODE GATE HELPERS START */
 const clampWatchTarget=(phase,currentWatch,requestedWatch,spans,availableThrough)=>{
@@ -5132,10 +5160,12 @@ function App() {
           let sourcePlayer=null;
           let sourceStatus={};
           try{
-            const source=await window._fb.loadAllPlayers(mirrorSourcePoolId,user.uid,false);
-            sourcePlayer=source.players?.[user.uid]||null;
-            sourceStatus=source.status||{};
-            if(!sourcePlayer)throw Object.assign(new Error('The mirrored pool player no longer exists.'),{code:'not-found'});
+            const source=await loadMirrorSourceState({
+              poolId:mirrorSourcePoolId,uid:user.uid,
+              loadAllPlayers:window._fb.loadAllPlayers,getPool:window._fb.getPool,
+            });
+            sourcePlayer=source.player;
+            sourceStatus=source.status;
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
             await window._fb.clearMirrorSource(enteredPool.id,user.uid);
@@ -5269,10 +5299,12 @@ function App() {
         let activeDuplicateFrom=duplicateFromPoolId||'';
         if(activeDuplicateFrom) {
           try{
-            const source=await window._fb.loadAllPlayers(activeDuplicateFrom,user.uid,false);
-            sourcePlayer=source.players?.[user.uid]||null;
-            sourceStatus=source.status||{};
-            if(!sourcePlayer)throw Object.assign(new Error('The mirrored pool player no longer exists.'),{code:'not-found'});
+            const source=await loadMirrorSourceState({
+              poolId:activeDuplicateFrom,uid:user.uid,
+              loadAllPlayers:window._fb.loadAllPlayers,getPool:window._fb.getPool,
+            });
+            sourcePlayer=source.player;
+            sourceStatus=source.status;
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
             activeDuplicateFrom='';
