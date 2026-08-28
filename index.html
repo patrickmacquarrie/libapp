@@ -1462,6 +1462,9 @@ window._fb = {
     transaction.update(playerRef,{w,watchThrough});
     return {w,watchThrough};
   }),
+  clearMirrorSource: (poolId,uid) => setDoc(
+    doc(db,'pools',poolId,'players',uid),{duplicateFromPoolId:deleteField()},{merge:true}
+  ),
 };
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -1499,6 +1502,9 @@ const syncMirroredGlobalProgress=async({poolId,uid,confirmedWatch,advanceGlobalW
   await advanceGlobalWatch(poolId,confirmedWatch);
   return syncPublicProgress(poolId,uid,confirmedWatch);
 };
+const staleMirrorSourceError=error=>
+  ['permission-denied','firestore/permission-denied','not-found','firestore/not-found'].includes(error?.code)||
+  /missing or insufficient permissions|no longer (available|exists)|not found/i.test(String(error?.message||''));
 /* MIRROR ENTRY HELPERS END */
 /* EPISODE GATE HELPERS START */
 const clampWatchTarget=(phase,currentWatch,requestedWatch,spans,availableThrough)=>{
@@ -5089,37 +5095,54 @@ function App() {
         const minePhase=mine.phase||'pods';
         setDuplicateFromPoolId(mine.duplicateFromPoolId||'');
         if(mine.duplicateFromPoolId) {
-          const source=await window._fb.loadAllPlayers(mine.duplicateFromPoolId,user.uid,false);
-          const sourcePlayer=source.players?.[user.uid]||null;
-          const sourcePicks=normalizePicks(sourcePlayer?.picks||freshPicks());
-          const mirroredPhases=PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid));
-          await syncMirroredPicksOnEntry({
-            phases:mirroredPhases,
-            savePhasePicks:ph=>window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph]),
-            onSkipped:(ph,e)=>{
-              console.info('Mirrored pick sync skipped while opening the pool.',e);
-              reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_mirror_sync',poolId:mine.duplicateFromPoolId,targetPoolId:enteredPool.id,phase:ph});
-            },
-          });
-          if(enteredPool.global===true&&sourcePlayer){
-            const mirroredWatch=clampWatchTarget(
-              minePhase,
-              Number(mine.w)||0,
-              Number(sourcePlayer.w)||0,
-              poolCfg.PH_SPAN,
-              poolCfg.AVAILABLE_THROUGH_EP,
-            );
-            if(mirroredWatch>Number(mine.w||0)){
-              await syncMirroredGlobalProgress({
-                poolId:enteredPool.id,uid:user.uid,confirmedWatch:mirroredWatch,
-                advanceGlobalWatch:window._fb.advanceGlobalWatch,
-                syncPublicProgress:window._fb.syncMirroredProgress,
-              });
-              mine={...mine,w:mirroredWatch,watchThrough:Math.max(Number(mine.watchThrough)||0,mirroredWatch)};
-            }
+          const mirrorSourcePoolId=mine.duplicateFromPoolId;
+          let sourcePlayer=null;
+          try{
+            const source=await window._fb.loadAllPlayers(mirrorSourcePoolId,user.uid,false);
+            sourcePlayer=source.players?.[user.uid]||null;
+            if(!sourcePlayer)throw Object.assign(new Error('The mirrored pool player no longer exists.'),{code:'not-found'});
+          }catch(sourceError){
+            if(!staleMirrorSourceError(sourceError))throw sourceError;
+            await window._fb.clearMirrorSource(enteredPool.id,user.uid);
+            pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>link.poolId!==enteredPool.id);
+            setDuplicateFromPoolId('');
+            const unlinkedMine={...mine};
+            delete unlinkedMine.duplicateFromPoolId;
+            mine=unlinkedMine;
+            players[user.uid]=mine;
+            setErr('The pool linked to these Global picks is no longer available. Your copied Global picks and progress were kept, and this Global Pool is now independent.');
           }
-          mine={...mine,picks:sourcePicks};
-          players[user.uid]=mine;
+          if(sourcePlayer){
+            const sourcePicks=normalizePicks(sourcePlayer.picks||freshPicks());
+            const mirroredPhases=PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid));
+            await syncMirroredPicksOnEntry({
+              phases:mirroredPhases,
+              savePhasePicks:ph=>window._fb.savePhasePicks(enteredPool.id,ph,user.uid,sourcePicks[ph]),
+              onSkipped:(ph,e)=>{
+                console.info('Mirrored pick sync skipped while opening the pool.',e);
+                reportTtwError('mirror_sync_failed',e,{operation:'enter_pool_mirror_sync',poolId:mirrorSourcePoolId,targetPoolId:enteredPool.id,phase:ph});
+              },
+            });
+            if(enteredPool.global===true){
+              const mirroredWatch=clampWatchTarget(
+                minePhase,
+                Number(mine.w)||0,
+                Number(sourcePlayer.w)||0,
+                poolCfg.PH_SPAN,
+                poolCfg.AVAILABLE_THROUGH_EP,
+              );
+              if(mirroredWatch>Number(mine.w||0)){
+                await syncMirroredGlobalProgress({
+                  poolId:enteredPool.id,uid:user.uid,confirmedWatch:mirroredWatch,
+                  advanceGlobalWatch:window._fb.advanceGlobalWatch,
+                  syncPublicProgress:window._fb.syncMirroredProgress,
+                });
+                mine={...mine,w:mirroredWatch,watchThrough:Math.max(Number(mine.watchThrough)||0,mirroredWatch)};
+              }
+            }
+            mine={...mine,picks:sourcePicks};
+            players[user.uid]=mine;
+          }
         }
         const savedRetroNotices=readSeenRetroNotices(pool.id,user.uid);
         const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
@@ -5196,23 +5219,33 @@ function App() {
         const landingScreen='intro';
         let initialPicks=freshPicks();
         let sourcePlayer=null;
-        const duplicateFrom=duplicateFromPoolId||'';
-        if(duplicateFrom) {
-          const source=await window._fb.loadAllPlayers(duplicateFrom,user.uid,false);
-          sourcePlayer=source.players?.[user.uid]||null;
-          initialPicks=normalizePicks(sourcePlayer?.picks||freshPicks());
+        let activeDuplicateFrom=duplicateFromPoolId||'';
+        if(activeDuplicateFrom) {
+          try{
+            const source=await window._fb.loadAllPlayers(activeDuplicateFrom,user.uid,false);
+            sourcePlayer=source.players?.[user.uid]||null;
+            if(!sourcePlayer)throw Object.assign(new Error('The mirrored pool player no longer exists.'),{code:'not-found'});
+          }catch(sourceError){
+            if(!staleMirrorSourceError(sourceError))throw sourceError;
+            activeDuplicateFrom='';
+            pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>link.poolId!==enteredPool.id);
+            setErr('The selected source pool is no longer available, so this pool started independently.');
+          }
+          if(sourcePlayer){
+            initialPicks=normalizePicks(sourcePlayer.picks||freshPicks());
+          }
           if(enteredPool.global===true&&sourcePlayer){
             w0=clampWatchTarget(landingPhase,startingW,Number(sourcePlayer.w)||startingW,poolCfg.PH_SPAN,poolCfg.AVAILABLE_THROUGH_EP);
           }
         }
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
-        setDuplicateFromPoolId(duplicateFrom);
+        setDuplicateFromPoolId(activeDuplicateFrom);
         setCompleted(completed0); setSeenRetroNotices([]); setSessionRetroNotices([]); setReveal(null); setCloseInfo(null);
         entryStep='creating your player profile';
-        await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(duplicateFrom?{duplicateFromPoolId:duplicateFrom}:{})});
-        if(enteredPool.global===true&&duplicateFrom&&w0>startingW)await window._fb.advanceGlobalWatch(pool.id,w0);
-        if(duplicateFrom) {
-          pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:duplicateFrom}];
+        await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(activeDuplicateFrom?{duplicateFromPoolId:activeDuplicateFrom}:{})});
+        if(enteredPool.global===true&&activeDuplicateFrom&&w0>startingW)await window._fb.advanceGlobalWatch(pool.id,w0);
+        if(activeDuplicateFrom) {
+          pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:activeDuplicateFrom}];
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
             window._fb.savePhasePicks(pool.id,ph,user.uid,initialPicks[ph])
           ));

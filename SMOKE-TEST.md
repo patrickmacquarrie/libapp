@@ -96,6 +96,7 @@ For any failed in-app-browser attempt, repeat the same invitation with that app'
 - [ ] Before completing the friend-pool checkpoint, change the pick in the Global Pool and confirm the matching friend-pool pick updates. Confirm a completed friend-pool checkpoint remains immutable.
 - [ ] With a separate friend pool selected while joining Global, advance that friend pool through Episode 3 and leave Global linked to it. Open Global and confirm it also shows Episode 3 as watched, while the friend pool remains the selected pick source.
 - [ ] Lock an imported Global pick made after Episode 3. Confirm its Global receipt says **Locked after Episode 3**, not the episode when the player first joined Global. Picks made before Global membership must still be floored at the Global join episode.
+- [ ] Delete a throwaway friend pool that is still selected as a Global mirror source. Reopen Global and confirm it opens, preserves its already-copied picks and progress, removes the stale link, and explains that Global is now independent.
 
 ## Pass criteria
 

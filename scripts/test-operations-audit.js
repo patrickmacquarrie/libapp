@@ -513,7 +513,10 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredGlobalProgress=syncMirroredGlobalProgress;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredGlobalProgress=syncMirroredGlobalProgress;this.__staleMirrorSourceError=staleMirrorSourceError;`,context);
+  assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),true);
+  assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),true);
+  assert.equal(context.__staleMirrorSourceError({code:'unavailable'}),false);
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],
@@ -533,6 +536,8 @@ async function assertMirrorEntryRegression(){
     ['public','global__season','viewer',3],
   ],'A friend-linked Global Pool must advance the trusted ledger before reflecting the progress publicly.');
   assert.deepEqual(progressResult,{w:3,watchThrough:3});
+  assert(html.includes('clearMirrorSource: (poolId,uid) => setDoc'),'A stale mirror source must be removable without deleting copied Global state.');
+  assert(html.includes('Your copied Global picks and progress were kept'),'A repaired Global Pool must explain that its copied state was preserved.');
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
