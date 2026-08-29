@@ -885,11 +885,41 @@ async function relaxHistoricalJoinFloor(request){
   const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
   const seasonEnd=Math.max(...PHASES.map(phase=>Number(cfg.PH_SPAN[phase]?.endEp)||0));
   if(cfg.AVAILABLE_THROUGH_EP<seasonEnd)throw new HttpsError('failed-precondition','A live or partially released season cannot use the historical join-floor repair.');
-  const trustedSnapshot=await poolRef.collection('trustedPlayers').get();
+  const [trustedSnapshot,playersSnapshot]=await Promise.all([
+    poolRef.collection('trustedPlayers').get(),poolRef.collection('players').get(),
+  ]);
+  const publicPlayers=new Map(playersSnapshot.docs.map(document=>[
+    document.id,{ref:document.ref,data:document.data()},
+  ]));
+  const requestedLinks=playersSnapshot.docs.map(document=>({
+    uid:document.id,sourcePoolId:String(document.data().duplicateFromPoolId||''),
+  })).filter(link=>link.sourcePoolId);
+  const sourcePoolIds=[...new Set(requestedLinks.map(link=>link.sourcePoolId))];
+  const [sourcePoolSnapshots,sourcePlayerSnapshots]=await Promise.all([
+    Promise.all(sourcePoolIds.map(sourcePoolId=>db.doc(`pools/${sourcePoolId}`).get())),
+    Promise.all(requestedLinks.map(link=>db.doc(`pools/${link.sourcePoolId}/players/${link.uid}`).get())),
+  ]);
+  const sourcePools=new Map(sourcePoolSnapshots.map(snapshot=>[snapshot.id,snapshot]));
+  const confirmedLinkedPlayers=new Map();
+  requestedLinks.forEach((link,index)=>{
+    const sourcePoolSnapshot=sourcePools.get(link.sourcePoolId),sourcePool=sourcePoolSnapshot?.data();
+    const sourceSeasonId=String(sourcePool?.season?.id||sourcePool?.seasonId||sourcePool?.globalSeasonId||'');
+    const sourcePlayerSnapshot=sourcePlayerSnapshots[index];
+    if(
+      sourcePoolSnapshot?.exists&&sourcePlayerSnapshot?.exists&&sourcePool?.global!==true&&
+      sourceSeasonId===seasonId&&Array.isArray(sourcePool.members)&&sourcePool.members.includes(link.uid)
+    )confirmedLinkedPlayers.set(link.uid,{sourcePoolId:link.sourcePoolId,data:sourcePlayerSnapshot.data()});
+  });
   const restampedByMember=new Map();
   let picksRestamped=0;
   trustedSnapshot.docs.forEach(document=>{
-    const trusted=document.data(),repairedLedger={...trusted,joinedAtEp:0};
+    const trusted=document.data(),publicPlayer=publicPlayers.get(document.id);
+    const linkedPlayer=confirmedLinkedPlayers.get(document.id);
+    // Linked friend state is the canonical source because the old public
+    // Global mirror could also have promoted its `w` from `watchThrough`.
+    const confirmedSource=linkedPlayer?.data||publicPlayer?.data||{};
+    const confirmedWatch=advanceGlobalWatchValue(0,confirmedSource.w,cfg.AVAILABLE_THROUGH_EP);
+    const repairedLedger={...trusted,joinedAtEp:0,watchedThrough:confirmedWatch};
     const repairedWindow=resolveGlobalWatchWindow(repairedLedger),repairedPicks={...(trusted.picks||{})};
     PHASES.filter(phase=>phase!=='reunion').forEach(phase=>{
       const current=Array.isArray(repairedPicks[phase])?repairedPicks[phase]:[];
@@ -899,26 +929,59 @@ async function relaxHistoricalJoinFloor(request){
         return {...pick,w:repairedWindow};
       });
     });
-    restampedByMember.set(document.id,{trustedRef:document.ref,picks:repairedPicks});
+    restampedByMember.set(document.id,{
+      trustedRef:document.ref,picks:repairedPicks,confirmedWatch,repairedWindow,
+      publicPlayer,linkedPlayer,
+    });
   });
-  const writeCount=trustedSnapshot.size+(trustedSnapshot.size*(PHASES.length-1))+1;
+  const linkedPickRequests=[];
+  restampedByMember.forEach(({linkedPlayer,repairedWindow},memberUid)=>{
+    if(!linkedPlayer)return;
+    PHASES.filter(phase=>phase!=='reunion').forEach(phase=>linkedPickRequests.push({
+      memberUid,phase,repairedWindow,
+      ref:db.doc(`pools/${linkedPlayer.sourcePoolId}/phasePicks/${phase}__${memberUid}`),
+    }));
+  });
+  const linkedPickSnapshots=linkedPickRequests.length
+    ? await db.getAll(...linkedPickRequests.map(request=>request.ref))
+    : [];
+  const linkedPickRepairs=linkedPickRequests.map((request,index)=>({
+    ...request,snapshot:linkedPickSnapshots[index],
+  })).filter(repair=>repair.snapshot.exists);
+  const publicPlayerWrites=[...restampedByMember.values()].filter(repair=>repair.publicPlayer).length;
+  const writeCount=trustedSnapshot.size+publicPlayerWrites+
+    (trustedSnapshot.size*(PHASES.length-1))+linkedPickRepairs.length+1;
   if(writeCount>450)throw new HttpsError('failed-precondition','This Global Pool has too many stored predictions for the controlled historical repair.');
   const repairedAt=Date.now(),batch=db.batch();
-  restampedByMember.forEach(({trustedRef,picks},memberUid)=>{
+  restampedByMember.forEach(({trustedRef,picks,confirmedWatch,publicPlayer},memberUid)=>{
     // Deliberate, tightly scoped exception: this admin-only repair corrects
     // ceiling-stamped historical test picks. Normal locks remain immutable.
-    batch.set(trustedRef,{joinedAtEp:0,picks,updatedAt:repairedAt},{merge:true});
+    batch.set(trustedRef,{joinedAtEp:0,watchedThrough:confirmedWatch,picks,updatedAt:repairedAt},{merge:true});
+    if(publicPlayer)batch.set(publicPlayer.ref,{w:confirmedWatch},{merge:true});
     PHASES.filter(phase=>phase!=='reunion').forEach(phase=>batch.set(
       poolRef.collection('phasePicks').doc(`${phase}__${memberUid}`),
       {uid:memberUid,phase,picks:picks[phase],updatedAt:repairedAt},
       {merge:true},
     ));
   });
+  let linkedPicksRestamped=0;
+  linkedPickRepairs.forEach(({ref,snapshot,repairedWindow})=>{
+    const current=Array.isArray(snapshot.data().picks)?snapshot.data().picks:[];
+    const picks=current.map(pick=>{
+      if(!pick||typeof pick!=='object'||Array.isArray(pick))return pick;
+      linkedPicksRestamped++;
+      return {...pick,w:repairedWindow};
+    });
+    batch.set(ref,{picks,updatedAt:repairedAt},{merge:true});
+  });
   // Remove the frozen snapshot so the repaired windows are actually scored.
   batch.delete(poolRef.collection('standings').doc('current'));
   await batch.commit();
   const standings=await recomputeGlobalStandings(poolId);
-  return {ok:true,membersRepaired:trustedSnapshot.size,picksRestamped,standingsRevision:standings?.sourceRevision||0};
+  return {
+    ok:true,membersRepaired:trustedSnapshot.size,picksRestamped,linkedPicksRestamped,
+    standingsRevision:standings?.sourceRevision||0,
+  };
 }
 
 exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{

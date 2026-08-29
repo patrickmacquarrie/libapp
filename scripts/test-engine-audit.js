@@ -92,8 +92,16 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   season.SEASON_STATUS='completed';
   assert.equal(globalJoinFloorForSeason(season),0,'A fully released historical season must start new Global members at Episode 0.');
   const engine=makeEngine(season,1);
-  assert.equal(engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:3}]}).totals.viewer,30,'A pick after Episode 3 for an Episode 5 outcome must earn x1.5.');
-  assert.equal(engine.scorePhase('pods',{viewer:[{c:'Alex|Casey',s:20,w:1}]}).totals.viewer,50,'A pick after Episode 1 for an Episode 5 outcome must earn x2.5.');
+  const trustedScoreAt=watchedThrough=>{
+    const authoritativeWindow=resolveGlobalWatchWindow({joinedAtEp:0,watchedThrough});
+    const accepted=validateLockedPhasePicks({
+      engine,phase:'pods',lockedAt:5500+watchedThrough,authoritativeWindow,
+      incoming:[{c:'Alex|Casey',s:20,w:0,releasedThroughAtLock:9}],
+    });
+    return {window:accepted[0].w,total:engine.scorePhase('pods',{viewer:accepted}).totals.viewer};
+  };
+  assert.deepEqual(trustedScoreAt(1),{window:1,total:50},'joinedAtEp 0 plus watchedThrough 1 must stamp Episode 1 and earn x2.5 against an Episode 5 outcome.');
+  assert.deepEqual(trustedScoreAt(3),{window:3,total:30},'joinedAtEp 0 plus watchedThrough 3 must stamp Episode 3 and earn x1.5 against an Episode 5 outcome.');
   const liveSeason={...season,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:3};
   assert.equal(globalJoinFloorForSeason(liveSeason),3,'A partially released live season must retain the current release position as its join floor.');
   const repaired={watchedThrough:3,joinedAtEp:0};

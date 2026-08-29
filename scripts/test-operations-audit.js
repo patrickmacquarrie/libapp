@@ -104,7 +104,8 @@ assert(functionsSource.includes("if(action==='completeGlobalPhase')return comple
 assert(functionsSource.includes("if(action==='advanceGlobalWatch')return advanceGlobalWatch(request)"),'Global watch progress must run through the existing App Check-protected callable gateway.');
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases})"),'The browser must use the existing callable gateway for Global prediction locks.');
 assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase})"),'The browser must use the existing callable gateway for Global phase completion.');
-assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough})"),'The browser must use the existing callable gateway for Global watch progress.');
+assert(html.includes("httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough:confirmedWatch})"),'The browser must use the existing callable gateway for confirmed Global watch progress.');
+assert(html.includes('Never pass `watchThrough` or an intent/phase-end target here.'),'The trusted-watch client wrapper must state the confirmed-watch invariant.');
 assert(html.includes('syncMirroredProgress: (poolId,uid,sourceState,spans,availableThrough) => runTransaction'),'Mirrored Global progress must update the full public checkpoint state monotonically.');
 assert(html.includes('if(Number.isFinite(Number(pending.data.w)))'),'A linked source save must synchronize confirmed watch progress in either direction.');
 assert(html.includes("operation:'sync_mirrored_progress'"),'Mirrored progress failures must remain observable without blocking the source pool save.');
@@ -556,17 +557,17 @@ async function assertMirrorEntryRegression(){
   assert.deepEqual(attempted,['pods','reunion']);
   assert.deepEqual(skipped,[['reunion','permission-denied']]);
   const progressCalls=[];
-  const sourceState={phase:'pods',screen:'board',w:3,watchThrough:3,completed:{}};
-  const spans={pods:{endEp:6},dating:{endEp:8},weddings:{endEp:10},reunion:{endEp:11}};
+  const sourceState={phase:'pods',screen:'watch',w:1,watchThrough:13,completed:{}};
+  const spans={pods:{endEp:6},dating:{endEp:8},weddings:{endEp:10},reunion:{endEp:13}};
   const progressResult=await context.__syncMirroredTargetProgress({
-    poolId:'global__season',uid:'viewer',sourceState,spans,availableThrough:11,globalTarget:true,
-    advanceGlobalWatch:async(...args)=>{progressCalls.push(['trusted',...args]);return {data:{watchedThrough:3}};},
+    poolId:'global__season',uid:'viewer',sourceState,spans,availableThrough:13,globalTarget:true,
+    advanceGlobalWatch:async(...args)=>{progressCalls.push(['trusted',...args]);return {data:{watchedThrough:1}};},
     syncPublicProgress:async(...args)=>{progressCalls.push(['public',...args]);return sourceState;},
   });
   assert.deepEqual(progressCalls,[
-    ['trusted','global__season',3],
-    ['public','global__season','viewer',sourceState,spans,11],
-  ],'A friend-linked Global Pool must advance the trusted ledger before reflecting the progress publicly.');
+    ['trusted','global__season',1],
+    ['public','global__season','viewer',sourceState,spans,13],
+  ],'A friend-linked Global Pool must advance the trusted ledger to confirmed w, never the larger watchThrough intent, before reflecting public progress.');
   assert.deepEqual(progressResult,sourceState);
   const friendProgressCalls=[];
   await context.__syncMirroredTargetProgress({
@@ -576,6 +577,11 @@ async function assertMirrorEntryRegression(){
   });
   assert.equal(friendProgressCalls.length,1,'A Global-linked friend pool must receive public progress without calling the Global ledger.');
   assert.deepEqual(friendProgressCalls[0].slice(0,3),['public','friend','viewer']);
+  const intentOnly=context.__mergeMirroredCheckpointState(
+    {phase:'pods',screen:'board',w:0,watchThrough:0,completed:{}},sourceState,spans,13,
+  );
+  assert.equal(intentOnly.w,1,'Public mirror state must keep confirmed w separate from a larger watchThrough intent.');
+  assert.equal(intentOnly.watchThrough,6,'Public mirror state may retain the valid phase-end intent target.');
   const safeFriendPicks=context.__friendSafeMirroredPicks('pods',[
     {c:'Alex|Casey',s:20,w:9,lockedAt:123,releasedThroughAtLock:11},
   ],[{c:'Casey|Alex',s:10,w:2}],5);
@@ -645,6 +651,13 @@ async function assertMirrorEntryRegression(){
   assert(historicalResetSource.includes("sourcePoolRef.collection('phasePicks').doc(`${phase}__${uid}`)"),'Historical reset must clear the linked tester picks that would otherwise replay into Global.');
   assert(html.includes('sync links are preserved'),'The reset confirmation must explain that linked pools stay connected.');
   assert(html.includes('Other friend-pool members and settings are not changed'),'The reset confirmation must define the linked friend-pool blast radius.');
+  const historicalRepairStart=functionsSource.indexOf('async function relaxHistoricalJoinFloor(request)');
+  const historicalRepairSource=functionsSource.slice(historicalRepairStart,historicalResetEnd);
+  assert(historicalRepairStart>=0,'The historical scoring repair implementation must remain auditable.');
+  assert(historicalRepairSource.includes('const confirmedSource=linkedPlayer?.data||publicPlayer?.data||{};'),'A linked friend player must be the canonical confirmed-watch source for repair.');
+  assert(historicalRepairSource.includes('watchedThrough:confirmedWatch'),'The admin repair must replace a contaminated trusted watch ledger with confirmed progress.');
+  assert(historicalRepairSource.includes("batch.set(publicPlayer.ref,{w:confirmedWatch},{merge:true})"),'The admin repair must also correct a contaminated public Global w.');
+  assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked friend pools.');
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});

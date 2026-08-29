@@ -1285,7 +1285,9 @@ window._fb = {
   }),
   lockGlobalPicks: (poolId,phases) => httpsCallable(functions,'openGlobalPool')({action:'lockGlobalPicks',poolId,phases}),
   completeGlobalPhase: (poolId,phase) => httpsCallable(functions,'openGlobalPool')({action:'completeGlobalPhase',poolId,phase}),
-  advanceGlobalWatch: (poolId,watchedThrough) => httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough}),
+  // The trusted ledger accepts only the source player's confirmed `w`.
+  // Never pass `watchThrough` or an intent/phase-end target here.
+  advanceGlobalWatch: (poolId,confirmedWatch) => httpsCallable(functions,'openGlobalPool')({action:'advanceGlobalWatch',poolId,watchedThrough:confirmedWatch}),
   resetHistoricalGlobalSimulation: poolId => httpsCallable(functions,'openGlobalPool')({action:'resetHistoricalSimulation',poolId}),
   relaxHistoricalJoinFloor: poolId => httpsCallable(functions,'openGlobalPool')({action:'relaxHistoricalJoinFloor',poolId}),
   loadGlobalStandings: async poolId => {
@@ -1558,7 +1560,7 @@ const saveMirroredPhasePicks=async({poolId,phase,uid,picks,friendTarget,loadPhas
   if(!friendTarget)return savePhasePicks(poolId,phase,uid,picks);
   const [existing,targetPlayer]=await Promise.all([loadPhasePicks(poolId,phase,uid),getPlayer(poolId,uid)]);
   if(!targetPlayer)throw new Error('Open the linked friend pool before syncing predictions.');
-  const targetWindow=Math.max(Number(targetPlayer.w)||0,Number(targetPlayer.watchThrough)||0);
+  const targetWindow=Math.max(0,Math.trunc(Number(targetPlayer.w)||0));
   return savePhasePicks(poolId,phase,uid,friendSafeMirroredPicks(phase,picks,existing,targetWindow));
 };
 const mirrorScreenRank={intro:0,board:1,watch:2,close:3,final:4};
@@ -1573,10 +1575,12 @@ const mergeMirroredCheckpointState=(target={},source={},spans={},availableThroug
     const intervening=PH_ORDER.slice(phaseIndex(targetPhase),phaseIndex(sourcePhase));
     if(intervening.every(phaseId=>completed[phaseId]===true))phase=sourcePhase;
   }
-  const targetWatch=Math.max(Number(target.w)||0,Number(target.watchThrough)||0);
-  const sourceWatch=Math.max(Number(source.w)||0,Number(source.watchThrough)||0);
-  const w=clampWatchTarget(phase,targetWatch,sourceWatch,spans,availableThrough);
-  const watchThrough=Math.max(Number(target.watchThrough)||0,w);
+  const targetConfirmed=Math.max(0,Math.trunc(Number(target.w)||0));
+  const sourceConfirmed=Math.max(0,Math.trunc(Number(source.w)||0));
+  const w=clampWatchTarget(phase,targetConfirmed,sourceConfirmed,spans,availableThrough);
+  const targetIntent=Math.max(targetConfirmed,Number(target.watchThrough)||0);
+  const sourceIntent=Math.max(sourceConfirmed,Number(source.watchThrough)||0);
+  const watchThrough=clampWatchTarget(phase,w,Math.max(targetIntent,sourceIntent),spans,availableThrough);
   let screen=target.screen||'intro';
   if(phase!==targetPhase)screen=source.screen||'intro';
   else if(sourcePhase===targetPhase&&(mirrorScreenRank[source.screen]||0)>(mirrorScreenRank[screen]||0))screen=source.screen;
@@ -1585,7 +1589,7 @@ const mergeMirroredCheckpointState=(target={},source={},spans={},availableThroug
 };
 window.__ttwMergeMirroredCheckpointState=mergeMirroredCheckpointState;
 const syncMirroredTargetProgress=async({poolId,uid,sourceState,spans,availableThrough,globalTarget,advanceGlobalWatch,syncPublicProgress})=>{
-  const confirmedWatch=Math.max(Number(sourceState?.w)||0,Number(sourceState?.watchThrough)||0);
+  const confirmedWatch=Math.max(0,Math.trunc(Number(sourceState?.w)||0));
   if(globalTarget)await advanceGlobalWatch(poolId,confirmedWatch);
   return syncPublicProgress(poolId,uid,sourceState,spans,availableThrough);
 };
@@ -4818,7 +4822,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
       {activePool?.global===true&&userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onResetHistoricalGlobalSimulation&&<div className="danger-zone">
         <h3>Historical Global simulation</h3>
-        <p>Repair only the historical scoring floor and credited prediction windows without clearing anyone’s progress, picks, or completed checkpoints.</p>
+        <p>Repair the historical scoring floor, trusted confirmed-watch ledger, and credited prediction windows without clearing anyone’s progress, picks, or completed checkpoints.</p>
         <button className="btn-secondary" disabled={deleting||membershipUpdating} onClick={onRelaxHistoricalJoinFloor}>Repair historical scoring windows</button>
         <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Established Global-to-friend sync links are preserved; each linked tester’s game progress is also cleared in their paired friend pool so old progress cannot immediately sync back. Other friend-pool members and settings are not changed.</p>
         <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset Global + linked testers</button>
@@ -5842,7 +5846,7 @@ function App() {
     if(!activePool?.global||String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
     if(!await requestConfirmation({
       title:'Repair historical scoring windows?',
-      body:'This keeps every player’s progress, predictions, and completed checkpoints, but corrects the Episode floor and recalculates Global scores for this fully released test season.',
+      body:'This keeps every player’s progress, predictions, and completed checkpoints, but restores the trusted ledger from confirmed watched progress, corrects credited prediction windows in linked pools, and recalculates Global scores for this fully released test season.',
       confirmLabel:'Repair scoring windows',cancelLabel:'Cancel',
     }))return;
     setDestructiveActionPending(true);setErr('');
