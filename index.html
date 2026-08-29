@@ -4822,9 +4822,9 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       {activePool&&activePool.ownerUid!==userId&&<div className="danger-zone"><h3>Leave this pool</h3><p>Your predictions, progress, and shared Heat Check ratings will be removed from this pool.</p><button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={()=>onLeavePool(activePool)}>Leave {activePool.name}</button></div>}
       {activePool?.global===true&&userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onResetHistoricalGlobalSimulation&&<div className="danger-zone">
         <h3>Historical Global simulation</h3>
-        <p>Repair the historical scoring floor, trusted confirmed-watch ledger, and credited prediction windows without clearing anyone’s progress, picks, or completed checkpoints.</p>
+        <p>Repair the trusted confirmed-watch ledger and credited prediction windows without clearing anyone’s progress, picks, or completed checkpoints. This repair is safe while a season is live.</p>
         <button className="btn-secondary" disabled={deleting||membershipUpdating} onClick={onRelaxHistoricalJoinFloor}>Repair historical scoring windows</button>
-        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh Episode 0 scoring floor. Established Global-to-friend sync links are preserved; each linked tester’s game progress is also cleared in their paired friend pool so old progress cannot immediately sync back. Other friend-pool members and settings are not changed.</p>
+        <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh confirmed-watch ledger at Episode 0. Established Global-to-friend sync links are preserved; each linked tester’s game progress is also cleared in their paired friend pool so old progress cannot immediately sync back. Other friend-pool members and settings are not changed.</p>
         <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset Global + linked testers</button>
       </div>}
       <h3>Notifications</h3>
@@ -5846,7 +5846,7 @@ function App() {
     if(!activePool?.global||String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
     if(!await requestConfirmation({
       title:'Repair historical scoring windows?',
-      body:'This keeps every player’s progress, predictions, and completed checkpoints, but restores the trusted ledger from confirmed watched progress, corrects credited prediction windows in linked pools, and recalculates Global scores for this fully released test season.',
+      body:'This keeps every player’s progress, predictions, and completed checkpoints, but restores the trusted ledger from confirmed watched progress, corrects credited prediction windows in linked pools, and recalculates Global scores. It is safe while the season is live.',
       confirmLabel:'Repair scoring windows',cancelLabel:'Cancel',
     }))return;
     setDestructiveActionPending(true);setErr('');

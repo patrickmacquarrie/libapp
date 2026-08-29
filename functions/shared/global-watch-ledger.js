@@ -13,35 +13,24 @@ const advanceGlobalWatchValue=(stored,requested,availableThroughEp)=>Math.max(
   clampGlobalWatchValue(requested,availableThroughEp),
 );
 
-const resolveGlobalWatchWindow=trusted=>Math.max(
-  nonNegativeInteger(trusted?.watchedThrough),
-  nonNegativeInteger(trusted?.joinedAtEp),
-);
+// Prediction timing is player-relative. The release frontier and join time do
+// not prove what a player knows, so trusted private-pool play intentionally
+// scores only from the player's monotonically confirmed watch position.
+const resolveGlobalWatchWindow=trusted=>nonNegativeInteger(trusted?.watchedThrough);
 
 const globalWatchLedgerReady=trusted=>
   Number.isInteger(trusted?.watchedThrough)&&trusted.watchedThrough>=0&&
   Number.isInteger(trusted?.joinedAtEp)&&trusted.joinedAtEp>=0;
 
-const globalLedgerFieldsForJoin=(trusted,releasedWhenJoined)=>{
+const globalLedgerFieldsForJoin=trusted=>{
   const fields={};
   if(!Number.isInteger(trusted?.watchedThrough)||trusted.watchedThrough<0)fields.watchedThrough=0;
-  if(!Number.isInteger(trusted?.joinedAtEp)||trusted.joinedAtEp<0){
-    fields.joinedAtEp=nonNegativeInteger(releasedWhenJoined);
-  }
+  if(!Number.isInteger(trusted?.joinedAtEp)||trusted.joinedAtEp<0)fields.joinedAtEp=0;
   return fields;
-};
-
-const globalJoinFloorForSeason=(cfg,phases=['pods','dating','weddings','reunion'])=>{
-  const availableThroughEp=nonNegativeInteger(cfg?.AVAILABLE_THROUGH_EP);
-  const seasonEnd=Math.max(0,...phases.map(phase=>nonNegativeInteger(cfg?.PH_SPAN?.[phase]?.endEp)));
-  if(String(cfg?.SEASON_STATUS||'').trim().toLowerCase()==='completed')return 0;
-  if(seasonEnd>0&&availableThroughEp>=seasonEnd)return 0;
-  return availableThroughEp;
 };
 
 module.exports={
   advanceGlobalWatchValue,
-  globalJoinFloorForSeason,
   globalLedgerFieldsForJoin,
   globalWatchLedgerReady,
   resolveGlobalWatchWindow,

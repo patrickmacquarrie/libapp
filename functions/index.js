@@ -4,7 +4,7 @@ const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
 const {makeEngine,PH_ORDER,DEFAULT_DATING_MULT,DEFAULT_WED_MULT,DEFAULT_REU_MULT,validateLockedPhasePicks,freezeScoredTotal}=require('./shared/scoring-engine');
-const {advanceGlobalWatchValue,globalJoinFloorForSeason,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('./shared/global-watch-ledger');
+const {advanceGlobalWatchValue,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('./shared/global-watch-ledger');
 
 initializeApp();
 const db=getFirestore();
@@ -669,7 +669,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       tx.get(ref),tx.get(db.doc(`seasons/${seasonId}`)),tx.get(trustedRef),
     ]);
     if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
-    const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
+    publishedSeasonConfig(seasonSnapshot.data(),seasonId);
     if(snapshot.exists){
       const current=snapshot.data();
       if(current.global!==true||current.globalSeasonId!==seasonId)throw new HttpsError('failed-precondition','The global pool document is configured incorrectly.');
@@ -677,10 +677,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       const update={scoringVersion:GLOBAL_SCORING_VERSION};
       if(!alreadyMember)update.members=FieldValue.arrayUnion(uid);
       tx.update(ref,update);
-      const ledgerFields=globalLedgerFieldsForJoin(
-        trustedSnapshot.exists?trustedSnapshot.data():{},
-        globalJoinFloorForSeason(cfg,PHASES),
-      );
+      const ledgerFields=globalLedgerFieldsForJoin(trustedSnapshot.exists?trustedSnapshot.data():{});
       if(!trustedSnapshot.exists)ledgerFields.uid=uid;
       if(Object.keys(ledgerFields).length)tx.set(trustedRef,ledgerFields,{merge:true});
       return;
@@ -690,7 +687,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
       membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
-    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({},globalJoinFloorForSeason(cfg,PHASES))});
+    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({})});
   });
   return {ok:true,poolId:ref.id};
 });
@@ -836,8 +833,8 @@ async function resetHistoricalGlobalSimulation(request){
   playersSnapshot.docs.forEach(document=>batch.set(document.ref,{
     phase:'pods',screen:'intro',w:0,watchThrough:0,completed:{},
     // Preserve duplicateFromPoolId. Historical testers must keep their
-    // established friend-pool links after the Episode 0 scoring floor resets;
-    // leaving and rejoining would correctly reinstate the late-join floor.
+    // established friend-pool links after the confirmed-watch ledger resets;
+    // leaving and rejoining must not change player-relative scoring rules.
     lastPredictionAt:FieldValue.delete(),
   },{merge:true}));
   phasePicksSnapshot.docs.forEach(document=>batch.delete(document.ref));
@@ -876,15 +873,13 @@ async function relaxHistoricalJoinFloor(request){
   const poolId=String(request.data?.poolId||'');
   if(!poolId)throw new HttpsError('invalid-argument','Choose a Global Pool to repair.');
   const poolRef=db.doc(`pools/${poolId}`),poolSnapshot=await poolRef.get();
-  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Historical join-floor repair is available only for the Global Pool.');
+  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Confirmed-watch repair is available only for the Global Pool.');
   const pool=poolSnapshot.data();
-  if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join this Global Pool before repairing its historical join floor.');
+  if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join this Global Pool before repairing its confirmed-watch scoring windows.');
   if(pool.members.length>50)throw new HttpsError('failed-precondition','This Global Pool is too large for the controlled historical repair.');
   const seasonId=String(pool.globalSeasonId||pool.season?.id||''),seasonSnapshot=await db.doc(`seasons/${seasonId}`).get();
   if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
   const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
-  const seasonEnd=Math.max(...PHASES.map(phase=>Number(cfg.PH_SPAN[phase]?.endEp)||0));
-  if(cfg.AVAILABLE_THROUGH_EP<seasonEnd)throw new HttpsError('failed-precondition','A live or partially released season cannot use the historical join-floor repair.');
   const [trustedSnapshot,playersSnapshot]=await Promise.all([
     poolRef.collection('trustedPlayers').get(),poolRef.collection('players').get(),
   ]);

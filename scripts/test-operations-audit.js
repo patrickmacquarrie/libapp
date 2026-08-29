@@ -125,7 +125,11 @@ assert(scoringEngineSource.includes('validateLockedPhasePicks'),'Trusted pick va
 assert(functionsSource.includes('authoritativeWindow=resolveGlobalWatchWindow(previous)'),'The scorer must resolve foresight from the server-held per-player ledger.');
 assert(functionsSource.includes('releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP'),'New trusted picks must retain the release-based reference alongside the scored window.');
 assert(functionsSource.includes('transaction.set(trustedRef,{watchedThrough},{merge:true})'),'A watch advance must write only the monotonic ledger field.');
-assert.equal((functionsSource.match(/globalJoinFloorForSeason\(cfg,PHASES\)/g)||[]).length,2,'Both Global join paths must receive the season-aware join-floor policy.');
+assert(globalWatchLedgerSource.includes('resolveGlobalWatchWindow=trusted=>nonNegativeInteger(trusted?.watchedThrough)'),'The scored Global window must use only confirmed watchedThrough.');
+assert(!globalWatchLedgerSource.includes('globalJoinFloorForSeason'),'Release status must not create or scale a Global scoring floor.');
+assert(globalWatchLedgerSource.includes('fields.joinedAtEp=0'),'A fresh Global ledger must neutralise the legacy join marker.');
+assert.equal((functionsSource.match(/globalLedgerFieldsForJoin\(/g)||[]).length,2,'Both Global join paths must use the same player-relative ledger initializer.');
+assert(globalWatchLedgerSource.includes('join time do\n// not prove what a player knows'),'The trusted-player anti-backdating design decision must remain explicit.');
 assert(functionsSource.includes('batch.set(trustedRef,{')&&functionsSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
 const finishWatchSave=html.indexOf('await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);');
 const finishWatchAdvance=html.indexOf("if(activePool.global===true)await window._fb.advanceGlobalWatch(activePool.id,target);");
@@ -658,6 +662,8 @@ async function assertMirrorEntryRegression(){
   assert(historicalRepairSource.includes('watchedThrough:confirmedWatch'),'The admin repair must replace a contaminated trusted watch ledger with confirmed progress.');
   assert(historicalRepairSource.includes("batch.set(publicPlayer.ref,{w:confirmedWatch},{merge:true})"),'The admin repair must also correct a contaminated public Global w.');
   assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked friend pools.');
+  assert(!historicalRepairSource.includes('cfg.AVAILABLE_THROUGH_EP<seasonEnd'),'The confirmed-watch repair must be permitted while a season is live.');
+  assert(html.includes('This repair is safe while a season is live.'),'The admin UI must describe the live-season repair precondition accurately.');
 }
 
 assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
