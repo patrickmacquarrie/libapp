@@ -376,7 +376,12 @@ assert(html.includes("const trackTtwEvent=(event,details={})=>window.ttwAnalytic
 assert(analyticsSource.includes('window.posthog?.capture(event,payload)'),'The shared dispatcher must fan every named event out to PostHog.');
 assert(!html.includes('posthog.capture('),'PostHog event capture must not be scattered through the app.');
 assert(analyticsSource.includes("person_profiles:'identified_only'")&&analyticsSource.includes('capture_pageview:true')&&analyticsSource.includes('autocapture:true'),'PostHog must initialize with the beta product-analytics settings.');
-assert(analyticsSource.includes('maskAllInputs:true')&&analyticsSource.includes("mask_all_text:true")&&analyticsSource.includes("mask_all_element_attributes:true"),'PostHog replay and autocapture must mask user-entered or rendered text.');
+assert(analyticsSource.includes("mask_all_text:true")&&analyticsSource.includes("mask_all_element_attributes:true"),'PostHog autocapture must mask rendered text and element attributes.');
+const sessionRecordingStart=analyticsSource.indexOf('session_recording:{');
+const sessionRecordingEnd=analyticsSource.indexOf('\n      },\n    });',sessionRecordingStart);
+assert(sessionRecordingStart>=0&&sessionRecordingEnd>sessionRecordingStart,'PostHog session replay must have an explicit configuration block.');
+const sessionRecordingSource=analyticsSource.slice(sessionRecordingStart,sessionRecordingEnd);
+assert(sessionRecordingSource.includes('maskAllInputs:true')&&sessionRecordingSource.includes("maskTextSelector:'*'"),'Session replay must mask all rendered text, not only inputs.');
 assert(analyticsSource.includes("property_denylist:['email','username','displayName','name','toEmail','inviteEmail']"),'PostHog must drop PII-shaped event properties.');
 assert(analyticsSource.includes("['$current_url','$referrer','$initial_referrer']"),'PostHog page and referrer properties must remove query strings before sending.');
 assert(analyticsSource.includes("window.posthog.identify(String(firebaseUid),{},setOnce)"),'PostHog identity must use only the stable Firebase UID plus set-once cohort properties.');
@@ -439,6 +444,8 @@ analyticsWindow.ttwAnalytics.identify('firebase-uid',{seasonId:'love-is-blind-us
 const identifyCall=analyticsWindow.posthog.find(call=>call[0]==='identify');
 assert.deepEqual(JSON.parse(JSON.stringify(identifyCall)),['identify','firebase-uid',{}, {acquisition_source:'organic_launch_list',first_seen_season:'love-is-blind-us-10'}]);
 const posthogConfig=analyticsWindow.posthog._i[0][1];
+assert.equal(posthogConfig.session_recording.maskAllInputs,true,'Session replay must mask form input values.');
+assert.equal(posthogConfig.session_recording.maskTextSelector,'*','Session replay must mask every rendered text node.');
 const sanitizedEvent=posthogConfig.before_send({properties:{$current_url:'https://throughthewall.ca/?join=secret-token',$referrer:'https://example.test/path?private=yes'}});
 assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/');
 assert.equal(sanitizedEvent.properties.$referrer,'https://example.test/path');
