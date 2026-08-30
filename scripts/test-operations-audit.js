@@ -51,6 +51,9 @@ assert(!html.includes('data?.message'),'Browser error messages must not be copie
 assert(!html.includes('data?.stack'),'Browser stack traces must not be copied into production diagnostics.');
 assert(html.includes('listPublishedSeasonSnapshots'),'The app must discover newly published roadmap seasons from Firestore.');
 assert(html.includes('applyPublishedSeasonSnapshots'),'Published season snapshots must activate their matching season-library entries.');
+assert(html.includes("season.releaseLabel=rl"),'applyPublishedSeasonSnapshots must reconcile releaseLabel from the snapshot Settings onto the season object.');
+assert(html.includes("RELEASE_LABEL"),'applyPublishedSeasonSnapshots must extract RELEASE_LABEL from the snapshot Settings array.');
+assert(html.includes("defaultSeason?.releaseLabel"),'applyPublicAppConfig must reconcile releaseLabel from the default season metadata.');
 assert(html.includes("collection(db,'seasons')"),'Published season discovery must use the protected seasons collection.');
 assert(html.includes("raw.length===0&&PUBLISHED_TAB_HEADERS[wanted]"),'Empty live-result tabs must remain usable from a published snapshot.');
 assert(html.includes("dating:publishedTabRows(publishedSnapshot,'Dating Results')||[PUBLISHED_TAB_HEADERS.datingresults]"),'A missing Dating Results payload must become an empty header-only dataset.');

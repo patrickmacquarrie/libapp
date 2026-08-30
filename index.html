@@ -2062,6 +2062,9 @@ const applyPublishedSeasonSnapshots = snapshots => {
     if(!season.available){season.available=true;changed=true;}
     if(season.sheetId!==sourceSheetId){season.sheetId=sourceSheetId;changed=true;}
     if(snapshot.status&&season.status!==snapshot.status){season.status=snapshot.status;changed=true;}
+    const snapshotReleaseLabel=Array.isArray(snapshot.Settings)&&snapshot.Settings.find(r=>r&&r.key==='RELEASE_LABEL');
+    const rl=typeof snapshotReleaseLabel==='object'&&snapshotReleaseLabel?String(snapshotReleaseLabel.value??''):'';
+    if(typeof rl==='string'&&season.releaseLabel!==rl){season.releaseLabel=rl;changed=true;}
   });
   return changed;
 };
@@ -2072,6 +2075,8 @@ const applyPublicAppConfig = config => {
   const sourceSheetId=String(config?.sourceSheetId||'').trim();
   if(sourceSheetId){season.sheetId=sourceSheetId;season.available=true;}
   if(config?.status)season.status=String(config.status);
+  const cfgRL=config?.defaultSeason?.releaseLabel;
+  if(typeof cfgRL==='string'&&season.releaseLabel!==cfgRL)season.releaseLabel=cfgRL;
   return season.id;
 };
 const seasonOrder = (a,b) => String(a.country||'').localeCompare(String(b.country||''),'en',{sensitivity:'base'})
