@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Through the Wall | Love Is Blind prediction pool</title>
 <meta name="description" content="Through the Wall is an unofficial social prediction pool for friends playing current and past Love Is Blind seasons together.">
 <meta property="og:title" content="Through the Wall | Love Is Blind prediction pool">
@@ -43,7 +43,8 @@
   --muted:#c6a8b3; --soft-text:#a98794; --surface:#211019; --surface-soft:#301722;
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0}
+html{width:100%;min-width:0;margin:0;padding:0;overflow-x:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{width:100%;min-width:0;margin:0;padding:0}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--gold-soft);outline-offset:2px}
 body{
   background:
@@ -56,7 +57,7 @@ body{
   font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-.app{max-width:760px;margin:0 auto;padding:18px 18px 96px}
+.app{width:100%;max-width:760px;margin:0 auto;padding:18px max(18px,env(safe-area-inset-right)) max(96px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
 .hdr{text-align:center;padding:10px 0 0;position:relative}
 .brand-logo{display:block;width:min(100%,500px);height:auto;margin:0 auto -2px}
 .eyebrow{letter-spacing:.35em;font-size:11px;font-weight:600;color:var(--rose);text-transform:uppercase}
@@ -326,6 +327,11 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .modal-backdrop{position:fixed;inset:0;overflow-x:hidden;background:rgba(43,18,32,.42);display:flex;align-items:center;justify-content:center;padding:18px 0;z-index:20}
 .modal{box-sizing:border-box;width:calc(100% - 36px);min-width:0;max-width:724px;margin:0 auto;max-height:88vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 20px 60px rgba(43,18,32,.28)}
 .modal h2{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:26px;margin:0 0 6px}
+.settings-modal-header{position:sticky;z-index:4;top:-22px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-22px -22px 0;padding:18px 14px 10px 22px;border-bottom:1px solid color-mix(in srgb,var(--line) 72%,transparent);background:color-mix(in srgb,var(--card) 96%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.settings-modal-header h2{margin:0}
+.settings-modal-close{display:grid;place-items:center;width:44px;height:44px;flex:0 0 auto;border:0;border-radius:50%;background:transparent;color:var(--muted);font:400 27px/1 Inter,sans-serif;cursor:pointer}
+.settings-modal-close:hover{background:var(--blush-soft);color:var(--wine)}
+.settings-modal-close:disabled{opacity:.4;cursor:default}
 .modal h3{font-family:'Playfair Display',Georgia,serif;color:var(--wine);font-size:18px;margin:18px 0 6px}
 .modal p,.modal li{color:var(--ink);font-size:14px;line-height:1.55}
 .modal-actions{display:grid;grid-template-columns:1fr;gap:10px;margin-top:18px;min-width:0}.modal-actions .btn-primary,.modal-actions .btn-secondary{width:100%;min-width:0;margin-top:0}.modal-actions .btn-secondary{order:-1}
@@ -746,6 +752,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 :root[data-theme="dark"] .modal-backdrop{background:rgba(6,2,4,.72)}
 @media (max-width:480px){.app{padding-inline:12px}.hdr h1{font-size:27px}.card{padding:15px}.tabbar{gap:5px}.tabbar button{padding:8px 11px;font-size:11px}.stepper{margin-top:18px;padding-inline:0}.step{padding:0 1px}.step-icon{width:39px;height:39px;font-size:18px}.step-icon svg{width:20px;height:20px}.stepper::before{top:19px}.step-label{font-size:7.8px;letter-spacing:.025em}.phase-hero{padding:23px 14px 20px}.phase-hero h2{font-size:29px}.budget-card{padding:14px 13px 13px 48px}.budget-card::before{left:12px}.budgetrow{align-items:flex-start;flex-direction:column;gap:1px}.season-progress-scale,.season-progress-row{grid-template-columns:78px 1fr;gap:8px}.season-progress-phase{font-size:9px;letter-spacing:0}.season-library-row{align-items:flex-start;flex-direction:column}.season-library-row .btn-small{width:100%}.cast-board{padding:0}.cast-slider-shell{grid-template-columns:92px minmax(0,1fr) 30px;gap:6px;padding:9px}.cast-slider-title{padding-right:8px}.cast-slider-title strong{font-size:14px}.cast-slider-title span{font-size:8px}.cast-slider-arrow.prev{display:none}.cast-slider-arrow{width:29px;height:29px}.cast-slider-track>[role="listitem"]{flex-basis:62px}.cast-reference-avatar{width:55px;height:55px}.cast-reference-status{width:18px;height:18px;right:-2px;border-width:2px}.cast-board-head{padding:14px 15px}.cast-board-body{padding:12px}.cast-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.cast-couples-grid{grid-template-columns:1fr;gap:8px}.cast-couple{padding:7px}.cast-couple-photos{gap:5px}.cast-couple-label{font-size:13px;padding-top:7px}.cast-person-name{font-size:11px;padding:7px 4px 8px}.rating-grid{grid-template-columns:1fr}.rating-card-head{grid-template-columns:64px 1fr auto}.rating-card-photo{width:64px;height:64px}.rating-row{grid-template-columns:72px minmax(100px,1fr) 44px;gap:7px}.rating-value strong{font-size:18px}.chemistry-hero{padding:23px 16px}.chemistry-tea-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.chemistry-podium{gap:5px}.podium-place{padding-inline:4px}.podium-photo{width:50px;height:50px}.podium-place strong{font-size:13px}.leaderboard-row{grid-template-columns:24px 40px minmax(0,1fr) auto;gap:7px}.leaderboard-row.expandable{grid-template-columns:24px 40px minmax(0,1fr) auto 18px}.leaderboard-avatar{width:40px;height:40px}.leaderboard-breakdown{padding:11px 9px}.pool-score-row{grid-template-columns:minmax(85px,1fr) 46px;gap:7px}.pool-score-values{grid-column:1/-1;grid-row:2}.compare-controls{grid-template-columns:1fr 1fr}.compare-vs{display:none}.compare-row{grid-template-columns:40px minmax(0,1fr) 46px 46px;gap:6px}.compare-row .compare-delta{grid-column:2/-1;justify-self:start}.compare-score{font-size:16px}}
 @media (max-width:480px){.chemistry-outlier{padding:15px 70px 13px 14px}.chemistry-highlight-emoji{right:12px;font-size:48px}.chemistry-outlier h3{font-size:18px}.chemistry-outlier p{font-size:11px}}
+@media (max-width:480px){.app{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -2318,13 +2325,12 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     settings:publishedTabRows(publishedSnapshot,'Settings'),
     retro:publishedTabRows(publishedSnapshot,'Retro Events')||[],
   }:null;
-  const publishedReady=publishedTabs&&publishedTabs.cast?.length>1&&publishedTabs.couples?.length>1&&
-    publishedTabs.settings?.length;
+  const publishedReady=publishedTabs&&publishedTabs.settings?.length;
   const useAdminSheetFallback=!publishedReady&&ADMIN_SEASON_SHEET_FALLBACK;
   if(!publishedReady&&!useAdminSheetFallback) {
     if(publishedSnapshotError) console.error('The published season snapshot could not be loaded.',publishedSnapshotError);
     const reason=publishedSnapshot
-      ? 'the Firestore snapshot is missing Cast, Couples, or Settings, or Cast/Couples has no data rows.'
+      ? 'the Firestore snapshot is missing Settings.'
       : 'the Firestore snapshot is unavailable.';
     throw new Error(`Season data unavailable: ${reason} Republish the season before opening predictions.`);
   }
@@ -2462,7 +2468,8 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
       : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live')));
   const castComplete = castCompleteSetting(S.CAST_COMPLETE,seasonStatus);
   const allowIncompleteCast = boolSetting('ALLOW_INCOMPLETE_CAST',false);
-  const playable = seasonPlayable(castReady,castComplete,allowIncompleteCast,seasonStatus);
+  const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
+  const playable = seasonPlayable(castReady,castComplete,allowIncompleteCast,seasonStatus)&&availableThroughEp>=phaseStart.pods;
   // Live seasons default to movable, provisional act boundaries. Historical
   // seasons remain frozen unless their sheet explicitly opts into live bounds.
   const boundariesLive = boolSetting('BOUNDARIES_LIVE',seasonStatus==='live');
@@ -2473,7 +2480,6 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     weddings:boolSetting('WEDDINGS_BOUNDARY_FINAL',boundariesFinalDefault),
     reunion:boolSetting('REUNION_BOUNDARY_FINAL',boundariesFinalDefault),
   };
-  const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
   const resultsReadyDefault = seasonStatus==='completed';
   const resultsReady = {
     pods:boolSetting('PODS_RESULTS_READY',resultsReadyDefault),
@@ -2481,12 +2487,6 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     weddings:boolSetting('WEDDINGS_RESULTS_READY',resultsReadyDefault),
     reunion:boolSetting('REUNION_RESULTS_READY',resultsReadyDefault),
   };
-  if(seasonStatus==='live'&&availableThroughEp<phaseStart.pods) {
-    throw new Error(
-      `Season config error: AVAILABLE_THROUGH_EP (${availableThroughEp}) must be at least ` +
-      `PODS_START_EP (${phaseStart.pods}) while SEASON_STATUS is live.`
-    );
-  }
   const seasonWarningName=season.label||season.id||season.sheetId;
   const COUPLES = toObjects(couplesR).filter(r=>r.id&&r.him&&r.her).map(r=>{
     const engagedEpText=String(r.engaged_ep||'').trim();
@@ -3398,11 +3398,15 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   const [shareFeedbackError,setShareFeedbackError]=useState(false);
   const [sharingLeaderboard,setSharingLeaderboard]=useState(false);
   const friendEntries=community?.kind==='friends'?(community.entries||[]):[];
+  const hydratedSeasonRef=useRef(seasonId);
   useEffect(()=>{
+    const seasonChanged=hydratedSeasonRef.current!==seasonId;
+    if(dirty&&!seasonChanged)return;
+    hydratedSeasonRef.current=seasonId;
     setDraft(valuesByCast(myRatingDoc?.ratings));
     setDraftFlags(flagsByCast(myRatingDoc?.ratings));
-    setDirty(false);
-  },[seasonId,myRatingDoc?.updatedAt]);
+    if(seasonChanged)setDirty(false);
+  },[seasonId,myRatingDoc?.updatedAt,dirty]);
   useEffect(()=>{
     setShareWithFriends(friendEntries.some(entry=>entry.uid===currentUid&&entry.shared===true));
   },[seasonId,currentUid,community?.loadedAt]);
@@ -3425,7 +3429,12 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     setDirty(true);
   };
   const changeFlag=(person,flag)=>{setDraftFlags(current=>{const next={...current};if(flag)next[person.name]=flag;else delete next[person.name];return next;});setDirty(true);};
-  const save=()=>onSave(eng.CAST.filter(person=>Object.keys(draft[person.name]||{}).length||draftFlags[person.name]).map(person=>({name:person.name,gender:person.gender,values:draft[person.name]||{},flag:draftFlags[person.name]||''})),shareWithFriends);
+  const save=async()=>{
+    try{
+      await onSave(eng.CAST.filter(person=>Object.keys(draft[person.name]||{}).length||draftFlags[person.name]).map(person=>({name:person.name,gender:person.gender,values:draft[person.name]||{},flag:draftFlags[person.name]||''})),shareWithFriends);
+      setDirty(false);
+    }catch(error){}
+  };
   const categoryAverages=Object.fromEntries(RATING_CATEGORIES.map(category=>{
     const scores=Object.values(draft).map(values=>values[category.id]).filter(Number.isInteger);
     return [category.id,scores.length?scores.reduce((sum,value)=>sum+value,0)/scores.length:0];
@@ -4803,7 +4812,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   };
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-      <h2 id="settings-title">Settings</h2>
+      <div className="settings-modal-header"><h2 id="settings-title">Settings</h2><button type="button" className="settings-modal-close" aria-label="Close settings" title="Close settings" disabled={deleting} onClick={onClose}>×</button></div>
       {error&&<ErrorCard message={error} onDismiss={onDismissError}/>}
       <h3>Appearance</h3>
       <div className="theme-options" role="group" aria-label="Colour mode">
@@ -6261,6 +6270,22 @@ function App() {
       setErr('Heat Check is temporarily unavailable. The matching Firestore privacy rules may still need to be published.');
     } finally {setChemistryLoading(false);}
   };
+  const refreshChemistryCommunity=async()=>{
+    if(!activePool||!user?.uid)return;
+    try {
+      const seasonId=seasonForPool(activePool).id;
+      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true);
+      const [community,globalRatings]=await Promise.all([
+        communityPromise,
+        activePool.global===true?communityPromise:window._fb.loadCastRatingCommunity('',seasonId,true),
+      ]);
+      const loadedAt=Date.now();
+      setChemistryCommunity({...community,loadedAt});
+      setChemistryGlobalCommunity({...globalRatings,loadedAt});
+    } catch(error) {
+      console.warn('Live Heat Check community refresh is temporarily unavailable.',error);
+    }
+  };
   const saveChemistry=async(ratings,shareWithFriends)=>{
     if(!activePool||!user?.uid||chemistrySaving)return;
     setChemistrySaving(true);setChemistryFeedback('');
@@ -6282,6 +6307,7 @@ function App() {
     } catch(error) {
       console.error('Heat Check could not save.',error);
       setErr('Your cast ratings could not be saved. Nothing was lost on this screen, so please try again.');
+      throw error;
     } finally {setChemistrySaving(false);}
   };
   const switchPoolTab=next=>{
@@ -6310,7 +6336,7 @@ function App() {
     let refreshTimer=null;
     const stop=window._fb.watchPoolActivity(activePool.id,()=>{
       clearTimeout(refreshTimer);
-      refreshTimer=setTimeout(()=>poolTab==='chemistry'?refreshChemistry():refreshStandings(),350);
+      refreshTimer=setTimeout(()=>poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings(),350);
     },error=>console.warn('Live pool updates are temporarily unavailable.',error));
     return()=>{clearTimeout(refreshTimer);stop?.();};
   },[poolTab,activePool?.id,user?.uid]);

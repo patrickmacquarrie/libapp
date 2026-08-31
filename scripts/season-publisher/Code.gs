@@ -906,7 +906,6 @@ function validateAdminSettings_(raw) {
   });
   const retreatStart = Number(settings.RETREAT_START_EP), retreatEnd = Number(settings.RETREAT_END_EP);
   if (retreatStart < starts[1] || retreatEnd < retreatStart || retreatEnd > ends[1]) throw new Error('The retreat scoring window must sit inside the Dating phase.');
-  if (normalizedStatus === 'live' && Number(settings.AVAILABLE_THROUGH_EP) < starts[0]) throw new Error('A live season must make at least the first Pods episode available.');
   if (Number(settings.AVAILABLE_THROUGH_EP) > ends[3]) throw new Error('Available-through episode cannot exceed the Reunion end.');
   return settings;
 }

@@ -31,7 +31,7 @@ Set the real `PODS`, `DATING`, `WEDDINGS`, and `REUNION` start and end episode v
 
 ## Publish and verify
 
-Editing the Google Sheet changes nothing in the live app until the Firestore `seasons/{seasonId}` snapshot is published. The app and Cloud Functions use that same published snapshot. Cast, Couples, and Settings must be present; Dating Results and Reunion Results may legitimately be empty until their episodes air.
+Editing the Google Sheet changes nothing in the live app until the Firestore `seasons/{seasonId}` snapshot is published. The app and Cloud Functions use that same published snapshot. Settings must be present. Cast, Couples, Dating Results, and Reunion Results may legitimately be empty before their data is known; Episode 0 keeps predictions closed while allowing pools to form.
 
 If you need to compare the unpublished source sheet while diagnosing a publish problem, append `?adminSeasonSource=sheet` to the app URL. This is an explicit admin-only browser fallback and logs a warning; Cloud Functions still use Firestore. Never send that URL to players, and republish Firestore rather than leaving the fallback in use.
 

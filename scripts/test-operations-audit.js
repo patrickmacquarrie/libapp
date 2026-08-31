@@ -58,7 +58,7 @@ assert(html.includes("collection(db,'seasons')"),'Published season discovery mus
 assert(html.includes("raw.length===0&&PUBLISHED_TAB_HEADERS[wanted]"),'Empty live-result tabs must remain usable from a published snapshot.');
 assert(html.includes("dating:publishedTabRows(publishedSnapshot,'Dating Results')||[PUBLISHED_TAB_HEADERS.datingresults]"),'A missing Dating Results payload must become an empty header-only dataset.');
 assert(html.includes("reunion:publishedTabRows(publishedSnapshot,'Reunion Results')||[PUBLISHED_TAB_HEADERS.reunionresults]"),'A missing Reunion Results payload must become an empty header-only dataset.');
-assert(html.includes('publishedTabs.cast?.length>1&&publishedTabs.couples?.length>1&&'),'Firestore readiness must require Cast and Couples data rows beyond their headers.');
+assert(html.includes('const publishedReady=publishedTabs&&publishedTabs.settings?.length;'),'Firestore readiness must allow header-only Cast and Couples tabs when Settings is present.');
 assert(html.includes('publishedTabs.settings?.length;'),'Firestore readiness must also depend on Settings.');
 assert(!html.includes('publishedTabs.dating?.length&&publishedTabs.reunion?.length'),'Empty live-result tabs must not force the browser onto Google Sheet CSV.');
 assert(html.includes("const ADMIN_SEASON_SHEET_FALLBACK=initialAppParams.get('adminSeasonSource')==='sheet';"),'Google Sheet loading must require the explicit admin fallback query parameter.');
@@ -157,6 +157,12 @@ assert(functionsSource.includes("db.collection('feedbackRateLimits').where('uid'
 assert(html.includes("httpsCallable(functions,'sendPoolInvite')")&&html.includes("action:'feedback'"),'The Settings support form must use the trusted email callable.');
 assert(html.includes('supportMessage.trim().length<10'),'The support form must reject empty or trivial messages before sending.');
 assert(html.includes('className="ph-no-capture" id="support-message"'),'Feedback message text must be excluded from session replay.');
+assert(html.includes('className="settings-modal-close" aria-label="Close settings"'),'Settings must have an accessible close button at the top.');
+assert(html.includes('viewport-fit=cover'),'The viewport must fill Safari screens including safe-area devices.');
+assert(html.includes('html{width:100%;min-width:0')&&html.includes('.app{width:100%;max-width:760px'),'Safari must receive explicit full-width layout roots.');
+assert(html.includes('if(dirty&&!seasonChanged)return;')&&html.includes('[seasonId,myRatingDoc?.updatedAt,dirty]'),'A live Heat Check refresh must not replace an unsaved private draft, while a season change must still hydrate the new season.');
+assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings()"),'Friend Heat Check activity must refresh community results without reloading the private draft.');
+assert(html.includes('await onSave(eng.CAST.filter')&&html.includes('setDirty(false);'),'Heat Check drafts must become clean only after a successful save.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
 assert(analyticsSource.includes("Object.freeze({a:'4.99',b:'9.99',c:'12.99'})"),'The price experiment must use the approved three price points.');
@@ -288,7 +294,14 @@ assert.match(releaseComparison.warnings[1],/Incomplete-cast predictions are enab
 assert.equal(publisherContext.__seasonReleaseComparison({snapshot:{status:'live',Settings:[{key:'AVAILABLE_THROUGH_EP',value:'3'}],Cast:[],Couples:[]}},{exists:false,fields:{}}).warnings.length,0);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,cast:[...baseAdminPayload.cast,{gender:'M',name:'alex'}]}),/duplicated/i);
 assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,datingResults:[{market:'sex',coupleId:'alex-blair',episode:'9',confirmed:'TRUE'}]}),/Episodes 5 and 7/i);
-assert.throws(()=>publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:'0'}}),/live season/i);
+assert.equal(publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:'0'}}).settings.AVAILABLE_THROUGH_EP,'0','A live pre-drop season must allow pools at Episode 0.');
+const emptyPreDropAdmin=publisherContext.__validateSeasonAdminPayload({
+  ...baseAdminPayload,
+  settings:{...baseAdminSettings,SEASON_STATUS:'live',AVAILABLE_THROUGH_EP:'0'},
+  cast:[],couples:[],datingResults:[],reunionResults:[],retroEvents:[]
+});
+assert.equal(emptyPreDropAdmin.cast.length,0,'A live pre-drop season must publish without cast rows.');
+assert.equal(emptyPreDropAdmin.couples.length,0,'A live pre-drop season must publish without couple rows.');
 
 const castReleaseStart=html.indexOf('/* CAST RELEASE HELPERS START */');
 const castReleaseEnd=html.indexOf('/* CAST RELEASE HELPERS END */');
@@ -307,7 +320,7 @@ assert.equal(castReleaseContext.__seasonPlayable(true,false,false,'live'),false,
 assert.equal(castReleaseContext.__seasonPlayable(false,false,true,'live'),false,'The override must not bypass the viable-cast requirement.');
 assert.equal(castReleaseContext.__seasonPlayable(true,false,true,'comingSoon'),false,'The override must not make an upcoming season playable.');
 assert.equal(castReleaseContext.__seasonPlayable(true,false,true,'completed'),false,'The override must apply only to live staged releases.');
-assert(html.includes("const playable = seasonPlayable(castReady,castComplete,allowIncompleteCast,seasonStatus);"),'Playability must use the explicit incomplete-cast release control.');
+assert(html.includes("const playable = seasonPlayable(castReady,castComplete,allowIncompleteCast,seasonStatus)&&availableThroughEp>=phaseStart.pods;"),'Playability must keep Episode 0 pools open while predictions remain closed.');
 assert(seasonAdmin.includes("SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE',ALLOW_INCOMPLETE_CAST:'FALSE'"),'New admin forms must keep incomplete-cast release off by default.');
 assert(seasonAdmin.includes('Allow predictions before cast is complete'),'The admin must expose the explicit incomplete-cast release control.');
 assert(seasonAdmin.includes("['upcoming','Upcoming']"),'The admin status control must emit the canonical upcoming value.');
@@ -317,6 +330,7 @@ assert(!previewPublisherSource.includes('writeFirestoreDocument_'),'Preview must
 assert(seasonAdmin.includes('Backward episode availability appears as a warning.'),'The admin must explain the non-blocking backward-availability warning.');
 assert(liveRunbook.includes('Editing the Google Sheet changes nothing in the live app until'),'The live runbook must state that sheet edits require publishing.');
 assert(liveRunbook.includes('ALLOW_INCOMPLETE_CAST'),'The live runbook must document deliberate staged-cast releases.');
+assert(liveRunbook.includes('Episode 0 keeps predictions closed while allowing pools to form'),'The live runbook must document pre-drop pool creation.');
 assert(liveRunbook.includes('After every publish:'),'The live runbook must require verification after each publish.');
 
 const authHelpersStart=html.indexOf('/* AUTH HELPERS START */');
