@@ -22,13 +22,13 @@ These risks do not justify complex controls that make ordinary prediction, watch
 
 ## UK Season 3 production freeze
 
-Until the friends test finishes on September 17, 2026:
+Until the friends test finishes on September 17, 2026, and throughout the deployment freeze ending September 19, 2026:
 
 - Do not deploy scoring, pick-storage, Firestore-rule, membership-model, or shared configuration-default changes.
 - Do not make the source Google Sheet private until the replacement publishing/build path is verified.
 - Do not rename season, cast, couple, phase, or result identifiers.
 - Prepare changes on a separate branch and exercise them against emulators or copied data only.
-- Deploy before the freeze ends only to correct an active availability or scoring incident.
+- Deploy before September 19 only to correct an active availability or scoring incident.
 
 Before the first post-test deployment:
 
@@ -48,7 +48,7 @@ Before the first post-test deployment:
 - Correct monitoring and release documentation.
 - Record the accepted honour-system model and production-freeze guardrails.
 
-### Batch 2: immediately after the friends test
+### Batch 2: prepare after the friends test; deploy after the freeze
 
 - Snapshot UK3 and explicitly retain its scoring/configuration version.
 - Deploy publisher, rollback, monitoring, and configuration-consistency fixes.
