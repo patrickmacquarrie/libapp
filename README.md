@@ -17,8 +17,11 @@ Install Java 21 as well as Node.js 22, then run the same release gate used by Fi
 
 ```sh
 npm ci
+npm run doctor
 npm run check
 ```
+
+The repository includes `.java-version` and `.node-version` pins for compatible version managers. On macOS, Java can be installed with `brew install openjdk@21`. `npm run doctor` reports the detected Node, Java, Firebase CLI, and Chromium paths before starting the longer test suite. Firebase emulator tests automatically use Java 21 from `JAVA_HOME`, `TTW_JAVA_HOME`, Homebrew, a standard macOS JDK installation, or the shared Codex workspace toolchain. Browser smoke tests prefer Playwright's downloaded Chromium and fall back to an installed Chrome, Chromium, or Edge browser on macOS.
 
 The gate runs the prediction-engine audit, starts local Firestore and Authentication emulators for the security-rules tests, produces the deployable build, and opens the built landing, invitation, season, and welcome routes in headless Chromium. The browser smoke test fails on boot/render errors or a missing recognisable app state. Pull requests run the full gate, and a push to `main` deploys only after it passes.
 

@@ -481,7 +481,9 @@ assert(!html.includes("setErr(e?.message||'You could not be signed out"),'Sign-o
 assert.equal(packageJson.devDependencies.react,'18.2.0');
 assert.equal(packageJson.devDependencies['react-dom'],'18.2.0');
 assert.equal(packageJson.devDependencies['playwright-chromium'],'1.62.1');
-assert.equal(packageJson.scripts.check,'npm test && npm run build && npm run test:smoke','The release gate must smoke-test the production build.');
+assert.equal(packageJson.scripts.check,'npm run doctor && npm test && npm run build && npm run test:smoke','The release gate must verify the toolchain and smoke-test the production build.');
+assert(packageJson.scripts['test:rules'].includes('scripts/run-with-java.js'),'Firestore emulator tests must discover the pinned Java 21 runtime consistently.');
+assert(builtAppSmoke.includes("require('./toolchain')"),'The browser smoke test must use the shared browser resolver.');
 assert(builtAppSmoke.includes("process.env.SMOKE_DIST_DIR||path.join(root,'dist')"),'The browser smoke test must serve built output, not source.');
 assert(builtAppSmoke.includes("{pathname:'/',react:true")&&builtAppSmoke.includes("{pathname:'/?join=smoke-pool.smoke-code',react:true")&&builtAppSmoke.includes("{pathname:'/welcome/',react:false"),'The browser smoke test must cover the signed-out, invite, and welcome routes.');
 assert(builtAppSmoke.includes("path.join(dist,'seasons')"),'The browser smoke test must cover a generated season page.');
