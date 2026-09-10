@@ -84,6 +84,9 @@ assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publis
 assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish')"),'Every publish must preserve the previous live snapshot.');
 assert(publisher.includes('function rollbackSeasonSnapshot('),'The season publisher must retain a rollback entry point.');
 assert(publisher.includes('function previewSeasonSnapshot('),'The season publisher must support a no-write preview.');
+assert(publisher.includes('assertMatchesLatestPreview_(config.seasonId, releaseHash)'),'Publishing must require the exact sheet state approved by the latest preview.');
+assert(publisher.includes('clearPreviewHash_(config.seasonId)'),'A successful publish must consume its preview approval.');
+assert(publisher.includes('assertUniqueSettings_(tabs.Settings)'),'The publisher must reject duplicate Settings keys.');
 assert(!publisher.includes("const SEASON_ID ="),'The publisher must not be hardcoded to one season.');
 assert(publisher.includes('function doGet()'),'The publisher must serve the season-admin web app.');
 assert(publisher.includes('function saveSeasonAdminDraft(payload)'),'The admin must support non-live sheet saves.');
@@ -273,7 +276,8 @@ assert.equal(validatedAdmin.settings.CAST_COMPLETE,'FALSE');
 assert.equal(validatedAdmin.settings.ALLOW_INCOMPLETE_CAST,'FALSE');
 assert.equal(publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'comingSoon'}}).settings.SEASON_STATUS,'upcoming','The legacy status spelling must be saved canonically.');
 assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:''}),/love-is-blind-br-1.*SEASON_STATUS is empty/i);
-assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live'}));
+assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live',status:'live'}));
+assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'mystery',status:'mystery'}),/Upcoming, Live, or Completed/i);
 const releaseComparison=publisherContext.__seasonReleaseComparison({snapshot:{
   status:'live',
   Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'ALLOW_INCOMPLETE_CAST',value:'TRUE'},{key:'AVAILABLE_THROUGH_EP',value:'1'},{key:'BOUNDARIES_LIVE',value:'FALSE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
@@ -534,7 +538,8 @@ assert(liveRulesVerifier.includes("createHash('sha256')")&&liveRulesVerifier.inc
 assert(workflow.includes("if: steps.backend_changes.outputs.hold_hosting != 'true'\n        run: npx firebase deploy --only hosting"),'Hosting must remain gated by the backend-deployment check.');
 assert(!workflow.includes('actions/deploy-pages'),'The release workflow must not deploy to GitHub Pages.');
 assert(runbook.includes('rollbackSeasonSnapshot'));
-assert(runbook.includes('jsonPayload.message="Client operation failed"'));
+assert(runbook.includes('clientErrors/{userId}/categories/{category}'),'The launch runbook must direct operators to the Firestore client diagnostics.');
+assert(runbook.includes('Do not use `jsonPayload.message="Client operation failed"`'),'The runbook must explain that the former Cloud Logging query cannot find browser-written diagnostics.');
 
 async function assertMirrorEntryRegression(){
   const helperStart=html.indexOf('/* MIRROR ENTRY HELPERS START */');

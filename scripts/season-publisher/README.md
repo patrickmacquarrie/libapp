@@ -50,7 +50,7 @@ Use **Connect season sheet** to add another existing spreadsheet, then use the s
 
 Connecting and publishing are separate steps. To treat an older international season as a live test, connect its sheet, set **Season status** to **Live**, choose **Available through episode**, save and preview, and only then publish. Once published, a season already listed in the main app's international roadmap automatically becomes available for signed-in players; no separate app-code edit is required. Previously published US and UK seasons do not need to be connected unless you intend to operate them again.
 
-Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet and produces the normal publisher summary without changing Firestore. The app automatically opens the result panel; validation failures are shown in red and explicitly confirm that nothing was published. **Publish to the app** runs the existing backup-first publish flow. **Restore latest backup** uses the reversible rollback flow.
+Use **Save draft** for ordinary editing. This updates only the spreadsheet. **Save & preview** validates the sheet, records a hash of that exact release, and produces the normal publisher summary without changing Firestore. The app automatically opens the result panel; validation failures are shown in red and explicitly confirm that nothing was published. **Publish to the app** accepts only the exact sheet state from the latest successful preview, then runs the existing backup-first publish flow. Any intervening sheet edit requires another preview. A successful publish consumes the approval, so every publish requires its own preview. **Restore latest backup** uses the reversible rollback flow.
 
 After a Live or Upcoming season has been published, use **Make live/default** on its Overview screen to make it the season the main app opens by default. The same season becomes the active public Global Pool. This is intentionally separate from publishing, so an ordinary content update cannot accidentally move the Global Pool. The previous Global Pool is preserved and remains available to its members under **Past Global Pools**.
 
@@ -62,7 +62,7 @@ After changing `Code.gs` or `Admin.html`, use **Deploy → Manage deployments**,
 
 ## Normal publishing
 
-1. Run `previewSeasonSnapshot` and inspect the execution log. Confirm the season ID, sheet ID, status, row counts, and document size.
+1. Run `previewSeasonSnapshot` and inspect the execution log. Confirm the season ID, sheet ID, status, row counts, document size, and `releaseHash`. Do not edit the sheet after this preview.
 2. Run `publishSeasonSnapshot`.
 3. Record the returned `backupPath`, then verify the app in a private browser window.
 

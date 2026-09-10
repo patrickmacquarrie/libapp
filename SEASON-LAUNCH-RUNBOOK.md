@@ -5,13 +5,13 @@ Use this checklist for the first launch and every episode drop. UK3 is the first
 ## Before the release
 
 - Update the season sheet only after confirming the episode results and phase boundary fields. Keep `SEASON_ID` and `SPREADSHEET_ID` paired in the publisher's Script properties.
-- Run `previewSeasonSnapshot`. Confirm the intended season, status, available-through episode, non-zero required-tab row counts, and a document size below 900,000 bytes.
+- Run `previewSeasonSnapshot`. Confirm the intended season, status, available-through episode, non-zero required-tab row counts, a document size below 900,000 bytes, and the returned `releaseHash`. Publishing will accept only that exact previewed sheet state.
 - Confirm the latest Firebase Hosting deployment from GitHub `main` is green. For a first-season launch, also run `npm run check` locally.
 - Keep one test friend pool and one Global Pool account available for verification.
 
 ## Publish and verify
 
-1. Run `publishSeasonSnapshot` and save its logged `backupPath`.
+1. Without editing the sheet after preview, run `publishSeasonSnapshot` and save its logged `backupPath`. If the sheet changed, preview it again; a successful publish consumes the preview approval.
 2. In Firestore, confirm `seasons/{SEASON_ID}` has the new `publishedAt`, expected `status`, and correct `tabRowCounts`.
    - Settings must be present. Cast, Couples, Dating Results, and Reunion Results may have zero data rows before their data is known. A live Episode 0 snapshot allows pools to form but keeps predictions closed.
 3. Open [Through the Wall](https://throughthewall.ca/) in a private browser window. Sign in and verify:
@@ -27,14 +27,18 @@ Normal player pages fail closed when the published snapshot is missing or incomp
 
 ## Monitor
 
-In Google Cloud **Logging → Logs Explorer**, select the `lib-oauth` project and use:
+Authenticated browser failures are stored in Firestore at `clientErrors/{userId}/categories/{category}`. In the Firebase console, open **Firestore Database** and inspect the `clientErrors` collection for recently updated category documents. Use `lastAt`, `category`, `seasonId`, `poolId`, `operation`, and `appBuild` to identify repeated failures. `occurrenceCount` is cumulative, so compare it with the previous check rather than treating an old non-zero count as a new incident.
+
+These reports contain no picks, emails, free-form browser messages, or browser stack traces. Firestore security rules prevent browser clients from reading them. Plausible separately records aggregate `app_error` totals, including failures that happen before sign-in.
+
+Use Google Cloud **Logging → Logs Explorer** for Cloud Functions and infrastructure failures. A useful starting query is:
 
 ```text
 resource.type="cloud_run_revision"
-jsonPayload.message="Client operation failed"
+severity>=ERROR
 ```
 
-Filter further with `jsonPayload.category`, `jsonPayload.seasonId`, `jsonPayload.poolId`, or `jsonPayload.appBuild`. Categories cover failed saves, season loads, pool opens/creation, invitations, mirror sync, lobby loads, rendering, and startup. Reports contain no picks, emails, or browser stack traces. Plausible also records `app_error` totals, including failures that happen before sign-in.
+Do not use `jsonPayload.message="Client operation failed"`: the browser writes detailed reports directly to Firestore and no Cloud Function emits that message.
 
 Treat any repeated save failure, wrong season data, exposed picks, or inability to open pools as a stop-the-line incident. A single invitation failure can be handled separately if gameplay and saves remain healthy.
 
@@ -47,6 +51,6 @@ Treat any repeated save failure, wrong season data, exposed picks, or inability 
 
 ## After the release
 
-- Check logs after the first few friends have used the episode update and again the next day.
+- Check Firestore client-error counters and Cloud Logging after the first few friends have used the episode update and again the next day.
 - Note any support reports with season, pool, phase, screen, and approximate time; never ask friends to send their picks or passwords.
 - After the season is stable, remove obsolete backups manually while retaining at least the last known-good publish.

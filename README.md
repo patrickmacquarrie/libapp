@@ -65,3 +65,5 @@ Use the reusable publisher in [`scripts/season-publisher`](scripts/season-publis
 ## Public-launch checklist
 
 See `PUBLIC-TEST-CHECKLIST.md`. Do not open a large Global Pool until its subcollection membership and precomputed leaderboard migration is complete.
+
+The beta hardening work follows the honour-system threat model and UK3 production-freeze guardrails in [`BETA-HARDENING-PLAN.md`](BETA-HARDENING-PLAN.md).

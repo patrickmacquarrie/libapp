@@ -5,6 +5,7 @@ const TAB_NAMES = REQUIRED_TAB_NAMES.concat(OPTIONAL_TAB_NAMES);
 const BACKUP_COLLECTION = 'seasonSnapshotBackups';
 const APP_CONFIG_PATH = 'appConfig/public';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
+const PREVIEW_HASH_PROPERTY_PREFIX = 'LAST_PREVIEW_HASH__';
 const MAX_SNAPSHOT_BYTES = 900000;
 const RELEASE_COMPARISON_SETTINGS = [
   'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
@@ -204,11 +205,15 @@ function rollbackSeasonFromAdmin(seasonId) {
 function previewSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
+  assertPublishableSeasonStatus_(config, built);
+  const releaseHash = seasonReleaseHash_(built);
   const seasonPath = 'seasons/' + config.seasonId;
   const current = readFirestoreDocument_(config, seasonPath);
   const comparison = seasonReleaseComparison_(built, current);
+  recordPreviewHash_(config.seasonId, releaseHash);
   const summary = publishSummary_(config, built, {
     preview: true,
+    releaseHash: releaseHash,
     documentPath: seasonPath,
     comparison: comparison,
     warnings: comparison.warnings
@@ -224,6 +229,8 @@ function publishSeasonSnapshot(seasonId) {
   const config = publisherConfig_(seasonId);
   const built = buildSeasonSnapshot_(config);
   assertPublishableSeasonStatus_(config, built);
+  const releaseHash = seasonReleaseHash_(built);
+  assertMatchesLatestPreview_(config.seasonId, releaseHash);
   const publishedStatus = firestoreStringField_(built.fields, 'status').toLowerCase();
   const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
   if (isCurrentDefault && publishedStatus === 'completed') {
@@ -242,9 +249,11 @@ function publishSeasonSnapshot(seasonId) {
   writeFirestoreDocument_(config, seasonPath, built.fields);
   if (backupPath) setLatestBackupPath_(config.seasonId, backupPath);
   if (isCurrentDefault) setDefaultSeasonFromAdmin(config.seasonId);
+  clearPreviewHash_(config.seasonId);
 
   const summary = publishSummary_(config, built, {
     published: true,
+    releaseHash: releaseHash,
     documentPath: seasonPath,
     backupPath: backupPath || null,
     comparison: comparison,
@@ -463,6 +472,8 @@ function buildSeasonSnapshot_(config) {
     tabRowCounts[tabName] = rows.length;
   });
 
+  assertUniqueSettings_(tabs.Settings);
+
   const explicitStatus = setting_(tabs.Settings, 'SEASON_STATUS');
   const status = deriveSeasonStatus_(tabs.Settings);
   const snapshot = Object.assign({
@@ -487,6 +498,54 @@ function assertPublishableSeasonStatus_(config, built) {
   if (!String(built && built.explicitStatus || '').trim()) {
     throw new Error('Season "' + config.seasonId + '" cannot be published because SEASON_STATUS is empty. Choose Upcoming, Live, or Completed explicitly.');
   }
+  if (!['upcoming', 'live', 'completed'].includes(String(built.status || '').toLowerCase())) {
+    throw new Error('Season "' + config.seasonId + '" cannot be published because SEASON_STATUS must be Upcoming, Live, or Completed.');
+  }
+}
+
+function assertUniqueSettings_(settings) {
+  const seen = {};
+  (settings || []).forEach(function(row) {
+    const key = String(row && row.key || '').trim();
+    if (!key) return;
+    if (seen[key]) throw new Error('Settings contains the key more than once: ' + key + '. Remove the duplicate before previewing.');
+    seen[key] = true;
+  });
+}
+
+function seasonReleaseHash_(built) {
+  const canonical = Object.assign({}, built && built.snapshot || {});
+  delete canonical.publishedAt;
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    JSON.stringify(canonical),
+    Utilities.Charset.UTF_8
+  );
+  return digest.map(function(byte) {
+    return ('0' + ((byte + 256) % 256).toString(16)).slice(-2);
+  }).join('');
+}
+
+function previewHashPropertyKey_(seasonId) {
+  return PREVIEW_HASH_PROPERTY_PREFIX + seasonId;
+}
+
+function recordPreviewHash_(seasonId, releaseHash) {
+  PropertiesService.getScriptProperties().setProperty(previewHashPropertyKey_(seasonId), releaseHash);
+}
+
+function assertMatchesLatestPreview_(seasonId, releaseHash) {
+  const previewHash = PropertiesService.getScriptProperties().getProperty(previewHashPropertyKey_(seasonId));
+  if (!previewHash) {
+    throw new Error('Preview this season before publishing it. No approved preview is recorded.');
+  }
+  if (previewHash !== releaseHash) {
+    throw new Error('The season sheet changed after its last preview. Preview the current sheet again before publishing.');
+  }
+}
+
+function clearPreviewHash_(seasonId) {
+  PropertiesService.getScriptProperties().deleteProperty(previewHashPropertyKey_(seasonId));
 }
 
 function publishSummary_(config, built, extra) {
@@ -572,8 +631,11 @@ function plainFirestoreValue_(value) {
 }
 
 function backupDocumentPath_(seasonId, reason) {
-  const timestamp = Utilities.formatDate(new Date(), 'UTC', 'yyyyMMdd_HHmmss_SSS');
-  return BACKUP_COLLECTION + '/' + seasonId + '__' + timestamp + '__' + reason;
+  return BACKUP_COLLECTION + '/' + seasonId + '__' + timestampId_() + '__' + reason;
+}
+
+function timestampId_() {
+  return Utilities.formatDate(new Date(), 'UTC', 'yyyyMMdd_HHmmss_SSS');
 }
 
 function latestBackupPropertyKey_(seasonId) {

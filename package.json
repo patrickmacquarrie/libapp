@@ -4,7 +4,7 @@
     "build": "node scripts/build.js",
     "test": "npm run test:engine && npm run test:operations && npm run test:rules",
     "test:engine": "node scripts/test-engine-audit.js",
-    "test:operations": "node scripts/test-operations-audit.js",
+    "test:operations": "node scripts/test-operations-audit.js && node scripts/test-season-publisher.js",
     "test:rules": "CI=true firebase emulators:exec --only firestore,auth \"node scripts/test-firestore-rules.js\"",
     "test:smoke": "node scripts/test-built-app-smoke.js",
     "verify:live-rules": "node scripts/verify-live-firestore-rules.js",
