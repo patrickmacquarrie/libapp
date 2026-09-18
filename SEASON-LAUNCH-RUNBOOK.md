@@ -11,7 +11,7 @@ Use this checklist for the first launch and every episode drop. UK3 is the first
 
 ## Publish and verify
 
-1. Without editing the sheet after preview, run `publishSeasonSnapshot` and save its logged `backupPath`. If the sheet changed, preview it again; a successful publish consumes the preview approval.
+1. Without editing the sheet after preview, run `publishSeasonSnapshot` and save its logged `backupPath` and `appConfigBackupPath`. The season and matching default-season routing metadata are committed together. If the sheet changed, preview it again; a successful publish consumes the preview approval.
 2. In Firestore, confirm `seasons/{SEASON_ID}` has the new `publishedAt`, expected `status`, and correct `tabRowCounts`.
    - Settings must be present. Cast, Couples, Dating Results, and Reunion Results may have zero data rows before their data is known. A live Episode 0 snapshot allows pools to form but keeps predictions closed.
 3. Open [Through the Wall](https://throughthewall.ca/) in a private browser window. Sign in and verify:
@@ -46,7 +46,7 @@ Treat any repeated save failure, wrong season data, exposed picks, or inability 
 
 1. Stop editing the season sheet.
 2. Run `rollbackSeasonSnapshot` in Apps Script for the same `SEASON_ID`.
-3. Confirm the logged `restoredFrom` path and verify the app again in a private window.
+3. Confirm the logged `restoredFrom` and, when present, `appConfigRestoredFrom` paths, then verify the app again in a private window.
 4. Record what was wrong in the sheet, correct it, run preview, and republish. The failed live version is preserved in the logged `previousLiveSavedTo` backup.
 
 ## After the release

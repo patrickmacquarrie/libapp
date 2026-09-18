@@ -6,7 +6,24 @@ const BACKUP_COLLECTION = 'seasonSnapshotBackups';
 const APP_CONFIG_PATH = 'appConfig/public';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const PREVIEW_HASH_PROPERTY_PREFIX = 'LAST_PREVIEW_HASH__';
+const APP_CONFIG_BACKUP_PROPERTY_PREFIX = 'LAST_APP_CONFIG_BACKUP_PATH__';
 const MAX_SNAPSHOT_BYTES = 900000;
+const ADMIN_SETTING_DEFAULTS = {
+  SEASON_STATUS: 'upcoming', CAST_COMPLETE: 'FALSE', ALLOW_INCOMPLETE_CAST: 'FALSE', RELEASE_LABEL: '',
+  AVAILABLE_THROUGH_EP: '0', BOUNDARIES_LIVE: 'TRUE',
+  PODS_START_EP: '1', PODS_END_EP: '6', DATING_START_EP: '5', DATING_END_EP: '9',
+  RETREAT_START_EP: '5', RETREAT_END_EP: '9', WEDDINGS_START_EP: '9', WEDDINGS_END_EP: '12',
+  REUNION_START_EP: '12', REUNION_END_EP: '13',
+  PODS_BOUNDARY_FINAL: 'FALSE', DATING_BOUNDARY_FINAL: 'FALSE', WEDDINGS_BOUNDARY_FINAL: 'FALSE', REUNION_BOUNDARY_FINAL: 'FALSE',
+  PODS_RESULTS_READY: 'FALSE', DATING_RESULTS_READY: 'FALSE', WEDDINGS_RESULTS_READY: 'FALSE', REUNION_RESULTS_READY: 'FALSE',
+  PODS_BUDGET: '200', PODS_CAP: '60', DATING_BUDGET: '150', DATING_CAP: '40',
+  WEDDINGS_BUDGET: '150', WEDDINGS_CAP: '80', REUNION_BUDGET: '100', REUNION_CAP: '40',
+  DATING_SEX_MULT: '1', DATING_FLIRT_MULT: '2', DATING_BREAKUP_MULT: '3',
+  WEDDINGS_MARRIED_MULT: '1', WEDDINGS_SAYS_NO_MULT: '1.5', WEDDINGS_CALLED_OFF_MULT: '1.75',
+  WEDDINGS_LEAD_STEP: '.25', WEDDINGS_LEAD_CAP: '1.75',
+  REUNION_STILL_MULT: '1', REUNION_SPLIT_MULT: '2', REUNION_MARRIED_SPLIT_MULT: '2',
+  REUNION_BACK_MULT: '2', REUNION_NEW_COUPLE_MULT: '5', REUNION_LIFE_UPDATE_MULT: '5', REUNION_ABSENT_MULT: '2'
+};
 const RELEASE_COMPARISON_SETTINGS = [
   'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL',
@@ -102,12 +119,13 @@ function setDefaultSeasonFromAdmin(seasonId) {
   const metadata = publisherSeasonMetadata_(registryEntry, status, setting_(settings, 'RELEASE_LABEL'));
   const current = readFirestoreDocument_(config, APP_CONFIG_PATH);
   const alreadyDefault = current.exists && firestoreStringField_(current.fields, 'defaultSeasonId') === config.seasonId;
+  const writes = [];
   let backupPath = '';
   if (current.exists && !alreadyDefault) {
     backupPath = APP_CONFIG_BACKUP_COLLECTION + '/default__' + timestampId_();
-    writeFirestoreDocument_(config, backupPath, current.fields);
+    writes.push({documentPath: backupPath, fields: current.fields});
   }
-  writeFirestoreDocument_(config, APP_CONFIG_PATH, mapFields_({
+  writes.push({documentPath: APP_CONFIG_PATH, fields: mapFields_({
     defaultSeasonId: config.seasonId,
     globalPoolSeasonId: config.seasonId,
     defaultSeasonLabel: metadata.label,
@@ -115,7 +133,8 @@ function setDefaultSeasonFromAdmin(seasonId) {
     status: status,
     defaultSeason: metadata,
     updatedAt: new Date()
-  }));
+  })});
+  commitFirestoreDocuments_(config, writes);
   return {
     changed: !alreadyDefault,
     defaultSeasonId: config.seasonId,
@@ -187,10 +206,10 @@ function previewSeasonFromAdmin(payload) {
   return previewSeasonSnapshot(payload.seasonId);
 }
 
-/** Saves the draft, backs up the live document, and publishes it. */
-function publishSeasonFromAdmin(payload) {
-  saveSeasonAdminDraft(payload);
-  return publishSeasonSnapshot(payload.seasonId);
+/** Publishes the exact sheet state approved by the latest preview. */
+function publishSeasonFromAdmin(seasonId) {
+  const requestedSeasonId = typeof seasonId === 'object' && seasonId ? seasonId.seasonId : seasonId;
+  return publishSeasonSnapshot(requestedSeasonId);
 }
 
 /** Exposes the existing reversible rollback to the private admin UI. */
@@ -232,32 +251,65 @@ function publishSeasonSnapshot(seasonId) {
   const releaseHash = seasonReleaseHash_(built);
   assertMatchesLatestPreview_(config.seasonId, releaseHash);
   const publishedStatus = firestoreStringField_(built.fields, 'status').toLowerCase();
-  const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
+  const currentAppConfig = readFirestoreDocument_(config, APP_CONFIG_PATH);
+  const currentDefaultSeasonId = currentAppConfig.exists
+    ? firestoreStringField_(currentAppConfig.fields, 'defaultSeasonId') || config.fallbackDefaultSeasonId
+    : config.fallbackDefaultSeasonId;
+  const isCurrentDefault = currentDefaultSeasonId === config.seasonId;
   if (isCurrentDefault && publishedStatus === 'completed') {
     throw new Error('Choose another live/default season before publishing this season as Completed.');
   }
   const seasonPath = 'seasons/' + config.seasonId;
   const current = readFirestoreDocument_(config, seasonPath);
   const comparison = seasonReleaseComparison_(built, current);
+  const releaseId = timestampId_();
+  const writes = [];
   let backupPath = '';
+  let appConfigBackupPath = '';
 
   if (current.exists) {
-    backupPath = backupDocumentPath_(config.seasonId, 'publish');
-    writeFirestoreDocument_(config, backupPath, current.fields);
+    backupPath = backupDocumentPath_(config.seasonId, 'publish', releaseId);
+    writes.push({documentPath: backupPath, fields: current.fields});
+  }
+  writes.push({documentPath: seasonPath, fields: built.fields});
+
+  if (isCurrentDefault) {
+    if (currentAppConfig.exists) {
+      appConfigBackupPath = APP_CONFIG_BACKUP_COLLECTION + '/' + config.seasonId + '__' + releaseId + '__publish';
+      writes.push({documentPath: appConfigBackupPath, fields: currentAppConfig.fields});
+    }
+    const registryEntry = config.seasons.find(function(season) { return season.seasonId === config.seasonId; });
+    const settings = snapshotSettings_(built.snapshot);
+    const metadata = publisherSeasonMetadata_(registryEntry, publishedStatus, settings.RELEASE_LABEL);
+    writes.push({documentPath: APP_CONFIG_PATH, fields: mapFields_({
+      defaultSeasonId: config.seasonId,
+      globalPoolSeasonId: config.seasonId,
+      defaultSeasonLabel: metadata.label,
+      sourceSheetId: config.spreadsheetId,
+      status: publishedStatus,
+      defaultSeason: metadata,
+      updatedAt: new Date()
+    })});
   }
 
-  writeFirestoreDocument_(config, seasonPath, built.fields);
-  if (backupPath) setLatestBackupPath_(config.seasonId, backupPath);
-  if (isCurrentDefault) setDefaultSeasonFromAdmin(config.seasonId);
-  clearPreviewHash_(config.seasonId);
+  commitFirestoreDocuments_(config, writes);
+  const operationalWarnings = [];
+  try {
+    if (backupPath) setLatestBackupPath_(config.seasonId, backupPath);
+    if (appConfigBackupPath) setLatestAppConfigBackupPath_(config.seasonId, appConfigBackupPath);
+    clearPreviewHash_(config.seasonId);
+  } catch (error) {
+    operationalWarnings.push('The live release succeeded, but publisher recovery metadata could not be updated: ' + error.message);
+  }
 
   const summary = publishSummary_(config, built, {
     published: true,
     releaseHash: releaseHash,
     documentPath: seasonPath,
     backupPath: backupPath || null,
+    appConfigBackupPath: appConfigBackupPath || null,
     comparison: comparison,
-    warnings: comparison.warnings
+    warnings: comparison.warnings.concat(operationalWarnings)
   });
   console.log(JSON.stringify(summary));
   return summary;
@@ -277,15 +329,44 @@ function rollbackSeasonSnapshot(seasonId) {
   if (!backup.exists) throw new Error('The recorded backup no longer exists: ' + backupPath);
 
   const current = readFirestoreDocument_(config, seasonPath);
+  const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
+  const appConfigBackupPath = isCurrentDefault ? latestAppConfigBackupPath_(config.seasonId) : '';
+  const appConfigBackup = appConfigBackupPath
+    ? readFirestoreDocument_(config, appConfigBackupPath)
+    : {exists: false, fields: {}};
+  if (appConfigBackupPath && !appConfigBackup.exists) {
+    throw new Error('The recorded app configuration backup no longer exists: ' + appConfigBackupPath);
+  }
+  const currentAppConfig = appConfigBackup.exists
+    ? readFirestoreDocument_(config, APP_CONFIG_PATH)
+    : {exists: false, fields: {}};
+  const rollbackId = timestampId_();
+  const writes = [];
   let rescuePath = '';
+  let appConfigRescuePath = '';
   if (current.exists) {
-    rescuePath = backupDocumentPath_(config.seasonId, 'rollback');
-    writeFirestoreDocument_(config, rescuePath, current.fields);
+    rescuePath = backupDocumentPath_(config.seasonId, 'rollback', rollbackId);
+    writes.push({documentPath: rescuePath, fields: current.fields});
+  }
+  writes.push({documentPath: seasonPath, fields: backup.fields});
+  if (appConfigBackup.exists) {
+    if (currentAppConfig.exists) {
+      appConfigRescuePath = APP_CONFIG_BACKUP_COLLECTION + '/' + config.seasonId + '__' + rollbackId + '__rollback';
+      writes.push({documentPath: appConfigRescuePath, fields: currentAppConfig.fields});
+    }
+    writes.push({documentPath: APP_CONFIG_PATH, fields: appConfigBackup.fields});
   }
 
-  writeFirestoreDocument_(config, seasonPath, backup.fields);
-  if (rescuePath) setLatestBackupPath_(config.seasonId, rescuePath);
-  else clearLatestBackupPath_(config.seasonId);
+  commitFirestoreDocuments_(config, writes);
+  const operationalWarnings = [];
+  try {
+    if (rescuePath) setLatestBackupPath_(config.seasonId, rescuePath);
+    else clearLatestBackupPath_(config.seasonId);
+    if (appConfigRescuePath) setLatestAppConfigBackupPath_(config.seasonId, appConfigRescuePath);
+    else clearLatestAppConfigBackupPath_(config.seasonId);
+  } catch (error) {
+    operationalWarnings.push('Rollback succeeded, but publisher recovery metadata could not be updated: ' + error.message);
+  }
 
   const summary = {
     rolledBack: true,
@@ -293,7 +374,10 @@ function rollbackSeasonSnapshot(seasonId) {
     seasonId: config.seasonId,
     restoredFrom: backupPath,
     previousLiveSavedTo: rescuePath || null,
-    documentPath: seasonPath
+    appConfigRestoredFrom: appConfigBackupPath || null,
+    previousAppConfigSavedTo: appConfigRescuePath || null,
+    documentPath: seasonPath,
+    warnings: operationalWarnings
   };
   console.log(JSON.stringify(summary));
   return summary;
@@ -473,6 +557,7 @@ function buildSeasonSnapshot_(config) {
   });
 
   assertUniqueSettings_(tabs.Settings);
+  validateSeasonAdminPayload_(adminPayloadFromSnapshotTabs_(config.seasonId, tabs));
 
   const explicitStatus = setting_(tabs.Settings, 'SEASON_STATUS');
   const status = deriveSeasonStatus_(tabs.Settings);
@@ -511,6 +596,42 @@ function assertUniqueSettings_(settings) {
     if (seen[key]) throw new Error('Settings contains the key more than once: ' + key + '. Remove the duplicate before previewing.');
     seen[key] = true;
   });
+}
+
+function snapshotRecordValue_(record, header) {
+  const wanted = normalizedAdminHeader_(header);
+  const key = Object.keys(record || {}).find(function(candidate) {
+    return normalizedAdminHeader_(candidate) === wanted;
+  });
+  return key == null ? '' : record[key];
+}
+
+function adminPayloadFromSnapshotTabs_(seasonId, tabs) {
+  const settingValues = Object.assign({}, ADMIN_SETTING_DEFAULTS);
+  (tabs.Settings || []).forEach(function(row) {
+    const key = String(row && row.key || '').trim();
+    if (key) settingValues[key] = row.value == null ? '' : String(row.value);
+  });
+  const mapRows = function(tabName, tableKey) {
+    const headers = ADMIN_TABLE_HEADERS[tableKey];
+    const keys = ADMIN_TABLE_KEYS[tableKey];
+    return (tabs[tabName] || []).map(function(row) {
+      const result = {};
+      headers.forEach(function(header, index) {
+        result[keys[index]] = snapshotRecordValue_(row, header);
+      });
+      return result;
+    });
+  };
+  return {
+    seasonId: seasonId,
+    settings: settingValues,
+    cast: mapRows('Cast', 'cast'),
+    couples: mapRows('Couples', 'couples'),
+    datingResults: mapRows('Dating Results', 'datingResults'),
+    reunionResults: mapRows('Reunion Results', 'reunionResults'),
+    retroEvents: mapRows('Retro Events', 'retroEvents')
+  };
 }
 
 function seasonReleaseHash_(built) {
@@ -630,8 +751,8 @@ function plainFirestoreValue_(value) {
   return null;
 }
 
-function backupDocumentPath_(seasonId, reason) {
-  return BACKUP_COLLECTION + '/' + seasonId + '__' + timestampId_() + '__' + reason;
+function backupDocumentPath_(seasonId, reason, timestamp) {
+  return BACKUP_COLLECTION + '/' + seasonId + '__' + (timestamp || timestampId_()) + '__' + reason;
 }
 
 function timestampId_() {
@@ -652,6 +773,22 @@ function setLatestBackupPath_(seasonId, path) {
 
 function clearLatestBackupPath_(seasonId) {
   PropertiesService.getScriptProperties().deleteProperty(latestBackupPropertyKey_(seasonId));
+}
+
+function latestAppConfigBackupPropertyKey_(seasonId) {
+  return APP_CONFIG_BACKUP_PROPERTY_PREFIX + seasonId;
+}
+
+function latestAppConfigBackupPath_(seasonId) {
+  return PropertiesService.getScriptProperties().getProperty(latestAppConfigBackupPropertyKey_(seasonId)) || '';
+}
+
+function setLatestAppConfigBackupPath_(seasonId, path) {
+  PropertiesService.getScriptProperties().setProperty(latestAppConfigBackupPropertyKey_(seasonId), path);
+}
+
+function clearLatestAppConfigBackupPath_(seasonId) {
+  PropertiesService.getScriptProperties().deleteProperty(latestAppConfigBackupPropertyKey_(seasonId));
 }
 
 function readFirestoreDocument_(config, documentPath) {
@@ -681,10 +818,43 @@ function writeFirestoreDocument_(config, documentPath, fields) {
   assertFirestoreResponse_(response, 'write ' + documentPath);
 }
 
+function commitFirestoreDocuments_(config, documents) {
+  const writes = (documents || []).map(function(document) {
+    const approximateBytes = Utilities.newBlob(JSON.stringify(document.fields)).getBytes().length;
+    if (approximateBytes > MAX_SNAPSHOT_BYTES) {
+      throw new Error('Refusing to write an approximately ' + approximateBytes + '-byte Firestore document.');
+    }
+    return {
+      update: {
+        name: firestoreDocumentName_(config.projectId, document.documentPath),
+        fields: document.fields
+      }
+    };
+  });
+  if (!writes.length) throw new Error('No Firestore documents were supplied for the atomic release.');
+  const response = UrlFetchApp.fetch(firestoreCommitUrl_(config.projectId), {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()},
+    payload: JSON.stringify({writes: writes}),
+    muteHttpExceptions: true
+  });
+  assertFirestoreResponse_(response, 'commit release documents');
+}
+
 function firestoreDocumentUrl_(projectId, documentPath) {
   const encodedPath = String(documentPath).split('/').map(encodeURIComponent).join('/');
   return 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(projectId) +
     '/databases/(default)/documents/' + encodedPath;
+}
+
+function firestoreDocumentName_(projectId, documentPath) {
+  return 'projects/' + projectId + '/databases/(default)/documents/' + String(documentPath);
+}
+
+function firestoreCommitUrl_(projectId) {
+  return 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(projectId) +
+    '/databases/(default)/documents:commit';
 }
 
 function assertFirestoreResponse_(response, operation) {
