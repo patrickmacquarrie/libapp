@@ -8,21 +8,23 @@ This branch prepares tests only. It must not be deployed before September 19, 20
 
 - the recorded season backup is restored exactly;
 - the displaced live season is saved before restoration;
+- matching default-season routing metadata is restored in the same atomic commit;
+- displaced routing metadata is preserved for a second rollback;
 - the rescue copy becomes the next rollback target;
 - running rollback again reverses the first rollback; and
 - a missing backup pointer fails before a write.
 
 This test is included in `test:operations` because it describes behaviour that already works.
 
-## Red release-contract test
+## Remaining red release-contract test
 
-`npm run test:release-contract` describes the remaining intended contract. It currently fails and is deliberately not part of the normal CI gate until the implementation is ready. The failures cover:
+`npm run test:release-contract` executes the current browser, Functions, and rollback behavior rather than searching for source strings. It remains deliberately outside the normal CI gate. The three remaining failures cover:
 
-- restoring matching default-season routing metadata;
 - explicitly repairing or scheduling Global standings after rollback;
 - using the same missing `RESULTS_READY` default in the browser and Cloud Functions;
-- using the same blank `reunion_status_eligible` default; and
-- aligning Season Admin phase defaults with the browser and Cloud Functions.
+- using the same blank `reunion_status_eligible` default.
+
+The publisher now restores matching routing metadata atomically, and the Season Admin defaults match the browser and Functions defaults. Those behaviors are covered by executable regression tests.
 
 The configuration assertions define defaults for new beta seasons. UK3 must retain its recorded effective configuration and scoring version rather than being silently reinterpreted under these defaults.
 

@@ -52,8 +52,8 @@
     ];
     const defaults={
       SEASON_STATUS:'upcoming',CAST_COMPLETE:'FALSE',ALLOW_INCOMPLETE_CAST:'FALSE',RELEASE_LABEL:'',AVAILABLE_THROUGH_EP:'0',BOUNDARIES_LIVE:'TRUE',
-      PODS_START_EP:'1',PODS_END_EP:'5',DATING_START_EP:'5',DATING_END_EP:'7',RETREAT_START_EP:'5',RETREAT_END_EP:'7',
-      WEDDINGS_START_EP:'7',WEDDINGS_END_EP:'11',REUNION_START_EP:'11',REUNION_END_EP:'12',
+      PODS_START_EP:'1',PODS_END_EP:'6',DATING_START_EP:'5',DATING_END_EP:'9',RETREAT_START_EP:'5',RETREAT_END_EP:'9',
+      WEDDINGS_START_EP:'9',WEDDINGS_END_EP:'12',REUNION_START_EP:'12',REUNION_END_EP:'13',
       PODS_BOUNDARY_FINAL:'FALSE',DATING_BOUNDARY_FINAL:'FALSE',WEDDINGS_BOUNDARY_FINAL:'FALSE',REUNION_BOUNDARY_FINAL:'FALSE',
       PODS_RESULTS_READY:'FALSE',DATING_RESULTS_READY:'FALSE',WEDDINGS_RESULTS_READY:'FALSE',REUNION_RESULTS_READY:'FALSE',
       PODS_BUDGET:'200',PODS_CAP:'60',DATING_BUDGET:'150',DATING_CAP:'40',WEDDINGS_BUDGET:'150',WEDDINGS_CAP:'80',REUNION_BUDGET:'100',REUNION_CAP:'40',
@@ -129,10 +129,10 @@
       return panelHead('Later corrections','Use this advanced section only when a later episode changes or invalidates an earlier scored outcome.')+`<div class="notice warning"><b>Use sparingly.</b> Corrections can change existing scores. Always preview before publishing.</div>`+rows+`<div class="table-actions"><button class="btn" type="button" data-add="retroEvents">+ Add later correction</button></div>`;
     }
     function renderRelease(){
-      return panelHead('Preview & publish','Save whenever you like. Preview validates the complete sheet. Publish creates a backup before updating the live app.')+
-        `<div class="release-grid"><div class="release-card"><h3>1. Save draft</h3><p>Writes these forms back to the Google Sheet. Nothing changes in the live app.</p><button class="btn" type="button" data-action="save">Save draft</button></div><div class="release-card"><h3>2. Save & preview</h3><p>Compares published and pending release controls, cast/couple counts, and document size without changing Firestore. Backward episode availability appears as a warning.</p><button class="btn btn-primary" type="button" data-action="preview">Save & preview</button></div><div class="release-card publish"><h3>3. Publish live</h3><p>Backs up the current season, then replaces it with this version.</p><button class="btn btn-primary" type="button" data-action="publish">Publish to the app</button></div></div>
+      return panelHead('Preview & publish','Save whenever you like. Preview validates and approves that exact sheet state. Publish creates a backup before updating the live app; any intervening edit requires a new preview.')+
+        `<div class="release-grid"><div class="release-card"><h3>1. Save draft</h3><p>Writes these forms back to the Google Sheet. Nothing changes in the live app.</p><button class="btn" type="button" data-action="save">Save draft</button></div><div class="release-card"><h3>2. Save & preview</h3><p>Compares published and pending release controls, cast/couple counts, and document size without changing Firestore. Backward episode availability appears as a warning.</p><button class="btn btn-primary" type="button" data-action="preview">Save & preview</button></div><div class="release-card publish"><h3>3. Publish live</h3><p>Requires the latest exact preview, backs up the current season, then replaces it with this version.</p><button class="btn btn-primary" type="button" data-action="publish">Publish to the app</button></div></div>
         <div class="release-grid" style="margin-top:14px"><div class="release-card rollback"><h3>Rollback</h3><p>Restores the latest recorded backup. The current live version is saved first.</p><button class="btn btn-danger" type="button" data-action="rollback">Restore latest backup</button></div><div class="release-card" style="grid-column:span 2"><h3>Latest backup</h3><p class="hint">${h(model.latestBackupPath||'No backup has been recorded for this season yet.')}</p></div></div>`+
-        (lastResult?`<h3 style="margin-top:22px">${lastResultType==='error'?'Something needs fixing':'Latest result'}</h3>${lastResultType==='error'?'<div class="notice error"><b>Nothing was published.</b> Fix the issue below, then run Save &amp; preview again.</div>':''}<div class="result ${lastResultType==='error'?'result-error':''}">${h(lastResult)}</div>`:'');
+        (lastResult?`<h3 style="margin-top:22px">${lastResultType==='error'?'Something needs fixing':'Latest result'}</h3>${lastResultType==='error'?'<div class="notice error"><b>The operation did not complete.</b> Read the result below, verify the live season if publishing had started, then preview again before retrying.</div>':''}<div class="result ${lastResultType==='error'?'result-error':''}">${h(lastResult)}</div>`:'');
     }
     function renderFooterHtml(){return `<div class="footerbar" id="footerbar"><div class="save-state ${dirty?'dirty':'saved'}">${dirty?'● Unsaved sheet changes':'✓ Sheet changes saved'}</div><div class="actions"><button class="btn" type="button" data-action="save">Save draft</button><button class="btn btn-primary" type="button" data-action="preview">Save & preview</button></div></div>`}
     function renderFooter(){const existing=$('footerbar');if(existing)existing.outerHTML=renderFooterHtml();bindActionButtons();}
@@ -168,6 +168,7 @@
     function removeRow(section,index){model[section].splice(index,1);dirty=true;render()}
     function payload(){return {seasonId:model.seasonId,settings:{...defaults,...model.settings},cast:model.cast,couples:model.couples,datingResults:model.datingResults,reunionResults:model.reunionResults,retroEvents:model.retroEvents}}
     function runAction(action){
+      if(action==='publish'&&dirty){alert('Save & preview these changes before publishing.');return;}
       if(action==='publish'&&!confirm('Publish this season to the live app? The current version will be backed up first.'))return;
       if(action==='rollback'&&!confirm('Restore the latest season backup? The current live version will be saved first.'))return;
       setBusy(true,{save:'Saving draft…',preview:'Validating preview…',publish:'Publishing season…',rollback:'Restoring backup…'}[action]);
@@ -179,7 +180,7 @@
       });
       if(action==='save')runner.saveSeasonAdminDraft(payload());
       else if(action==='preview')runner.previewSeasonFromAdmin(payload());
-      else if(action==='publish')runner.publishSeasonFromAdmin(payload());
+      else if(action==='publish')runner.publishSeasonFromAdmin(model.seasonId);
       else runner.rollbackSeasonFromAdmin(model.seasonId);
     }
     function load(showOverlay=true,seasonId=''){if(showOverlay)setBusy(true,'Loading season…');google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{model=result;model.settings={...defaults,...model.settings};dirty=false;setBusy(false);render()}).getSeasonAdminData(seasonId)}

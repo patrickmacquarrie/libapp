@@ -81,14 +81,19 @@ assert(html.includes('Past Global Pools'),'Previous Global Pools must remain acc
 assert(firestoreRules.includes('match /appConfig/public'),'Firestore rules must expose only the public runtime routing document.');
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
-assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish')"),'Every publish must preserve the previous live snapshot.');
+assert(publisher.includes("backupDocumentPath_(config.seasonId, 'publish', releaseId)"),'Every publish must preserve the previous live snapshot.');
 assert(publisher.includes('function rollbackSeasonSnapshot('),'The season publisher must retain a rollback entry point.');
 assert(publisher.includes('function previewSeasonSnapshot('),'The season publisher must support a no-write preview.');
+assert(publisher.includes('assertMatchesLatestPreview_(config.seasonId, releaseHash)'),'Publishing must require the exact sheet state approved by the latest preview.');
+assert(publisher.includes('clearPreviewHash_(config.seasonId)'),'A successful publish must consume its preview approval.');
+assert(publisher.includes('assertUniqueSettings_(tabs.Settings)'),'The publisher must reject duplicate Settings keys.');
 assert(!publisher.includes("const SEASON_ID ="),'The publisher must not be hardcoded to one season.');
 assert(publisher.includes('function doGet()'),'The publisher must serve the season-admin web app.');
 assert(publisher.includes('function saveSeasonAdminDraft(payload)'),'The admin must support non-live sheet saves.');
 assert(publisher.includes('function previewSeasonFromAdmin(payload)'),'The admin must preserve a read-only preview action.');
-assert(publisher.includes('function publishSeasonFromAdmin(payload)'),'The admin must publish through the backup-aware publisher.');
+assert(publisher.includes('function publishSeasonFromAdmin(seasonId)'),'The admin must publish the previewed sheet without rewriting it from stale form data.');
+assert(publisher.includes('commitFirestoreDocuments_(config, writes)'),'Related release documents must be written atomically.');
+assert(publisher.includes('validateSeasonAdminPayload_(adminPayloadFromSnapshotTabs_'),'Direct sheet publishing must use the same validation as the admin.');
 assert(publisher.includes('validateSeasonAdminPayload_'),'The admin must validate submitted season data on the server.');
 assert(publisher.includes('SEASONS_JSON'),'The publisher must support an explicit season allow-list.');
 assert(publisher.includes('publisherConfig_(requestedSeasonId)'),'Every publisher action must resolve the selected registered season.');
@@ -200,7 +205,9 @@ assert(seasonAdmin.includes('connectSeasonFromAdmin(request)'),'The connect-seas
 assert(seasonAdmin.includes('Make live/default'),'The admin must expose an explicit default-season action.');
 assert(seasonAdmin.includes('<svg viewBox="0 0 1024 1024">'),'The season admin must use the Through the Wall app icon.');
 assert(seasonAdmin.includes("active='release'"),'Preview failures must open the visible result panel.');
-assert(seasonAdmin.includes('Nothing was published.'),'Validation failures must clearly state that live data was not changed.');
+assert(!seasonAdmin.includes('Nothing was published.'),'The admin must not claim that a failed multi-step operation made no live changes.');
+assert(seasonAdmin.includes("action==='publish'&&dirty"),'The admin must require a fresh preview after form edits.');
+assert(seasonAdmin.includes('publishSeasonFromAdmin(model.seasonId)'),'Publishing must not resend and overwrite the previewed sheet from browser state.');
 assert(seasonAdmin.includes('Phase starts must remain chronological')===false,'Server validation details should not be duplicated into the UI source.');
 
 const publisherContext={console};
@@ -273,7 +280,8 @@ assert.equal(validatedAdmin.settings.CAST_COMPLETE,'FALSE');
 assert.equal(validatedAdmin.settings.ALLOW_INCOMPLETE_CAST,'FALSE');
 assert.equal(publisherContext.__validateSeasonAdminPayload({...baseAdminPayload,settings:{...baseAdminSettings,SEASON_STATUS:'comingSoon'}}).settings.SEASON_STATUS,'upcoming','The legacy status spelling must be saved canonically.');
 assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:''}),/love-is-blind-br-1.*SEASON_STATUS is empty/i);
-assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live'}));
+assert.doesNotThrow(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'live',status:'live'}));
+assert.throws(()=>publisherContext.__assertPublishableSeasonStatus({seasonId:'love-is-blind-br-1'},{explicitStatus:'mystery',status:'mystery'}),/Upcoming, Live, or Completed/i);
 const releaseComparison=publisherContext.__seasonReleaseComparison({snapshot:{
   status:'live',
   Settings:[{key:'CAST_COMPLETE',value:'FALSE'},{key:'ALLOW_INCOMPLETE_CAST',value:'TRUE'},{key:'AVAILABLE_THROUGH_EP',value:'1'},{key:'BOUNDARIES_LIVE',value:'FALSE'},{key:'PODS_BOUNDARY_FINAL',value:'FALSE'},{key:'PODS_RESULTS_READY',value:'FALSE'}],
@@ -526,6 +534,7 @@ assert(workflow.includes('>> "$GITHUB_STEP_SUMMARY"'),'A held release must expla
 assert(workflow.includes('echo "::error title=Hosting release held::$hold_message"')&&workflow.includes('exit 1'),'A held release must fail rather than report a false green deployment.');
 assert(workflow.includes('backend_deployed'),'A manual Hosting release must explicitly confirm the backend is deployed.');
 assert(workflow.includes('POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_TOKEN }}')&&workflow.includes('REQUIRE_POSTHOG_CONFIG: true'),'Production deploys must inject and require the public PostHog project token.');
+assert(workflow.includes('name: Test exact release build')&&workflow.includes('run: npm run test:smoke'),'The exact production-configured build must pass the browser smoke test before deployment.');
 assert(workflow.includes("if: github.event_name == 'workflow_dispatch' && inputs.backend_deployed == true\n        run: npm run verify:live-rules"),'A confirmed manual release must compare the published Firestore rules before Hosting deploys.');
 assert(workflow.includes('id-token: write'),'The verification job must be able to request a short-lived identity for the live-rules check.');
 assert(liveRulesVerifier.includes('/releases/cloud.firestore'),'The live-rules check must resolve the published Firestore release.');
@@ -536,7 +545,8 @@ assert(liveRulesVerifier.includes("createHash('sha256')")&&liveRulesVerifier.inc
 assert(workflow.includes("if: steps.backend_changes.outputs.hold_hosting != 'true'\n        run: npx firebase deploy --only hosting"),'Hosting must remain gated by the backend-deployment check.');
 assert(!workflow.includes('actions/deploy-pages'),'The release workflow must not deploy to GitHub Pages.');
 assert(runbook.includes('rollbackSeasonSnapshot'));
-assert(runbook.includes('jsonPayload.message="Client operation failed"'));
+assert(runbook.includes('clientErrors/{userId}/categories/{category}'),'The launch runbook must direct operators to the Firestore client diagnostics.');
+assert(runbook.includes('Do not use `jsonPayload.message="Client operation failed"`'),'The runbook must explain that the former Cloud Logging query cannot find browser-written diagnostics.');
 
 async function assertMirrorEntryRegression(){
   const helperStart=html.indexOf('/* MIRROR ENTRY HELPERS START */');

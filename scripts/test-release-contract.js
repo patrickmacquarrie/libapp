@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 
 const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
@@ -12,27 +13,77 @@ const admin=read('scripts/season-publisher/Admin.html');
 const failures=[];
 const requireContract=(condition,message)=>{if(!condition)failures.push(message);};
 
+function evaluateBrowserResultsReady(seasonStatus) {
+  const source=html.match(/const resultsReadyDefault = seasonStatus==='completed';[\s\S]*?const resultsReady = \{[\s\S]*?\n  \};/)?.[0];
+  assert(source,'Could not isolate the browser RESULTS_READY behavior.');
+  const evaluate=vm.runInNewContext(`(seasonStatus,boolSetting)=>{${source};return resultsReady;}`);
+  return evaluate(seasonStatus,(_key,fallback)=>fallback);
+}
+
+function evaluateFunctionsResultsReady(seasonStatus) {
+  const expression=functionsSource.match(/RESULTS_READY:(Object\.fromEntries\(PHASES\.map\([\s\S]*?\)\)),\n    AVAILABLE_THROUGH_EP/)?.[1];
+  assert(expression,'Could not isolate the Functions RESULTS_READY behavior.');
+  const evaluate=vm.runInNewContext(`(seasonStatus,boolSetting,PHASES)=>${expression}`);
+  return evaluate(seasonStatus,(_key,fallback)=>fallback,['pods','dating','weddings','reunion']);
+}
+
+function evaluateBrowserReunionEligibility(value) {
+  const expression=html.match(/const reunionStatusEligible=([^;]+);/)?.[1];
+  assert(expression,'Could not isolate browser reunion eligibility behavior.');
+  return vm.runInNewContext(`(r,pBool)=>${expression}`)({reunion_status_eligible:value},input=>String(input).toUpperCase()==='TRUE');
+}
+
+function evaluateFunctionsReunionEligibility(value) {
+  const expression=functionsSource.match(/reunionStatusEligible:([^,]+),\n      wedding/)?.[1];
+  assert(expression,'Could not isolate Functions reunion eligibility behavior.');
+  return vm.runInNewContext(`(row,publishedBool)=>${expression}`)({reunion_status_eligible:value},(input,fallback)=>input==null||input===''?fallback:String(input).toUpperCase()==='TRUE');
+}
+
+function rollbackResult() {
+  const rollbackSource=publisher.slice(rollbackStart,rollbackEnd);
+  const seasonId='love-is-blind-contract-1';
+  const seasonPath=`seasons/${seasonId}`;
+  const backupPath=`seasonSnapshotBackups/${seasonId}__backup__publish`;
+  const documents=new Map([
+    [seasonPath,{status:{stringValue:'live'}}],
+    [backupPath,{status:{stringValue:'live'},publishedAt:{stringValue:'earlier'}}],
+    ['appConfig/public',{defaultSeasonId:{stringValue:'another-season'}}]
+  ]);
+  const properties=new Map([[`LAST_BACKUP_PATH__${seasonId}`,backupPath]]);
+  const context={
+    console:{log:()=>{}},
+    publisherConfig_:()=>({projectId:'test-project',seasonId,fallbackDefaultSeasonId:'another-season'}),
+    latestBackupPath_:()=>properties.get(`LAST_BACKUP_PATH__${seasonId}`),
+    latestAppConfigBackupPath_:()=>'',
+    currentDefaultSeasonId_:()=> 'another-season',
+    readFirestoreDocument_:(_config,documentPath)=>documents.has(documentPath)?{exists:true,fields:documents.get(documentPath)}:{exists:false,fields:{}},
+    backupDocumentPath_:()=>`seasonSnapshotBackups/${seasonId}__rescue__rollback`,
+    timestampId_:()=> 'contract',
+    commitFirestoreDocuments_:(_config,writes)=>writes.forEach(write=>documents.set(write.documentPath,write.fields)),
+    setLatestBackupPath_:()=>{},clearLatestBackupPath_:()=>{},setLatestAppConfigBackupPath_:()=>{},clearLatestAppConfigBackupPath_:()=>{}
+  };
+  return vm.runInNewContext(`(${rollbackSource})`,context)(seasonId);
+}
+
 const rollbackStart=publisher.indexOf('function rollbackSeasonSnapshot(');
 const rollbackEnd=publisher.indexOf('\nfunction publisherConfig_(',rollbackStart);
 assert(rollbackStart>=0&&rollbackEnd>rollbackStart,'Could not isolate rollbackSeasonSnapshot.');
-const rollbackBody=publisher.slice(rollbackStart,rollbackEnd);
-
+const rollback=rollbackResult();
+requireContract('appConfigRestoredFrom' in rollback,'Rollback must report whether matching appConfig/public routing metadata was restored.');
 requireContract(
-  rollbackBody.includes('APP_CONFIG_PATH'),
-  'Rollback must restore the matching appConfig/public routing metadata when the rolled-back season is the default.'
-);
-requireContract(
-  rollbackBody.includes('recomputeGlobalStandings')||rollbackBody.includes('standingsRepair'),
+  rollback.standingsRepair&&['completed','scheduled'].includes(rollback.standingsRepair.status),
   'Rollback must explicitly schedule or record the required Global standings repair.'
 );
+['live','completed'].forEach(seasonStatus=>{
+  const browser=evaluateBrowserResultsReady(seasonStatus);
+  const functions=evaluateFunctionsResultsReady(seasonStatus);
+  requireContract(
+    JSON.stringify(browser)===JSON.stringify(functions),
+    `The browser and Cloud Functions must produce the same missing RESULTS_READY values for a ${seasonStatus} season.`
+  );
+});
 requireContract(
-  html.includes("const resultsReadyDefault = seasonStatus==='completed';")&&
-    functionsSource.includes("boolSetting(`${phase.toUpperCase()}_RESULTS_READY`,seasonStatus==='completed')"),
-  'The browser and Cloud Functions must use the same missing RESULTS_READY default.'
-);
-requireContract(
-  html.includes('const reunionStatusEligible=pBool(r.reunion_status_eligible);')&&
-    functionsSource.includes("reunionStatusEligible:publishedBool(row.reunion_status_eligible,false)"),
+  evaluateBrowserReunionEligibility('')===false&&evaluateFunctionsReunionEligibility('')===false,
   'The browser and Cloud Functions must both treat blank reunion_status_eligible as false.'
 );
 
@@ -42,7 +93,7 @@ const canonicalPhaseDefaults={
 };
 Object.entries(canonicalPhaseDefaults).forEach(([key,value])=>{
   requireContract(
-    admin.includes(`${key}:'${value}'`),
+    String(vm.runInNewContext(`(${admin.match(/const defaults=(\{[\s\S]*?\n    \});/)?.[1]||'{}'})`)[key])===value,
     `Season Admin default ${key} must match the browser/Functions contract value ${value}.`
   );
 });
