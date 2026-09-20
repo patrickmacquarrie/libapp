@@ -137,6 +137,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Compact, published season metadata used by signed-in clients. The
+    // publisher owns this document; browsers may neither enumerate nor edit it.
+    match /appConfig/seasonCatalog {
+      allow get: if signedIn();
+      allow list, write: if false;
+    }
+
     // ============================================================
     // Pools
     // ============================================================
@@ -155,16 +162,6 @@ service cloud.firestore {
           resource.data.members is list &&
           request.resource.data.members.toSet() ==
             resource.data.members.toSet().union([request.auth.uid].toSet());
-      }
-
-      function canJoinGlobalPool() {
-        return signedIn() &&
-          poolExists(poolId) &&
-          resource.data.get('global', false) == true &&
-          resource.data.get('globalSeasonId', '') is string &&
-          poolId == 'global__' + resource.data.globalSeasonId &&
-          onlyMembersChanged() &&
-          membersAreOldMembersPlusViewer();
       }
 
       function canAcceptFriendInvite() {
@@ -323,7 +320,6 @@ service cloud.firestore {
         );
 
       allow update: if
-        canJoinGlobalPool() ||
         canAcceptFriendInvite() ||
         canJoinFriendPoolWithCode() ||
         canOwnerChangeJoinCode() ||
@@ -550,6 +546,13 @@ service cloud.firestore {
           poolMember(poolId) &&
           poolData(poolId).global == true;
         allow write: if false;
+      }
+
+      match /standingsRows/{userId} {
+        allow get: if signedIn() &&
+          request.auth.uid == userId &&
+          poolMember(poolId);
+        allow list, write: if false;
       }
 
       // ----------------------------------------------------------
