@@ -81,6 +81,7 @@
       session_recording:{
         maskAllInputs:true,
         maskTextSelector:'*',
+        maskAllElementAttributes:true,
         maskCapturedNetworkRequestFn:request=>{
           if(request&&request.name)request.name=request.name.split('?')[0];
           return request;
