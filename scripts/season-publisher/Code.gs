@@ -9,7 +9,7 @@ const PREVIEW_HASH_PROPERTY_PREFIX = 'LAST_PREVIEW_HASH__';
 const APP_CONFIG_BACKUP_PROPERTY_PREFIX = 'LAST_APP_CONFIG_BACKUP_PATH__';
 const MAX_SNAPSHOT_BYTES = 900000;
 const ADMIN_SETTING_DEFAULTS = {
-  SEASON_STATUS: 'upcoming', CAST_COMPLETE: 'FALSE', ALLOW_INCOMPLETE_CAST: 'FALSE', RELEASE_LABEL: '',
+  CONFIG_VERSION: '1', SEASON_STATUS: 'upcoming', CAST_COMPLETE: 'FALSE', ALLOW_INCOMPLETE_CAST: 'FALSE', RELEASE_LABEL: '',
   AVAILABLE_THROUGH_EP: '0', BOUNDARIES_LIVE: 'TRUE',
   PODS_START_EP: '1', PODS_END_EP: '6', DATING_START_EP: '5', DATING_END_EP: '9',
   RETREAT_START_EP: '5', RETREAT_END_EP: '9', WEDDINGS_START_EP: '9', WEDDINGS_END_EP: '12',
@@ -25,7 +25,7 @@ const ADMIN_SETTING_DEFAULTS = {
   REUNION_BACK_MULT: '2', REUNION_NEW_COUPLE_MULT: '5', REUNION_LIFE_UPDATE_MULT: '5', REUNION_ABSENT_MULT: '2'
 };
 const RELEASE_COMPARISON_SETTINGS = [
-  'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'CONFIG_VERSION', 'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_BOUNDARY_FINAL', 'DATING_BOUNDARY_FINAL', 'WEDDINGS_BOUNDARY_FINAL', 'REUNION_BOUNDARY_FINAL',
   'PODS_RESULTS_READY', 'DATING_RESULTS_READY', 'WEDDINGS_RESULTS_READY', 'REUNION_RESULTS_READY'
 ];
@@ -44,7 +44,7 @@ const ADMIN_TABLE_KEYS = {
   retroEvents: ['market', 'target', 'voidMarket', 'appliesPhase', 'revealedEp', 'note', 'confirmed']
 };
 const ADMIN_EDITABLE_SETTINGS = [
-  'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
+  'CONFIG_VERSION', 'SEASON_STATUS', 'CAST_COMPLETE', 'ALLOW_INCOMPLETE_CAST', 'RELEASE_LABEL', 'AVAILABLE_THROUGH_EP', 'BOUNDARIES_LIVE',
   'PODS_START_EP', 'PODS_END_EP', 'DATING_START_EP', 'DATING_END_EP',
   'RETREAT_START_EP', 'RETREAT_END_EP', 'WEDDINGS_START_EP', 'WEDDINGS_END_EP',
   'REUNION_START_EP', 'REUNION_END_EP',
@@ -78,6 +78,9 @@ function getSeasonAdminData(seasonId) {
   settingsRows.forEach(function(row) {
     if (row.key) settings[row.key] = row.value;
   });
+  // A missing version means legacy interpretation. Returning it explicitly
+  // prevents the browser defaults from silently upgrading an existing season.
+  if (!String(settings.CONFIG_VERSION || '').trim()) settings.CONFIG_VERSION = '1';
   return {
     projectId: config.projectId,
     seasonId: config.seasonId,
@@ -377,6 +380,9 @@ function rollbackSeasonSnapshot(seasonId) {
     appConfigRestoredFrom: appConfigBackupPath || null,
     previousAppConfigSavedTo: appConfigRescuePath || null,
     documentPath: seasonPath,
+    // The deployed season write invokes recomputeGlobalStandingsOnSeasonUpdate.
+    // This records the repair path without duplicating scoring in Apps Script.
+    standingsRepair: {status: 'scheduled', source: 'season-update-trigger'},
     warnings: operationalWarnings
   };
   console.log(JSON.stringify(summary));
@@ -1110,6 +1116,9 @@ function validateAdminSettings_(raw) {
   const normalizedStatus = status === 'comingSoon' ? 'upcoming' : status;
   if (!['upcoming', 'live', 'completed'].includes(normalizedStatus)) throw new Error('Choose Upcoming, Live, or Completed for the season status.');
   settings.SEASON_STATUS = normalizedStatus;
+  const configVersion = cleanAdminNumber_(settings.CONFIG_VERSION || 1, 'Configuration version', 1, 2);
+  if (!['1', '2'].includes(configVersion)) throw new Error('Configuration version must be Legacy v1 or Current v2.');
+  settings.CONFIG_VERSION = configVersion;
   settings.AVAILABLE_THROUGH_EP = cleanAdminNumber_(settings.AVAILABLE_THROUGH_EP || 0, 'Available-through episode', 0, 100);
 
   const numberKeys = [

@@ -2,6 +2,8 @@
 
 Use this checklist for the first launch and every episode drop. UK3 is the first full production run.
 
+For a new beta season, choose configuration version 2 in Season Admin. A missing version is intentionally treated as legacy v1 so completed seasons such as UK3 cannot be silently reinterpreted.
+
 ## Before the release
 
 - Update the season sheet only after confirming the episode results and phase boundary fields. Keep `SEASON_ID` and `SPREADSHEET_ID` paired in the publisher's Script properties.

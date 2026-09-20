@@ -62,6 +62,8 @@ assert.deepEqual(documents.get(seasonPath),originalFields,'Rollback must restore
 assert.deepEqual(documents.get(first.previousLiveSavedTo),currentFields,'Rollback must preserve the displaced live snapshot.');
 assert.equal(properties.get(`LAST_BACKUP_PATH__${seasonId}`),first.previousLiveSavedTo,'The rescue copy must become the next rollback target.');
 assert.equal(first.appConfigRestoredFrom,originalAppConfigBackupPath);
+assert.equal(first.standingsRepair.status,'scheduled','Rollback must report the standings repair triggered by the season write.');
+assert.equal(first.standingsRepair.source,'season-update-trigger');
 assert.deepEqual(documents.get(appConfigPath),originalAppConfigFields,'Rollback must restore matching default-season routing metadata.');
 assert.deepEqual(documents.get(first.previousAppConfigSavedTo),currentAppConfigFields,'Rollback must preserve the displaced routing metadata.');
 assert.equal(properties.get(`LAST_APP_CONFIG_BACKUP_PATH__${seasonId}`),first.previousAppConfigSavedTo,'The routing rescue copy must become the next rollback target.');

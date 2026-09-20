@@ -33,8 +33,8 @@ Until the friends test finishes on September 17, 2026, and throughout the deploy
 Before the first post-test deployment:
 
 1. Export Firestore data for the UK3 season, pool, phase statuses, picks, and standings.
-2. Record every effective UK3 setting, including values currently supplied by defaults.
-3. Preserve UK3 on its existing scoring version and configuration interpretation.
+2. Record every effective UK3 setting, including values currently supplied by defaults. **Source-sheet checkpoint recorded; authenticated Firestore comparison pending.**
+3. Preserve UK3 on its existing scoring version and configuration interpretation. **Implemented as missing `CONFIG_VERSION` = legacy v1; verification pending.**
 4. Rehearse the release against a cloned season and pool.
 5. Release operational changes separately from scoring and storage changes.
 

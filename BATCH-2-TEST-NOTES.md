@@ -1,6 +1,6 @@
 # Batch 2 rollback and configuration tests
 
-This branch prepares tests only. It must not be deployed before September 19, 2026.
+This branch contains the post-test compatibility checkpoint and operational tests. It remains undeployed until the authenticated backup and clone rehearsal are complete.
 
 ## Green regression test
 
@@ -16,16 +16,17 @@ This branch prepares tests only. It must not be deployed before September 19, 20
 
 This test is included in `test:operations` because it describes behaviour that already works.
 
-## Remaining red release-contract test
+## Green release-contract test
 
-`npm run test:release-contract` executes the current browser, Functions, and rollback behavior rather than searching for source strings. It remains deliberately outside the normal CI gate. The three remaining failures cover:
+`npm run test:release-contract` executes browser, Functions, and rollback behavior rather than searching for source strings. It is now part of the normal operations gate and verifies:
 
-- explicitly repairing or scheduling Global standings after rollback;
-- using the same missing `RESULTS_READY` default in the browser and Cloud Functions;
-- using the same blank `reunion_status_eligible` default.
+- rollback explicitly records the Global standings rebuild scheduled by the season write;
+- configuration v2 uses the same missing `RESULTS_READY` default in the browser and Cloud Functions;
+- configuration v2 uses the same blank `reunion_status_eligible` default; and
+- the recorded UK3 Settings fixture retains the exact legacy v1 interpretations that passed the friends test.
 
 The publisher now restores matching routing metadata atomically, and the Season Admin defaults match the browser and Functions defaults. Those behaviors are covered by executable regression tests.
 
-The configuration assertions define defaults for new beta seasons. UK3 must retain its recorded effective configuration and scoring version rather than being silently reinterpreted under these defaults.
+Missing `CONFIG_VERSION` resolves to legacy v1. Existing seasons therefore do not change behavior when the application code changes. New seasons can opt into v2 from Season Admin.
 
-Before converting the red contract into the normal CI gate, add a fixture made from the final UK3 Settings snapshot and prove that it retains the same effective values.
+The committed fixture contains public source-sheet Settings only. It deliberately excludes pool, player, pick, and standings data. Before deployment, compare it with the authenticated Firestore export and complete the clone rehearsal.

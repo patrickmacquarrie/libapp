@@ -135,6 +135,10 @@ function publishedSeasonConfig(snapshot,seasonId){
     return Number.isFinite(parsed)?parsed:fallback;
   };
   const boolSetting=(key,fallback)=>settings[key]==null||settings[key]===''?fallback:publishedBool(settings[key],fallback);
+  // Missing CONFIG_VERSION intentionally retains the production interpretation
+  // used by UK3. Corrected blank-value defaults are opt-in for new seasons.
+  const configVersion=numberSetting('CONFIG_VERSION',1,true);
+  const seasonStatus=String(publishedSetting(snapshot,'SEASON_STATUS')||snapshot.status||'').trim().toLowerCase();
   const phaseStart={
     pods:numberSetting('PODS_START_EP',1,true),
     dating:numberSetting('DATING_START_EP',5,true),
@@ -173,7 +177,7 @@ function publishedSeasonConfig(snapshot,seasonId){
       weddingEligibleFromEp:Number.isFinite(engagedEp)?engagedEp:(wedding?phaseStart.weddings:undefined),
       podsEligible:Number.isFinite(engagedEp)&&(row.pods_eligible==null||row.pods_eligible===''?true:publishedBool(row.pods_eligible)),
       datingEligible:row.dating_eligible==null||row.dating_eligible===''?true:publishedBool(row.dating_eligible),
-      reunionStatusEligible:row.reunion_status_eligible==null||row.reunion_status_eligible===''?true:publishedBool(row.reunion_status_eligible),
+      reunionStatusEligible:row.reunion_status_eligible==null||row.reunion_status_eligible===''?configVersion<2:publishedBool(row.reunion_status_eligible),
       wedding,who:String(row.who_says_no||'').trim()||undefined,
       breakupEp:Number.isFinite(breakupEp)?breakupEp:undefined,settledEp:Number.isFinite(settledEp)?settledEp:undefined,
       togetherNow:row.together_now==null||row.together_now===''?undefined:publishedBool(row.together_now),
@@ -212,12 +216,12 @@ function publishedSeasonConfig(snapshot,seasonId){
   }).filter(Boolean);
   const availableThroughEp=numberSetting('AVAILABLE_THROUGH_EP',0,true);
   return {
-    season:{id:seasonId,historical:String(publishedSetting(snapshot,'SEASON_STATUS')||snapshot.status||'').toLowerCase()==='completed'},
+    season:{id:seasonId,historical:seasonStatus==='completed'},CONFIG_VERSION:configVersion,
     RULES:rules,CAST:cast,MEN:cast.filter(person=>person.gender==='M').map(person=>person.name),WOMEN:cast.filter(person=>person.gender==='F').map(person=>person.name),
     COUPLES:couples,DATING_RESULTS:datingResults,REUNION_RESULTS:reunionResults,RETRO_EVENTS:retroEvents,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,
     BOUNDARIES_FINAL:Object.fromEntries(PHASES.map(phase=>[phase,boolSetting(`${phase.toUpperCase()}_BOUNDARY_FINAL`,true)])),
-    RESULTS_READY:Object.fromEntries(PHASES.map(phase=>[phase,boolSetting(`${phase.toUpperCase()}_RESULTS_READY`,true)])),
-    AVAILABLE_THROUGH_EP:availableThroughEp,SEASON_STATUS:String(publishedSetting(snapshot,'SEASON_STATUS')||snapshot.status||'').trim().toLowerCase(),
+    RESULTS_READY:Object.fromEntries(PHASES.map(phase=>[phase,boolSetting(`${phase.toUpperCase()}_RESULTS_READY`,configVersion>=2?seasonStatus==='completed':true)])),
+    AVAILABLE_THROUGH_EP:availableThroughEp,SEASON_STATUS:seasonStatus,
     DATING_MULT:{sex:numberSetting('DATING_SEX_MULT',DEFAULT_DATING_MULT.sex),flirt:numberSetting('DATING_FLIRT_MULT',DEFAULT_DATING_MULT.flirt),breakup:numberSetting('DATING_BREAKUP_MULT',DEFAULT_DATING_MULT.breakup)},
     WED_MULT:{married:numberSetting('WEDDINGS_MARRIED_MULT',DEFAULT_WED_MULT.married),saysNo:numberSetting('WEDDINGS_SAYS_NO_MULT',DEFAULT_WED_MULT.saysNo),calledOff:numberSetting('WEDDINGS_CALLED_OFF_MULT',DEFAULT_WED_MULT.calledOff)},
     REU_MULT:{still:numberSetting('REUNION_STILL_MULT',DEFAULT_REU_MULT.still),split:numberSetting('REUNION_SPLIT_MULT',DEFAULT_REU_MULT.split),marriedSplit:numberSetting('REUNION_MARRIED_SPLIT_MULT',DEFAULT_REU_MULT.marriedSplit),back:numberSetting('REUNION_BACK_MULT',DEFAULT_REU_MULT.back),newCouple:numberSetting('REUNION_NEW_COUPLE_MULT',DEFAULT_REU_MULT.newCouple),lifeUpdate:numberSetting('REUNION_LIFE_UPDATE_MULT',DEFAULT_REU_MULT.lifeUpdate),absent:numberSetting('REUNION_ABSENT_MULT',DEFAULT_REU_MULT.absent)},

@@ -9,34 +9,35 @@ const html=read('index.html');
 const functionsSource=read('functions/index.js');
 const publisher=read('scripts/season-publisher/Code.gs');
 const admin=read('scripts/season-publisher/Admin.html');
+const uk3Fixture=JSON.parse(read('scripts/fixtures/uk3-final-settings.json'));
 
 const failures=[];
 const requireContract=(condition,message)=>{if(!condition)failures.push(message);};
 
-function evaluateBrowserResultsReady(seasonStatus) {
+function evaluateBrowserResultsReady(seasonStatus,configVersion) {
   const source=html.match(/const resultsReadyDefault = seasonStatus==='completed';[\s\S]*?const resultsReady = \{[\s\S]*?\n  \};/)?.[0];
   assert(source,'Could not isolate the browser RESULTS_READY behavior.');
-  const evaluate=vm.runInNewContext(`(seasonStatus,boolSetting)=>{${source};return resultsReady;}`);
-  return evaluate(seasonStatus,(_key,fallback)=>fallback);
+  const evaluate=vm.runInNewContext(`(seasonStatus,configVersion,boolSetting)=>{${source};return resultsReady;}`);
+  return evaluate(seasonStatus,configVersion,(_key,fallback)=>fallback);
 }
 
-function evaluateFunctionsResultsReady(seasonStatus) {
+function evaluateFunctionsResultsReady(seasonStatus,configVersion) {
   const expression=functionsSource.match(/RESULTS_READY:(Object\.fromEntries\(PHASES\.map\([\s\S]*?\)\)),\n    AVAILABLE_THROUGH_EP/)?.[1];
   assert(expression,'Could not isolate the Functions RESULTS_READY behavior.');
-  const evaluate=vm.runInNewContext(`(seasonStatus,boolSetting,PHASES)=>${expression}`);
-  return evaluate(seasonStatus,(_key,fallback)=>fallback,['pods','dating','weddings','reunion']);
+  const evaluate=vm.runInNewContext(`(seasonStatus,configVersion,boolSetting,PHASES)=>${expression}`);
+  return evaluate(seasonStatus,configVersion,(_key,fallback)=>fallback,['pods','dating','weddings','reunion']);
 }
 
-function evaluateBrowserReunionEligibility(value) {
+function evaluateBrowserReunionEligibility(value,configVersion) {
   const expression=html.match(/const reunionStatusEligible=([^;]+);/)?.[1];
   assert(expression,'Could not isolate browser reunion eligibility behavior.');
-  return vm.runInNewContext(`(r,pBool)=>${expression}`)({reunion_status_eligible:value},input=>String(input).toUpperCase()==='TRUE');
+  return vm.runInNewContext(`(r,configVersion,pBool)=>${expression}`)({reunion_status_eligible:value},configVersion,input=>String(input).toUpperCase()==='TRUE');
 }
 
-function evaluateFunctionsReunionEligibility(value) {
+function evaluateFunctionsReunionEligibility(value,configVersion) {
   const expression=functionsSource.match(/reunionStatusEligible:([^,]+),\n      wedding/)?.[1];
   assert(expression,'Could not isolate Functions reunion eligibility behavior.');
-  return vm.runInNewContext(`(row,publishedBool)=>${expression}`)({reunion_status_eligible:value},(input,fallback)=>input==null||input===''?fallback:String(input).toUpperCase()==='TRUE');
+  return vm.runInNewContext(`(row,configVersion,publishedBool)=>${expression}`)({reunion_status_eligible:value},configVersion,(input,fallback)=>input==null||input===''?fallback:String(input).toUpperCase()==='TRUE');
 }
 
 function rollbackResult() {
@@ -74,17 +75,25 @@ requireContract(
   rollback.standingsRepair&&['completed','scheduled'].includes(rollback.standingsRepair.status),
   'Rollback must explicitly schedule or record the required Global standings repair.'
 );
+requireContract(uk3Fixture.settings.CONFIG_VERSION==null,'The UK3 checkpoint must retain a missing CONFIG_VERSION setting.');
+requireContract(uk3Fixture.effectiveConfigVersion===1,'A missing UK3 CONFIG_VERSION must resolve to legacy v1.');
+requireContract(Object.keys(uk3Fixture.settings).length===47,'The UK3 checkpoint must contain all 47 captured Settings rows.');
+requireContract(evaluateBrowserResultsReady('live',1).pods===uk3Fixture.legacyInterpretation.browserMissingResultsReadyForLiveSeason,'UK3 browser RESULTS_READY interpretation changed.');
+requireContract(evaluateFunctionsResultsReady('live',1).pods===uk3Fixture.legacyInterpretation.functionsMissingResultsReadyForLiveSeason,'UK3 Functions RESULTS_READY interpretation changed.');
+requireContract(evaluateBrowserReunionEligibility('',1)===uk3Fixture.legacyInterpretation.browserBlankReunionStatusEligible,'UK3 browser Reunion eligibility interpretation changed.');
+requireContract(evaluateFunctionsReunionEligibility('',1)===uk3Fixture.legacyInterpretation.functionsBlankReunionStatusEligible,'UK3 Functions Reunion eligibility interpretation changed.');
+
 ['live','completed'].forEach(seasonStatus=>{
-  const browser=evaluateBrowserResultsReady(seasonStatus);
-  const functions=evaluateFunctionsResultsReady(seasonStatus);
+  const browser=evaluateBrowserResultsReady(seasonStatus,2);
+  const functions=evaluateFunctionsResultsReady(seasonStatus,2);
   requireContract(
     JSON.stringify(browser)===JSON.stringify(functions),
     `The browser and Cloud Functions must produce the same missing RESULTS_READY values for a ${seasonStatus} season.`
   );
 });
 requireContract(
-  evaluateBrowserReunionEligibility('')===false&&evaluateFunctionsReunionEligibility('')===false,
-  'The browser and Cloud Functions must both treat blank reunion_status_eligible as false.'
+  evaluateBrowserReunionEligibility('',2)===false&&evaluateFunctionsReunionEligibility('',2)===false,
+  'Configuration v2 must treat blank reunion_status_eligible as false in the browser and Cloud Functions.'
 );
 
 const canonicalPhaseDefaults={
@@ -97,6 +106,10 @@ Object.entries(canonicalPhaseDefaults).forEach(([key,value])=>{
     `Season Admin default ${key} must match the browser/Functions contract value ${value}.`
   );
 });
+requireContract(
+  String(vm.runInNewContext(`(${admin.match(/const defaults=(\{[\s\S]*?\n    \});/)?.[1]||'{}'})`).CONFIG_VERSION)==='1',
+  'Season Admin must default missing configurations to legacy v1.'
+);
 
 if(failures.length){
   console.error('Release contract is not yet satisfied:');

@@ -2466,6 +2466,9 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     : (['complete','completed','finished','historical','closed','done'].includes(rawSeasonStatus)
       ? 'completed'
       : (rawSeasonStatus||(!season.historical&&!castReady?'comingSoon':season.historical?'completed':'live')));
+  // Missing CONFIG_VERSION is legacy v1 so existing seasons are never
+  // reinterpreted merely because the application code was updated.
+  const configVersion = numSetting('CONFIG_VERSION',1,true);
   const castComplete = castCompleteSetting(S.CAST_COMPLETE,seasonStatus);
   const allowIncompleteCast = boolSetting('ALLOW_INCOMPLETE_CAST',false);
   const availableThroughEp = numSetting('AVAILABLE_THROUGH_EP',season.historical?Math.max(...Object.values(phaseSpan).map(v=>v.endEp)):0,true);
@@ -2498,7 +2501,9 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     const parsedLockEp=Number.parseInt(lockEpText,10);
     const missingLockEp=lockEpText==='';
     const invalidLockEp=!missingLockEp&&(!Number.isFinite(parsedLockEp)||parsedLockEp<1||parsedLockEp>phaseSpan.weddings.endEp);
-    const reunionStatusEligible=pBool(r.reunion_status_eligible);
+    // The browser has always treated a blank as ineligible. Configuration v2
+    // brings the server-side scorer into agreement without changing v1 clients.
+    const reunionStatusEligible=String(r.reunion_status_eligible??'').trim()===''?false:pBool(r.reunion_status_eligible);
     if(!engagedEpProvided&&hasWeddingOutcome) {
       console.warn(
         `[Season data warning] ${seasonWarningName} / ${r.id}: engaged_ep is blank despite wedding="${wedding}"; ` +
@@ -2759,7 +2764,7 @@ async function loadConfigUncached(seasonId=DEFAULT_SEASON_ID) {
     }
     return {id:'retro-'+(index+1),market,target,voidMarket,appliesPhase,revealedEp,note,confirmed:pBool(r.confirmed),revealingPhase};
   });
-  return {season,DATA_SOURCE:seasonDataSource,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,CAST_COMPLETE:castComplete,ALLOW_INCOMPLETE_CAST:allowIncompleteCast,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
+  return {season,DATA_SOURCE:seasonDataSource,CONFIG_VERSION:configVersion,RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS:RR,RETRO_EVENTS,PH_SPAN:phaseSpan,PH_STARTW:phaseStart,BOUNDARIES_LIVE:boundariesLive,BOUNDARIES_FINAL:boundariesFinal,AVAILABLE_THROUGH_EP:availableThroughEp,RESULTS_READY:resultsReady,SEASON_STATUS:seasonStatus,CAST_READY:castReady,CAST_COMPLETE:castComplete,ALLOW_INCOMPLETE_CAST:allowIncompleteCast,PLAYABLE:playable,WEDDING_LOCK_QC:weddingLockQc.map(c=>c.id),DATING_MULT:datingMult,WED_MULT:weddingMult,REU_MULT:reunionMult};
 }
 /* ================================================================== */
 /*  ENGINE - pool-aware, picks keyed by stable member UID              */
