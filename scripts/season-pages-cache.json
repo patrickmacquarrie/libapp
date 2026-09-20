@@ -488,7 +488,7 @@
       {
         "key": "PODS_CAP",
         "value": "60",
-        "notes": "Contrarian coefficient — try 1.25 for bigger solo bonuses"
+        "notes": "Maximum Hearts allowed on one Pods prediction."
       },
       {
         "key": "PODS_START_EP",
@@ -503,7 +503,7 @@
       {
         "key": "DATING_BUDGET",
         "value": "150",
-        "notes": "Total number of players (You + opponents)"
+        "notes": "Total Hearts available during the Dating phase."
       },
       {
         "key": "DATING_CAP",

@@ -44,6 +44,15 @@ gcloud run services update reopenphase \
   --no-invoker-iam-check
 ```
 
+## Production function inventory
+
+The application deploys ten project-owned functions:
+
+- Firestore triggers: `aggregateCastRatings`, `sendPhaseLockNudges`, `sendNewEpisodeNudges`, and `recomputeGlobalStandingsOnSeasonUpdate`.
+- Callables: `leavePool`, `deletePool`, `reopenPhase`, `sendPoolInvite`, `openGlobalPool`, and `deleteMyAccount`.
+
+The Trigger Email extension also deploys its own `ext-firestore-send-email-processqueue` function. It is legitimate infrastructure and must not be removed as an orphan. `lockGlobalPicks`, `completeGlobalPhase`, and `advanceGlobalWatch` are actions handled inside `openGlobalPool`, not separately deployed services.
+
 ## Required before a large Global Pool
 
 The current Global Pool still uses the legacy `members` array and client-computed leaderboard. Do not use it for a multi-thousand-player launch. Complete these two coordinated migrations first:
