@@ -20,7 +20,7 @@ The production deployment deliberately fails if `POSTHOG_PROJECT_TOKEN` is missi
 - Send one email invitation and copy one pool link. Confirm `invite_sent` shows `channel=email` and `channel=link`, with the correct `poolId` and `count`.
 - Enable one email nudge and confirm `notif_opt_in` contains the full enabled `types` array.
 - Open Settings after flags load. Confirm the premium card shows one price without flashing another, and that both pricing events contain the same `price_variant`.
-- Watch one of your own session replays. Confirm sign-in inputs are masked and account names, email destinations, and invitation addresses render as blocked regions.
+- Watch one of your own session replays. Confirm sign-in inputs are masked and account names, email destinations, invitation addresses, contestant names, Heat Check scores, and accessibility labels are unreadable. Inspect the replay's element details as well as the visible page; a masked screen with readable attributes is a release failure.
 - Check the browser console on `/`, `/privacy.html`, `/terms.html`, `/welcome/`, and one `/seasons/.../` page. There must be no CSP violations.
 - Confirm the same actions still arrive in Plausible.
 

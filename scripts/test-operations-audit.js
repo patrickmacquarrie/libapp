@@ -406,7 +406,7 @@ const sessionRecordingStart=analyticsSource.indexOf('session_recording:{');
 const sessionRecordingEnd=analyticsSource.indexOf('\n      },\n    });',sessionRecordingStart);
 assert(sessionRecordingStart>=0&&sessionRecordingEnd>sessionRecordingStart,'PostHog session replay must have an explicit configuration block.');
 const sessionRecordingSource=analyticsSource.slice(sessionRecordingStart,sessionRecordingEnd);
-assert(sessionRecordingSource.includes('maskAllInputs:true')&&sessionRecordingSource.includes("maskTextSelector:'*'"),'Session replay must mask all rendered text, not only inputs.');
+assert(sessionRecordingSource.includes('maskAllInputs:true')&&sessionRecordingSource.includes("maskTextSelector:'*'")&&sessionRecordingSource.includes('maskAllElementAttributes:true'),'Session replay must mask rendered text, inputs, and accessibility attributes.');
 assert(analyticsSource.includes("property_denylist:['email','username','displayName','name','toEmail','inviteEmail']"),'PostHog must drop PII-shaped event properties.');
 assert(analyticsSource.includes("['$current_url','$referrer','$initial_referrer']"),'PostHog page and referrer properties must remove query strings before sending.');
 assert(analyticsSource.includes("window.posthog.identify(String(firebaseUid),{},setOnce)"),'PostHog identity must use only the stable Firebase UID plus set-once cohort properties.');
@@ -471,6 +471,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(identifyCall)),['identify','firebase-
 const posthogConfig=analyticsWindow.posthog._i[0][1];
 assert.equal(posthogConfig.session_recording.maskAllInputs,true,'Session replay must mask form input values.');
 assert.equal(posthogConfig.session_recording.maskTextSelector,'*','Session replay must mask every rendered text node.');
+assert.equal(posthogConfig.session_recording.maskAllElementAttributes,true,'Session replay must mask attributes that can contain names, ratings, or other private UI state.');
 const sanitizedEvent=posthogConfig.before_send({properties:{$current_url:'https://throughthewall.ca/?join=secret-token',$referrer:'https://example.test/path?private=yes'}});
 assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/');
 assert.equal(sanitizedEvent.properties.$referrer,'https://example.test/path');
