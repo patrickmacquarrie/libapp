@@ -149,12 +149,65 @@ function verifyGlobalJoinCeiling(){
   assert.equal(hasCapacity(full.slice(1),'new-user'),true);
 }
 
+function verifyGlobalSeasonRequiresRuntimeConfig(){
+  const source=functionsSource.match(/function globalPoolSeasonFromConfig\(data\)\{[\s\S]*?\n\}/)?.[0];
+  assert(source,'Could not isolate the Global Pool runtime-season resolver.');
+  class TestHttpsError extends Error{
+    constructor(code,message){super(message);this.code=code;}
+  }
+  const resolve=vm.runInNewContext(`${source}\nglobalPoolSeasonFromConfig`,{
+    HttpsError:TestHttpsError,
+    safeHeaderText:(value,maxLength=100)=>String(value||'').trim().slice(0,maxLength),
+    Number,
+  });
+  assert.throws(
+    ()=>resolve(null),
+    error=>error.code==='failed-precondition'&&error.message==='The Global Pool season is not configured'
+  );
+  assert.throws(
+    ()=>resolve({defaultSeasonId:'love-is-blind-uk-3'}),
+    error=>error.code==='failed-precondition',
+    'A default season alone must not silently become the active Global Pool.'
+  );
+  assert.equal(resolve({
+    globalPoolSeasonId:'love-is-blind-us-11',
+    defaultSeason:{id:'love-is-blind-us-11',label:'Love Is Blind US: Season 11',status:'upcoming'},
+  }).id,'love-is-blind-us-11');
+}
+
+function verifyPublicBetaSeasonBank(){
+  const start=html.indexOf("const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';");
+  const end=html.indexOf('\nconst seasonOrder =',start);
+  assert(start>=0&&end>start,'Could not isolate the season-bank runtime configuration.');
+  const config=vm.runInNewContext(`${html.slice(start,end)}\n({DEFAULT_SEASON_ID,SEASON_BANK,applyPublicAppConfig,applyPublishedSeasonSnapshots})`,{Object,Array,String});
+  const uk3=config.SEASON_BANK.find(season=>season.id==='love-is-blind-uk-3');
+  const us11=config.SEASON_BANK.find(season=>season.id==='love-is-blind-us-11');
+  assert.equal(config.DEFAULT_SEASON_ID,'love-is-blind-uk-3','The checked-in default must remain unchanged until the explicit cut-over.');
+  assert.equal(uk3?.historical,true);
+  assert.equal(uk3?.status,'completed');
+  assert(us11,'US Season 11 must exist in the season bank before runtime cut-over.');
+  assert.equal(us11.historical,false);
+  assert.equal(us11.available,false);
+  assert.equal(us11.status,'upcoming');
+  assert.equal(us11.sheetId,'','The repository must not invent a source Sheet ID.');
+  const selected=config.applyPublicAppConfig({
+    defaultSeasonId:'love-is-blind-us-11',
+    sourceSheetId:'real-sheet-id-from-publisher',
+    status:'upcoming',
+  });
+  assert.equal(selected,'love-is-blind-us-11');
+  assert.equal(us11.available,true,'Published runtime configuration must activate the registered S11 entry.');
+  assert.equal(us11.sheetId,'real-sheet-id-from-publisher');
+}
+
 const rollbackStart=publisher.indexOf('function rollbackSeasonSnapshot(');
 const rollbackEnd=publisher.indexOf('\nfunction rebuildSeasonCatalog(',rollbackStart);
 assert(rollbackStart>=0&&rollbackEnd>rollbackStart,'Could not isolate rollbackSeasonSnapshot.');
 const rollback=rollbackResult();
 verifyBoundedStandingsRows();
 verifyGlobalJoinCeiling();
+verifyGlobalSeasonRequiresRuntimeConfig();
+verifyPublicBetaSeasonBank();
 requireContract('appConfigRestoredFrom' in rollback,'Rollback must report whether matching appConfig/public routing metadata was restored.');
 requireContract(
   rollback.standingsRepair&&['completed','scheduled'].includes(rollback.standingsRepair.status),

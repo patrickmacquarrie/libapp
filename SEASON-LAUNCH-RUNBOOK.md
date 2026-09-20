@@ -1,8 +1,19 @@
 # Live season launch runbook
 
-Use this checklist for the first launch and every episode drop. UK3 is the first full production run.
+Use this checklist for the public beta launch and every episode drop. The completed UK3 friends test remains on its legacy configuration and is not the public Global Pool season.
 
 For a new beta season, choose configuration version 2 in Season Admin. A missing version is intentionally treated as legacy v1 so completed seasons such as UK3 cannot be silently reinterpreted.
+
+## Opening the public Global Pool
+
+Do these steps in order for US Season 11. The checked-in season-bank entry remains unavailable until its real source Sheet is connected through Season Admin; do not invent or reuse a Sheet ID.
+
+1. Preview and publish `love-is-blind-us-11` with `CONFIG_VERSION=2`. Confirm its source Sheet ID, release hash, episode availability, phase boundaries, and result flags before publishing.
+2. Set both `appConfig/public.globalPoolSeasonId` and `appConfig/public.defaultSeasonId` to `love-is-blind-us-11` through the publisher's live/default action. Verify both fields in Firestore; do not change the checked-in `DEFAULT_SEASON_ID` as a substitute for runtime configuration.
+3. Deploy the reviewed backend, Firestore rules, and hosting release. Confirm the deployment completed before inviting public players.
+4. Sign in with an address listed in `GLOBAL_POOL_ADMINS` and open the Global Pool once. Only an administrator may create it. Until that first open succeeds, every visitor's lobby load will make a failing callable request because the pool does not yet exist.
+
+With `CONFIG_VERSION=2`, a phase has no score anywhere until its `<PHASE>_RESULTS_READY` setting is `TRUE`. Before flipping that flag, verify every applicable result and correction row in the Sheet. The first Global standings recompute after the flag changes freezes each completed player's phase total with `freezeScoredTotal`; later Sheet corrections do not rewrite those frozen totals. If a post-freeze correction is unavoidable, stop the release and use the documented administrator reset and recompute procedure.
 
 ## Before the release
 
