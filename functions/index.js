@@ -11,6 +11,9 @@ const db=getFirestore();
 const PHASES=['pods','dating','weddings','reunion'];
 const GLOBAL_SCORING_VERSION=1;
 const STANDINGS_DOCUMENT_SOFT_LIMIT=850000;
+const GLOBAL_STANDINGS_ROW_LIMIT=500;
+const STANDINGS_REBUILD_COOLDOWN_MS=20000;
+const GLOBAL_JOIN_CEILING=8000;
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true};
@@ -38,6 +41,30 @@ function safeHeaderText(value,maxLength=100){
   return String(value||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
 }
 
+const firestoreMillis=value=>typeof value?.toMillis==='function'?value.toMillis():value instanceof Date?value.getTime():Number(value)||0;
+const boundedGlobalStandingsRows=(rows,limit=GLOBAL_STANDINGS_ROW_LIMIT)=>({
+  rows:(Array.isArray(rows)?rows:[]).slice(0,limit),
+  rowCount:Array.isArray(rows)?rows.length:0,
+  truncated:Array.isArray(rows)&&rows.length>limit,
+});
+const globalJoinHasCapacity=(members,uid,ceiling=GLOBAL_JOIN_CEILING)=>{
+  const current=Array.isArray(members)?members:[];
+  return current.includes(uid)||current.length<ceiling;
+};
+const abortedFirestoreWrite=error=>['10','aborted'].includes(String(error?.code??'').toLowerCase());
+async function retryAborted(operation,attempts=3){
+  let lastError;
+  for(let attempt=0;attempt<attempts;attempt++){
+    try{return await operation();}
+    catch(error){
+      lastError=error;
+      if(!abortedFirestoreWrite(error)||attempt===attempts-1)throw error;
+      await new Promise(resolve=>setTimeout(resolve,40+Math.floor(Math.random()*120)*(attempt+1)));
+    }
+  }
+  throw lastError;
+}
+
 function globalPoolSeasonFromConfig(data){
   const configured=data?.defaultSeason&&typeof data.defaultSeason==='object'?data.defaultSeason:{};
   const id=safeHeaderText(data?.globalPoolSeasonId||data?.defaultSeasonId||configured.id,100);
@@ -60,10 +87,7 @@ function nudgePreferenceEnabled(preferences,key){
   return preferences?.emailNudges===true&&['newEpisodes','friendPhaseLocks'].includes(key);
 }
 
-async function queueNudge(uid,messageId,subject,text,preferenceKey){
-  const preferences=await db.doc(`notificationPreferences/${uid}`).get();
-  if(!preferences.exists||!nudgePreferenceEnabled(preferences.data(),preferenceKey))return false;
-  const user=await getAuth().getUser(uid).catch(()=>null);
+async function queueNudgeForUser(user,messageId,subject,text){
   if(!user?.email)return false;
   const safeText=String(text||'');
   try{
@@ -83,6 +107,35 @@ async function queueNudge(uid,messageId,subject,text,preferenceKey){
     throw error;
   }
   return true;
+}
+
+async function queueNudge(uid,messageId,subject,text,preferenceKey){
+  const preferences=await db.doc(`notificationPreferences/${uid}`).get();
+  if(!preferences.exists||!nudgePreferenceEnabled(preferences.data(),preferenceKey))return false;
+  const user=await getAuth().getUser(uid).catch(()=>null);
+  return queueNudgeForUser(user,messageId,subject,text);
+}
+
+async function enabledNotificationRecipients(preferenceKey){
+  const queries=[db.collection('notificationPreferences').where(preferenceKey,'==',true)];
+  if(preferenceKey==='newEpisodes')queries.push(db.collection('notificationPreferences').where('emailNudges','==',true));
+  const snapshots=await Promise.all(queries.map(query=>query.get()));
+  const preferences=new Map();
+  snapshots.forEach(snapshot=>snapshot.docs.forEach(document=>preferences.set(document.id,document.data())));
+  return [...preferences.entries()].filter(([,data])=>nudgePreferenceEnabled(data,preferenceKey)).map(([uid])=>uid);
+}
+
+async function queueNudgeChunks(uids,messageFor){
+  const sent=new Set(),unique=[...new Set(uids)];
+  for(let offset=0;offset<unique.length;offset+=50){
+    const chunk=unique.slice(offset,offset+50);
+    const result=await getAuth().getUsers(chunk.map(uid=>({uid})));
+    await Promise.all(result.users.map(async user=>{
+      const message=messageFor(user.uid);
+      if(message&&await queueNudgeForUser(user,message.id,message.subject,message.text))sent.add(user.uid);
+    }));
+  }
+  return sent;
 }
 
 function publishedSetting(snapshot,key){
@@ -230,8 +283,8 @@ function publishedSeasonConfig(snapshot,seasonId){
 
 async function recomputeGlobalStandings(poolId){
   const poolRef=db.doc(`pools/${poolId}`),standingsRef=poolRef.collection('standings').doc('current');
-  const [poolSnapshot,playersSnapshot,previousSnapshot]=await Promise.all([
-    poolRef.get(),poolRef.collection('trustedPlayers').get(),standingsRef.get(),
+  const [poolSnapshot,playersSnapshot,previousSnapshot,previousRowsSnapshot]=await Promise.all([
+    poolRef.get(),poolRef.collection('trustedPlayers').get(),standingsRef.get(),poolRef.collection('standingsRows').get(),
   ]);
   if(!poolSnapshot.exists||poolSnapshot.data().global!==true)return null;
   const pool=poolSnapshot.data(),seasonId=String(pool.globalSeasonId||pool.season?.id||'');
@@ -239,7 +292,10 @@ async function recomputeGlobalStandings(poolId){
   if(!seasonSnapshot.exists)throw new Error(`Published season ${seasonId} is unavailable for Global scoring.`);
   const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
   const trusted=Object.fromEntries(playersSnapshot.docs.map(document=>[document.id,document.data()]));
-  const previousRows=Object.fromEntries((previousSnapshot.data()?.rows||[]).map(row=>[row.uid,row]));
+  const previousRows={
+    ...Object.fromEntries((previousSnapshot.data()?.rows||[]).map(row=>[row.uid,row])),
+    ...Object.fromEntries(previousRowsSnapshot.docs.map(document=>[document.id,document.data()])),
+  };
   const recalculated={},phaseScores={},phasePoolSizes={},completedByPhase={},ownerCounts={},activeCounts={};
   PHASES.forEach(phase=>{recalculated[phase]={};phaseScores[phase]={};phasePoolSizes[phase]={};completedByPhase[phase]=[];ownerCounts[phase]={};activeCounts[phase]=0;});
   for(const phase of PHASES){
@@ -277,7 +333,7 @@ async function recomputeGlobalStandings(poolId){
   PHASES.forEach(phase=>completedByPhase[phase].forEach(uid=>{
     phaseScores[phase][uid]=freezeScoredTotal(previousRows[uid]?.phaseScores?.[phase],recalculated[phase][uid]);
   }));
-  const rows=Object.keys(trusted).map(uid=>{
+  const allRows=Object.keys(trusted).map(uid=>{
     const previous=previousRows[uid]||{},scores={},sizes={},completedPhases=[];
     PHASES.forEach(phase=>{
       if(Object.prototype.hasOwnProperty.call(phaseScores[phase],uid)){
@@ -287,9 +343,21 @@ async function recomputeGlobalStandings(poolId){
     return {uid,username:safeHeaderText(trusted[uid].username||previous.username||'Player',40)||'Player',total:Object.values(scores).reduce((sum,value)=>sum+(Number(value)||0),0),phaseScores:scores,phasePoolSizes:sizes,completedPhases};
   }).filter(row=>row.completedPhases.length).sort((a,b)=>b.total-a.total||a.username.localeCompare(b.username)||a.uid.localeCompare(b.uid));
   let lastScore=null,rank=0;
-  rows.forEach((row,index)=>{if(row.total!==lastScore)rank=index+1;row.rank=rank;lastScore=row.total;});
+  allRows.forEach((row,index)=>{if(row.total!==lastScore)rank=index+1;row.rank=rank;lastScore=row.total;});
   const sourceRevision=Math.max(Date.now(),...Object.values(trusted).map(player=>Number(player.updatedAt)||0));
-  const document={schemaVersion:GLOBAL_SCORING_VERSION,engineVersion:GLOBAL_SCORING_VERSION,seasonId,sourceRevision,computedAt:Date.now(),rows,ownerCounts,activeCounts};
+  for(let offset=0;offset<allRows.length;offset+=400){
+    const batch=db.batch();
+    allRows.slice(offset,offset+400).forEach(row=>batch.set(
+      poolRef.collection('standingsRows').doc(row.uid),
+      {...row,seasonId,sourceRevision,updatedAt:FieldValue.serverTimestamp()},
+    ));
+    await batch.commit();
+  }
+  const bounded=boundedGlobalStandingsRows(allRows);
+  const document={
+    schemaVersion:GLOBAL_SCORING_VERSION,engineVersion:GLOBAL_SCORING_VERSION,seasonId,sourceRevision,
+    computedAt:Date.now(),...bounded,ownerCounts,activeCounts,
+  };
   const byteSize=Buffer.byteLength(JSON.stringify(document));
   if(byteSize>STANDINGS_DOCUMENT_SOFT_LIMIT)throw new Error(`Global standings document is ${byteSize} bytes; refusing to approach Firestore's document limit.`);
   await db.runTransaction(async transaction=>{
@@ -299,6 +367,44 @@ async function recomputeGlobalStandings(poolId){
   });
   return document;
 }
+
+async function requestGlobalStandingsRebuild(poolId,reason){
+  try{
+    await db.doc(`pools/${poolId}/standings/rebuild`).set({requestedAt:new Date(),reason:safeHeaderText(reason,80)},{merge:true});
+    return true;
+  }catch(error){
+    console.error('Global standings rebuild could not be queued.',{poolId,reason,error});
+    return false;
+  }
+}
+
+async function claimGlobalStandingsRebuild(markerRef,nowMs=Date.now(),firestore=db){
+  return firestore.runTransaction(async transaction=>{
+    const marker=await transaction.get(markerRef);
+    if(!marker.exists)return false;
+    const lastRunAt=firestoreMillis(marker.data().lastRunAt);
+    if(lastRunAt&&nowMs-lastRunAt<STANDINGS_REBUILD_COOLDOWN_MS)return false;
+    transaction.set(markerRef,{lastRunAt:new Date(nowMs)},{merge:true});
+    return true;
+  });
+}
+
+exports.rebuildGlobalStandings=onDocumentWritten({
+  ...FUNCTION_LIMITS,timeoutSeconds:300,memory:'512MiB',document:'pools/{poolId}/standings/rebuild',
+},async event=>{
+  if(!event.data?.after.exists)return;
+  const markerRef=event.data.after.ref;
+  if(!await claimGlobalStandingsRebuild(markerRef))return;
+  try{
+    const standings=await recomputeGlobalStandings(event.params.poolId);
+    await markerRef.set({
+      lastCompletedAt:new Date(),lastSourceRevision:Number(standings?.sourceRevision)||0,lastError:FieldValue.delete(),
+    },{merge:true});
+  }catch(error){
+    await markerRef.set({lastErrorAt:new Date(),lastError:safeHeaderText(error?.message||error,500)},{merge:true}).catch(()=>{});
+    throw error;
+  }
+});
 
 function cleanRatings(value){
   return (Array.isArray(value)?value:[]).slice(0,80).map(entry=>{
@@ -382,7 +488,7 @@ exports.sendPhaseLockNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'pool
   }
 });
 
-exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'seasons/{seasonId}'},async event=>{
+exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,timeoutSeconds:540,document:'seasons/{seasonId}'},async event=>{
   if(!event.data?.after.exists)return;
   const before=event.data?.before.exists?event.data.before.data():{};
   const after=event.data.after.data();
@@ -393,37 +499,33 @@ exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'sea
   const beforeStatus=normalizeStatus(publishedSetting(before,'SEASON_STATUS')||before.status);
   const afterStatus=normalizeStatus(publishedSetting(after,'SEASON_STATUS')||after.status);
   const seasonBecameLive=liveStatuses.has(afterStatus)&&!liveStatuses.has(beforeStatus);
-  const seasonNotified=new Set();
+  let seasonNotified=new Set();
   if(seasonBecameLive){
-    const preferenceDocs=await db.collection('notificationPreferences').where('newSeasons','==',true).get();
+    const recipients=await enabledNotificationRecipients('newSeasons');
     const seasonLabel=String(after.label||after.seasonLabel||publishedSetting(after,'SEASON_LABEL')||publishedSetting(after,'TITLE')||'A new Love Is Blind season');
-    await Promise.all(preferenceDocs.docs.map(async preferenceDoc=>{
-      const sent=await queueNudge(
-        preferenceDoc.id,
-        `season_${event.params.seasonId}_${preferenceDoc.id}`,
-        `${seasonLabel} just dropped`,
-        `${seasonLabel} is open for predictions. Build your pool before the group chat starts calling it.`,
-        'newSeasons',
-      );
-      if(sent)seasonNotified.add(preferenceDoc.id);
+    seasonNotified=await queueNudgeChunks(recipients,uid=>({
+      id:`season_${event.params.seasonId}_${uid}`,
+      subject:`${seasonLabel} just dropped`,
+      text:`${seasonLabel} is open for predictions. Build your pool before the group chat starts calling it.`,
     }));
   }
   if(afterEpisode<=beforeEpisode)return;
   const pools=await db.collection('pools').where('season.id','==',event.params.seasonId).get();
-  const recipients=new Set();pools.docs.forEach(pool=>{(pool.data().members||[]).forEach(uid=>recipients.add(uid));});
-  await Promise.all([...recipients].filter(uid=>!seasonNotified.has(uid)).map(uid=>queueNudge(
-    uid,
-    `episodes_${event.params.seasonId}_${afterEpisode}_${uid}`,
-    'New episodes are out — your picks are waiting',
-    `New episodes are out through Episode ${afterEpisode}. Your picks are waiting before you watch.`,
-    'newEpisodes',
-  )));
+  const members=new Set();pools.docs.forEach(pool=>{(pool.data().members||[]).forEach(uid=>members.add(uid));});
+  const optedIn=await enabledNotificationRecipients('newEpisodes');
+  const recipients=optedIn.filter(uid=>members.has(uid)&&!seasonNotified.has(uid));
+  await queueNudgeChunks(recipients,uid=>({
+    id:`episodes_${event.params.seasonId}_${afterEpisode}_${uid}`,
+    subject:'New episodes are out — your picks are waiting',
+    text:`New episodes are out through Episode ${afterEpisode}. Your picks are waiting before you watch.`,
+  }));
 });
 
 async function removeMemberData(poolRef,uid){
   const batch=db.batch();
   batch.delete(poolRef.collection('players').doc(uid));
   batch.delete(poolRef.collection('trustedPlayers').doc(uid));
+  batch.delete(poolRef.collection('standingsRows').doc(uid));
   batch.delete(poolRef.collection('castRatings').doc(uid));
   PHASES.forEach(phase=>{
     batch.delete(poolRef.collection('phasePicks').doc(`${phase}__${uid}`));
@@ -449,7 +551,7 @@ exports.leavePool=onCall(CALLABLE_LIMITS,async request=>{
     await poolRef.update({members:FieldValue.arrayRemove(uid)});
   }
   await removeMemberData(poolRef,uid);
-  if(pool.global===true)await recomputeGlobalStandings(poolId);
+  if(pool.global===true)await requestGlobalStandingsRebuild(poolId,'member-left');
   return {ok:true};
 });
 
@@ -505,7 +607,7 @@ exports.reopenPhase=onCall(CALLABLE_LIMITS,async request=>{
     tx.update(statusRef,{completedMembers:FieldValue.arrayRemove(uid),updatedAt:Date.now()});
     if(globalPool&&trustedSnapshot?.exists)tx.update(trustedRef,{[`completedAt.${phase}`]:FieldValue.delete(),updatedAt:Date.now()});
   });
-  if(globalPool)await recomputeGlobalStandings(poolId);
+  if(globalPool)await requestGlobalStandingsRebuild(poolId,'phase-reopened');
   return {ok:true};
 });
 
@@ -669,7 +771,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
   const ref=db.doc(`pools/global__${seasonId}`);
   const trustedRef=ref.collection('trustedPlayers').doc(uid);
   const configRef=db.doc('appConfig/public');
-  await db.runTransaction(async tx=>{
+  await retryAborted(()=>db.runTransaction(async tx=>{
     const configSnapshot=await tx.get(configRef);
     const season=globalPoolSeasonFromConfig(configSnapshot.exists?configSnapshot.data():null);
     if(seasonId!==season.id)throw new HttpsError('invalid-argument','That season is not the active Global Pool season.');
@@ -683,6 +785,9 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       const current=snapshot.data();
       if(current.global!==true||current.globalSeasonId!==seasonId)throw new HttpsError('failed-precondition','The global pool document is configured incorrectly.');
       const alreadyMember=Array.isArray(current.members)&&current.members.includes(uid);
+      if(!globalJoinHasCapacity(current.members,uid)){
+        throw new HttpsError('resource-exhausted','The Global Pool is temporarily full while membership storage is upgraded. Please try again later.');
+      }
       const update={scoringVersion:GLOBAL_SCORING_VERSION};
       if(!alreadyMember)update.members=FieldValue.arrayUnion(uid);
       tx.update(ref,update);
@@ -697,7 +802,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
     tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({})});
-  });
+  }));
   return {ok:true,poolId:ref.id};
 });
 
@@ -761,12 +866,12 @@ async function lockGlobalPicks(request){
     {merge:true},
   ));
   await batch.commit();
-  const standings=await recomputeGlobalStandings(poolId);
+  const standingsQueued=await requestGlobalStandingsRebuild(poolId,'picks-locked');
   return {
     ok:true,lockedAt,
     accepted:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,(nextPicks[phase]||[]).length])),
     credited:Object.fromEntries(Object.keys(submitted).map(phase=>[phase,nextPicks[phase]||[]])),
-    standingsRevision:standings?.sourceRevision||0,
+    standingsRevision:0,standingsStale:!standingsQueued,
   };
 }
 
@@ -775,7 +880,7 @@ async function completeGlobalPhase(request){
   if(!poolId||!PHASES.includes(phase))throw new HttpsError('invalid-argument','Choose a valid Global Pool phase to complete.');
   const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid),playerRef=poolRef.collection('players').doc(uid),statusRef=poolRef.collection('phaseStatus').doc(phase);
   const completedAt=Date.now();
-  await db.runTransaction(async transaction=>{
+  await retryAborted(()=>db.runTransaction(async transaction=>{
     const [poolSnapshot,trustedSnapshot,playerSnapshot]=await Promise.all([transaction.get(poolRef),transaction.get(trustedRef),transaction.get(playerRef)]);
     if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted completion is available only in the Global Pool.');
     if(!Array.isArray(poolSnapshot.data().members)||!poolSnapshot.data().members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before completing a phase.');
@@ -790,9 +895,9 @@ async function completeGlobalPhase(request){
         ...(player.phase===phase?{screen:'close'}:{}),
       });
     }
-  });
-  const standings=await recomputeGlobalStandings(poolId);
-  return {ok:true,completedAt,standingsRevision:standings?.sourceRevision||0};
+  }));
+  const standingsQueued=await requestGlobalStandingsRebuild(poolId,'phase-completed');
+  return {ok:true,completedAt,standingsRevision:0,standingsStale:!standingsQueued};
 }
 
 async function resetHistoricalGlobalSimulation(request){
@@ -1007,7 +1112,7 @@ exports.deleteMyAccount=onCall(CALLABLE_LIMITS,async request=>{
     else{
       await poolDoc.ref.update({members:FieldValue.arrayRemove(uid)});
       await removeMemberData(poolDoc.ref,uid);
-      if(poolDoc.data().global===true)await recomputeGlobalStandings(poolDoc.id);
+      if(poolDoc.data().global===true)await requestGlobalStandingsRebuild(poolDoc.id,'account-deleted');
     }
   }
   await db.recursiveDelete(db.doc(`castRatingProfiles/${uid}`));

@@ -794,4 +794,20 @@ async function assertSeasonCatalogLoader(){
   assert.equal(collectionReads,2,'Batch A must remain compatible before Batch C grants the catalog read rule.');
 }
 
-Promise.all([assertMirrorEntryRegression(),assertBoundedStandingsListener(),assertSeasonCatalogLoader()]).then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
+async function assertPersonalGlobalStandingRow(){
+  const start=html.indexOf('const globalStandingsView =');
+  const end=html.indexOf('\nconst globalOwnerOverrides',start);
+  assert(start>=0&&end>start,'The Global standings view must remain independently executable.');
+  const context={PH_ORDER:['pods','dating','weddings','reunion'],freshPicks:()=>({pods:[],dating:[],weddings:[],reunion:[]})};
+  vm.createContext(context);
+  vm.runInContext(`${html.slice(start,end)}\nthis.__globalStandingsView=globalStandingsView;`,context);
+  const topRows=Array.from({length:500},(_,index)=>({uid:`top-${index}`,username:`Top ${index}`,rank:index+1,total:1000-index,completedPhases:['pods'],phaseScores:{pods:1000-index}}));
+  const ownRow={uid:'viewer',username:'Viewer',rank:777,total:12,completedPhases:['pods'],phaseScores:{pods:12}};
+  const ownPlayer={username:'Viewer',picks:{pods:[{c:'A|B',s:10,w:1}],dating:[],weddings:[],reunion:[]},completed:{pods:true}};
+  const view=context.__globalStandingsView({rows:topRows,computedAt:123},'viewer',ownPlayer,ownRow);
+  assert.equal(view.players.viewer,ownPlayer,'A viewer outside the top 500 must keep their real player state.');
+  assert.equal(view.phaseScores.pods.viewer,12,'A viewer outside the top 500 must receive their trusted personal score row.');
+  assert(view.status.pods.completedMembers.includes('viewer'));
+}
+
+Promise.all([assertMirrorEntryRegression(),assertBoundedStandingsListener(),assertSeasonCatalogLoader(),assertPersonalGlobalStandingRow()]).then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
