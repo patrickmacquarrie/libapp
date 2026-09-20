@@ -4,6 +4,7 @@ const OPTIONAL_TAB_NAMES = ['Retro Events'];
 const TAB_NAMES = REQUIRED_TAB_NAMES.concat(OPTIONAL_TAB_NAMES);
 const BACKUP_COLLECTION = 'seasonSnapshotBackups';
 const APP_CONFIG_PATH = 'appConfig/public';
+const SEASON_CATALOG_PATH = 'appConfig/seasonCatalog';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const PREVIEW_HASH_PROPERTY_PREFIX = 'LAST_PREVIEW_HASH__';
 const APP_CONFIG_BACKUP_PROPERTY_PREFIX = 'LAST_APP_CONFIG_BACKUP_PATH__';
@@ -255,6 +256,7 @@ function publishSeasonSnapshot(seasonId) {
   assertMatchesLatestPreview_(config.seasonId, releaseHash);
   const publishedStatus = firestoreStringField_(built.fields, 'status').toLowerCase();
   const currentAppConfig = readFirestoreDocument_(config, APP_CONFIG_PATH);
+  const currentCatalog = readFirestoreDocument_(config, SEASON_CATALOG_PATH);
   const currentDefaultSeasonId = currentAppConfig.exists
     ? firestoreStringField_(currentAppConfig.fields, 'defaultSeasonId') || config.fallbackDefaultSeasonId
     : config.fallbackDefaultSeasonId;
@@ -275,6 +277,10 @@ function publishSeasonSnapshot(seasonId) {
     writes.push({documentPath: backupPath, fields: current.fields});
   }
   writes.push({documentPath: seasonPath, fields: built.fields});
+  writes.push({
+    documentPath: SEASON_CATALOG_PATH,
+    fields: seasonCatalogFieldsWithEntry_(currentCatalog, seasonCatalogEntry_(config.seasonId, built.fields))
+  });
 
   if (isCurrentDefault) {
     if (currentAppConfig.exists) {
@@ -332,6 +338,7 @@ function rollbackSeasonSnapshot(seasonId) {
   if (!backup.exists) throw new Error('The recorded backup no longer exists: ' + backupPath);
 
   const current = readFirestoreDocument_(config, seasonPath);
+  const currentCatalog = readFirestoreDocument_(config, SEASON_CATALOG_PATH);
   const isCurrentDefault = currentDefaultSeasonId_(config) === config.seasonId;
   const appConfigBackupPath = isCurrentDefault ? latestAppConfigBackupPath_(config.seasonId) : '';
   const appConfigBackup = appConfigBackupPath
@@ -352,6 +359,10 @@ function rollbackSeasonSnapshot(seasonId) {
     writes.push({documentPath: rescuePath, fields: current.fields});
   }
   writes.push({documentPath: seasonPath, fields: backup.fields});
+  writes.push({
+    documentPath: SEASON_CATALOG_PATH,
+    fields: seasonCatalogFieldsWithEntry_(currentCatalog, seasonCatalogEntry_(config.seasonId, backup.fields))
+  });
   if (appConfigBackup.exists) {
     if (currentAppConfig.exists) {
       appConfigRescuePath = APP_CONFIG_BACKUP_COLLECTION + '/' + config.seasonId + '__' + rollbackId + '__rollback';
@@ -387,6 +398,19 @@ function rollbackSeasonSnapshot(seasonId) {
   };
   console.log(JSON.stringify(summary));
   return summary;
+}
+
+/** Rebuilds the compact signed-in season catalog from all published seasons. */
+function rebuildSeasonCatalog(seasonId) {
+  const config = publisherConfig_(seasonId);
+  const seasons = listFirestoreDocuments_(config, 'seasons').map(function(document) {
+    return seasonCatalogEntry_(document.id, document.fields);
+  }).sort(function(a, b) { return a.id.localeCompare(b.id); });
+  commitFirestoreDocuments_(config, [{
+    documentPath: SEASON_CATALOG_PATH,
+    fields: mapFields_({seasons: seasons, updatedAt: new Date()})
+  }]);
+  return {rebuilt: true, documentPath: SEASON_CATALOG_PATH, seasonCount: seasons.length, seasons: seasons};
 }
 
 function publisherConfig_(requestedSeasonId) {
@@ -757,6 +781,30 @@ function plainFirestoreValue_(value) {
   return null;
 }
 
+function seasonCatalogEntry_(seasonId, fields) {
+  const snapshot = plainFirestoreFields_(fields || {});
+  const settings = snapshotSettings_(snapshot);
+  const publishedAt = snapshot.publishedAt ? new Date(snapshot.publishedAt) : null;
+  return {
+    id: String(snapshot.seasonId || seasonId || ''),
+    status: String(snapshot.status || 'upcoming'),
+    sourceSheetId: String(snapshot.sourceSheetId || ''),
+    releaseLabel: String(settings.RELEASE_LABEL || ''),
+    publishedAt: publishedAt && !isNaN(publishedAt.getTime()) ? publishedAt : null
+  };
+}
+
+function seasonCatalogFieldsWithEntry_(currentCatalog, entry) {
+  const current = currentCatalog && currentCatalog.exists
+    ? plainFirestoreFields_(currentCatalog.fields || {})
+    : {};
+  const seasons = (Array.isArray(current.seasons) ? current.seasons : [])
+    .filter(function(season) { return season && season.id && season.id !== entry.id; })
+    .concat([entry])
+    .sort(function(a, b) { return String(a.id).localeCompare(String(b.id)); });
+  return mapFields_({seasons: seasons, updatedAt: new Date()});
+}
+
 function backupDocumentPath_(seasonId, reason, timestamp) {
   return BACKUP_COLLECTION + '/' + seasonId + '__' + (timestamp || timestampId_()) + '__' + reason;
 }
@@ -807,6 +855,28 @@ function readFirestoreDocument_(config, documentPath) {
   assertFirestoreResponse_(response, 'read ' + documentPath);
   const document = JSON.parse(response.getContentText());
   return {exists: true, fields: document.fields || {}};
+}
+
+function listFirestoreDocuments_(config, collectionPath) {
+  const documents = [];
+  let pageToken = '';
+  do {
+    const url = firestoreDocumentUrl_(config.projectId, collectionPath) +
+      '?pageSize=100' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+    const response = UrlFetchApp.fetch(url, {
+      method: 'get',
+      headers: {Authorization: 'Bearer ' + ScriptApp.getOAuthToken()},
+      muteHttpExceptions: true
+    });
+    assertFirestoreResponse_(response, 'list ' + collectionPath);
+    const payload = JSON.parse(response.getContentText() || '{}');
+    (payload.documents || []).forEach(function(document) {
+      const name = String(document.name || '');
+      documents.push({id: decodeURIComponent(name.split('/').pop() || ''), fields: document.fields || {}});
+    });
+    pageToken = String(payload.nextPageToken || '');
+  } while (pageToken);
+  return documents;
 }
 
 function writeFirestoreDocument_(config, documentPath, fields) {

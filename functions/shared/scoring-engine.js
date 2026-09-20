@@ -305,12 +305,18 @@ function makeEngine(cfg, poolSize) {
     Object.entries(picksBy||{}).map(([member,picks])=>[member,sanitizePhasePicks(phase,picks)])
   );
   /* Resolve one episode across a set of members. picksBy = {memberUid: picks[]} */
-  function resolveEpisode(phase, ep, picksBy) {
+  function resolveEpisode(phase, ep, picksBy, ownerOverrides=null) {
     picksBy=sanitizePicksBy(phase,picksBy);
     const MEMBERS = Object.keys(picksBy);
     const all = picksBy;
-    const poolSize=activePoolSize(picksBy);
-    const mkEntry=entry=>mk({...entry,poolSize});
+    const fallbackPoolSize=activePoolSize(picksBy);
+    const overridePoolSize=Number(ownerOverrides?.activeCount);
+    const poolSize=Number.isFinite(overridePoolSize)&&overridePoolSize>0?overridePoolSize:fallbackPoolSize;
+    const mkEntry=entry=>{
+      const {identity,...scoredEntry}=entry;
+      const overrideOwners=identity==null?NaN:Number(ownerOverrides?.ownerCounts?.[identity]);
+      return mk({...scoredEntry,owners:Number.isFinite(overrideOwners)&&overrideOwners>=0?overrideOwners:entry.owners,poolSize});
+    };
     const events=[], entries=[];
     if(phase==='pods') {
       const impossiblePodsMisses=new Set();
@@ -319,7 +325,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:nameOf(c.id)+' got engaged',sub:ep===START.pods?'Episode '+START.pods+' - unavailable for predictions by design; no one scores it.':'Against-the-Grain bonus stays live as more pool members finish Pods.'});
         if(ep!==START.pods) MEMBERS.forEach(m=>all[m].filter(p=>sameCouple(p.c,c)).forEach(p=>{
           const fore=ep-p.w-1;
-          entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' get engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners,predictionAfterEp:p.w}));
+          entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' get engaged',stake:p.s,mult:leadM(fore),multLabel:'x'+fmt(leadM(fore))+' Against-the-Clock ('+fore+' episodes of foresight)',owners,identity:pickIdentity(phase,p),predictionAfterEp:p.w}));
         }));
         const actualPeople=new Set([c.him,c.her].map(personKey));
         MEMBERS.forEach(m=>all[m].filter(p=>!sameCouple(p.c,c)&&membOf(p.c).some(person=>actualPeople.has(personKey(person)))).forEach(p=>{
@@ -336,7 +342,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:'Sleep together: '+nameOf(id)+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='sex'&&p.c===id).forEach(p=>{
           const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.sex;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' sleep-together x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
+          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Sleep together: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' sleep-together x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,identity:pickIdentity(phase,p),placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
         }));
       });
       Object.entries(DATING_RESULTS.flirt).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([person,r])=>{
@@ -344,7 +350,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:FLIRT_SHORT+': '+person+' (during the retreat, referenced on camera)',sub:'Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='flirt'&&flirtResultFor(p.p)===r).forEach(p=>{
           const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.flirt;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:FLIRT_SHORT+': '+person,stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' flirt x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
+          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:FLIRT_SHORT+': '+person,stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' flirt x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,identity:pickIdentity(phase,p),placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
         }));
       });
       Object.entries(DATING_RESULTS.breakup).filter(([,r])=>r.ep===ep&&r.ep>=RETREAT_START_EP&&r.ep<=RETREAT_END_EP).forEach(([id,r])=>{
@@ -352,7 +358,7 @@ function makeEngine(cfg, poolSize) {
         events.push({title:'Breaks up during the retreat: '+nameOf(id),sub:'Both members must clearly understand their relationship is over. The Against-the-Grain bonus stays live as more pool members finish Retreats.',placeholder:!r.confirmed});
         MEMBERS.forEach(m=>all[m].filter(p=>p.m==='breakup'&&p.c===id).forEach(p=>{
           const foresight=Math.max(0,ep-p.w-1), clock=leadM(foresight), market=DATING_MARKET_MULT.breakup;
-          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Breaks up during the retreat: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' breakup x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
+          entries.push(mkEntry({member:m,phase,ok:true,pending:!r.confirmed,label:'Breaks up during the retreat: '+nameOf(id),stake:p.s,mult:market*clock,multLabel:'x'+fmt(market)+' breakup x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes before it was seen)',owners,identity:pickIdentity(phase,p),placeholder:!r.confirmed,note:!r.confirmed?'Awaiting confirmation.':null,predictionAfterEp:p.w}));
         }));
       });
     }
@@ -384,7 +390,7 @@ function makeEngine(cfg, poolSize) {
             const notes=[];
             if(whoBonusOutcome&&!timingCorrect) notes.push('Exact ending predicted '+WED_LABEL[p.o]+'; actual '+WED_LABEL[out]+' - base result points still awarded');
             if(whoBonusOutcome&&p.who&&!whoCorrect) notes.push(outcomeAfterPick?'Person predicted '+whoNm(c.id,p.who)+'; actual '+whoNm(c.id,c.who):'Who-ended-it bonus unavailable because the outcome was not after this prediction');
-            entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' - '+(out==='married'?'Get married':'Do not get married')+' · Predicted '+predictedLabel,stake:p.s,mult:base*clock,multLabel:'x'+fmt(base)+' '+(out==='married'?'Get married':'Not married base')+' x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes of foresight)',owners,tag:timingBonus*whoBonus,tagLabel:bonusLabels.length?bonusLabels.join(' x '):null,note:notes.length?notes.join(' · '):null,predictionAfterEp:p.w}));
+            entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(c.id)+' - '+(out==='married'?'Get married':'Do not get married')+' · Predicted '+predictedLabel,stake:p.s,mult:base*clock,multLabel:'x'+fmt(base)+' '+(out==='married'?'Get married':'Not married base')+' x'+fmt(clock)+' Against-the-Clock ('+foresight+' episodes of foresight)',owners,identity:pickIdentity(phase,p),tag:timingBonus*whoBonus,tagLabel:bonusLabels.length?bonusLabels.join(' x '):null,note:notes.length?notes.join(' · '):null,predictionAfterEp:p.w}));
           } else {
             entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(c.id)+' - predicted '+predictedLabel,stake:p.s,note:'Actual: '+actualLabel}));
           }
@@ -405,26 +411,26 @@ function makeEngine(cfg, poolSize) {
         const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
         const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='still'&&q.c===p.c)).length;
         if(!known&&!REUNION_RESULTS.ready.still) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' still together',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
-        else entries.push(truth?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' still together',stake:p.s,mult:REUNION_MULT.still,multLabel:'x'+fmt(REUNION_MULT.still)+' still-together',owners}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' still together',stake:p.s,note:'They split.'}));
+        else entries.push(truth?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' still together',stake:p.s,mult:REUNION_MULT.still,multLabel:'x'+fmt(REUNION_MULT.still)+' still-together',owners,identity:pickIdentity(phase,p)}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' still together',stake:p.s,note:'They split.'}));
       }));
       MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='marriedSplit').forEach(p=>{
         const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
         const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='marriedSplit'&&q.c===p.c)).length;
         if(!known&&!REUNION_RESULTS.ready.still) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' broken up since marrying',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
-        else entries.push(known&&truth===false?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' broken up since marrying',stake:p.s,mult:REUNION_MULT.marriedSplit,multLabel:'x'+fmt(REUNION_MULT.marriedSplit)+' married-couple breakup',owners}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' broken up since marrying',stake:p.s,note:known?'They are still together.':'No breakup was confirmed.'}));
+        else entries.push(known&&truth===false?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' broken up since marrying',stake:p.s,mult:REUNION_MULT.marriedSplit,multLabel:'x'+fmt(REUNION_MULT.marriedSplit)+' married-couple breakup',owners,identity:pickIdentity(phase,p)}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' broken up since marrying',stake:p.s,note:known?'They are still together.':'No breakup was confirmed.'}));
       }));
       MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='split').forEach(p=>{
         const known=Object.prototype.hasOwnProperty.call(REUNION_RESULTS.still,p.c);
         const truth=REUNION_RESULTS.still[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='split'&&q.c===p.c)).length;
         if(!known&&!REUNION_RESULTS.ready.still) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' no longer together',stake:p.s,note:'Awaiting this couple’s confirmed status.'}));
-        else entries.push(known&&truth===false?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' no longer together',stake:p.s,mult:REUNION_MULT.split,multLabel:'x'+fmt(REUNION_MULT.split)+' relationship ended',owners}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' no longer together',stake:p.s,note:known?'They are still together.':'No breakup was confirmed.'}));
+        else entries.push(known&&truth===false?mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' no longer together',stake:p.s,mult:REUNION_MULT.split,multLabel:'x'+fmt(REUNION_MULT.split)+' relationship ended',owners,identity:pickIdentity(phase,p)}):mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' no longer together',stake:p.s,note:known?'They are still together.':'No breakup was confirmed.'}));
       }));
       const backIds=Object.keys(REUNION_RESULTS.back).filter(id=>REUNION_RESULTS.back[id]);
       if(REUNION_RESULTS.ready.back) events.push({title:backIds.length?'Back together: '+backIds.map(nameOf).join(', '):'No exes got back together'});
       else events.push({title:'Back-together results awaiting confirmation',placeholder:true});
       MEMBERS.forEach(m=>all[m].filter(p=>relationshipOutcome(p)==='back').forEach(p=>{
         const truth=!!REUNION_RESULTS.back[p.c], owners=MEMBERS.filter(mm=>all[mm].some(q=>relationshipOutcome(q)==='back'&&q.c===p.c)).length;
-        if(truth) entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' back together',stake:p.s,mult:REUNION_MULT.back,multLabel:'x'+fmt(REUNION_MULT.back)+' back-together',owners}));
+        if(truth) entries.push(mkEntry({member:m,phase,ok:true,label:nameOf(p.c)+' back together',stake:p.s,mult:REUNION_MULT.back,multLabel:'x'+fmt(REUNION_MULT.back)+' back-together',owners,identity:pickIdentity(phase,p)}));
         else if(!REUNION_RESULTS.ready.back) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:nameOf(p.c)+' back together',stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mkEntry({member:m,phase,ok:false,label:nameOf(p.c)+' back together',stake:p.s,note:'Stayed split.'}));
       }));
@@ -434,7 +440,7 @@ function makeEngine(cfg, poolSize) {
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='newCouple').forEach(p=>{
         const predictionKey=pairKeyFor(p.pair);
         const hit=ncs.some(value=>pairKeyFor(value)===predictionKey), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='newCouple'&&pairKeyFor(q.pair)===predictionKey)).length;
-        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,mult:REUNION_MULT.newCouple,multLabel:'x'+fmt(REUNION_MULT.newCouple)+' new couple',owners}));
+        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,mult:REUNION_MULT.newCouple,multLabel:'x'+fmt(REUNION_MULT.newCouple)+' new couple',owners,identity:pickIdentity(phase,p)}));
         else if(!REUNION_RESULTS.ready.newCouple) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mkEntry({member:m,phase,ok:false,label:'New couple: '+p.pair.split('|').join(' & '),stake:p.s}));
       }));
@@ -445,7 +451,7 @@ function makeEngine(cfg, poolSize) {
         const normalized=normalizeLifeUpdate(p.update);
         const predictedPerson=personKey(p.person);
         const hit=lus.some(lu=>personKey(lu.person)===predictedPerson&&lu.update===normalized), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='lifeUpdate'&&personKey(q.person)===predictedPerson&&normalizeLifeUpdate(q.update)===normalized)).length;
-        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,mult:REUNION_MULT.lifeUpdate,multLabel:'x'+fmt(REUNION_MULT.lifeUpdate)+' life update',owners}));
+        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,mult:REUNION_MULT.lifeUpdate,multLabel:'x'+fmt(REUNION_MULT.lifeUpdate)+' life update',owners,identity:pickIdentity(phase,p)}));
         else if(!REUNION_RESULTS.ready.lifeUpdate) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mkEntry({member:m,phase,ok:false,label:'Life update: '+p.person+' - '+(LIFE_UPD[normalized]||p.update),stake:p.s}));
       }));
@@ -455,18 +461,24 @@ function makeEngine(cfg, poolSize) {
       MEMBERS.forEach(m=>all[m].filter(p=>p.m==='absent').forEach(p=>{
         const predictedPerson=personKey(p.person);
         const hit=abs.some(person=>personKey(person)===predictedPerson), owners=MEMBERS.filter(mm=>all[mm].some(q=>q.m==='absent'&&personKey(q.person)===predictedPerson)).length;
-        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'Absent: '+p.person,stake:p.s,mult:REUNION_MULT.absent,multLabel:'x'+fmt(REUNION_MULT.absent)+' absent castmate',owners}));
+        if(hit) entries.push(mkEntry({member:m,phase,ok:true,label:'Absent: '+p.person,stake:p.s,mult:REUNION_MULT.absent,multLabel:'x'+fmt(REUNION_MULT.absent)+' absent castmate',owners,identity:pickIdentity(phase,p)}));
         else if(!REUNION_RESULTS.ready.absent) entries.push(mkEntry({member:m,phase,ok:false,pending:true,label:'Absent: '+p.person,stake:p.s,note:'Awaiting confirmed results.'}));
         else entries.push(mkEntry({member:m,phase,ok:false,label:'Absent: '+p.person,stake:p.s}));
       }));
     }
     return {events,entries};
   }
-  function resolvePhaseClose(phase, picksBy) {
+  function resolvePhaseClose(phase, picksBy, ownerOverrides=null) {
     picksBy=sanitizePicksBy(phase,picksBy);
     const MEMBERS = Object.keys(picksBy), all = picksBy, entries=[];
-    const poolSize=activePoolSize(picksBy);
-    const mkEntry=entry=>mk({...entry,poolSize});
+    const fallbackPoolSize=activePoolSize(picksBy);
+    const overridePoolSize=Number(ownerOverrides?.activeCount);
+    const poolSize=Number.isFinite(overridePoolSize)&&overridePoolSize>0?overridePoolSize:fallbackPoolSize;
+    const mkEntry=entry=>{
+      const {identity,...scoredEntry}=entry;
+      const overrideOwners=identity==null?NaN:Number(ownerOverrides?.ownerCounts?.[identity]);
+      return mk({...scoredEntry,owners:Number.isFinite(overrideOwners)&&overrideOwners>=0?overrideOwners:entry.owners,poolSize});
+    };
     if(phase==='pods') MEMBERS.forEach(m=>all[m].forEach(p=>{
       const c=coupleFor(p.c);
       const predictedPeople=new Set(membOf(p.c).map(personKey));
@@ -496,18 +508,20 @@ function makeEngine(cfg, poolSize) {
     return entries;
   }
   /* Score a phase for the members who have individually completed it. */
-  function scorePhase(phase, picksBy) {
+  function scorePhase(phase, picksBy, ownerOverrides=null) {
     const sanitized=Object.fromEntries(Object.entries(picksBy||{}).map(([member,picks])=>[member,sanitizePhasePickState(phase,picks)]));
     picksBy=Object.fromEntries(Object.entries(sanitized).map(([member,state])=>[member,state.picks]));
     const startEp = phase==='dating'?RETREAT_START_EP:START[phase], endEp = phase==='dating'?RETREAT_END_EP:SPAN[phase].endEp;
     let entries = [];
     for (let ep = startEp; ep <= endEp; ep++) {
-      entries = entries.concat(resolveEpisode(phase, ep, picksBy).entries);
+      entries = entries.concat(resolveEpisode(phase, ep, picksBy, ownerOverrides).entries);
     }
-    entries = entries.concat(resolvePhaseClose(phase, picksBy));
+    entries = entries.concat(resolvePhaseClose(phase, picksBy, ownerOverrides));
     Object.entries(sanitized).forEach(([member,state])=>state.refunds.forEach(pick=>{
       const points=Math.round(RULES.POINTS_PER_HEART*pick.s);
-      entries.push({member,phase,ok:true,label:'Prediction removed after season data changed',stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize:activePoolSize(picksBy),contra:1,tag:1,note:'This prediction no longer matches the season data. Hearts returned as points.',placeholder:false,pending:false,points});
+      const overridePoolSize=Number(ownerOverrides?.activeCount);
+      const poolSize=Number.isFinite(overridePoolSize)&&overridePoolSize>0?overridePoolSize:activePoolSize(picksBy);
+      entries.push({member,phase,ok:true,label:'Prediction removed after season data changed',stake:pick.s,mult:1,multLabel:'x1 flat refund',owners:null,poolSize,contra:1,tag:1,note:'This prediction no longer matches the season data. Hearts returned as points.',placeholder:false,pending:false,points});
     }));
     const totals = {};
     Object.keys(picksBy).forEach(m=>totals[m]=0);

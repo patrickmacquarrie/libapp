@@ -562,21 +562,33 @@ async function assertMirrorEntryRegression(){
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
   assert.equal(context.__staleMirrorSourceError({code:'unavailable'}),false);
+  const mirrorReads=[];
   const emptySource=await context.__loadMirrorSourceState({
     poolId:'fresh-friend',uid:'viewer',
-    loadAllPlayers:async()=>({players:{},status:{}}),
+    loadMyPlayer:async(poolId,uid)=>{mirrorReads.push(['player',poolId,uid]);return null;},
+    getPhaseStatus:async(poolId,phase)=>{mirrorReads.push(['status',poolId,phase]);return phase==='pods'?{completedMembers:['viewer']}:null;},
     getPool:async()=>({id:'fresh-friend',members:['viewer']}),
   });
   assert.equal(emptySource.player,null);
   assert.equal(emptySource.empty,true,'A newly created pool without a player document must remain a valid mirror source.');
+  assert.deepEqual(mirrorReads,[
+    ['player','fresh-friend','viewer'],
+    ['status','fresh-friend','pods'],
+    ['status','fresh-friend','dating'],
+    ['status','fresh-friend','weddings'],
+    ['status','fresh-friend','reunion'],
+  ],'Mirror entry must read only the current player and four phase-status documents, never a player collection.');
+  assert.deepEqual(emptySource.status.pods,{completedMembers:['viewer']});
   await assert.rejects(()=>context.__loadMirrorSourceState({
     poolId:'read-blocked',uid:'viewer',
-    loadAllPlayers:async()=>{throw Object.assign(new Error('Missing or insufficient permissions.'),{code:'permission-denied'});},
+    loadMyPlayer:async()=>{throw Object.assign(new Error('Missing or insufficient permissions.'),{code:'permission-denied'});},
+    getPhaseStatus:async()=>null,
     getPool:async()=>({id:'read-blocked',members:['viewer']}),
   }),error=>error.code==='permission-denied','A readable source pool must not be detached merely because one child read was denied.');
   await assert.rejects(()=>context.__loadMirrorSourceState({
     poolId:'deleted-source',uid:'viewer',
-    loadAllPlayers:async()=>({players:{},status:{}}),
+    loadMyPlayer:async()=>null,
+    getPhaseStatus:async()=>null,
     getPool:async()=>null,
   }),error=>error.code==='not-found','A genuinely deleted source must still detach cleanly.');
   assert.equal(
@@ -703,4 +715,83 @@ async function assertMirrorEntryRegression(){
   assert(html.includes('This repair is safe while a season is live.'),'The admin UI must describe the live-season repair precondition accurately.');
 }
 
-assertMirrorEntryRegression().then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
+async function assertBoundedStandingsListener(){
+  const helperStart=html.indexOf('/* BOUNDED STANDINGS LISTENER START */');
+  const helperEnd=html.indexOf('/* BOUNDED STANDINGS LISTENER END */');
+  assert(helperStart>=0&&helperEnd>helperStart,'The bounded Global standings listener must remain independently executable.');
+  const context={};
+  vm.createContext(context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__createBoundedStandingsListener=createBoundedStandingsListener;`,context);
+  let time=10000,visibilityHandler=null,loadCount=0,subscribeCount=0,stopCount=0;
+  const renders=[],timers=[];
+  const visibility={
+    visibilityState:'visible',
+    addEventListener:(_name,handler)=>{visibilityHandler=handler;},
+    removeEventListener:(_name,handler)=>{if(visibilityHandler===handler)visibilityHandler=null;},
+  };
+  const subscribers=[];
+  const stop=context.__createBoundedStandingsListener({
+    reference:'standings/current',visibility,now:()=>time,
+    subscribe:(_reference,onValue)=>{
+      subscribeCount++;subscribers.push(onValue);
+      return ()=>{stopCount++;};
+    },
+    load:async()=>{loadCount++;return {exists:()=>true,data:()=>({revision:'resume'})};},
+    onChange:value=>renders.push(value),
+    schedule:(callback,delay)=>{const timer={callback,delay,cancelled:false};timers.push(timer);return timer;},
+    cancel:timer=>{if(timer)timer.cancelled=true;},
+  });
+  assert.equal(subscribeCount,1);
+  subscribers[0]({exists:()=>true,data:()=>({revision:1})});
+  timers.at(-1).callback();
+  assert.deepEqual(renders,[{revision:1}]);
+  time=11000;subscribers[0]({exists:()=>true,data:()=>({revision:2})});
+  assert.equal(timers.at(-1).delay,4000);
+  time=12000;subscribers[0]({exists:()=>true,data:()=>({revision:3})});
+  assert.equal(timers.at(-1).delay,3000);
+  time=15000;timers.at(-1).callback();
+  assert.deepEqual(renders,[{revision:1},{revision:3}],'Rapid snapshot writes must collapse into at most one render per five seconds.');
+  visibility.visibilityState='hidden';
+  await visibilityHandler();
+  assert.equal(stopCount,1,'The Firestore listener must stop while the tab is hidden.');
+  visibility.visibilityState='visible';
+  await visibilityHandler();
+  assert.equal(loadCount,1,'Returning to the tab must perform exactly one current-standings load.');
+  assert.equal(subscribeCount,2,'The live listener must resume after the single catch-up load.');
+  assert.deepEqual(renders.at(-1),{revision:'resume'});
+  subscribers[1]({exists:()=>true,data:()=>({revision:'duplicate-initial'})});
+  assert.deepEqual(renders.at(-1),{revision:'resume'},'The resumed listener must skip its duplicate initial snapshot.');
+  stop();
+  assert.equal(stopCount,2);
+  assert.equal(visibilityHandler,null);
+}
+
+async function assertSeasonCatalogLoader(){
+  const helperStart=html.indexOf('/* SEASON CATALOG LOADER START */');
+  const helperEnd=html.indexOf('/* SEASON CATALOG LOADER END */');
+  assert(helperStart>=0&&helperEnd>helperStart,'The compact season catalog loader must remain independently executable.');
+  const context={console:{info:()=>{}}};
+  vm.createContext(context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\nthis.__loadPublishedSeasonCatalog=loadPublishedSeasonCatalog;`,context);
+  let collectionReads=0;
+  const compact=await context.__loadPublishedSeasonCatalog({
+    loadCatalog:async()=>({seasons:[{id:'love-is-blind-us-11',status:'upcoming'}]}),
+    listSeasons:async()=>{collectionReads++;return [];},
+  });
+  assert.equal(JSON.stringify(compact),JSON.stringify([{id:'love-is-blind-us-11',status:'upcoming'}]));
+  assert.equal(collectionReads,0,'A present catalog must prevent the browser from downloading every season snapshot.');
+  const fallback=await context.__loadPublishedSeasonCatalog({
+    loadCatalog:async()=>null,
+    listSeasons:async()=>{collectionReads++;return [{id:'legacy-season',Settings:[]}];},
+  });
+  assert.equal(JSON.stringify(fallback),JSON.stringify([{id:'legacy-season',Settings:[]}]));
+  assert.equal(collectionReads,1,'A missing catalog must retain the safe pre-rules collection fallback.');
+  const deniedFallback=await context.__loadPublishedSeasonCatalog({
+    loadCatalog:async()=>{throw Object.assign(new Error('Missing or insufficient permissions.'),{code:'permission-denied'});},
+    listSeasons:async()=>{collectionReads++;return [{id:'pre-rule-season'}];},
+  });
+  assert.equal(JSON.stringify(deniedFallback),JSON.stringify([{id:'pre-rule-season'}]));
+  assert.equal(collectionReads,2,'Batch A must remain compatible before Batch C grants the catalog read rule.');
+}
+
+Promise.all([assertMirrorEntryRegression(),assertBoundedStandingsListener(),assertSeasonCatalogLoader()]).then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});

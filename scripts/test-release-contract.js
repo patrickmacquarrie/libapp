@@ -53,6 +53,7 @@ function rollbackResult() {
   const properties=new Map([[`LAST_BACKUP_PATH__${seasonId}`,backupPath]]);
   const context={
     console:{log:()=>{}},
+    SEASON_CATALOG_PATH:'appConfig/seasonCatalog',
     publisherConfig_:()=>({projectId:'test-project',seasonId,fallbackDefaultSeasonId:'another-season'}),
     latestBackupPath_:()=>properties.get(`LAST_BACKUP_PATH__${seasonId}`),
     latestAppConfigBackupPath_:()=>'',
@@ -60,6 +61,8 @@ function rollbackResult() {
     readFirestoreDocument_:(_config,documentPath)=>documents.has(documentPath)?{exists:true,fields:documents.get(documentPath)}:{exists:false,fields:{}},
     backupDocumentPath_:()=>`seasonSnapshotBackups/${seasonId}__rescue__rollback`,
     timestampId_:()=> 'contract',
+    seasonCatalogEntry_:(id,fields)=>({id,status:fields.status?.stringValue||'upcoming'}),
+    seasonCatalogFieldsWithEntry_:(_catalog,entry)=>({entry}),
     commitFirestoreDocuments_:(_config,writes)=>writes.forEach(write=>documents.set(write.documentPath,write.fields)),
     setLatestBackupPath_:()=>{},clearLatestBackupPath_:()=>{},setLatestAppConfigBackupPath_:()=>{},clearLatestAppConfigBackupPath_:()=>{}
   };
@@ -67,7 +70,7 @@ function rollbackResult() {
 }
 
 const rollbackStart=publisher.indexOf('function rollbackSeasonSnapshot(');
-const rollbackEnd=publisher.indexOf('\nfunction publisherConfig_(',rollbackStart);
+const rollbackEnd=publisher.indexOf('\nfunction rebuildSeasonCatalog(',rollbackStart);
 assert(rollbackStart>=0&&rollbackEnd>rollbackStart,'Could not isolate rollbackSeasonSnapshot.');
 const rollback=rollbackResult();
 requireContract('appConfigRestoredFrom' in rollback,'Rollback must report whether matching appConfig/public routing metadata was restored.');

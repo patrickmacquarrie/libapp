@@ -1045,6 +1045,57 @@ const updateCastAggregate = (aggregate,previousRatings,nextRatings) => {
   apply(nextRatings,1);
   return [...rows.values()].filter(row=>Object.values(row.counts).some(count=>count>0)).sort((a,b)=>a.name.localeCompare(b.name));
 };
+/* BOUNDED STANDINGS LISTENER START */
+const createBoundedStandingsListener=({reference,subscribe,load,visibility,onChange,onError=()=>{},now=()=>Date.now(),schedule=setTimeout,cancel=clearTimeout})=>{
+  let stopSnapshot=null,renderTimer=null,pendingValue,lastRenderedAt=0,closed=false;
+  const deliver=value=>{
+    pendingValue=value;
+    const delay=Math.max(0,5000-(now()-lastRenderedAt));
+    cancel(renderTimer);
+    renderTimer=schedule(()=>{
+      if(closed||visibility.visibilityState==='hidden')return;
+      lastRenderedAt=now();
+      const next=pendingValue;pendingValue=undefined;
+      onChange(next);
+    },delay);
+  };
+  const start=(skipFirst=false)=>{
+    let first=skipFirst;
+    stopSnapshot=subscribe(reference,snapshot=>{
+      if(first){first=false;return;}
+      deliver(snapshot.exists()?snapshot.data():null);
+    },onError);
+  };
+  const visibilityChanged=async()=>{
+    if(visibility.visibilityState==='hidden'){
+      stopSnapshot?.();stopSnapshot=null;cancel(renderTimer);pendingValue=undefined;
+      return;
+    }
+    if(closed||stopSnapshot)return;
+    try{
+      const snapshot=await load(reference);
+      if(closed||visibility.visibilityState==='hidden')return;
+      cancel(renderTimer);pendingValue=undefined;lastRenderedAt=now();
+      onChange(snapshot.exists()?snapshot.data():null);
+      start(true);
+    }catch(error){onError(error);}
+  };
+  visibility.addEventListener('visibilitychange',visibilityChanged);
+  if(visibility.visibilityState!=='hidden')start();
+  return ()=>{
+    closed=true;cancel(renderTimer);stopSnapshot?.();
+    visibility.removeEventListener('visibilitychange',visibilityChanged);
+  };
+};
+/* BOUNDED STANDINGS LISTENER END */
+/* SEASON CATALOG LOADER START */
+const loadPublishedSeasonCatalog=async({loadCatalog,listSeasons})=>{
+  let catalog=null;
+  try{catalog=await loadCatalog();}
+  catch(error){console.info('The compact season catalog is not readable yet; using published season snapshots.',error);}
+  return catalog&&Array.isArray(catalog.seasons)?catalog.seasons:listSeasons();
+};
+/* SEASON CATALOG LOADER END */
 window._fb = {
   signIn:  () => signInWithProvider(new GoogleAuthProvider()),
   completeAuthRedirect: async () => {
@@ -1101,8 +1152,16 @@ window._fb = {
     return snapshot.exists()?snapshot.data():null;
   },
   listPublishedSeasonSnapshots: async () => {
-    const snapshots=await getDocs(collection(db,'seasons'));
-    return snapshots.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+    return loadPublishedSeasonCatalog({
+      loadCatalog:async()=>{
+        const catalog=await getDoc(doc(db,'appConfig','seasonCatalog'));
+        return catalog.exists()?catalog.data():null;
+      },
+      listSeasons:async()=>{
+        const snapshots=await getDocs(collection(db,'seasons'));
+        return snapshots.docs.map(snapshot=>({id:snapshot.id,...snapshot.data()}));
+      },
+    });
   },
   setProfile: (uid, data) => setDoc(doc(db,'users',uid), data),
   updateProfileUsername: (uid,username) => updateDoc(doc(db,'users',uid),{username}),
@@ -1301,11 +1360,10 @@ window._fb = {
     const snapshot=await getDoc(doc(db,'pools',poolId,'standings','current'));
     return snapshot.exists()?snapshot.data():null;
   },
-  watchGlobalStandings: (poolId,onChange,onError=()=>{}) => onSnapshot(
-    doc(db,'pools',poolId,'standings','current'),
-    snapshot=>onChange(snapshot.exists()?snapshot.data():null),
-    onError,
-  ),
+  watchGlobalStandings: (poolId,onChange,onError=()=>{}) => createBoundedStandingsListener({
+    reference:doc(db,'pools',poolId,'standings','current'),
+    subscribe:onSnapshot,load:getDoc,visibility:document,onChange,onError,
+  }),
   loadMyPlayer: async (poolId,uid) => {
     const playerSnapshot=await getDoc(doc(db,'pools',poolId,'players',uid));
     if(!playerSnapshot.exists())return null;
@@ -1615,10 +1673,13 @@ const unavailableMirrorSourceError=()=>Object.assign(
   new Error('The mirrored source pool no longer exists or is no longer available to this player.'),
   {code:'not-found'},
 );
-const loadMirrorSourceState=async({poolId,uid,loadAllPlayers,getPool})=>{
-  let source;
+const loadMirrorSourceState=async({poolId,uid,loadMyPlayer,getPhaseStatus,getPool})=>{
+  let player,status;
   try{
-    source=await loadAllPlayers(poolId,uid,false);
+    [player,...status]=await Promise.all([
+      loadMyPlayer(poolId,uid),
+      ...PH_ORDER.map(phase=>getPhaseStatus(poolId,phase)),
+    ]);
   }catch(loadError){
     // A deleted pool can make subcollection reads look like a permissions
     // failure. Probe the pool itself before deciding whether to detach it.
@@ -1630,14 +1691,14 @@ const loadMirrorSourceState=async({poolId,uid,loadAllPlayers,getPool})=>{
     if(!sourcePool||!Array.isArray(sourcePool.members)||!sourcePool.members.includes(uid))throw unavailableMirrorSourceError();
     throw loadError;
   }
-  const player=source.players?.[uid]||null;
-  if(player)return {player,status:source.status||{},empty:false};
+  const statusByPhase=Object.fromEntries(PH_ORDER.map((phase,index)=>[phase,status[index]||null]));
+  if(player)return {player,status:statusByPhase,empty:false};
   const sourcePool=await getPool(poolId);
   if(!sourcePool||!Array.isArray(sourcePool.members)||!sourcePool.members.includes(uid))throw unavailableMirrorSourceError();
   // New pools do not have a player document until they are opened. They are
   // still valid mirror sources: start both games empty and retain the link so
   // the first source save can synchronize into the target.
-  return {player:null,status:source.status||{},empty:true};
+  return {player:null,status:statusByPhase,empty:true};
 };
 const linkedMirrorPeers=(links,poolId)=>{
   const peerIds=[];
@@ -2070,7 +2131,9 @@ const applyPublishedSeasonSnapshots = snapshots => {
     if(season.sheetId!==sourceSheetId){season.sheetId=sourceSheetId;changed=true;}
     if(snapshot.status&&season.status!==snapshot.status){season.status=snapshot.status;changed=true;}
     const snapshotReleaseLabel=Array.isArray(snapshot.Settings)&&snapshot.Settings.find(r=>r&&r.key==='RELEASE_LABEL');
-    const rl=typeof snapshotReleaseLabel==='object'&&snapshotReleaseLabel?String(snapshotReleaseLabel.value??''):'';
+    const rl=typeof snapshot.releaseLabel==='string'
+      ? snapshot.releaseLabel
+      : typeof snapshotReleaseLabel==='object'&&snapshotReleaseLabel?String(snapshotReleaseLabel.value??''):'';
     if(typeof rl==='string'&&season.releaseLabel!==rl){season.releaseLabel=rl;changed=true;}
   });
   return changed;
@@ -2788,6 +2851,10 @@ const globalStandingsView = (standings,ownUid,ownPlayer=null) => {
   if(ownPlayer)players[ownUid]=ownPlayer;
   return {players,users,status,phaseScores};
 };
+const globalOwnerOverrides = standings => Object.fromEntries(PH_ORDER.map(phase=>[phase,{
+  ownerCounts:standings?.ownerCounts?.[phase]||{},
+  activeCount:Number(standings?.activeCounts?.[phase])||1,
+}]));
 const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points are included in the live standings after you complete this reveal phase.';
 const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
 const normalizeSeenRetroNotices = value => [...new Set((Array.isArray(value)?value:[]).filter(item=>typeof item==='string'&&item))];
@@ -4247,14 +4314,14 @@ const shareNamesLabel=(ids,memberLabels,playersById,{globalPool=false}={})=>{
   if(names.length<=3)return names.join(', ');
   return names.slice(0,3).join(', ')+' +'+(names.length-3)+' more';
 };
-const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPicks=null,memberLabels={},globalPool=false})=>{
+const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPicks=null,memberLabels={},globalPool=false,ownerOverrides={}})=>{
   if(!eng||!meId)return null;const memberIds=Object.keys(playersById),totals=Object.fromEntries(memberIds.map(id=>[id,0])),entries=[],phaseBestHits={},phaseBestHitTimings={},phaseShareCards={},receipts=[];
   PH_ORDER.forEach(phase=>{
     if(!eng.RESULTS_READY[phase]&&phase!=='dating')return;
     const completed=memberIds.filter(id=>(statusDocs[phase]?.completedMembers||[]).includes(id)||playersById[id]?.completed?.[phase]);
     if(!completed.includes(meId))return;
     const picksBy={};completed.forEach(id=>{picksBy[id]=id===meId&&currentPicks?(currentPicks[phase]||[]):(playersById[id]?.picks?.[phase]||[]);});
-    const result=eng.scorePhase(phase,picksBy);completed.forEach(id=>{totals[id]+=(result.totals[id]||0);});entries.push(...result.entries);
+    const result=eng.scorePhase(phase,picksBy,globalPool?ownerOverrides[phase]:null);completed.forEach(id=>{totals[id]+=(result.totals[id]||0);});entries.push(...result.entries);
     const phaseHits=result.entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending);
     const phaseBest=phaseHits.slice().sort((a,b)=>b.points-a.points)[0]||null;
     phaseBestHits[phase]=phaseBest?.label||null;
@@ -4309,7 +4376,7 @@ const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPic
   receipts.sort((a,b)=>b.missedCount-a.missedCount||b.directMissCount-a.directMissCount||b.points-a.points||String(a.phase).localeCompare(String(b.phase)));
   return {rank:index>=0?index+1:null,total:ranked.length,score:totals[meId]||0,bestHit:hits[0]?.label||'The receipts are in.',bestHitTiming:predictionTimingLabel(hits[0]),hitCount:hits.length,phaseBestHits,phaseBestHitTimings,phaseShareCards,receipts};
 };
-function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, membershipClosed=false, demoMode=false, presetPhaseScores=EMPTY_PHASE_SCORES, receipts=[], poolName='Through the Wall', seasonLabel=''}) {
+function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, membershipClosed=false, demoMode=false, presetPhaseScores=EMPTY_PHASE_SCORES, ownerOverrides={}, receipts=[], poolName='Through the Wall', seasonLabel=''}) {
   const {RULES,RESULTS_READY:configuredResultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const resultsReady=demoMode?Object.fromEntries(PH_ORDER.map(ph=>[ph,true])):configuredResultsReady;
   const memberIds = Object.keys(playersById);
@@ -4362,7 +4429,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     eligibleMembers.forEach(id => {
       picksBy[id] = (playersById[id].picks && playersById[id].picks[ph]) || [];
     });
-    const {entries,totals:calculatedTotals} = scorePhase(ph, picksBy);
+    const {entries,totals:calculatedTotals} = scorePhase(ph, picksBy,globalPool?ownerOverrides[ph]:null);
     const totals={...calculatedTotals,...(presetPhaseScores[ph]||{})};
     phaseEntries[ph]=entries;
     phaseTotals[ph] = totals;
@@ -4411,7 +4478,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const playerAwards=derivePlayerAwards({phaseEntries,phaseMembers,scoredPhases,phaseTotals,ranked,rankById,includeWrappedSuperlatives:seasonFinalized});
   const bestHitsById={};memberIds.forEach(id=>{bestHitsById[id]=scoredPhases.flatMap(ph=>phaseEntries[ph]||[]).filter(entry=>entry.member===id&&entry.ok&&!entry.pending).sort((a,b)=>b.points-a.points)[0]||null;});
   return {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough,playerAwards,bestHitsById};
-  },[playersById,statusDocs,eng,globalPool,membershipClosed,demoMode,presetPhaseScores,meId]);
+  },[playersById,statusDocs,eng,globalPool,membershipClosed,demoMode,presetPhaseScores,ownerOverrides,meId]);
   const {phaseStatus,reunionLockedMembers,reunionScoresPartial,grandTotals,phaseTotals,phaseEntries,phaseMembers,retro,activeRetroEvents,hasRetro,viewerWatched,retroSpoilerHidden,rankedIds,ranked,rankById,scoredPhases,awaitingResults,datingProvisional,seasonFinalized,checkpointTotals,scoredThrough,playerAwards,bestHitsById}=scoring;
   useEffect(()=>{
     if(globalPool&&globalView!=='overall'&&!scoredPhases.includes(globalView))setGlobalView('overall');
@@ -4557,7 +4624,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
                   {openPhase===ph&&(()=>{
                     const picksBy={};
                     st.completedBy.forEach(id=>{picksBy[id]=(playersById[id].picks&&playersById[id].picks[ph])||[];});
-                    const {entries}=scorePhase(ph,picksBy);
+                    const {entries}=scorePhase(ph,picksBy,globalPool?ownerOverrides[ph]:null);
                     const visibleMembers=globalPool?[meId]:st.completedBy;
                     return <div style={{marginTop:10}}>
                       {visibleMembers.map(id=><section key={id}>
@@ -4582,7 +4649,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
               const visible=!(ph==='reunion'&&reunionScoresPartial)||reunionLockedMembers.includes(id);
               picksBy[id]=visible?((playersById[id].picks&&playersById[id].picks[ph])||[]):[];
             });
-            const {entries}=scorePhase(ph,picksBy);
+            const {entries}=scorePhase(ph,picksBy,globalPool?ownerOverrides[ph]:null);
             return <div style={{marginTop:10}}>
               {(ph==='reunion'&&reunionScoresPartial?reunionLockedMembers:memberIds).map(id=><div key={id}>
                 <h3 style={{marginTop:12}}>{id===meId?'Your predictions':memberLabels[id]}</h3>
@@ -5271,7 +5338,7 @@ function App() {
           try{
             const source=await loadMirrorSourceState({
               poolId:mirrorSourcePoolId,uid:user.uid,
-              loadAllPlayers:window._fb.loadAllPlayers,getPool:window._fb.getPool,
+              loadMyPlayer:window._fb.loadMyPlayer,getPhaseStatus:window._fb.getPhaseStatus,getPool:window._fb.getPool,
             });
             sourcePlayer=source.player;
             sourceStatus=source.status;
@@ -5461,7 +5528,7 @@ function App() {
           try{
             const source=await loadMirrorSourceState({
               poolId:activeDuplicateFrom,uid:user.uid,
-              loadAllPlayers:window._fb.loadAllPlayers,getPool:window._fb.getPool,
+              loadMyPlayer:window._fb.loadMyPlayer,getPhaseStatus:window._fb.getPhaseStatus,getPool:window._fb.getPool,
             });
             sourcePlayer=source.player;
             sourceStatus=source.status;
@@ -6403,7 +6470,8 @@ function App() {
     };
   },[activePool,eng,user?.uid,playersById,poolStatus,picks,completed,phase,screen,w,watchThrough]);
   const globalDemoData=useMemo(()=>activePool?.global===true&&GLOBAL_POOL_DEMO_MODE?buildGlobalDemoData(user?.uid,meName):null,[activePool?.id,user?.uid,meName]);
-  const shareStandings=useMemo(()=>calculateShareStandings({eng,playersById,poolStatus,statusDocs:poolStatus,meId:user?.uid,currentPicks:picks,memberLabels,globalPool:activePool?.global===true}),[eng,playersById,poolStatus,user?.uid,picks,memberLabels,activePool?.global]);
+  const standingsOwnerOverrides=useMemo(()=>globalOwnerOverrides(globalStandings),[globalStandings]);
+  const shareStandings=useMemo(()=>calculateShareStandings({eng,playersById,poolStatus,statusDocs:poolStatus,meId:user?.uid,currentPicks:picks,memberLabels,globalPool:activePool?.global===true,ownerOverrides:standingsOwnerOverrides}),[eng,playersById,poolStatus,user?.uid,picks,memberLabels,activePool?.global,standingsOwnerOverrides]);
   useEffect(()=>{
     setSessionRetroNotices([]);
   },[activePool?.id]);
@@ -6680,7 +6748,7 @@ function App() {
       <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
         ? <button className="btn-small" style={{width:'auto'}} onClick={exitGlobalDemo}>Exit demo preview</button>
         : <button className="btn-small" style={{width:'auto'}} disabled={refreshingPool} onClick={refreshStandings}>{refreshingPool?'Refreshing…':'Refresh standings'}</button>}</div>
-      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData||activePool.ownerUid!==user.uid?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||(activePool.global===true?globalPhaseScores:EMPTY_PHASE_SCORES)} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
+      <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData||activePool.ownerUid!==user.uid?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||(activePool.global===true?globalPhaseScores:EMPTY_PHASE_SCORES)} ownerOverrides={activePool.global===true?standingsOwnerOverrides:{}} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
       {activePool.global&&!globalDemoData&&<div className="card">
         <h3>Share the Global Pool</h3>
         <p className="lede">The Global Pool is open to everyone. Share the app with friends and they can join from their own account.</p>
