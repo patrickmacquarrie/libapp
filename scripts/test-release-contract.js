@@ -78,8 +78,9 @@ requireContract(
 requireContract(uk3Fixture.settings.CONFIG_VERSION==null,'The UK3 checkpoint must retain a missing CONFIG_VERSION setting.');
 requireContract(uk3Fixture.effectiveConfigVersion===1,'A missing UK3 CONFIG_VERSION must resolve to legacy v1.');
 requireContract(Object.keys(uk3Fixture.settings).length===47,'The UK3 checkpoint must contain all 47 captured Settings rows.');
-requireContract(evaluateBrowserResultsReady('live',1).pods===uk3Fixture.legacyInterpretation.browserMissingResultsReadyForLiveSeason,'UK3 browser RESULTS_READY interpretation changed.');
-requireContract(evaluateFunctionsResultsReady('live',1).pods===uk3Fixture.legacyInterpretation.functionsMissingResultsReadyForLiveSeason,'UK3 Functions RESULTS_READY interpretation changed.');
+requireContract(['PODS','DATING','WEDDINGS','REUNION'].every(phase=>uk3Fixture.settings[`${phase}_RESULTS_READY`]==='TRUE'),'UK3 must retain its explicit final results-ready settings.');
+requireContract(evaluateBrowserResultsReady('live',1).pods===false,'Legacy v1 browser missing RESULTS_READY behavior changed.');
+requireContract(evaluateFunctionsResultsReady('live',1).pods===true,'Legacy v1 Functions missing RESULTS_READY behavior changed.');
 requireContract(evaluateBrowserReunionEligibility('',1)===uk3Fixture.legacyInterpretation.browserBlankReunionStatusEligible,'UK3 browser Reunion eligibility interpretation changed.');
 requireContract(evaluateFunctionsReunionEligibility('',1)===uk3Fixture.legacyInterpretation.functionsBlankReunionStatusEligible,'UK3 Functions Reunion eligibility interpretation changed.');
 

@@ -29,4 +29,10 @@ The publisher now restores matching routing metadata atomically, and the Season 
 
 Missing `CONFIG_VERSION` resolves to legacy v1. Existing seasons therefore do not change behavior when the application code changes. New seasons can opt into v2 from Season Admin.
 
-The committed fixture contains public source-sheet Settings only. It deliberately excludes pool, player, pick, and standings data. Before deployment, compare it with the authenticated Firestore export and complete the clone rehearsal.
+The committed fixture contains the 47 Settings values from the authenticated Firestore checkpoint. It deliberately excludes pool, player, pick, and standings data; those remain in the private local checkpoint outside Git.
+
+## Clone rehearsal
+
+`npm run test:clone-rehearsal` accepts the private checkpoint through `UK3_CHECKPOINT_PATH` and refuses to run unless it is connected to a local Firestore emulator. The completed rehearsal cloned 41 documents across the UK3 season, friend pool, Global Pool, player state, phase status, picks, trusted scoring inputs, and standings. The atomic release and exact rollback passed, and every cloned pool document remained unchanged.
+
+Only the non-sensitive counts and checkpoint hash are committed in `scripts/fixtures/uk3-clone-rehearsal.json`.
