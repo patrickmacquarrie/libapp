@@ -15,6 +15,8 @@ Use this procedure while updating an active season from the Google Sheet.
 
 Never set `PODS_RESULTS_READY`, `DATING_RESULTS_READY`, `WEDDINGS_RESULTS_READY`, or `REUNION_RESULTS_READY` to `TRUE` until every required outcome for that phase has been entered. Incomplete data after a phase is marked ready causes a season-config error and pauses predictions for every player in every pool on that season.
 
+Keep existing and completed seasons on configuration version 1. Use version 2 only for a new season that has been rehearsed on a cloned pool; version 2 makes blank result-readiness and Reunion eligibility fields default to false consistently in the browser and server scorer.
+
 ## Staged cast release
 
 Leave `CAST_COMPLETE=FALSE` while cast members may still be added. By default, this keeps predictions closed. For a deliberate staged launch, set `ALLOW_INCOMPLETE_CAST=TRUE`; the season can then open once it is Live and the published cast includes at least one man and one woman.

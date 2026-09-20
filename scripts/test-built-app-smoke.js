@@ -3,6 +3,7 @@ const fs=require('node:fs');
 const http=require('node:http');
 const path=require('node:path');
 const {chromium}=require('playwright-chromium');
+const {resolveChromiumExecutable}=require('./toolchain');
 
 const root=path.resolve(__dirname,'..');
 const dist=path.resolve(process.env.SMOKE_DIST_DIR||path.join(root,'dist'));
@@ -128,7 +129,8 @@ async function main() {
   let browser;
   try{
     const launchOptions={headless:true};
-    if(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH)launchOptions.executablePath=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    const resolvedBrowser=resolveChromiumExecutable();
+    if(resolvedBrowser&&resolvedBrowser.source!=='playwright')launchOptions.executablePath=resolvedBrowser.executable;
     browser=await chromium.launch(launchOptions);
     const tests=[
       {pathname:'/',react:true,texts:['Getting the pods ready…','Ready to start your season?']},

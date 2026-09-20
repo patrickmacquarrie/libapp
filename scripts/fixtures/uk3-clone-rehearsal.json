@@ -1,0 +1,17 @@
+{
+  "rehearsedAt": "2026-09-19",
+  "sourceCheckpointSha256": "9bcba238afe0c753e6bafd19c92501fe83de864c6d9a0564d7a69ad3a1f6deb3",
+  "documentsCloned": 41,
+  "poolsCloned": 2,
+  "collectionCounts": {
+    "players": 6,
+    "phaseStatus": 8,
+    "phasePicks": 21,
+    "trustedPlayers": 2,
+    "standings": 1
+  },
+  "releaseCommit": "passed",
+  "rollbackRestore": "passed",
+  "sourceDataUnchanged": "passed",
+  "environment": "local Firestore emulator; production was read only"
+}
