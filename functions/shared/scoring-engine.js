@@ -643,7 +643,7 @@ function makeEngine(cfg, poolSize) {
     return pick.m===event.market&&sameCouple(pick.c,coupleFor(event.target));
   };
   const spentBy = picks => (Array.isArray(picks)?picks:[]).reduce((total,pick)=>total+(Number.isFinite(Number(pick?.s))?Number(pick.s):0),0);
-  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
+  return {RULES,CAST,MEN,WOMEN,COUPLES,DATING_RESULTS,REUNION_RESULTS,RETRO_EVENTS,RESULTS_READY:PHASE_RESULTS_READY,CONFIG_VERSION:Number(cfg.CONFIG_VERSION)||1,SEASON_STATUS:cfg.SEASON_STATUS,HISTORICAL:cfg.season?.historical===true,POOL,
           PH_SPAN:SPAN,PH_STARTW:START,DATING_MULT:DATING_MARKET_MULT,WED_MULT:WEDDING_MULT,REU_MULT:REUNION_MULT,
           nameOf,membOf,coupleFor,sameCouple,whoNm,reunionPickLabel,reunionRelationshipGroup,fmt,leadM,weddingLeadM,weddingMarketState,eligibleForWeddings,personKey,pairKeyFor,flirtResultFor,contraV,owTxt,calcPts,
           pickIdentity,resolveEpisode,resolvePhaseClose,scorePhase,scoreRetroAdjustments,retroEventsForRange,retroEventMatchesPick,sanitizePhasePicks,spentBy};

@@ -210,7 +210,7 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .retro-pick-updates{display:grid;gap:7px;margin-top:11px}.retro-pick-update{position:relative;padding:11px 12px 11px 46px;border:1px solid rgba(255,255,255,.42);border-radius:12px;background:rgba(255,255,255,.72);color:var(--wine);box-shadow:0 7px 18px rgba(67,17,39,.11)}.retro-pick-update::before{content:'↻';position:absolute;left:12px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:linear-gradient(135deg,#ed0c72,#7b2ee5);color:#fff;font-size:16px;font-weight:900}.retro-pick-update strong{display:block;font-family:'Playfair Display',Georgia,serif;font-size:14px}.retro-pick-update span{display:inline-block;margin-bottom:3px;color:#7b2ee5;font-size:8px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}.retro-pick-update small{display:block;margin-top:3px;color:var(--muted);font-size:10px;font-weight:700}
 .warnchip{display:inline-block;vertical-align:middle;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:#8a6116;background:#f7e8c8;border:1px solid #e3cd93;padding:2px 8px;border-radius:999px;text-transform:uppercase;margin-left:6px}
 .lb{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
-.lb table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;table-layout:fixed}
+.lb table{width:100%;min-width:650px;border-collapse:collapse;font-variant-numeric:tabular-nums;table-layout:fixed}
 .lb th,.lb td{padding:9px 6px;text-align:right;border-bottom:1px solid var(--line);font-size:14px}
 .lb th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--soft-text)}
 .lb th:first-child,.lb td:first-child{text-align:left}
@@ -1384,7 +1384,7 @@ window._fb = {
     return player;
   },
   reopenPhase: (poolId, phase) => httpsCallable(functions,'reopenPhase')({poolId,phase}),
-  loadAllPlayers: async (poolId, currentUid, globalPool=false) => {
+  loadAllPlayers: async (poolId, currentUid, globalPool=false, reunionLockScoring=false) => {
     const toPlayer = d => {
       const {picks:legacyPicks={},...publicState}=d.data();
       return {...publicState,picks:{
@@ -1414,7 +1414,37 @@ window._fb = {
         const phaseStatusData = statusSnap.exists() ? statusSnap.data() : null;
         const completedMembers=phaseStatusData?.completedMembers||[];
         const viewerCompleted=completedMembers.includes(currentUid);
-        if (viewerCompleted && completedMembers.length) {
+        if (phase==='reunion'&&reunionLockScoring) {
+          // Configuration v2 scores immutable Reunion locks. The public screen
+          // is only a bounded candidate list; lockedAt is the verified marker.
+          let viewerPick=null;
+          if(currentUid) {
+            const viewerPickSnap=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+currentUid));
+            if(viewerPickSnap.exists()) {
+              viewerPick=viewerPickSnap.data();
+              if(players[currentUid]) {
+                players[currentUid].picks[phase]=Array.isArray(viewerPick.picks)?viewerPick.picks:[];
+                if(Number.isFinite(Number(viewerPick.lockedAt)))players[currentUid].lockedPhases={...(players[currentUid].lockedPhases||{}),reunion:true};
+              }
+            }
+          }
+          const viewerLocked=!!currentUid&&(viewerCompleted||Number.isFinite(Number(viewerPick?.lockedAt)));
+          const pickUids=viewerLocked?Object.entries(players)
+            .filter(([uid,player])=>completedMembers.includes(uid)||
+              (player.phase==='reunion'&&['watch','close','final'].includes(player.screen)))
+            .map(([uid])=>uid).filter(uid=>uid!==currentUid):[];
+          await Promise.all(pickUids.map(async uid=>{
+            try{
+              const lockedPick=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
+              if(!lockedPick.exists()||!players[uid])return;
+              const data=lockedPick.data();
+              const immutable=completedMembers.includes(uid)||Number.isFinite(Number(data.lockedAt));
+              if(!immutable)return;
+              players[uid].picks[phase]=Array.isArray(data.picks)?data.picks:[];
+              if(Number.isFinite(Number(data.lockedAt)))players[uid].lockedPhases={...(players[uid].lockedPhases||{}),reunion:true};
+            }catch(error){console.warn('A Reunion prediction could not be loaded yet.',error);}
+          }));
+        } else if (viewerCompleted && completedMembers.length) {
           // Live checkpoints use only immutable picks belonging to players who
           // individually locked them. In friend pools, those picks stay hidden
           // until the viewer completes the same phase.
@@ -4342,9 +4372,12 @@ const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPic
   PH_ORDER.forEach(phase=>{
     if(!eng.RESULTS_READY[phase]&&phase!=='dating')return;
     const completed=memberIds.filter(id=>(statusDocs[phase]?.completedMembers||[]).includes(id)||playersById[id]?.completed?.[phase]);
-    if(!completed.includes(meId))return;
-    const picksBy={};completed.forEach(id=>{picksBy[id]=id===meId&&currentPicks?(currentPicks[phase]||[]):(playersById[id]?.picks?.[phase]||[]);});
-    const result=eng.scorePhase(phase,picksBy,globalPool?ownerOverrides[phase]:null);completed.forEach(id=>{totals[id]+=(result.totals[id]||0);});entries.push(...result.entries);
+    const scored=phase==='reunion'&&!globalPool
+      ? friendReunionScoringState({memberIds,playersById,completedMembers:completed,configVersion:eng.CONFIG_VERSION}).scoredMembers
+      : completed;
+    if(!scored.includes(meId))return;
+    const picksBy={};scored.forEach(id=>{picksBy[id]=id===meId&&currentPicks?(currentPicks[phase]||[]):(playersById[id]?.picks?.[phase]||[]);});
+    const result=eng.scorePhase(phase,picksBy,globalPool?ownerOverrides[phase]:null);scored.forEach(id=>{totals[id]+=(result.totals[id]||0);});entries.push(...result.entries);
     const phaseHits=result.entries.filter(entry=>entry.member===meId&&entry.ok&&!entry.pending);
     const phaseBest=phaseHits.slice().sort((a,b)=>b.points-a.points)[0]||null;
     phaseBestHits[phase]=phaseBest?.label||null;
@@ -4357,7 +4390,7 @@ const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPic
         const matching=peerEntries.filter(candidate=>shareTargetKeyForEntry(candidate)===targetKey);
         if(matching.some(candidate=>candidate.ok))return;
         if(matching.length){missedIds.push(id);directMissIds.push(id);return;}
-        const phaseFinished=completed.includes(id);
+        const phaseFinished=scored.includes(id);
         const peerPicks=id===meId&&currentPicks?(currentPicks[phase]||[]):(playersById[id]?.picks?.[phase]||[]);
         const outOfHearts=eng.spentBy(peerPicks)>=budget;
         if(phaseFinished||outOfHearts)missedIds.push(id);
@@ -4399,6 +4432,24 @@ const calculateShareStandings=({eng,playersById={},statusDocs={},meId,currentPic
   receipts.sort((a,b)=>b.missedCount-a.missedCount||b.directMissCount-a.directMissCount||b.points-a.points||String(a.phase).localeCompare(String(b.phase)));
   return {rank:index>=0?index+1:null,total:ranked.length,score:totals[meId]||0,bestHit:hits[0]?.label||'The receipts are in.',bestHitTiming:predictionTimingLabel(hits[0]),hitCount:hits.length,phaseBestHits,phaseBestHitTimings,phaseShareCards,receipts};
 };
+const friendReunionScoringState=({memberIds,playersById,completedMembers,configVersion})=>{
+  const completedBy=memberIds.filter(id=>(completedMembers||[]).includes(id));
+  const useImmutableLocks=Number(configVersion)>=2;
+  const lockedMembers=memberIds.filter(id=>{
+    const player=playersById[id]||{};
+    if(player.completed?.reunion===true)return true;
+    return useImmutableLocks
+      ? completedBy.includes(id)||player.lockedPhases?.reunion===true
+      : player.phase==='reunion'&&['watch','close','final'].includes(player.screen);
+  });
+  return {
+    lockedMembers,
+    scoredMembers:useImmutableLocks?[...new Set([...completedBy,...lockedMembers])]:completedBy,
+  };
+};
+const reunionStandingsGateRequired=({next,globalPool,phase,screen,completed,configVersion})=>
+  Number(configVersion)>=2&&next==='standings'&&globalPool!==true&&phase==='reunion'&&
+  screen==='watch'&&completed!==true;
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, membershipClosed=false, demoMode=false, presetPhaseScores=EMPTY_PHASE_SCORES, ownerOverrides={}, globalRowCount=0, receipts=[], poolName='Through the Wall', seasonLabel=''}) {
   const {RULES,RESULTS_READY:configuredResultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const resultsReady=demoMode?Object.fromEntries(PH_ORDER.map(ph=>[ph,true])):configuredResultsReady;
@@ -4408,6 +4459,13 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   // Per-phase status. phaseStatus is the source of truth for individual locks;
   // per-player completed flags are only a fallback for legacy pools.
   const scoring=useMemo(()=>{
+  const reunionCompletedBy=memberIds.filter(id=>statusDocs.reunion
+    ? (statusDocs.reunion.completedMembers||[]).includes(id)
+    : playersById[id].completed?.reunion===true);
+  const reunionScoring=friendReunionScoringState({
+    memberIds,playersById,completedMembers:reunionCompletedBy,configVersion:eng.CONFIG_VERSION,
+  });
+  const reunionLockedMembers=reunionScoring.lockedMembers;
   const phaseStatus = {};
   PH_ORDER.forEach(ph => {
     const sdoc = statusDocs[ph];
@@ -4415,25 +4473,22 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     const solePlayer=solePlayerId?playersById[solePlayerId]:null;
     if (sdoc) {
       const completedBy = memberIds.filter(id => (sdoc.completedMembers||[]).includes(id));
+      const scoredBy=ph==='reunion'&&!globalPool?reunionScoring.scoredMembers:completedBy;
       phaseStatus[ph] = {
-        completedBy,
-        allDone: !globalPool && membershipClosed && memberIds.length>0 && completedBy.length === memberIds.length,
-        live: completedBy.length>0 && (globalPool||completedBy.includes(meId))
+        completedBy:scoredBy,
+        allDone: !globalPool && membershipClosed && memberIds.length>0 && scoredBy.length === memberIds.length,
+        live: scoredBy.length>0 && (globalPool||scoredBy.includes(meId))
       };
     } else {
       const completedBy = memberIds.filter(id => playersById[id].completed && playersById[id].completed[ph]);
       const solePlayerCompleted=!!solePlayerId&&solePlayer?.completed?.[ph]===true;
+      const scoredBy=ph==='reunion'&&!globalPool?reunionScoring.scoredMembers:completedBy;
       phaseStatus[ph] = {
-        completedBy,
-        allDone: !globalPool && membershipClosed && memberIds.length>0 && (completedBy.length === memberIds.length||solePlayerCompleted),
-        live: completedBy.length>0 && (globalPool||completedBy.includes(meId))
+        completedBy:scoredBy,
+        allDone: !globalPool && membershipClosed && memberIds.length>0 && (scoredBy.length === memberIds.length||solePlayerCompleted),
+        live: scoredBy.length>0 && (globalPool||scoredBy.includes(meId))
       };
     }
-  });
-  const reunionLockedMembers = memberIds.filter(id => {
-    const player = playersById[id] || {};
-    return player.completed?.reunion === true ||
-      (player.phase === 'reunion' && ['watch','close','final'].includes(player.screen));
   });
   const reunionScoresPartial = !globalPool && resultsReady.reunion && phaseStatus.reunion.live &&
     !phaseStatus.reunion.allDone && reunionLockedMembers.length > 0;
@@ -5345,7 +5400,7 @@ function App() {
         setGlobalStandings(standings);setGlobalPhaseScores(globalStandingsView(standings,user.uid,mine,ownStandingRow).phaseScores);
       }else{
         [{players,status},users,pending]=await Promise.all([
-          window._fb.loadAllPlayers(pool.id,user.uid,false),
+          window._fb.loadAllPlayers(pool.id,user.uid,false,Number(poolCfg.CONFIG_VERSION)>=2),
           window._fb.getUsers(enteredPool.members),
           enteredPool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id),
         ]);
@@ -6242,7 +6297,7 @@ function App() {
   const finishWatch = async (targetOverride=null) => {
     const requestedTarget=Number.isFinite(targetOverride)?targetOverride:watchThrough;
     const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);
-    if(gating||target<=w) return;
+    if(gating||target<=w) return false;
     setGatingLabel('Saving your watch-through…');setGating(true);
     try {
       const start=w+1,endEp=PH_SPAN[phase].endEp;
@@ -6270,20 +6325,22 @@ function App() {
       writeSeenRetroNotices(activePool.id,user.uid,nextSeenRetroNotices);
       setSessionRetroNotices(current=>normalizeSeenRetroNotices([...current,...revealedRetroEvents.map(retroNoticeKey)]));
       setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
-      if(canClose){const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();}
-    } catch(e) { setErr('Your watch-through could not be saved. Please try again.'); }
+      if(canClose){const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(!registered)return false;await refreshPool();}
+      return true;
+    } catch(e) { setErr('Your watch-through could not be saved. Please try again.');return false; }
     finally { setGating(false);setGatingLabel(''); }
   };
   const finalizeCaughtUpPhase = async () => {
-    if(gating||completed[phase]||BOUNDARIES_FINAL[phase]===false||w<PH_SPAN[phase].endEp) return;
+    if(gating||completed[phase]||BOUNDARIES_FINAL[phase]===false||w<PH_SPAN[phase].endEp) return false;
     setGatingLabel('Finalizing this phase…');setGating(true);
     try {
       const nc={...completed,[phase]:true};
       const closing=eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]});
       await savePlayer({picks,phase,predictionPhases:[phase],screen:'close',w,watchThrough:w,completed:nc},true);
       setCompleted(nc);setScreen('close');setReveal(null);setCloseInfo({closing});
-      const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(registered)await refreshPool();
-    } catch(e) { setErr('This phase could not be finalized. Please refresh and try again.'); }
+      const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(!registered)return false;await refreshPool();
+      return true;
+    } catch(e) { setErr('This phase could not be finalized. Please refresh and try again.');return false; }
     finally { setGating(false);setGatingLabel(''); }
   };
   const openNextPhase = async () => {
@@ -6316,7 +6373,7 @@ function App() {
         ({players,status,users}=view);pending=[];
         setGlobalStandings(standings);setGlobalPhaseScores(view.phaseScores);
       }else{
-        [{players,status},users,pending]=await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,false),window._fb.getUsers(pool.members),pool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id)]);
+        [{players,status},users,pending]=await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,false,Number(liveCfg.CONFIG_VERSION)>=2),window._fb.getUsers(pool.members),pool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id)]);
         setGlobalStandings(null);setGlobalPhaseScores(EMPTY_PHASE_SCORES);
       }
       if(liveCfg.PLAYABLE&&!pool.rulesSnapshot&&pool.global!==true) {
@@ -6413,7 +6470,22 @@ function App() {
       throw error;
     } finally {setChemistrySaving(false);}
   };
-  const switchPoolTab=next=>{
+  const switchPoolTab=async next=>{
+    if(reunionStandingsGateRequired({
+      next,globalPool:activePool?.global,phase,screen,completed:completed.reunion,
+      configVersion:eng?.CONFIG_VERSION,
+    })){
+      const confirmed=await requestConfirmation({
+        title:'Have you finished the Reunion?',
+        body:<React.Fragment><p>Final standings reveal Reunion outcomes.</p><p>If you are finished, we’ll score everyone whose Reunion predictions are locked — even if they have not returned to mark the episode finished.</p></React.Fragment>,
+        confirmLabel:'Yes, show final standings',cancelLabel:'Not yet',
+      });
+      if(!confirmed)return;
+      const finished=w>=PH_SPAN.reunion.endEp
+        ? await finalizeCaughtUpPhase()
+        : await finishWatch();
+      if(!finished)return;
+    }
     setErr('');setPoolTab(next);
     if(next==='standings'){setPoolInviteFeedback('');refreshStandings();}
     if(next==='chemistry')refreshChemistry();
