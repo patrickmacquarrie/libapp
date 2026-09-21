@@ -157,6 +157,10 @@ assert(functionsSource.includes('.scoreRetroAdjustments(picksByPhase,revealedPha
 assert(functionsSource.includes("collection('standings').doc('current')"),'The server scorer must publish one current standings document.');
 assert(html.includes('watchGlobalStandings'),'Global clients must subscribe to the single trusted standings document.');
 assert(html.includes("if(activePool.global===true){\n      if(poolTab!=='standings'"),'Global standings must bypass the collection fan-out watcher.');
+const loadAllPlayersCalls=[...html.matchAll(/window\._fb\.loadAllPlayers\(([^\n]+)\)/g)].map(match=>match[1]);
+assert(loadAllPlayersCalls.length>0,'Friend-pool loading must retain its bounded player collection path.');
+assert(loadAllPlayersCalls.every(call=>call.includes(',false,')),'Every player collection load must be explicitly limited to a friend pool.');
+assert(!html.includes('window._fb.loadAllPlayers(pool.id,user.uid,true'),'Global pools must never read the players collection.');
 assert(scoringEngineSource.includes('validateLockedPhasePicks'),'Trusted pick validation must live with the shared engine.');
 assert(functionsSource.includes('authoritativeWindow=resolveGlobalWatchWindow(previous)'),'The scorer must resolve foresight from the server-held per-player ledger.');
 assert(functionsSource.includes('releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP'),'New trusted picks must retain the release-based reference alongside the scored window.');
@@ -211,7 +215,7 @@ assert(!firestoreRules.includes("request.resource.data.revealed"),'The deprecate
 assert(firestoreRules.includes("'updatedAt',\n            'revealed'"),'Rules must permit a full replacement to remove the deprecated phase-status field.');
 assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
 assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
-assert(functionsSource.includes('const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true}'),'Every callable must share enforced App Check settings.');
+assert(functionsSource.includes("const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'}"),'Every callable must enforce App Check outside the local Firebase emulator.');
 assert(!/onCall\(FUNCTION_LIMITS/.test(functionsSource),'No callable may bypass App Check enforcement.');
 assert(html.includes('initializeAppCheck(fbApp'),'The production client must initialize Firebase App Check.');
 assert(html.includes('new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY)'),'The production client must use reCAPTCHA Enterprise.');

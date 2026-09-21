@@ -16,7 +16,9 @@ const STANDINGS_REBUILD_COOLDOWN_MS=20000;
 const GLOBAL_JOIN_CEILING=8000;
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
-const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true};
+// The Firebase emulator cannot mint App Check tokens. Keep enforcement on in
+// every deployed environment while allowing authenticated integration tests.
+const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
