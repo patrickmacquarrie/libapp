@@ -20,14 +20,13 @@ const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
-// is a verified sending domain. Replies route to Patrick's personal inbox.
+// is a verified sending domain. Replies route through the support address.
 const MAIL_SENDERS={
   invites:'Through the Wall Invites <invites@throughthewall.ca>',
   updates:'Through the Wall Updates <updates@throughthewall.ca>',
   support:'Through the Wall Support <support@throughthewall.ca>',
 };
-const MAIL_REPLY_TO='patrick.macquarrie@gmail.com';
-const FALLBACK_GLOBAL_POOL_SEASON={id:'love-is-blind-uk-3',label:'Love Is Blind UK: Season 3',country:'United Kingdom',countryCode:'UK',seasonNumber:3,locationLabel:null,status:'upcoming',releaseLabel:'First episodes drop August 19, 2026'};
+const MAIL_REPLY_TO='support@throughthewall.ca';
 
 function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
@@ -67,8 +66,8 @@ async function retryAborted(operation,attempts=3){
 
 function globalPoolSeasonFromConfig(data){
   const configured=data?.defaultSeason&&typeof data.defaultSeason==='object'?data.defaultSeason:{};
-  const id=safeHeaderText(data?.globalPoolSeasonId||data?.defaultSeasonId||configured.id,100);
-  if(!id)return FALLBACK_GLOBAL_POOL_SEASON;
+  const id=safeHeaderText(data?.globalPoolSeasonId,100);
+  if(!id)throw new HttpsError('failed-precondition','The Global Pool season is not configured');
   return {
     id,
     label:safeHeaderText(configured.label||data?.defaultSeasonLabel||id,100),

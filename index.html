@@ -1764,7 +1764,7 @@ try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_vi
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
 const SEASON_BANK = [
-  // ── Live season ──────────────────────────────────────────────
+  // ── Completed friends-test season ────────────────────────────
   {
     id:DEFAULT_SEASON_ID,
     label:'Love Is Blind UK: Season 3',
@@ -1772,10 +1772,10 @@ const SEASON_BANK = [
     countryCode:'UK',
     seasonNumber:3,
     locationLabel:null,
-    status:'upcoming',
-    releaseLabel:'First episodes drop August 19, 2026',
+    status:'completed',
+    releaseLabel:'Friends test completed September 17, 2026',
     sheetId:'10lXVUtRSNpd4yBCIxHHZiM65abQMCu9LXYoJ22r7ifY',
-    historical:false,
+    historical:true,
     available:true,
   },
 
@@ -1890,6 +1890,20 @@ const SEASON_BANK = [
     sheetId:'1wkfKzx1Y9vb2ApifZeWcUji59kvsrSRJmrrFoe05kEA',
     historical:true,
     available:true,
+  },
+  {
+    id:'love-is-blind-us-11',
+    label:'Love Is Blind US: Season 11',
+    country:'United States',
+    countryCode:'US',
+    seasonNumber:11,
+    locationLabel:null,
+    status:'upcoming',
+    releaseLabel:'Public beta coming fall 2026',
+    // Approved source; keep unavailable until its reviewed snapshot is published.
+    sheetId:'1-Qy-poHMbsO4eEri0NWOpeCmN9qzm76fMabKz0qV39w',
+    historical:false,
+    available:false,
   },
 
   // ── United Kingdom ───────────────────────────────────────────
@@ -2126,7 +2140,6 @@ const SEASON_BANK = [
   // Not yet aired — add when they drop:
   //   Love Is Blind: Netherlands S1
   //   Love Is Blind: South Africa S1
-  //   Love Is Blind US S11 (autumn 2026)
   //   Love Is Blind: Habibi S2, Argentina S2
 ];
 const seasonById = id => SEASON_BANK.find(season=>season.id===id);
@@ -3799,7 +3812,7 @@ function ChemistryPreview() {
   };
   const closePreview=()=>{const url=new URL(window.location.href);url.searchParams.delete('chemistryPreview');window.location.assign(url.toString());};
   return <div className="app">
-    <BrandHeader season={globalPool?'Love Is Blind UK: Season 3':'Love Is Blind US: Season 6'}><h1>{globalPool?'Global Pool':'Pod Squad'}</h1></BrandHeader>
+    <BrandHeader season="Love Is Blind US: Season 6"><h1>{globalPool?'Global Pool':'Pod Squad'}</h1></BrandHeader>
     <button type="button" className="btn-small" style={{width:'auto',marginBottom:12}} onClick={closePreview}>← Back to app demo</button>
     <ChemistryPanel eng={{CAST:cast}} seasonId="chemistry-preview" poolName="Pod Squad" globalPool={globalPool} currentUid="demo-me" myRatingDoc={mine} community={community} globalCommunity={{kind:'global',aggregate,loadedAt:1}} memberLabels={{'demo-me':'You','demo-maya':'Maya','demo-lex':'Lex'}} onSave={savePreview} saving={false} feedback={feedback} onRefresh={()=>setFeedback('Preview refreshed.')} panelLabelledBy={null}/>
   </div>;
