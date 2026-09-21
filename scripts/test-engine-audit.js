@@ -108,8 +108,11 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   assert.equal(advanceGlobalWatchValue(5,3,3),5,'A temporary release rollback must not move the stored ledger backward.');
   assert.equal(globalWatchLedgerReady({watchedThrough:3,joinedAtEp:0}),true,'Both server-held ledger fields make a member ready to lock.');
   assert.equal(globalWatchLedgerReady({watchedThrough:3}),false,'A missing legacy join marker must never silently bypass ledger readiness during a lock.');
-  assert.deepEqual(globalLedgerFieldsForJoin({watchedThrough:2,joinedAtEp:1}),{},'A repeat open must never rewrite an existing valid ledger.');
+  assert.deepEqual(globalLedgerFieldsForJoin({watchedThrough:2,joinedAtEp:1},5,5),{},'A repeat open must never rewrite an existing valid ledger.');
   assert.deepEqual(globalLedgerFieldsForJoin({}),{watchedThrough:0,joinedAtEp:0},'Every new member must start with the same player-relative Episode 0 ledger markers.');
+  assert.deepEqual(globalLedgerFieldsForJoin({},3,5),{watchedThrough:3,joinedAtEp:0},'An honest late joiner must start at their bounded self-reported watch position.');
+  assert.deepEqual(globalLedgerFieldsForJoin({},9,5),{watchedThrough:5,joinedAtEp:0},'The join-time watch position must not exceed the published episode ceiling.');
+  assert.equal(advanceGlobalWatchValue(globalLedgerFieldsForJoin({},3,5).watchedThrough,4,5),4,'A join initialized at Episode 3 must advance normally to Episode 4.');
 }
 
 {

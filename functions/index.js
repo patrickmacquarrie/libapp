@@ -16,7 +16,9 @@ const STANDINGS_REBUILD_COOLDOWN_MS=20000;
 const GLOBAL_JOIN_CEILING=8000;
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
-const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true};
+// The Firebase emulator cannot mint App Check tokens. Keep enforcement on in
+// every deployed environment while allowing authenticated integration tests.
+const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
@@ -767,6 +769,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   const email=String(request.auth.token?.email||'').trim().toLowerCase();
   const seasonId=String(request.data?.seasonId||'');
+  const initialWatchedThrough=Number(request.data?.initialWatchedThrough);
   const ref=db.doc(`pools/global__${seasonId}`);
   const trustedRef=ref.collection('trustedPlayers').doc(uid);
   const configRef=db.doc('appConfig/public');
@@ -779,7 +782,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       tx.get(ref),tx.get(db.doc(`seasons/${seasonId}`)),tx.get(trustedRef),
     ]);
     if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
-    publishedSeasonConfig(seasonSnapshot.data(),seasonId);
+    const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
     if(snapshot.exists){
       const current=snapshot.data();
       if(current.global!==true||current.globalSeasonId!==seasonId)throw new HttpsError('failed-precondition','The global pool document is configured incorrectly.');
@@ -790,7 +793,9 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       const update={scoringVersion:GLOBAL_SCORING_VERSION};
       if(!alreadyMember)update.members=FieldValue.arrayUnion(uid);
       tx.update(ref,update);
-      const ledgerFields=globalLedgerFieldsForJoin(trustedSnapshot.exists?trustedSnapshot.data():{});
+      const ledgerFields=globalLedgerFieldsForJoin(
+        trustedSnapshot.exists?trustedSnapshot.data():{},initialWatchedThrough,cfg.AVAILABLE_THROUGH_EP,
+      );
       if(!trustedSnapshot.exists)ledgerFields.uid=uid;
       if(Object.keys(ledgerFields).length)tx.set(trustedRef,ledgerFields,{merge:true});
       return;
@@ -800,7 +805,7 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
       membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
-    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({})});
+    tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({},initialWatchedThrough,cfg.AVAILABLE_THROUGH_EP)});
   }));
   return {ok:true,poolId:ref.id};
 });

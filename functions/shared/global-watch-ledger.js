@@ -22,9 +22,11 @@ const globalWatchLedgerReady=trusted=>
   Number.isInteger(trusted?.watchedThrough)&&trusted.watchedThrough>=0&&
   Number.isInteger(trusted?.joinedAtEp)&&trusted.joinedAtEp>=0;
 
-const globalLedgerFieldsForJoin=trusted=>{
+const globalLedgerFieldsForJoin=(trusted,initialWatchedThrough=0,availableThroughEp=0)=>{
   const fields={};
-  if(!Number.isInteger(trusted?.watchedThrough)||trusted.watchedThrough<0)fields.watchedThrough=0;
+  if(!Number.isInteger(trusted?.watchedThrough)||trusted.watchedThrough<0){
+    fields.watchedThrough=clampGlobalWatchValue(initialWatchedThrough,availableThroughEp);
+  }
   if(!Number.isInteger(trusted?.joinedAtEp)||trusted.joinedAtEp<0)fields.joinedAtEp=0;
   return fields;
 };

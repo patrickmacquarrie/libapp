@@ -55,6 +55,15 @@ assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standin
 assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:false,phase:'reunion',screen:'watch',completed:false,configVersion:1}),false,'UK3 legacy pools must retain their existing tab behavior.');
 assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:true,phase:'reunion',screen:'watch',completed:false,configVersion:2}),false);
 
+const globalJoinWatchStart=html.indexOf('const globalJoinWatchSelection=');
+const globalJoinWatchEnd=html.indexOf('\nfunction GlobalPoolJoinModal',globalJoinWatchStart);
+assert(globalJoinWatchStart>=0&&globalJoinWatchEnd>globalJoinWatchStart,'Could not isolate the Global join watch selection.');
+const globalJoinWatchSelection=vm.runInNewContext(`${html.slice(globalJoinWatchStart,globalJoinWatchEnd)}\nglobalJoinWatchSelection`,{Math,Number});
+assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:3,ask:true});
+assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'friend-pool',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:0,ask:false},'A mirror-linked Global join must skip the question and start at zero.');
+assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:0,initialWatchedThrough:0}))),{availableThroughEp:0,initialWatchedThrough:0,ask:false},'A pre-premiere Global join must skip the watch question.');
+assert.equal(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:5,initialWatchedThrough:99}).initialWatchedThrough,5,'The client selection must stay inside the published range before the server clamps it again.');
+
 assert(html.includes("doc(db,'clientErrors',user.uid,'categories',category)"),'Client failures must use authenticated Firestore diagnostics.');
 assert(html.includes('occurrenceCount:increment(1)'),'Client failure counts must remain bounded to one document per user and category.');
 assert(html.includes('lastAt:serverTimestamp()'),'Client failure throttling must use the trusted server timestamp.');
@@ -148,6 +157,10 @@ assert(functionsSource.includes('.scoreRetroAdjustments(picksByPhase,revealedPha
 assert(functionsSource.includes("collection('standings').doc('current')"),'The server scorer must publish one current standings document.');
 assert(html.includes('watchGlobalStandings'),'Global clients must subscribe to the single trusted standings document.');
 assert(html.includes("if(activePool.global===true){\n      if(poolTab!=='standings'"),'Global standings must bypass the collection fan-out watcher.');
+const loadAllPlayersCalls=[...html.matchAll(/window\._fb\.loadAllPlayers\(([^\n]+)\)/g)].map(match=>match[1]);
+assert(loadAllPlayersCalls.length>0,'Friend-pool loading must retain its bounded player collection path.');
+assert(loadAllPlayersCalls.every(call=>call.includes(',false,')),'Every player collection load must be explicitly limited to a friend pool.');
+assert(!html.includes('window._fb.loadAllPlayers(pool.id,user.uid,true'),'Global pools must never read the players collection.');
 assert(scoringEngineSource.includes('validateLockedPhasePicks'),'Trusted pick validation must live with the shared engine.');
 assert(functionsSource.includes('authoritativeWindow=resolveGlobalWatchWindow(previous)'),'The scorer must resolve foresight from the server-held per-player ledger.');
 assert(functionsSource.includes('releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP'),'New trusted picks must retain the release-based reference alongside the scored window.');
@@ -202,7 +215,7 @@ assert(!firestoreRules.includes("request.resource.data.revealed"),'The deprecate
 assert(firestoreRules.includes("'updatedAt',\n            'revealed'"),'Rules must permit a full replacement to remove the deprecated phase-status field.');
 assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
 assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
-assert(functionsSource.includes('const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:true}'),'Every callable must share enforced App Check settings.');
+assert(functionsSource.includes("const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'}"),'Every callable must enforce App Check outside the local Firebase emulator.');
 assert(!/onCall\(FUNCTION_LIMITS/.test(functionsSource),'No callable may bypass App Check enforcement.');
 assert(html.includes('initializeAppCheck(fbApp'),'The production client must initialize Firebase App Check.');
 assert(html.includes('new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY)'),'The production client must use reCAPTCHA Enterprise.');

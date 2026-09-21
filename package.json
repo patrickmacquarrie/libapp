@@ -10,6 +10,7 @@
     "test:clone-rehearsal": "node scripts/rehearse-uk3-clone.js",
     "test:release-contract": "node scripts/test-release-contract.js",
     "test:rules": "CI=true node scripts/run-with-java.js firebase emulators:exec --only firestore,auth \"node scripts/test-firestore-rules.js\"",
+    "test:global-emulator": "CI=true node scripts/run-with-java.js firebase emulators:exec --project demo-libapp --only firestore,auth,functions \"node scripts/test-global-pool-emulator.js\"",
     "test:smoke": "node scripts/test-built-app-smoke.js",
     "verify:live-rules": "node scripts/verify-live-firestore-rules.js",
     "check": "npm run doctor && npm test && npm run build && npm run test:smoke"
