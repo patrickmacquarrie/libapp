@@ -1513,9 +1513,9 @@ window._fb = {
     const s=await getDoc(ref);
     return s.exists()?{id:s.id,...s.data()}:null;
   },
-  joinGlobalPool: async (season,uid,rulesSnapshot) => {
+  joinGlobalPool: async (season,initialWatchedThrough=0) => {
     const ref=doc(db,'pools','global__'+season.id);
-    await httpsCallable(functions,'openGlobalPool')({seasonId:season.id});
+    await httpsCallable(functions,'openGlobalPool')({seasonId:season.id,initialWatchedThrough});
     const s=await getDoc(ref);
     if(!s.exists())throw new Error('The Global Pool could not be opened.');
     return {id:s.id,...s.data()};
@@ -5057,8 +5057,16 @@ function ConfirmModal({title,body,confirmLabel='Confirm',cancelLabel='Cancel',on
     </div>
   </div>;
 }
-function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onJoin,onClose}) {
-  const titleId=useId(),selectId=useId(),modalRef=useModalLifecycle(onClose,!joining);
+const globalJoinWatchSelection=join=>{
+  const availableThroughEp=Math.max(0,Math.trunc(Number(join?.availableThroughEp)||0));
+  const initialWatchedThrough=join?.sourcePoolId
+    ? 0
+    : Math.min(availableThroughEp,Math.max(0,Math.trunc(Number(join?.initialWatchedThrough)||0)));
+  return {availableThroughEp,initialWatchedThrough,ask:!join?.sourcePoolId&&availableThroughEp>0};
+};
+function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onWatchChange,onJoin,onClose}) {
+  const titleId=useId(),selectId=useId(),watchId=useId(),modalRef=useModalLifecycle(onClose,!joining);
+  const watchSelection=globalJoinWatchSelection(join);
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!joining)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <h2 id={titleId}>Join the global pool</h2>
@@ -5068,7 +5076,12 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onJoin,onC
         <option value="">No thanks — I’ll make separate global picks</option>
         {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
       </select>
-      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your picks, confirmed watch progress, and completed checkpoints stay aligned with the Global Pool without ever moving backward. Global scoring shows the episode its server actually credits. Picks made before you joined Global are never credited earlier than your Global join episode.</p>}
+      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your picks, confirmed watch progress, and completed checkpoints stay aligned with the Global Pool without ever moving backward. Global scoring uses the confirmed watch position synchronized from that pool.</p>}
+      {watchSelection.ask&&<div className="field" style={{marginTop:16}}>
+        <label className="small" htmlFor={watchId}>{watchSelection.availableThroughEp} episode{watchSelection.availableThroughEp===1?' is':'s are'} available — how many have you watched?</label>
+        <div className="stakebox"><input id={watchId} type="range" min="0" max={watchSelection.availableThroughEp} step="1" value={watchSelection.initialWatchedThrough} disabled={joining} onChange={event=>onWatchChange(Number(event.target.value))}/><span className="stakeval">{watchSelection.initialWatchedThrough}</span></div>
+        <p className="subtle">This starts your prediction clock in the right place. You can move forward later, but confirmed progress never moves backward.</p>
+      </div>}
       <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
     </div>
   </div>;
@@ -5923,19 +5936,24 @@ function App() {
     } catch(e) { console.error(e);reportTtwError('pool_create_failed',e,{operation:'create_pool',seasonId:season?.id});setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
     finally{setCreatingPool(false);}
   };
-  const openGlobalPool = season => {
+  const openGlobalPool = async season => {
     const existing=globalPools[season.id];
     if(existing?.members?.includes(user.uid)) { enterPool(existing); return; }
-    setGlobalJoin({season,sourcePoolId:''});
+    try{
+      setErr('');
+      const seasonCfg=await loadConfig(season.id);
+      setGlobalJoin({season,sourcePoolId:'',initialWatchedThrough:0,availableThroughEp:seasonCfg.AVAILABLE_THROUGH_EP});
+    }catch(error){
+      console.error(error);setErr(playerSeasonError(error,'The Global Pool join options could not be loaded. Please try again.'));
+    }
   };
   const doJoinGlobalPool = async () => {
     if(!globalJoin||joiningGlobal) return;
     const {season,sourcePoolId}=globalJoin;
+    const {initialWatchedThrough}=globalJoinWatchSelection(globalJoin);
     try {
       setJoiningGlobal(true);setErr('');
-      const seasonCfg=await loadConfig(season.id);
-      const rulesSnapshot=seasonCfg.PLAYABLE?rulesSnapshotFrom(seasonCfg):null;
-      const globalPool=await window._fb.joinGlobalPool(season,user.uid,rulesSnapshot);
+      const globalPool=await window._fb.joinGlobalPool(season,initialWatchedThrough);
       setGlobalPools(current=>({...current,[season.id]:globalPool}));
       if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
@@ -6766,7 +6784,7 @@ function App() {
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
-    {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
+    {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onWatchChange={initialWatchedThrough=>setGlobalJoin(current=>({...current,initialWatchedThrough}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
   /* ── IN POOL ── */
