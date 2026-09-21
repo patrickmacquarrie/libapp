@@ -6,9 +6,9 @@ For a new beta season, choose configuration version 2 in Season Admin. A missing
 
 ## Opening the public Global Pool
 
-Do these steps in order for US Season 11. The checked-in season-bank entry remains unavailable until its real source Sheet is connected through Season Admin; do not invent or reuse a Sheet ID.
+Do these steps in order for US Season 11. Its approved source Sheet ID is recorded in the season bank, but the entry remains unavailable until that Sheet is connected through Season Admin and its reviewed snapshot is published.
 
-1. Preview and publish `love-is-blind-us-11` with `CONFIG_VERSION=2`. Confirm its source Sheet ID, release hash, episode availability, phase boundaries, and result flags before publishing.
+1. Connect `love-is-blind-us-11` to Sheet `1-Qy-poHMbsO4eEri0NWOpeCmN9qzm76fMabKz0qV39w` in Season Admin. Preview and publish it with `CONFIG_VERSION=2`. Confirm the source Sheet ID, release hash, episode availability, phase boundaries, and result flags before publishing.
 2. Set both `appConfig/public.globalPoolSeasonId` and `appConfig/public.defaultSeasonId` to `love-is-blind-us-11` through the publisher's live/default action. Verify both fields in Firestore; do not change the checked-in `DEFAULT_SEASON_ID` as a substitute for runtime configuration.
 3. Deploy the reviewed backend, Firestore rules, and hosting release. Confirm the deployment completed before inviting public players.
 4. Sign in with an address listed in `GLOBAL_POOL_ADMINS` and open the Global Pool once. Only an administrator may create it. Until that first open succeeds, every visitor's lobby load will make a failing callable request because the pool does not yet exist.

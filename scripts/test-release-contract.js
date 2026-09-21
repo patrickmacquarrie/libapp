@@ -189,15 +189,15 @@ function verifyPublicBetaSeasonBank(){
   assert.equal(us11.historical,false);
   assert.equal(us11.available,false);
   assert.equal(us11.status,'upcoming');
-  assert.equal(us11.sheetId,'','The repository must not invent a source Sheet ID.');
+  assert.equal(us11.sheetId,'1-Qy-poHMbsO4eEri0NWOpeCmN9qzm76fMabKz0qV39w','US Season 11 must retain the approved source Sheet ID.');
   const selected=config.applyPublicAppConfig({
     defaultSeasonId:'love-is-blind-us-11',
-    sourceSheetId:'real-sheet-id-from-publisher',
+    sourceSheetId:'1-Qy-poHMbsO4eEri0NWOpeCmN9qzm76fMabKz0qV39w',
     status:'upcoming',
   });
   assert.equal(selected,'love-is-blind-us-11');
   assert.equal(us11.available,true,'Published runtime configuration must activate the registered S11 entry.');
-  assert.equal(us11.sheetId,'real-sheet-id-from-publisher');
+  assert.equal(us11.sheetId,'1-Qy-poHMbsO4eEri0NWOpeCmN9qzm76fMabKz0qV39w');
 }
 
 const rollbackStart=publisher.indexOf('function rollbackSeasonSnapshot(');
