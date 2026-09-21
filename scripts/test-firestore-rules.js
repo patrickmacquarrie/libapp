@@ -164,6 +164,19 @@ async function main(){
     403,
     'browser user cannot change live/default routing'
   );
+  await expectStatus(
+    await writeDocument('appConfig/seasonCatalog',{seasons:arrayValue([]),updatedAt:numberValue(Date.now())},'owner'),
+    200,
+    'admin seeds the compact season catalog'
+  );
+  await expectStatus(await readDocument('appConfig/seasonCatalog',token),200,'signed-in user reads the season catalog');
+  await expectStatus(await readDocument('appConfig/seasonCatalog',''),403,'signed-out visitor cannot read the season catalog');
+  await expectStatus(await readDocument('appConfig',token),403,'browser user cannot list app configuration documents');
+  await expectStatus(
+    await writeDocument('appConfig/seasonCatalog',{seasons:arrayValue([]),updatedAt:numberValue(Date.now()+1)},token),
+    403,
+    'browser user cannot change the season catalog'
+  );
 
   await expectStatus(await writeDocument('pools/v3-valid',poolFields(uid,rulesSnapshot(3,'number')),token),200,'v3 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v4-valid',poolFields(uid,rulesSnapshot(4,'number')),token),200,'v4 snapshot with RACE_MULT');
@@ -189,9 +202,22 @@ async function main(){
     'signed-in user queries their pool memberships'
   );
   const globalPoolId='global__love-is-blind-se-1';
+  const globalCreatedAt=Date.now();
+  const globalPoolFields={
+    ...poolFields(uid,rulesSnapshot(5),[uid,second.uid],'123456789012',globalCreatedAt),
+    global:boolValue(true),globalSeasonId:stringValue('love-is-blind-se-1'),
+  };
   await expectStatus(await writeDocument(`pools/${globalPoolId}`,{
-    ...poolFields(uid,rulesSnapshot(5),[uid,second.uid]),global:boolValue(true),globalSeasonId:stringValue('love-is-blind-se-1'),
+    ...globalPoolFields,
   },'owner'),200,'admin seeds Global Pool scoring fixture');
+  await expectStatus(
+    await writeDocument(`pools/${globalPoolId}`,{
+      ...globalPoolFields,
+      members:arrayValue([uid,second.uid,invited.uid].map(stringValue)),
+    },invited.token),
+    403,
+    'browser user cannot self-append to a Global Pool'
+  );
   await expectStatus(await writeDocument(`pools/${globalPoolId}/standings/current`,{schemaVersion:numberValue(1),rows:arrayValue([])},'owner'),200,'trusted scorer writes current standings');
   await expectStatus(await readDocument(`pools/${globalPoolId}/standings/current`,token),200,'Global Pool member reads current standings');
   await expectStatus(await readDocument(`pools/${globalPoolId}/standings/current`,invited.token),403,'non-member cannot read Global standings');
@@ -199,6 +225,13 @@ async function main(){
   await expectStatus(await writeDocument(`pools/${globalPoolId}/trustedPlayers/${uid}`,{uid:stringValue(uid)},'owner'),200,'trusted scorer seeds validated Global input');
   await expectStatus(await readDocument(`pools/${globalPoolId}/trustedPlayers/${uid}`,token),403,'browser member cannot read trusted scoring inputs');
   await expectStatus(await writeDocument(`pools/${globalPoolId}/trustedPlayers/${uid}`,{uid:stringValue(uid)},token),403,'browser member cannot forge trusted scoring inputs');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/standingsRows/${uid}`,{uid:stringValue(uid),total:numberValue(12)},'owner'),200,'trusted scorer seeds a personal standings row');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/standingsRows/${invited.uid}`,{uid:stringValue(invited.uid),total:numberValue(8)},'owner'),200,'trusted scorer seeds a non-member standings row');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/standingsRows/${uid}`,token),200,'Global Pool member reads own standings row');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/standingsRows/${uid}`,second.token),403,'Global Pool member cannot read another standings row');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/standingsRows/${invited.uid}`,invited.token),403,'non-member cannot read an own-id standings row');
+  await expectStatus(await readDocument(`pools/${globalPoolId}/standingsRows`,token),403,'Global Pool member cannot list standings rows');
+  await expectStatus(await writeDocument(`pools/${globalPoolId}/standingsRows/${uid}`,{uid:stringValue(uid),total:numberValue(999)},token),403,'browser member cannot forge own standings row');
 
   const profileCreatedAt=Date.now()-1000;
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Original'),createdAt:numberValue(profileCreatedAt)},token),200,'user creates profile');
