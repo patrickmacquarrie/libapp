@@ -45,6 +45,26 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 }
 
 {
+  const couples=[{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}];
+  const engine=makeEngine(cfg(couples),3);
+  const viewerPick={c:'Alex|Casey',s:20,w:1};
+  const allPlayers={
+    viewer:[viewerPick],
+    same:[{c:'Alex|Casey',s:10,w:1}],
+    different:[{c:'Blair|Drew',s:10,w:1}],
+  };
+  const server=engine.scorePhase('pods',allPlayers);
+  const identity=engine.pickIdentity('pods',viewerPick);
+  const receipt=engine.scorePhase('pods',{viewer:[viewerPick]},
+    {ownerCounts:{[identity]:2},activeCount:3});
+  assert.equal(receipt.totals.viewer,server.totals.viewer,'A Global receipt scored from the viewer pick plus server owner counts must equal the trusted server total.');
+  const hit=receipt.entries.find(entry=>entry.member==='viewer'&&entry.ok);
+  assert.equal(hit.owners,2);
+  assert.equal(hit.poolSize,3);
+  assert.notEqual(hit.contra,1,'The receipt must use the real Global Against-the-Grain multiplier instead of a solo x1 context.');
+}
+
+{
   const season=cfg([{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}]);
   season.RULES.phases.pods={...season.RULES.phases.pods,budget:20,cap:15};
   const engine=makeEngine(season,1);

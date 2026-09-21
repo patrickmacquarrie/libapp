@@ -27,7 +27,8 @@ vm.createContext(context);
 vm.runInContext(`${source}\nthis.__publisher={
   setDefaultSeasonFromAdmin,previewSeasonSnapshot,publishSeasonSnapshot,publishSeasonFromAdmin,
   backupDocumentPath_,timestampId_,seasonReleaseHash_,assertUniqueSettings_,
-  adminPayloadFromSnapshotTabs_,validateSeasonAdminPayload_,buildSeasonSnapshot_,commitFirestoreDocuments_
+  adminPayloadFromSnapshotTabs_,validateSeasonAdminPayload_,buildSeasonSnapshot_,commitFirestoreDocuments_,
+  rebuildSeasonCatalog,seasonCatalogEntry_,mapFields_
 };`,context);
 
 const seasonId='love-is-blind-test-2';
@@ -51,6 +52,7 @@ assert.equal(commitRequest.options.headers.Authorization,'Bearer test-token');
 context.readFirestoreDocument_=(_config,documentPath)=>{
   if(documentPath===`seasons/${seasonId}`)return {exists:true,fields:{status:{stringValue:'live'}}};
   if(documentPath==='appConfig/public')return {exists:true,fields:{defaultSeasonId:{stringValue:'love-is-blind-test-1'}}};
+  if(documentPath==='appConfig/seasonCatalog')return {exists:false,fields:{}};
   throw new Error(`Unexpected read: ${documentPath}`);
 };
 context.SpreadsheetApp={openById:()=>({})};
@@ -68,6 +70,7 @@ assert.deepEqual(Array.from(transactions[0],write=>write.documentPath),[
   'appConfig/public'
 ]);
 assert.equal(transactions[0][1].fields.defaultSeasonId,seasonId);
+context.mapFields_=context.__publisher.mapFields_;
 assert.equal(context.__publisher.backupDocumentPath_(seasonId,'publish'),'seasonSnapshotBackups/love-is-blind-test-2__20260909_120000_000__publish');
 assert.equal(context.__publisher.timestampId_(),'20260909_120000_000');
 
@@ -129,7 +132,15 @@ pendingRelease=releaseOneLaterTimestamp;
 const published=context.__publisher.publishSeasonSnapshot(seasonId);
 assert.equal(published.published,true);
 assert.equal(transactions.length,1);
-assert.deepEqual(Array.from(transactions[0],write=>write.documentPath),[`seasons/${seasonId}`]);
+assert.deepEqual(Array.from(transactions[0],write=>write.documentPath),[
+  `seasons/${seasonId}`,
+  'appConfig/seasonCatalog',
+]);
+const catalogWrite=transactions[0].find(write=>write.documentPath==='appConfig/seasonCatalog');
+const catalogSeasons=catalogWrite.fields.seasons.arrayValue.values;
+assert.equal(catalogSeasons.length,1);
+assert.equal(catalogSeasons[0].mapValue.fields.id.stringValue,seasonId);
+assert.equal(catalogSeasons[0].mapValue.fields.sourceSheetId.stringValue,'');
 assert.throws(
   ()=>context.__publisher.publishSeasonSnapshot(seasonId),
   /No approved preview/
@@ -145,5 +156,17 @@ assert.throws(
   ()=>context.__publisher.publishSeasonSnapshot(seasonId),
   /simulated atomic commit failure/
 );
+
+transactions.length=0;
+context.listFirestoreDocuments_=()=>[
+  {id:'love-is-blind-test-1',fields:{seasonId:{stringValue:'love-is-blind-test-1'},sourceSheetId:{stringValue:'sheet-1'},status:{stringValue:'completed'},publishedAt:{timestampValue:'2026-01-01T00:00:00.000Z'},Settings:{arrayValue:{values:[{mapValue:{fields:{key:{stringValue:'RELEASE_LABEL'},value:{stringValue:'Winter'}}}}]}}}},
+  {id:seasonId,fields:{seasonId:{stringValue:seasonId},sourceSheetId:{stringValue:'sheet-2'},status:{stringValue:'live'},publishedAt:{timestampValue:'2026-09-20T00:00:00.000Z'},Settings:{arrayValue:{values:[{mapValue:{fields:{key:{stringValue:'RELEASE_LABEL'},value:{stringValue:'Fall'}}}}]}}}},
+];
+context.commitFirestoreDocuments_=(_config,documents)=>transactions.push(documents);
+const rebuilt=context.__publisher.rebuildSeasonCatalog(seasonId);
+assert.equal(rebuilt.seasonCount,2);
+assert.deepEqual(Array.from(rebuilt.seasons,entry=>entry.id),['love-is-blind-test-1',seasonId]);
+assert.equal(rebuilt.seasons[1].releaseLabel,'Fall');
+assert.deepEqual(Array.from(transactions[0],write=>write.documentPath),['appConfig/seasonCatalog']);
 
 console.log('Season publisher rollover, validation, and atomic-release regressions passed.');

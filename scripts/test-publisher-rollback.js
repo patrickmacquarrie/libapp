@@ -28,15 +28,18 @@ const seasonPath=`seasons/${seasonId}`;
 const originalBackupPath=`seasonSnapshotBackups/${seasonId}__original__publish`;
 const appConfigPath='appConfig/public';
 const originalAppConfigBackupPath=`appConfigBackups/${seasonId}__original__publish`;
-const originalFields={status:{stringValue:'live'},publishedAt:{stringValue:'release-one'}};
-const currentFields={status:{stringValue:'live'},publishedAt:{stringValue:'release-two'}};
+const originalFields={status:{stringValue:'live'},publishedAt:{timestampValue:'2026-09-01T00:00:00.000Z'}};
+const currentFields={status:{stringValue:'live'},publishedAt:{timestampValue:'2026-09-02T00:00:00.000Z'}};
 const originalAppConfigFields={defaultSeasonId:{stringValue:seasonId},defaultSeasonLabel:{stringValue:'Release one'}};
 const currentAppConfigFields={defaultSeasonId:{stringValue:seasonId},defaultSeasonLabel:{stringValue:'Release two'}};
+const catalogPath='appConfig/seasonCatalog';
+const currentCatalogFields={seasons:{arrayValue:{values:[{mapValue:{fields:{id:{stringValue:seasonId},status:{stringValue:'live'},sourceSheetId:{stringValue:'sheet-2'},releaseLabel:{stringValue:'Release two'},publishedAt:{stringValue:'release-two'}}}}]}},updatedAt:{stringValue:'before-rollback'}};
 const documents=new Map([
   [seasonPath,currentFields],
   [originalBackupPath,originalFields],
   [appConfigPath,currentAppConfigFields],
-  [originalAppConfigBackupPath,originalAppConfigFields]
+  [originalAppConfigBackupPath,originalAppConfigFields],
+  [catalogPath,currentCatalogFields]
 ]);
 properties.set(`LAST_BACKUP_PATH__${seasonId}`,originalBackupPath);
 properties.set(`LAST_APP_CONFIG_BACKUP_PATH__${seasonId}`,originalAppConfigBackupPath);
@@ -68,6 +71,8 @@ assert.deepEqual(documents.get(appConfigPath),originalAppConfigFields,'Rollback 
 assert.deepEqual(documents.get(first.previousAppConfigSavedTo),currentAppConfigFields,'Rollback must preserve the displaced routing metadata.');
 assert.equal(properties.get(`LAST_APP_CONFIG_BACKUP_PATH__${seasonId}`),first.previousAppConfigSavedTo,'The routing rescue copy must become the next rollback target.');
 assert.equal(transactionCount,1,'Season and routing rollback writes must share one atomic commit.');
+let catalogSeason=documents.get(catalogPath).seasons.arrayValue.values[0].mapValue.fields;
+assert.equal(catalogSeason.publishedAt.timestampValue,'2026-09-01T00:00:00.000Z','Rollback must update the catalog entry in the same atomic commit.');
 
 const second=context.__publisher.rollbackSeasonSnapshot(seasonId);
 assert.equal(second.restoredFrom,first.previousLiveSavedTo);
@@ -76,6 +81,8 @@ assert.deepEqual(documents.get(seasonPath),currentFields,'A second rollback must
 assert.deepEqual(documents.get(second.previousLiveSavedTo),originalFields,'The second rollback must preserve the version it displaced.');
 assert.deepEqual(documents.get(appConfigPath),currentAppConfigFields,'A second rollback must reverse the routing metadata restoration.');
 assert.deepEqual(documents.get(second.previousAppConfigSavedTo),originalAppConfigFields,'The second rollback must preserve the routing metadata it displaced.');
+catalogSeason=documents.get(catalogPath).seasons.arrayValue.values[0].mapValue.fields;
+assert.equal(catalogSeason.publishedAt.timestampValue,'2026-09-02T00:00:00.000Z','A second rollback must reverse the catalog entry with the season snapshot.');
 
 properties.delete(`LAST_BACKUP_PATH__${seasonId}`);
 const transactionsBeforeMissingBackup=transactionCount;

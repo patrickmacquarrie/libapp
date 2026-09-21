@@ -240,8 +240,8 @@ async function recomputeGlobalStandings(poolId){
   const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId);
   const trusted=Object.fromEntries(playersSnapshot.docs.map(document=>[document.id,document.data()]));
   const previousRows=Object.fromEntries((previousSnapshot.data()?.rows||[]).map(row=>[row.uid,row]));
-  const recalculated={},phaseScores={},phasePoolSizes={},completedByPhase={};
-  PHASES.forEach(phase=>{recalculated[phase]={};phaseScores[phase]={};phasePoolSizes[phase]={};completedByPhase[phase]=[];});
+  const recalculated={},phaseScores={},phasePoolSizes={},completedByPhase={},ownerCounts={},activeCounts={};
+  PHASES.forEach(phase=>{recalculated[phase]={};phaseScores[phase]={};phasePoolSizes[phase]={};completedByPhase[phase]=[];ownerCounts[phase]={};activeCounts[phase]=0;});
   for(const phase of PHASES){
     // Do not freeze a provisional zero. The first published score for a phase
     // is created only after its result set is explicitly marked ready.
@@ -251,6 +251,11 @@ async function recomputeGlobalStandings(poolId){
     const picksBy=Object.fromEntries(completed.map(uid=>[uid,trusted[uid]?.picks?.[phase]||[]]));
     const activeCount=Math.max(completed.filter(uid=>(picksBy[uid]||[]).length>0).length,1);
     const engine=makeEngine(cfg,activeCount);
+    activeCounts[phase]=activeCount;
+    completed.forEach(uid=>{
+      const identities=new Set(engine.sanitizePhasePicks(phase,picksBy[uid]).map(pick=>engine.pickIdentity(phase,pick)));
+      identities.forEach(identity=>{ownerCounts[phase][identity]=(ownerCounts[phase][identity]||0)+1;});
+    });
     const scored=engine.scorePhase(phase,picksBy);
     completed.forEach(uid=>{
       recalculated[phase][uid]=Number(scored.totals[uid])||0;
@@ -284,7 +289,7 @@ async function recomputeGlobalStandings(poolId){
   let lastScore=null,rank=0;
   rows.forEach((row,index)=>{if(row.total!==lastScore)rank=index+1;row.rank=rank;lastScore=row.total;});
   const sourceRevision=Math.max(Date.now(),...Object.values(trusted).map(player=>Number(player.updatedAt)||0));
-  const document={schemaVersion:GLOBAL_SCORING_VERSION,engineVersion:GLOBAL_SCORING_VERSION,seasonId,sourceRevision,computedAt:Date.now(),rows};
+  const document={schemaVersion:GLOBAL_SCORING_VERSION,engineVersion:GLOBAL_SCORING_VERSION,seasonId,sourceRevision,computedAt:Date.now(),rows,ownerCounts,activeCounts};
   const byteSize=Buffer.byteLength(JSON.stringify(document));
   if(byteSize>STANDINGS_DOCUMENT_SOFT_LIMIT)throw new Error(`Global standings document is ${byteSize} bytes; refusing to approach Firestore's document limit.`);
   await db.runTransaction(async transaction=>{
