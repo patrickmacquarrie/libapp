@@ -36,6 +36,25 @@ const seasonAdminScript=seasonAdmin.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert(seasonAdminScript,'Season admin must include browser logic.');
 new Function(seasonAdminScript);
 
+const reunionScoringStart=html.indexOf('const friendReunionScoringState=');
+const reunionScoringEnd=html.indexOf('\nfunction Scoreboard',reunionScoringStart);
+assert(reunionScoringStart>=0&&reunionScoringEnd>reunionScoringStart,'Could not isolate the friend Reunion scoring helpers.');
+const reunionScoringContext={Number,Set};
+vm.createContext(reunionScoringContext);
+vm.runInContext(`${html.slice(reunionScoringStart,reunionScoringEnd)}\nthis.__friendReunionScoringState=friendReunionScoringState;this.__reunionStandingsGateRequired=reunionStandingsGateRequired;`,reunionScoringContext);
+const reunionPlayers={
+  locked:{phase:'reunion',screen:'watch',lockedPhases:{reunion:true},completed:{}},
+  screenOnly:{phase:'reunion',screen:'watch',completed:{}},
+  completed:{phase:'reunion',screen:'close',completed:{reunion:true}},
+};
+const legacyReunion=reunionScoringContext.__friendReunionScoringState({memberIds:Object.keys(reunionPlayers),playersById:reunionPlayers,completedMembers:['completed'],configVersion:1});
+assert.deepEqual(Array.from(legacyReunion.scoredMembers),['completed'],'Legacy configuration must keep scoring only completed Reunion players.');
+const v2Reunion=reunionScoringContext.__friendReunionScoringState({memberIds:Object.keys(reunionPlayers),playersById:reunionPlayers,completedMembers:['completed'],configVersion:2});
+assert.deepEqual(Array.from(v2Reunion.scoredMembers),['completed','locked'],'Configuration v2 must score a verified immutable Reunion lock without trusting a public screen alone.');
+assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:false,phase:'reunion',screen:'watch',completed:false,configVersion:2}),true);
+assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:false,phase:'reunion',screen:'watch',completed:false,configVersion:1}),false,'UK3 legacy pools must retain their existing tab behavior.');
+assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:true,phase:'reunion',screen:'watch',completed:false,configVersion:2}),false);
+
 assert(html.includes("doc(db,'clientErrors',user.uid,'categories',category)"),'Client failures must use authenticated Firestore diagnostics.');
 assert(html.includes('occurrenceCount:increment(1)'),'Client failure counts must remain bounded to one document per user and category.');
 assert(html.includes('lastAt:serverTimestamp()'),'Client failure throttling must use the trusted server timestamp.');

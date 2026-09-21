@@ -20,6 +20,13 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 });
 
 {
+  const season=cfg([]);
+  assert.equal(makeEngine(season,1).CONFIG_VERSION,1,'A missing configuration version must remain legacy v1.');
+  season.CONFIG_VERSION=2;
+  assert.equal(makeEngine(season,1).CONFIG_VERSION,2,'The browser scoring memo must receive the published configuration version.');
+}
+
+{
   const couples=[{id:'alex-casey',him:'Alex',her:'Casey',podsEligible:true,engagedEp:3}];
   const engine=makeEngine(cfg(couples),2);
   const scored=engine.scorePhase('pods',{
