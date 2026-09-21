@@ -73,14 +73,17 @@ async function call(functionName,user,data){
 }
 
 async function main(){
+  const first=await createUser('patrick@blxckmarketing.com','Admin Tester');
+  const second=await createUser('global-walkthrough@example.test','Second Tester');
   await db.doc('appConfig/public').set({
     defaultSeasonId:seasonId,globalPoolSeasonId:seasonId,
     defaultSeason:{id:seasonId,label:'Love Is Blind Emulator',status:'live',releaseLabel:'Emulator'},
   });
   await db.doc(`seasons/${seasonId}`).set(seasonDocument);
+  // Let the season-update trigger observe that no Global Pool exists yet. If
+  // pool creation races it, that unrelated recompute pollutes the lock count.
+  await sleep(4000);
 
-  const first=await createUser('patrick@blxckmarketing.com','Admin Tester');
-  const second=await createUser('global-walkthrough@example.test','Second Tester');
   await call('openGlobalPool',first,{seasonId,initialWatchedThrough:0});
   await call('openGlobalPool',second,{seasonId,initialWatchedThrough:3});
   assert.equal((await db.doc(`pools/${poolId}/trustedPlayers/${second.uid}`).get()).data().watchedThrough,3);
