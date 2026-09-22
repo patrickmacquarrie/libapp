@@ -3683,7 +3683,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     {id:'global',label:'🌎 Global rankings'},
     {id:'compare',label:'⚖️ Compare'},
   ];
-  return <div id="pool-panel-chemistry" role="tabpanel" aria-labelledby={panelLabelledBy||undefined} aria-label={panelLabelledBy?undefined:'Heat Check preview'}>
+  return <div className="ph-no-capture" id="pool-panel-chemistry" role="tabpanel" aria-labelledby={panelLabelledBy||undefined} aria-label={panelLabelledBy?undefined:'Heat Check preview'}>
     <section className="chemistry-hero">
       <span className="chemistry-orbit one"></span><span className="chemistry-orbit two"></span>
       <span className="chemistry-kicker">Just for fun · zero points attached</span>
@@ -4962,7 +4962,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
     }finally{setSupportSending(false);}
   };
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
-    <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div className="modal ph-no-capture" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div className="settings-modal-header"><h2 id="settings-title">Settings</h2><button type="button" className="settings-modal-close" aria-label="Close settings" title="Close settings" disabled={deleting} onClick={onClose}>×</button></div>
       {error&&<ErrorCard message={error} onDismiss={onDismissError}/>}
       <h3>Appearance</h3>
@@ -6691,7 +6691,7 @@ function App() {
   const activeFriendPools=friendPools.filter(pool=>pool._myPast!==true).sort(recentPoolOrder);
   const pastFriendPools=friendPools.filter(pool=>pool._myPast===true).sort(recentPoolOrder);
   const pastGlobalPools=pools.filter(pool=>pool.global===true&&seasonForPool(pool).id!==defaultSeasonId).sort(recentPoolOrder);
-  const friendPoolRow=pool=><button type="button" className="pool-row" key={pool.id} onClick={()=>enterPool(pool)}>
+  const friendPoolRow=pool=><button type="button" className="pool-row ph-no-capture" key={pool.id} onClick={()=>enterPool(pool)}>
     <span className="pool-row-copy"><span className="pname">{pool.name}</span><span className="pmeta">{seasonLabelForPool(pool)} · {pool._myPast===true?'Past':seasonPoolStatusLabel(seasonForPool(pool))||`${pool.members.length} member${pool.members.length!==1?'s':''}`}</span></span>
     <span className="pool-row-action" aria-hidden="true">→</span>
   </button>;
@@ -6715,7 +6715,7 @@ function App() {
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     {invites.length>0 && <div className="card">
       <h2>Invites</h2>
-      {invites.map(inv=><div className="invite-row" key={inv.id}>
+      {invites.map(inv=><div className="invite-row ph-no-capture" key={inv.id}>
         <div className="iname">{inv.poolName}</div>
         <div className="imeta ph-no-capture">{inv.seasonLabel&&<React.Fragment>{inv.seasonLabel} · </React.Fragment>}Invited by {inv.fromUsername}</div>
         <div className="invite-actions">
@@ -6866,7 +6866,7 @@ function App() {
     {offline&&<div className="offline-banner" role="status">You’re offline. Prediction changes will retry automatically when your connection returns; wait to change other settings.</div>}
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     <PoolTabs tabs={availablePoolTabs} active={poolTab} onChange={switchPoolTab}/>
-    {poolTab==='standings' && poolPlayers && <div id="pool-panel-standings" role="tabpanel" aria-labelledby="pool-tab-standings">
+    {poolTab==='standings' && poolPlayers && <div className="ph-no-capture" id="pool-panel-standings" role="tabpanel" aria-labelledby="pool-tab-standings">
       {globalStandingsNotice&&activePool.global===true&&<div className="notice" role="status"><b>Leaderboard update delayed.</b> {globalStandingsNotice}</div>}
       <div style={{textAlign:'center',margin:'0 0 10px'}}>{globalDemoData
         ? <button className="btn-small" style={{width:'auto'}} onClick={exitGlobalDemo}>Exit demo preview</button>
@@ -6901,18 +6901,18 @@ function App() {
       </div>}
     </div>}
     {poolTab==='chemistry'&&(chemistryLoading||!chemistryMine||!chemistryCommunity||!chemistryGlobalCommunity)
-      ? <div className="card" id="pool-panel-chemistry" role="tabpanel" aria-labelledby="pool-tab-chemistry"><h2>Mixing the chemistry…</h2><p className="lede">Loading your private scorecard and the pool’s latest hot takes.</p></div>
+      ? <div className="card ph-no-capture" id="pool-panel-chemistry" role="tabpanel" aria-labelledby="pool-tab-chemistry"><h2>Mixing the chemistry…</h2><p className="lede">Loading your private scorecard and the pool’s latest hot takes.</p></div>
       : poolTab==='chemistry'&&<ChemistryPanel eng={eng} seasonId={seasonForPool(activePool).id} poolName={activePool.name} globalPool={activePool.global===true} currentUid={user.uid} myRatingDoc={chemistryMine} community={chemistryCommunity} globalCommunity={chemistryGlobalCommunity} memberLabels={memberLabels} onSave={saveChemistry} saving={chemistrySaving} feedback={chemistryFeedback} onRefresh={refreshChemistry}/>}
     {poolTab==='rules' && cfg.PLAYABLE && <PhaseGuidePanel kind="rules" phaseLabel={RULES.phases[phase].label} tagline={phaseIntro.tagline} id="pool-panel-rules" labelledBy="pool-tab-rules">{phaseIntro.rules}</PhaseGuidePanel>}
     {poolTab==='scoring' && cfg.PLAYABLE && <PhaseGuidePanel kind="scoring" phaseLabel={RULES.phases[phase].label} id="pool-panel-scoring" labelledBy="pool-tab-scoring">{phaseIntro.scoring}</PhaseGuidePanel>}
-    {poolTab==='play' && !cfg.PLAYABLE && <div className="card" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
+    {poolTab==='play' && !cfg.PLAYABLE && <div className="card ph-no-capture" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
       <h2>Your pool is ready</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
       <div className="notice"><b>Season has not started.</b> {activePool.global===true?'The Global Pool is open to everyone. Share the app with friends and they can join from their own account.':'Use the Standings tab to invite your friends now.'} Predictions will open shortly after the first episodes drop.</div>
       {activePool.global===true&&<React.Fragment><button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Share Global Pool'}</button>{globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
       <button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Checking for updates…':'Check for season updates'}</button>
     </div>}
-    {poolTab==='play' && cfg.PLAYABLE && <div id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
+    {poolTab==='play' && cfg.PLAYABLE && <div className="ph-no-capture" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
       <Stepper phase={phase} RULES={RULES}/>
       {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
       {screen==='intro'&&<div className="card"><h2>{navigationPhaseLabel(phase,RULES)}</h2><p className="lede">{phaseIntro.tagline}</p><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}

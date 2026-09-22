@@ -8,6 +8,7 @@
   const ACQUISITION_STORAGE_KEY='through-the-wall-acquisition';
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
   const PRICE_VARIANTS=Object.freeze({a:'4.99',b:'9.99',c:'12.99'});
+  const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true});
   const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST);
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
@@ -68,6 +69,7 @@
       before_send:event=>{
         const properties=event&&event.properties;
         if(!properties)return event;
+        properties.$geoip_disable=true;
         ['$current_url','$referrer','$initial_referrer'].forEach(key=>{
           const value=properties[key];
           if(!value)return;
@@ -81,20 +83,20 @@
       session_recording:{
         maskAllInputs:true,
         maskTextSelector:'*',
-        maskAllElementAttributes:true,
         maskCapturedNetworkRequestFn:request=>{
           if(request&&request.name)request.name=request.name.split('?')[0];
           return request;
         },
       },
     });
-    window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD});
+    window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES});
   }
 
   const eventPayload=details=>({
     ...(window.__TTW_BROWSING_CONTEXT__||{}),
     ...(details||{}),
     ...acquisition,
+    ...PRIVACY_PROPERTIES,
     acquisition_source:cohort,
     app_build:APP_BUILD,
   });
@@ -111,13 +113,13 @@
     const setOnce={acquisition_source:cohort};
     if(seasonId)setOnce.first_seen_season=seasonId;
     window.posthog.identify(String(firebaseUid),{},setOnce);
-    window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD});
+    window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES});
   };
   const reset=()=>{if(configured)window.posthog?.reset();};
   const capturePageview=route=>{
     if(!configured||!route)return;
     const cleanBase=window.location.origin==='null'?window.location.pathname:window.location.origin+window.location.pathname;
-    window.posthog?.capture('$pageview',{$current_url:`${cleanBase}#${String(route).replace(/^#+/,'')}`,route,app_build:APP_BUILD,acquisition_source:cohort});
+    window.posthog?.capture('$pageview',{$current_url:`${cleanBase}#${String(route).replace(/^#+/,'')}`,route,app_build:APP_BUILD,acquisition_source:cohort,...PRIVACY_PROPERTIES});
   };
   const onPriceVariant=callback=>{
     if(typeof callback!=='function')return()=>{};
