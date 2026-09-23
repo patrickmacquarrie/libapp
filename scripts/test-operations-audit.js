@@ -557,7 +557,8 @@ assert(productionCsp.includes("worker-src 'self' blob:"),'The production CSP mus
 assert(!productionCsp.includes('https://appleid.apple.com'),'The production CSP must not allow the disabled Apple provider.');
 assert(firebaseConfig.includes('// Apple sign-in: restore https://appleid.apple.com to frame-src before re-enabling the provider.'),'The Hosting config must preserve the Apple CSP re-enable warning beside frame-src.');
 assert(firebaseConfig.includes('"source": "/"')&&firebaseConfig.includes('"source": "**/*.html"'),'The app shell and direct HTML pages must have explicit cache rules.');
-assert(firebaseConfig.match(/"Cache-Control", "value": "no-cache, no-store, must-revalidate"/g)?.length===2,'The app shell must revalidate after every deployment instead of serving stale auth or invite code.');
+assert(firebaseConfig.match(/"Cache-Control", "value": "no-cache, no-store, must-revalidate"/g)?.length===3,'The app shell, HTML pages, and service-worker kill switch must revalidate after every deployment.');
+assert(firebaseConfig.includes('"source": "/sw.js"'),'The service-worker kill switch must have its own no-cache Hosting rule.');
 assert(firebaseConfig.includes('"source": "/assets/**"')&&firebaseConfig.includes('public, max-age=31536000, immutable'),'Hashed static assets must retain long-lived caching.');
 
 assert(workflow.includes('actions/checkout@v6'));
