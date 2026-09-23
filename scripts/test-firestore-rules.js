@@ -183,6 +183,7 @@ async function main(){
   await expectStatus(await writeDocument('pools/v3-missing-race',poolFields(uid,rulesSnapshot(3)),token),403,'v3 snapshot without RACE_MULT');
   const v5CreatedAt=Date.now();
   await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'123456789012',v5CreatedAt),token),200,'v5 snapshot without RACE_MULT');
+  await expectStatus(await writeDocument('pools/global__reserved-prefix',poolFields(uid,rulesSnapshot(5)),token),403,'ordinary user cannot reserve the global pool prefix');
   await expectStatus(await writeDocument('pools/v5-invalid-race',poolFields(uid,rulesSnapshot(5,'string')),token),403,'v5 snapshot with invalid optional RACE_MULT');
   await expectStatus(await readDocument('pools/does-not-exist',token),404,'signed-in missing pool read returns not found');
   await expectStatus(await readDocument('pools/does-not-exist',''),403,'signed-out missing pool read stays private');

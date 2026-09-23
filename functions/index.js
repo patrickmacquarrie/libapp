@@ -371,7 +371,9 @@ async function recomputeGlobalStandings(poolId){
 
 async function requestGlobalStandingsRebuild(poolId,reason){
   try{
-    await db.doc(`pools/${poolId}/standings/rebuild`).set({requestedAt:new Date(),reason:safeHeaderText(reason,80)},{merge:true});
+    await db.doc(`pools/${poolId}/standings/rebuild`).set({
+      requestedAt:new Date(),requestVersion:FieldValue.increment(1),reason:safeHeaderText(reason,80),
+    },{merge:true});
     return true;
   }catch(error){
     console.error('Global standings rebuild could not be queued.',{poolId,reason,error});
@@ -382,12 +384,41 @@ async function requestGlobalStandingsRebuild(poolId,reason){
 async function claimGlobalStandingsRebuild(markerRef,nowMs=Date.now(),firestore=db){
   return firestore.runTransaction(async transaction=>{
     const marker=await transaction.get(markerRef);
-    if(!marker.exists)return false;
-    const lastRunAt=firestoreMillis(marker.data().lastRunAt);
-    if(lastRunAt&&nowMs-lastRunAt<STANDINGS_REBUILD_COOLDOWN_MS)return false;
-    transaction.set(markerRef,{lastRunAt:new Date(nowMs)},{merge:true});
-    return true;
+    if(!marker.exists)return {claimed:false,pending:false,waitMs:0};
+    const data=marker.data()||{};
+    const lastRunAt=firestoreMillis(data.lastRunAt);
+    const requestedAt=firestoreMillis(data.requestedAt);
+    const requestVersion=Math.max(0,Number(data.requestVersion)||0);
+    const handledRequestVersion=Math.max(0,Number(data.handledRequestVersion)||0);
+    const pending=data.dirty===true||requestVersion>handledRequestVersion||(!requestVersion&&requestedAt>lastRunAt);
+    if(!pending)return {claimed:false,pending:false,waitMs:0};
+    if(lastRunAt&&nowMs-lastRunAt<STANDINGS_REBUILD_COOLDOWN_MS){
+      if(data.dirty!==true)transaction.set(markerRef,{dirty:true},{merge:true});
+      return {claimed:false,pending:true,waitMs:STANDINGS_REBUILD_COOLDOWN_MS-(nowMs-lastRunAt)};
+    }
+    transaction.set(markerRef,{
+      lastRunAt:new Date(nowMs),handledRequestVersion:requestVersion,dirty:false,
+    },{merge:true});
+    return {claimed:true,pending:false,waitMs:0};
   });
+}
+
+async function waitForGlobalStandingsClaim(markerRef){
+  let claim=await claimGlobalStandingsRebuild(markerRef);
+  if(!claim.claimed&&claim.pending&&claim.waitMs>0){
+    await new Promise(resolve=>setTimeout(resolve,claim.waitMs+25));
+    claim=await claimGlobalStandingsRebuild(markerRef);
+  }
+  return claim;
+}
+
+async function recordGlobalStandingsFailure(markerRef,error){
+  const failures=(Number((await markerRef.get()).data()?.failureCount)||0)+1;
+  await markerRef.set({
+    dirty:failures<3,failureCount:failures,lastErrorAt:new Date(),
+    lastError:safeHeaderText(error?.message||error,500),
+  },{merge:true}).catch(()=>{});
+  return failures;
 }
 
 exports.rebuildGlobalStandings=onDocumentWritten({
@@ -395,14 +426,19 @@ exports.rebuildGlobalStandings=onDocumentWritten({
 },async event=>{
   if(!event.data?.after.exists)return;
   const markerRef=event.data.after.ref;
-  if(!await claimGlobalStandingsRebuild(markerRef))return;
   try{
-    const standings=await recomputeGlobalStandings(event.params.poolId);
-    await markerRef.set({
-      lastCompletedAt:new Date(),lastSourceRevision:Number(standings?.sourceRevision)||0,lastError:FieldValue.delete(),
-    },{merge:true});
+    let claim=await waitForGlobalStandingsClaim(markerRef),passes=0;
+    while(claim.claimed&&passes<5){
+      const standings=await recomputeGlobalStandings(event.params.poolId);
+      await markerRef.set({
+        lastCompletedAt:new Date(),lastSourceRevision:Number(standings?.sourceRevision)||0,
+        failureCount:0,lastError:FieldValue.delete(),
+      },{merge:true});
+      passes++;
+      claim=await waitForGlobalStandingsClaim(markerRef);
+    }
   }catch(error){
-    await markerRef.set({lastErrorAt:new Date(),lastError:safeHeaderText(error?.message||error,500)},{merge:true}).catch(()=>{});
+    await recordGlobalStandingsFailure(markerRef,error);
     throw error;
   }
 });
@@ -839,35 +875,41 @@ async function lockGlobalPicks(request){
   const poolId=String(request.data?.poolId||'');
   const submitted=request.data?.phases;
   if(!poolId||!submitted||typeof submitted!=='object'||Array.isArray(submitted))throw new HttpsError('invalid-argument','Choose Global Pool predictions to lock.');
-  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid);
-  const [poolSnapshot,trustedSnapshot,profileSnapshot]=await Promise.all([poolRef.get(),trustedRef.get(),db.doc(`users/${uid}`).get()]);
+  const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid),profileRef=db.doc(`users/${uid}`);
+  const [poolSnapshot,profileSnapshot]=await Promise.all([poolRef.get(),profileRef.get()]);
   if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted scoring is available only in the Global Pool.');
   const pool=poolSnapshot.data();
   if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before locking predictions.');
-  const seasonId=String(pool.globalSeasonId||pool.season?.id||'');
-  const seasonSnapshot=await db.doc(`seasons/${seasonId}`).get();
+  const seasonId=String(pool.globalSeasonId||pool.season?.id||''),seasonRef=db.doc(`seasons/${seasonId}`);
+  const seasonSnapshot=await seasonRef.get();
   if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
   const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId),engine=makeEngine(cfg,1);
-  const previous=trustedSnapshot.exists?trustedSnapshot.data():{};
-  if(!globalWatchLedgerReady(previous))throw new HttpsError('failed-precondition','Open the Global Pool before locking predictions.');
-  const nextPicks={...(previous.picks||{})},lockedAt=Date.now(),authoritativeWindow=resolveGlobalWatchWindow(previous);
-  for(const [phase,incoming] of Object.entries(submitted)){
-    if(!PHASES.includes(phase)||!Array.isArray(incoming))throw new HttpsError('invalid-argument','One submitted prediction phase is malformed.');
-    if(Number.isFinite(Number(previous.completedAt?.[phase])))continue;
-    const serverStampedIncoming=incoming.map(raw=>raw&&typeof raw==='object'&&!Array.isArray(raw)
-      ? {...raw,releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP}
-      : raw);
-    nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming:serverStampedIncoming,existing:nextPicks[phase],lockedAt,authoritativeWindow});
-  }
+  let nextPicks={},lockedAt=0;
+  await retryAborted(()=>db.runTransaction(async transaction=>{
+    const trustedSnapshot=await transaction.get(trustedRef);
+    const previous=trustedSnapshot.exists?trustedSnapshot.data():{};
+    if(!globalWatchLedgerReady(previous))throw new HttpsError('failed-precondition','Open the Global Pool before locking predictions.');
+    nextPicks={...(previous.picks||{})};
+    lockedAt=Date.now();
+    const authoritativeWindow=resolveGlobalWatchWindow(previous);
+    for(const [phase,incoming] of Object.entries(submitted)){
+      if(!PHASES.includes(phase)||!Array.isArray(incoming))throw new HttpsError('invalid-argument','One submitted prediction phase is malformed.');
+      if(Number.isFinite(Number(previous.completedAt?.[phase])))continue;
+      const serverStampedIncoming=incoming.map(raw=>raw&&typeof raw==='object'&&!Array.isArray(raw)
+        ? {...raw,releasedThroughAtLock:cfg.AVAILABLE_THROUGH_EP}
+        : raw);
+      nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming:serverStampedIncoming,existing:nextPicks[phase],lockedAt,authoritativeWindow});
+    }
+    transaction.set(trustedRef,{
+      uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
+      scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,updatedAt:lockedAt,
+    },{merge:true});
+  }));
   const batch=db.batch();
-  batch.set(trustedRef,{
-    uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
-    scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,
-  },{merge:true});
   Object.keys(submitted).forEach(phase=>batch.set(
-    poolRef.collection('phasePicks').doc(`${phase}__${uid}`),
-    {uid,phase,picks:nextPicks[phase]||[],updatedAt:lockedAt,lockedAt},
-    {merge:true},
+      poolRef.collection('phasePicks').doc(`${phase}__${uid}`),
+      {uid,phase,picks:nextPicks[phase]||[],updatedAt:lockedAt,lockedAt},
+      {merge:true},
   ));
   await batch.commit();
   const standingsQueued=await requestGlobalStandingsRebuild(poolId,'picks-locked');
@@ -1101,7 +1143,7 @@ exports.recomputeGlobalStandingsOnSeasonUpdate=onDocumentWritten({...FUNCTION_LI
   if(!event.data?.after.exists)return;
   const poolId=`global__${event.params.seasonId}`;
   const pool=await db.doc(`pools/${poolId}`).get();
-  if(pool.exists&&pool.data().global===true)await recomputeGlobalStandings(poolId);
+  if(pool.exists&&pool.data().global===true)await requestGlobalStandingsRebuild(poolId,'season-updated');
 });
 
 exports.deleteMyAccount=onCall(CALLABLE_LIMITS,async request=>{

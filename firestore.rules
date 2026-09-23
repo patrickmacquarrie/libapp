@@ -293,6 +293,7 @@ service cloud.firestore {
       // Ordinary users create friend pools only. Global pools are created
       // through trusted administrator tooling.
       allow create: if signedIn() &&
+        !poolId.matches('^global__.*') &&
         request.resource.data.keys().hasOnly([
           'name',
           'ownerUid',
