@@ -53,11 +53,8 @@ The application deploys ten project-owned functions:
 
 The Trigger Email extension also deploys its own `ext-firestore-send-email-processqueue` function. It is legitimate infrastructure and must not be removed as an orphan. `lockGlobalPicks`, `completeGlobalPhase`, and `advanceGlobalWatch` are actions handled inside `openGlobalPool`, not separately deployed services.
 
-## Required before a large Global Pool
+## Required before the Global Pool approaches 8,000 members
 
-The current Global Pool still uses the legacy `members` array and client-computed leaderboard. Do not use it for a multi-thousand-player launch. Complete these two coordinated migrations first:
+Trusted server standings are already implemented: shared standings expose only the top 500 rows, every scored player has a private personal row, and the browser no longer computes the leaderboard by reading every player's picks.
 
-- Store membership at `pools/{globalPoolId}/members/{uid}` and maintain a sharded/distributed count. Backfill existing array members before removing the legacy field.
-- Compute trusted leaderboard entry documents from locked picks and season results. Query only the top page plus the viewer's own entry; do not read every player and every pick in the browser.
-
-These changes require a data migration and a defined server scoring implementation. Switching only the rules or only the client would strand existing members or produce a partially scored leaderboard, so they are intentionally kept behind the public-launch gate.
+The remaining scaling limit is the legacy `members` array. New joins stop at 8,000 members. Before the pool approaches that ceiling, store membership at `pools/{globalPoolId}/members/{uid}`, maintain a sharded or distributed count, and backfill existing array members before removing the legacy field. Treat that as a coordinated storage migration with its own rollback point; do not switch only the rules or only the client.

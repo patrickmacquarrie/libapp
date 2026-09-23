@@ -189,6 +189,7 @@ function verifyPublicBetaSeasonBank(){
   assert.equal(us11.historical,false);
   assert.equal(us11.available,false);
   assert.equal(us11.status,'upcoming');
+  assert.equal(us11.locationLabel,'Boston');
   assert.equal(us11.sheetId,'1-Qy-poHMbsO4eEri0NWOpeCmN9qzm76fMabKz0qV39w','US Season 11 must retain the approved source Sheet ID.');
   const selected=config.applyPublicAppConfig({
     defaultSeasonId:'love-is-blind-us-11',

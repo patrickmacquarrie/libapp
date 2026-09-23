@@ -269,6 +269,9 @@ assert.throws(()=>publisherContext.__upsertPublisherSeason(connected,{seasonId:'
 assert.deepEqual(JSON.parse(JSON.stringify(publisherContext.__publisherSeasonMetadata({seasonId:'love-is-blind-br-4',label:'Brazil Season 4'},'live','Now streaming'))),{
   id:'love-is-blind-br-4',label:'Brazil Season 4',country:'Brazil',countryCode:'BR',seasonNumber:4,locationLabel:null,status:'live',releaseLabel:'Now streaming'
 });
+assert.deepEqual(JSON.parse(JSON.stringify(publisherContext.__publisherSeasonMetadata({seasonId:'love-is-blind-us-11',label:'US Season 11'},'upcoming','Coming soon'))),{
+  id:'love-is-blind-us-11',label:'Love Is Blind US: Season 11',country:'United States',countryCode:'US',seasonNumber:11,locationLabel:'Boston',status:'upcoming',releaseLabel:'Coming soon'
+});
 const mockScriptProperties={
   PROJECT_ID:'lib-oauth',
   SEASON_ID:'love-is-blind-uk-3',

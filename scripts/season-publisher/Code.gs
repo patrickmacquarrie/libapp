@@ -9,6 +9,9 @@ const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const PREVIEW_HASH_PROPERTY_PREFIX = 'LAST_PREVIEW_HASH__';
 const APP_CONFIG_BACKUP_PROPERTY_PREFIX = 'LAST_APP_CONFIG_BACKUP_PATH__';
 const MAX_SNAPSHOT_BYTES = 900000;
+const SEASON_METADATA_OVERRIDES = {
+  'love-is-blind-us-11': {label: 'Love Is Blind US: Season 11', locationLabel: 'Boston'}
+};
 const ADMIN_SETTING_DEFAULTS = {
   CONFIG_VERSION: '1', SEASON_STATUS: 'upcoming', CAST_COMPLETE: 'FALSE', ALLOW_INCOMPLETE_CAST: 'FALSE', RELEASE_LABEL: '',
   AVAILABLE_THROUGH_EP: '0', BOUNDARIES_LIVE: 'TRUE',
@@ -547,6 +550,7 @@ function firestoreStringField_(fields, key) {
 
 function publisherSeasonMetadata_(registryEntry, status, releaseLabel) {
   const seasonId = registryEntry.seasonId;
+  const override = SEASON_METADATA_OVERRIDES[seasonId] || {};
   const match = seasonId.match(/^love-is-blind-([a-z]+)-(\d+)$/);
   const code = match ? match[1] : '';
   const countries = {
@@ -558,11 +562,11 @@ function publisherSeasonMetadata_(registryEntry, status, releaseLabel) {
   const country = countries[code] || ['', code.toUpperCase()];
   return {
     id: seasonId,
-    label: registryEntry.label || seasonId,
+    label: override.label || registryEntry.label || seasonId,
     country: country[0],
     countryCode: country[1],
     seasonNumber: match ? Number(match[2]) : 0,
-    locationLabel: null,
+    locationLabel: override.locationLabel || null,
     status: status,
     releaseLabel: String(releaseLabel || '')
   };
