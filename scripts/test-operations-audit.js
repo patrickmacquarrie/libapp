@@ -170,7 +170,13 @@ assert(!globalWatchLedgerSource.includes('globalJoinFloorForSeason'),'Release st
 assert(globalWatchLedgerSource.includes('fields.joinedAtEp=0'),'A fresh Global ledger must neutralise the legacy join marker.');
 assert.equal((functionsSource.match(/globalLedgerFieldsForJoin\(/g)||[]).length,2,'Both Global join paths must use the same player-relative ledger initializer.');
 assert(globalWatchLedgerSource.includes('join time do\n// not prove what a player knows'),'The trusted-player anti-backdating design decision must remain explicit.');
-assert(functionsSource.includes('batch.set(trustedRef,{')&&functionsSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
+const globalLockSource=functionsSource.slice(functionsSource.indexOf('async function lockGlobalPicks('),functionsSource.indexOf('\nasync function completeGlobalPhase('));
+assert(globalLockSource.includes('retryAborted(()=>db.runTransaction'),'Trusted Global lock writes must retry transaction contention.');
+assert(globalLockSource.includes('transaction.set(trustedRef,{')&&globalLockSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
+assert(!globalLockSource.includes('completedAt:'),'Locking picks must not overwrite a phase completion written by a concurrent request.');
+const seasonRebuildSource=functionsSource.slice(functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate='),functionsSource.indexOf('\nexports.deleteMyAccount=',functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate=')));
+assert(seasonRebuildSource.includes("requestGlobalStandingsRebuild(poolId,'season-updated')"),'Season updates must enter the same serialized standings rebuild queue.');
+assert(!seasonRebuildSource.includes('await recomputeGlobalStandings(poolId)'),'Season updates must not bypass the standings rebuild queue.');
 const finishWatchSave=html.indexOf('await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);');
 const finishWatchAdvance=html.indexOf("if(activePool.global===true)await window._fb.advanceGlobalWatch(activePool.id,target);");
 const finishWatchLocalAdvance=html.indexOf('setW(target);setWatchThrough(target);',finishWatchSave);

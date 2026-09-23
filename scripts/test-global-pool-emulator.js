@@ -93,28 +93,34 @@ async function main(){
     if(snapshot.exists)standingsWrites++;
   });
   const pick={c:'Alex|Casey',s:20,w:99};
-  await Promise.all([
-    call('openGlobalPool',first,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}}),
-    call('openGlobalPool',second,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}}),
-  ]);
-  await waitFor('the coalesced lock rebuild',
+  await call('openGlobalPool',first,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}});
+  const firstClaimSnapshot=await waitFor('the first lock rebuild to begin',
     async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
-    snapshot=>snapshot.exists&&snapshot.data().lastCompletedAt,
+    snapshot=>snapshot.exists&&snapshot.data().lastRunAt,
+  );
+  const firstClaimAt=firstClaimSnapshot.data().lastRunAt.toMillis();
+  await call('openGlobalPool',second,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}});
+  const datingPick={m:'sex',c:'alex-casey',s:20,w:99};
+  await Promise.all([
+    call('openGlobalPool',second,{action:'lockGlobalPicks',poolId,phases:{dating:[datingPick]}}),
+    call('openGlobalPool',second,{action:'completeGlobalPhase',poolId,phase:'pods'}),
+  ]);
+  const trustedAfterRace=(await db.doc(`pools/${poolId}/trustedPlayers/${second.uid}`).get()).data();
+  assert(Number.isFinite(Number(trustedAfterRace.completedAt?.pods)),'A concurrent pick lock must not erase Pods completion.');
+  assert.equal(trustedAfterRace.picks.pods.length,1);
+  assert.equal(trustedAfterRace.picks.dating.length,1);
+
+  await waitFor('the trailing completed Pods standings',
+    async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
+    snapshot=>{
+      const data=snapshot.data()||{},lastRunAt=data.lastRunAt?.toMillis?.()||0,lastCompletedAt=data.lastCompletedAt?.toMillis?.()||0;
+      return snapshot.exists&&lastRunAt>firstClaimAt&&lastCompletedAt>=lastRunAt;
+    },
+    {timeoutMs:45000},
   );
   await sleep(500);
   stopStandings();
-  assert.equal(standingsWrites,1,'Two locks inside the 20-second window must produce one standings recompute.');
-
-  await sleep(20500);
-  const beforeCompletion=(await db.doc(`pools/${poolId}/standings/rebuild`).get()).data().lastCompletedAt.toMillis();
-  await Promise.all([
-    call('openGlobalPool',first,{action:'completeGlobalPhase',poolId,phase:'pods'}),
-    call('openGlobalPool',second,{action:'completeGlobalPhase',poolId,phase:'pods'}),
-  ]);
-  await waitFor('the completed Pods standings',
-    async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
-    snapshot=>snapshot.exists&&snapshot.data().lastCompletedAt?.toMillis()>beforeCompletion,
-  );
+  assert(standingsWrites>=2,'A write during the cooldown must produce a trailing standings recompute.');
   const [standingsSnapshot,rowSnapshot,trustedSnapshot]=await Promise.all([
     db.doc(`pools/${poolId}/standings/current`).get(),
     db.doc(`pools/${poolId}/standingsRows/${second.uid}`).get(),
@@ -122,6 +128,9 @@ async function main(){
   ]);
   assert(standingsSnapshot.exists&&rowSnapshot.exists);
   const standings=standingsSnapshot.data(),row=rowSnapshot.data(),trusted=trustedSnapshot.data();
+  assert.equal(standings.activeCounts.pods,1,'The trailing rebuild must include the second player’s completed Pods phase.');
+  assert.equal(Object.values(standings.ownerCounts.pods).reduce((sum,count)=>sum+Number(count||0),0),1,'The trailing rebuild must include the second player’s locked pick.');
+  assert(row.completedPhases.includes('pods'));
   const receipt=makeEngine(engineConfig,Number(standings.activeCounts.pods)||1).scorePhase(
     'pods',{[second.uid]:trusted.picks.pods},
     {ownerCounts:standings.ownerCounts.pods,activeCount:standings.activeCounts.pods},

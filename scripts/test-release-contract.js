@@ -71,24 +71,30 @@ function rollbackResult() {
 
 async function verifyStandingsRebuildCoalescing(){
   const start=functionsSource.indexOf('async function claimGlobalStandingsRebuild(');
-  const end=functionsSource.indexOf('\nexports.rebuildGlobalStandings=',start);
+  const end=functionsSource.indexOf('\nasync function waitForGlobalStandingsClaim(',start);
   assert(start>=0&&end>start,'Could not isolate the standings rebuild claim logic.');
   const claim=vm.runInNewContext(`(${functionsSource.slice(start,end)})`,{
     firestoreMillis:value=>value instanceof Date?value.getTime():Number(value)||0,
     STANDINGS_REBUILD_COOLDOWN_MS:20000,
   });
-  let marker={requestedAt:new Date(1000)},writes=0;
+  let marker={requestedAt:new Date(1000),requestVersion:1},writes=0;
   const markerRef={path:'pools/global__test/standings/rebuild'};
   const firestore={runTransaction:async operation=>operation({
     get:async()=>({exists:true,data:()=>marker}),
     set:(_ref,value)=>{marker={...marker,...value};writes++;},
   })};
-  assert.equal(await claim(markerRef,1000,firestore),true);
+  assert.equal((await claim(markerRef,1000,firestore)).claimed,true);
   assert.equal(writes,1);
-  assert.equal(await claim(markerRef,10000,firestore),false,'A second lock inside 20 seconds must coalesce into the existing rebuild window.');
-  assert.equal(writes,1,'A coalesced request must not claim another rebuild.');
-  assert.equal(await claim(markerRef,21001,firestore),true,'A later request must be able to claim the next rebuild window.');
+  marker={...marker,requestedAt:new Date(2000),requestVersion:2};
+  const trailing=await claim(markerRef,10000,firestore);
+  assert.equal(trailing.claimed,false,'A second lock inside 20 seconds must respect the rebuild cooldown.');
+  assert.equal(trailing.pending,true,'A lock during the cooldown must remain pending.');
+  assert.equal(marker.dirty,true,'A coalesced request must leave a dirty marker for a trailing rebuild.');
   assert.equal(writes,2);
+  assert.equal((await claim(markerRef,21001,firestore)).claimed,true,'A pending request must claim a trailing rebuild after the cooldown.');
+  assert.equal(marker.dirty,false);
+  assert.equal(marker.handledRequestVersion,2);
+  assert.equal(writes,3);
 }
 
 async function verifyNotificationChunking(){
