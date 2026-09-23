@@ -91,10 +91,32 @@ async function verifyStandingsRebuildCoalescing(){
   assert.equal(trailing.pending,true,'A lock during the cooldown must remain pending.');
   assert.equal(marker.dirty,true,'A coalesced request must leave a dirty marker for a trailing rebuild.');
   assert.equal(writes,2);
+  const alreadyDirty=await claim(markerRef,11000,firestore);
+  assert.equal(alreadyDirty.pending,true);
+  assert.equal(writes,2,'An already-dirty cooldown marker must not produce another trigger write.');
   assert.equal((await claim(markerRef,21001,firestore)).claimed,true,'A pending request must claim a trailing rebuild after the cooldown.');
   assert.equal(marker.dirty,false);
   assert.equal(marker.handledRequestVersion,2);
   assert.equal(writes,3);
+}
+
+async function verifyStandingsFailureCap(){
+  const start=functionsSource.indexOf('async function recordGlobalStandingsFailure(');
+  const end=functionsSource.indexOf('\nexports.rebuildGlobalStandings=',start);
+  assert(start>=0&&end>start,'Could not isolate the standings rebuild failure cap.');
+  const recordFailure=vm.runInNewContext(`(${functionsSource.slice(start,end)})`,{
+    Number,Date,safeHeaderText:value=>String(value).slice(0,500),
+  });
+  let marker={},writes=[];
+  const markerRef={
+    get:async()=>({data:()=>marker}),
+    set:async value=>{marker={...marker,...value};writes.push(value);},
+  };
+  await recordFailure(markerRef,new Error('persistent failure'));
+  await recordFailure(markerRef,new Error('persistent failure'));
+  await recordFailure(markerRef,new Error('persistent failure'));
+  assert.deepEqual(writes.map(write=>write.failureCount),[1,2,3]);
+  assert.deepEqual(writes.map(write=>write.dirty),[true,true,false],'A persistent rebuild failure must stop retrying after three attempts.');
 }
 
 async function verifyNotificationChunking(){
@@ -256,7 +278,7 @@ requireContract(
   'Season Admin must default missing configurations to legacy v1.'
 );
 
-Promise.all([verifyStandingsRebuildCoalescing(),verifyNotificationChunking(),verifyContentionRetry()]).then(()=>{
+Promise.all([verifyStandingsRebuildCoalescing(),verifyStandingsFailureCap(),verifyNotificationChunking(),verifyContentionRetry()]).then(()=>{
   if(failures.length){
     console.error('Release contract is not yet satisfied:');
     failures.forEach((failure,index)=>console.error(`${index+1}. ${failure}`));

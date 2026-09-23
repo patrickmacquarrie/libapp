@@ -393,7 +393,7 @@ async function claimGlobalStandingsRebuild(markerRef,nowMs=Date.now(),firestore=
     const pending=data.dirty===true||requestVersion>handledRequestVersion||(!requestVersion&&requestedAt>lastRunAt);
     if(!pending)return {claimed:false,pending:false,waitMs:0};
     if(lastRunAt&&nowMs-lastRunAt<STANDINGS_REBUILD_COOLDOWN_MS){
-      transaction.set(markerRef,{dirty:true},{merge:true});
+      if(data.dirty!==true)transaction.set(markerRef,{dirty:true},{merge:true});
       return {claimed:false,pending:true,waitMs:STANDINGS_REBUILD_COOLDOWN_MS-(nowMs-lastRunAt)};
     }
     transaction.set(markerRef,{
@@ -412,6 +412,15 @@ async function waitForGlobalStandingsClaim(markerRef){
   return claim;
 }
 
+async function recordGlobalStandingsFailure(markerRef,error){
+  const failures=(Number((await markerRef.get()).data()?.failureCount)||0)+1;
+  await markerRef.set({
+    dirty:failures<3,failureCount:failures,lastErrorAt:new Date(),
+    lastError:safeHeaderText(error?.message||error,500),
+  },{merge:true}).catch(()=>{});
+  return failures;
+}
+
 exports.rebuildGlobalStandings=onDocumentWritten({
   ...FUNCTION_LIMITS,timeoutSeconds:300,memory:'512MiB',document:'pools/{poolId}/standings/rebuild',
 },async event=>{
@@ -422,13 +431,14 @@ exports.rebuildGlobalStandings=onDocumentWritten({
     while(claim.claimed&&passes<5){
       const standings=await recomputeGlobalStandings(event.params.poolId);
       await markerRef.set({
-        lastCompletedAt:new Date(),lastSourceRevision:Number(standings?.sourceRevision)||0,lastError:FieldValue.delete(),
+        lastCompletedAt:new Date(),lastSourceRevision:Number(standings?.sourceRevision)||0,
+        failureCount:0,lastError:FieldValue.delete(),
       },{merge:true});
       passes++;
       claim=await waitForGlobalStandingsClaim(markerRef);
     }
   }catch(error){
-    await markerRef.set({dirty:true,lastErrorAt:new Date(),lastError:safeHeaderText(error?.message||error,500)},{merge:true}).catch(()=>{});
+    await recordGlobalStandingsFailure(markerRef,error);
     throw error;
   }
 });
@@ -866,18 +876,17 @@ async function lockGlobalPicks(request){
   const submitted=request.data?.phases;
   if(!poolId||!submitted||typeof submitted!=='object'||Array.isArray(submitted))throw new HttpsError('invalid-argument','Choose Global Pool predictions to lock.');
   const poolRef=db.doc(`pools/${poolId}`),trustedRef=poolRef.collection('trustedPlayers').doc(uid),profileRef=db.doc(`users/${uid}`);
+  const [poolSnapshot,profileSnapshot]=await Promise.all([poolRef.get(),profileRef.get()]);
+  if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted scoring is available only in the Global Pool.');
+  const pool=poolSnapshot.data();
+  if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before locking predictions.');
+  const seasonId=String(pool.globalSeasonId||pool.season?.id||''),seasonRef=db.doc(`seasons/${seasonId}`);
+  const seasonSnapshot=await seasonRef.get();
+  if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
+  const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId),engine=makeEngine(cfg,1);
   let nextPicks={},lockedAt=0;
   await retryAborted(()=>db.runTransaction(async transaction=>{
-    const poolSnapshot=await transaction.get(poolRef);
-    if(!poolSnapshot.exists||poolSnapshot.data().global!==true)throw new HttpsError('failed-precondition','Trusted scoring is available only in the Global Pool.');
-    const pool=poolSnapshot.data();
-    if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','Join the Global Pool before locking predictions.');
-    const seasonId=String(pool.globalSeasonId||pool.season?.id||''),seasonRef=db.doc(`seasons/${seasonId}`);
-    const [trustedSnapshot,profileSnapshot,seasonSnapshot]=await Promise.all([
-      transaction.get(trustedRef),transaction.get(profileRef),transaction.get(seasonRef),
-    ]);
-    if(!seasonSnapshot.exists)throw new HttpsError('failed-precondition','The published season snapshot is unavailable.');
-    const cfg=publishedSeasonConfig(seasonSnapshot.data(),seasonId),engine=makeEngine(cfg,1);
+    const trustedSnapshot=await transaction.get(trustedRef);
     const previous=trustedSnapshot.exists?trustedSnapshot.data():{};
     if(!globalWatchLedgerReady(previous))throw new HttpsError('failed-precondition','Open the Global Pool before locking predictions.');
     nextPicks={...(previous.picks||{})};
@@ -895,12 +904,14 @@ async function lockGlobalPicks(request){
       uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
       scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,updatedAt:lockedAt,
     },{merge:true});
-    Object.keys(submitted).forEach(phase=>transaction.set(
+  }));
+  const batch=db.batch();
+  Object.keys(submitted).forEach(phase=>batch.set(
       poolRef.collection('phasePicks').doc(`${phase}__${uid}`),
       {uid,phase,picks:nextPicks[phase]||[],updatedAt:lockedAt,lockedAt},
       {merge:true},
-    ));
-  }));
+  ));
+  await batch.commit();
   const standingsQueued=await requestGlobalStandingsRebuild(poolId,'picks-locked');
   return {
     ok:true,lockedAt,

@@ -172,8 +172,16 @@ assert.equal((functionsSource.match(/globalLedgerFieldsForJoin\(/g)||[]).length,
 assert(globalWatchLedgerSource.includes('join time do\n// not prove what a player knows'),'The trusted-player anti-backdating design decision must remain explicit.');
 const globalLockSource=functionsSource.slice(functionsSource.indexOf('async function lockGlobalPicks('),functionsSource.indexOf('\nasync function completeGlobalPhase('));
 assert(globalLockSource.includes('retryAborted(()=>db.runTransaction'),'Trusted Global lock writes must retry transaction contention.');
+const globalLockTransaction=globalLockSource.slice(globalLockSource.indexOf('retryAborted(()=>db.runTransaction'));
+assert(globalLockSource.indexOf('poolRef.get()')<globalLockSource.indexOf('retryAborted(()=>db.runTransaction')&&globalLockSource.indexOf('seasonRef.get()')<globalLockSource.indexOf('retryAborted(()=>db.runTransaction'),'Pool membership and season configuration must be validated before opening the per-player lock transaction.');
+assert(globalLockTransaction.includes('transaction.get(trustedRef)')&&!globalLockTransaction.includes('transaction.get(poolRef)')&&!globalLockTransaction.includes('transaction.get(seasonRef)')&&!globalLockTransaction.includes('transaction.get(profileRef)'),'Global pick locking must hold a read lock only on the trusted player document.');
+const globalLockTransactionBody=globalLockTransaction.slice(0,globalLockTransaction.indexOf('\n  }));'));
+assert(!globalLockTransactionBody.includes("collection('phasePicks')"),'The contention-sensitive transaction must read and write only the trusted player document.');
 assert(globalLockSource.includes('transaction.set(trustedRef,{')&&globalLockSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
 assert(!globalLockSource.includes('completedAt:'),'Locking picks must not overwrite a phase completion written by a concurrent request.');
+const standingsRebuildSource=functionsSource.slice(functionsSource.indexOf('exports.rebuildGlobalStandings='),functionsSource.indexOf('\nfunction cleanRatings(',functionsSource.indexOf('exports.rebuildGlobalStandings=')));
+assert(standingsRebuildSource.includes('failureCount:0'),'A successful standings rebuild must reset the consecutive failure count.');
+assert(functionsSource.includes('dirty:failures<3,failureCount:failures'),'A persistent standings rebuild failure must stop dirty retries after three attempts.');
 const seasonRebuildSource=functionsSource.slice(functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate='),functionsSource.indexOf('\nexports.deleteMyAccount=',functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate=')));
 assert(seasonRebuildSource.includes("requestGlobalStandingsRebuild(poolId,'season-updated')"),'Season updates must enter the same serialized standings rebuild queue.');
 assert(!seasonRebuildSource.includes('await recomputeGlobalStandings(poolId)'),'Season updates must not bypass the standings rebuild queue.');

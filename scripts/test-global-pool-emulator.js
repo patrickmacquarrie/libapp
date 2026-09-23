@@ -121,6 +121,7 @@ async function main(){
   await sleep(500);
   stopStandings();
   assert(standingsWrites>=2,'A write during the cooldown must produce a trailing standings recompute.');
+  assert(standingsWrites<=2,'Cooldown coalescing must cap this two-wave scenario at two standings recomputes.');
   const [standingsSnapshot,rowSnapshot,trustedSnapshot]=await Promise.all([
     db.doc(`pools/${poolId}/standings/current`).get(),
     db.doc(`pools/${poolId}/standingsRows/${second.uid}`).get(),
