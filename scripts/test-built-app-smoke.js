@@ -129,7 +129,8 @@ async function main() {
   assert(serviceWorker.includes('self.skipWaiting()'),'The service-worker kill switch must activate immediately.');
   assert(serviceWorker.includes('caches.keys()')&&serviceWorker.includes('caches.delete(cacheName)'),'The service-worker kill switch must delete every old cache.');
   assert(serviceWorker.includes('self.registration.unregister()'),'The service-worker kill switch must unregister itself.');
-  assert(serviceWorker.includes("self.clients.matchAll({type:'window',includeUncontrolled:true})")&&serviceWorker.includes('client.navigate(client.url)'),'The service-worker kill switch must move open tabs back to the network.');
+  assert(serviceWorker.includes("self.clients.matchAll({type:'window'})")&&!serviceWorker.includes('includeUncontrolled:true'),'The service-worker kill switch must navigate only windows it controls.');
+  assert(serviceWorker.includes('Promise.allSettled(windows.map(client=>client.navigate(client.url)))'),'One failed tab navigation must not reject service-worker activation.');
   const hosting=fs.readFileSync(path.join(root,'firebase.json'),'utf8');
   const workerHeaderStart=hosting.indexOf('"source": "/sw.js"');
   const workerHeaderEnd=hosting.indexOf('\n      },',workerHeaderStart);
