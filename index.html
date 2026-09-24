@@ -5383,8 +5383,7 @@ function App() {
         const joinCode=await window._fb.ensurePoolJoinCode(pool.id);
         enteredPool={...enteredPool,joinCode};
       }
-      if(liveCfg.PLAYABLE&&!enteredPool.rulesSnapshot&&enteredPool.global!==true) {
-        if(enteredPool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
+      if(liveCfg.PLAYABLE&&!enteredPool.rulesSnapshot&&enteredPool.global!==true&&enteredPool.ownerUid===user.uid) {
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
           await window._fb.freezePoolRules(enteredPool.id,frozenRules);
@@ -6394,8 +6393,7 @@ function App() {
         [{players,status},users,pending]=await Promise.all([window._fb.loadAllPlayers(pool.id,user.uid,false,Number(liveCfg.CONFIG_VERSION)>=2),window._fb.getUsers(pool.members),pool.ownerUid!==user.uid?Promise.resolve([]):window._fb.poolInvites(pool.id)]);
         setGlobalStandings(null);setGlobalPhaseScores(EMPTY_PHASE_SCORES);
       }
-      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot&&pool.global!==true) {
-        if(pool.ownerUid!==user.uid) throw new Error('The pool owner needs to open this pool once to lock its scoring rules.');
+      if(liveCfg.PLAYABLE&&!pool.rulesSnapshot&&pool.global!==true&&pool.ownerUid===user.uid) {
         const frozenRules=rulesSnapshotFrom(liveCfg);
         try {
           await window._fb.freezePoolRules(pool.id,frozenRules);

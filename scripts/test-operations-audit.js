@@ -216,6 +216,12 @@ assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshS
 assert(html.includes('await onSave(eng.CAST.filter')&&html.includes('setDirty(false);'),'Heat Check drafts must become clean only after a successful save.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
+const enterPoolSource=html.slice(html.indexOf('const enterPool = async'),html.indexOf('\n  const analyticsRoute=',html.indexOf('const enterPool = async')));
+assert(enterPoolSource.includes('!enteredPool.rulesSnapshot&&enteredPool.global!==true&&enteredPool.ownerUid===user.uid'),'Only the owner may freeze rules when entering an unfrozen friend pool.');
+assert(!enterPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to enter an unfrozen pool using the live season configuration.');
+const refreshPoolSource=html.slice(html.indexOf('const refreshPool = async'),html.indexOf('\n  const shareFriendPool = async',html.indexOf('const refreshPool = async')));
+assert(refreshPoolSource.includes('!pool.rulesSnapshot&&pool.global!==true&&pool.ownerUid===user.uid'),'Only the owner may freeze rules while refreshing an unfrozen friend pool.');
+assert(!refreshPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to refresh an unfrozen pool using the live season configuration.');
 assert(analyticsSource.includes("Object.freeze({a:'4.99',b:'9.99',c:'12.99'})"),'The price experiment must use the approved three price points.');
 assert(functionsSource.includes('db.recursiveDelete(db.doc(`clientErrors/${uid}`))'),'Account deletion must remove client diagnostics.');
 assert(!functionsSource.includes("collectionGroup('members')"),'Half-finished member-subcollection cleanup must not abort account deletion before Phase 5.');
