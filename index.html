@@ -1528,20 +1528,23 @@ window._fb = {
     const snapshot=await getDoc(doc(db,'castRatingProfiles',uid,'seasons',seasonId));
     return snapshot.exists()?snapshot.data():null;
   },
-  loadCastRatingCommunity: async (poolId,seasonId,globalPool=false) => {
+  loadCastRatingCommunity: async (poolId,seasonId,globalPool=false,currentUid='') => {
     if(globalPool) {
       const snapshot=await getDoc(doc(db,'castRatingAggregates',seasonId));
       return {kind:'global',aggregate:snapshot.exists()?snapshot.data():null};
     }
     const snapshot=await getDocs(collection(db,'pools',poolId,'castRatings'));
+    const entries=snapshot.docs.map(item=>({uid:item.id,...item.data()}));
     return {
       kind:'friends',
-      entries:snapshot.docs.map(item=>({uid:item.id,...item.data()})).filter(entry=>entry.shared===true&&Array.isArray(entry.ratings)),
+      entries:entries.filter(entry=>entry.shared===true&&Array.isArray(entry.ratings)),
+      mySharing:entries.find(entry=>entry.uid===currentUid)?.shared,
     };
   },
-  saveCastRatings: async ({poolId,seasonId,uid,username,ratings,shareWithFriends,globalPool=false}) => {
+  saveCastRatings: async ({poolId,seasonId,uid,username,ratings,shareWithFriends,globalPool=false,contributeToGlobal=false}) => {
     const safeRatings=cleanCastRatings(ratings);
     const profileRef=doc(db,'castRatingProfiles',uid,'seasons',seasonId);
+    const includeInGlobal=globalPool||contributeToGlobal===true;
     if(globalPool) {
       // The trusted aggregate trigger observes globalRatings and updates the
       // anonymous community totals. Browsers never write aggregate documents.
@@ -1551,13 +1554,13 @@ window._fb = {
     } else {
       const communityRef=doc(db,'pools',poolId,'castRatings',uid);
       const batch=writeBatch(db);
-      batch.set(profileRef,{seasonId,ratings:safeRatings,updatedAt:Date.now()},{merge:true});
+      batch.set(profileRef,{seasonId,ratings:safeRatings,...(includeInGlobal?{globalRatings:safeRatings}:{}),updatedAt:Date.now()},{merge:true});
       batch.set(communityRef,shareWithFriends===true
         ? {uid,username:String(username||'Player').slice(0,40),shared:true,ratings:safeRatings,updatedAt:Date.now()}
         : {uid,shared:false,updatedAt:Date.now()});
       await batch.commit();
     }
-    return {seasonId,ratings:safeRatings,updatedAt:Date.now()};
+    return {seasonId,ratings:safeRatings,...(includeInGlobal?{globalRatings:safeRatings}:{}),updatedAt:Date.now()};
   },
   savePhasePicks: (poolId,phase,uid,picks) => setDoc(
     doc(db,'pools',poolId,'phasePicks',phase+'__'+uid),{uid,phase,picks:Array.isArray(picks)?picks:[],updatedAt:Date.now()}
@@ -3517,7 +3520,7 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
   const [highlightIndex,setHighlightIndex]=useState(0);
   const [draft,setDraft]=useState(()=>valuesByCast(myRatingDoc?.ratings));
   const [draftFlags,setDraftFlags]=useState(()=>flagsByCast(myRatingDoc?.ratings));
-  const [shareWithFriends,setShareWithFriends]=useState(false);
+  const [shareWithFriends,setShareWithFriends]=useState(()=>globalPool?false:community?.mySharing!==false);
   const [dirty,setDirty]=useState(false);
   const [shareFeedback,setShareFeedback]=useState('');
   const [shareFeedbackError,setShareFeedbackError]=useState(false);
@@ -3533,8 +3536,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     if(seasonChanged)setDirty(false);
   },[seasonId,myRatingDoc?.updatedAt,dirty]);
   useEffect(()=>{
-    setShareWithFriends(friendEntries.some(entry=>entry.uid===currentUid&&entry.shared===true));
-  },[seasonId,currentUid,community?.loadedAt]);
+    if(!globalPool)setShareWithFriends(community?.mySharing!==false);
+  },[seasonId,currentUid,globalPool,community?.loadedAt]);
   const otherFriends=friendEntries.filter(entry=>entry.uid!==currentUid&&entry.ratings?.length);
   useEffect(()=>{
     if(!otherFriends.some(entry=>entry.uid===selectedFriend))setSelectedFriend(otherFriends[0]?.uid||'');
@@ -3693,7 +3696,6 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
     <AccessibleTabs tabs={heatCheckTabs} active={view} onChange={setView} baseId="chemistry-view" className="chemistry-segmented" ariaLabel="Heat Check views"/>
     {view==='mine'?<div id="chemistry-view-panel-mine" role="tabpanel" aria-labelledby="chemistry-view-tab-mine">
       <div className="card">
-        {globalPool?<div className="chemistry-privacy"><div className="chemistry-privacy-icon">◉</div><div><strong>Your picks stay private in the Global Pool</strong><p>Other players see only combined averages and rating counts—not your name or individual scorecard.</p></div></div>:<label className="chemistry-toggle"><input type="checkbox" checked={shareWithFriends} onChange={event=>{setShareWithFriends(event.target.checked);setDirty(true);}}/><span><strong>Let this friend pool see my picks</strong><span>When on, friends can open your scorecard in “The tea.” Turn it off anytime to remove your individual ratings from this pool.</span></span></label>}
         <div className="chemistry-toolbar"><div><h3 style={{marginBottom:3}}>Who are you rating?</h3><p className="subtle" style={{margin:0}}>Do a side, do everyone, or come back later.</p></div></div>
         <div className="chemistry-segmented three" aria-label="Filter cast by gender">
           {[{id:'M',label:'Men'},{id:'F',label:'Women'},{id:'all',label:'Both'}].map(option=><button type="button" className={gender===option.id?'active':''} onClick={()=>setGender(option.id)} key={option.id}>{option.label}</button>)}
@@ -3706,6 +3708,8 @@ function ChemistryPanel({eng,seasonId,poolName,globalPool,currentUid,myRatingDoc
         {showPersonalPodium&&<section className="personal-podium"><h3>🏆 Your podium</h3><p>Everyone in this filter is scored. Nothing locks—you can revise it anytime.</p><div className="chemistry-podium">{visibleMyRanked.slice(0,3).map((row,index)=><div className={'podium-place '+(index===0?'first':index===1?'second':'third')} key={row.person.name}><div className="podium-medal">{index===0?'👑':index===1?'🥈':'🥉'}</div><RatingPhoto person={row.person} className="podium-photo"/><strong>{row.person.name}</strong><small>{row.score}/40</small></div>)}</div></section>}
         <div className="chemistry-privacy"><div className="chemistry-privacy-icon">↻</div><div><strong>Changed your mind? Come back later.</strong><p>Ratings never lock. Save what you have now, then revise any score whenever the vibes shift.</p></div></div>
         {myRanked.length>0&&<div className="chemistry-fingerprint"><h3>{fingerprintCategory.icon} Your Heat Check fingerprint: {fingerprintCategory.label}</h3><p>Your highest average category is {fingerprintCategory.label.toLowerCase()}. Right now, {myRanked[0].person.name} tops your complete scorecards with {myRanked[0].score}/40.</p><button className="btn-secondary" disabled={sharingLeaderboard} onClick={()=>shareLeaderboard('mine')}>{sharingLeaderboard?'Getting the share ready…':'Share my top three'}</button>{shareFeedback&&<p className="subtle" role={shareFeedbackError?'alert':'status'} style={{marginTop:8}}>{shareFeedback}</p>}</div>}
+        {!globalPool&&<label className="chemistry-toggle"><input type="checkbox" checked={!shareWithFriends} onChange={event=>{setShareWithFriends(!event.target.checked);setDirty(true);}}/><span><strong>Hide my Heat Check picks from this friend pool</strong><span>Your scorecard is shared by default. Turn this on to keep friends from opening it or including your ratings in this pool’s averages.</span></span></label>}
+        <div className="chemistry-privacy"><div className="chemistry-privacy-icon">◉</div><div><strong>Global averages are anonymous</strong><p>{globalPool?'Every saved rating helps build the combined Global Pool averages. Other players cannot trace a rating back to you or open your individual scorecard.':'If you’re registered for this season’s Global Pool, your saved ratings still help build its combined averages—even when you hide them from this friend pool. They are never shown there with your name or traceable back to your scorecard.'}</p></div></div>
       </div>
       <div className="chemistry-savebar"><button className="btn-primary" disabled={saving||!dirty} onClick={save}>{saving?'Saving the tea…':dirty?'Save my ratings':feedback||'No changes to save'}</button></div>
     </div>:<div id="chemistry-view-panel-tea" role="tabpanel" aria-labelledby="chemistry-view-tab-tea">
@@ -6432,7 +6436,7 @@ function App() {
     setChemistryLoading(true);setChemistryFeedback('');
     try {
       const seasonId=seasonForPool(activePool).id;
-      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true);
+      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true,user.uid);
       const [mine,community,globalRatings]=await Promise.all([
         window._fb.loadMyCastRatings(seasonId,user.uid),
         communityPromise,
@@ -6451,7 +6455,7 @@ function App() {
     if(!activePool||!user?.uid)return;
     try {
       const seasonId=seasonForPool(activePool).id;
-      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true);
+      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true,user.uid);
       const [community,globalRatings]=await Promise.all([
         communityPromise,
         activePool.global===true?communityPromise:window._fb.loadCastRatingCommunity('',seasonId,true),
@@ -6468,19 +6472,20 @@ function App() {
     setChemistrySaving(true);setChemistryFeedback('');
     try {
       const seasonId=seasonForPool(activePool).id;
+      const contributeToGlobal=activePool.global===true||!!globalPools[seasonId]?.members?.includes(user.uid);
       const saved=await window._fb.saveCastRatings({
         poolId:activePool.id,seasonId,uid:user.uid,username:meName,ratings,
-        shareWithFriends,globalPool:activePool.global===true,
+        shareWithFriends,globalPool:activePool.global===true,contributeToGlobal,
       });
       setChemistryMine(saved);
-      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true);
+      const communityPromise=window._fb.loadCastRatingCommunity(activePool.id,seasonId,activePool.global===true,user.uid);
       const [community,globalRatings]=await Promise.all([
         communityPromise,
         activePool.global===true?communityPromise:window._fb.loadCastRatingCommunity('',seasonId,true),
       ]);
       setChemistryCommunity({...community,loadedAt:Date.now()});
       setChemistryGlobalCommunity({...globalRatings,loadedAt:Date.now()});
-      setChemistryFeedback(activePool.global===true?'Saved privately and added to the global averages.':'Ratings saved.');
+      setChemistryFeedback(activePool.global===true?'Saved privately and added to the global averages.':shareWithFriends?'Ratings shared with this friend pool.':'Ratings hidden from this friend pool.');
     } catch(error) {
       console.error('Heat Check could not save.',error);
       setErr('Your cast ratings could not be saved. Nothing was lost on this screen, so please try again.');
@@ -6734,10 +6739,10 @@ function App() {
     <div className="card">
       <h2>Your pools</h2>
       {lobbyLoading && <div className="loading" role="status" style={{padding:'28px 12px'}}><span className="spinner">♥</span>Refreshing your pools…</div>}
-      {!lobbyLoading && friendPools.length===0 && <p className="lede">You're not in any friend pools yet. Create one and invite your friends!</p>}
+      {!lobbyLoading && friendPools.length===0 && <p className="lede">You're not in any private pools yet. Start one and invite your friends!</p>}
       {!lobbyLoading&&activeFriendPools.length>0&&<section aria-labelledby="active-pools-heading"><h3 id="active-pools-heading" style={{margin:'18px 0 8px'}}>Active pools</h3>{activeFriendPools.map(friendPoolRow)}</section>}
       <section aria-labelledby="new-pool-heading" style={{marginTop:activeFriendPools.length>0?18:0}}>
-      {!creating && <><h3 id="new-pool-heading" style={{margin:'0 0 8px'}}>Start a new pool</h3><button className="btn-primary" onClick={()=>setCreating(true)}>Create a new pool</button></>}
+      {!creating && <><h3 id="new-pool-heading" style={{margin:'0 0 8px'}}>Start a New Private Pool</h3><button className="btn-primary" onClick={()=>setCreating(true)}>Create a Private Pool</button></>}
       {creating && <div ref={newPoolFormRef} style={{marginTop:14}}>
         <hr className="divider"/>
         <h3 id="new-pool-heading">New pool</h3>
@@ -6872,9 +6877,9 @@ function App() {
         : <button className="btn-small" style={{width:'auto'}} disabled={refreshingPool} onClick={refreshStandings}>{refreshingPool?'Refreshing…':'Refresh standings'}</button>}</div>
       <Scoreboard eng={eng} playersById={standingsPlayers} statusDocs={standingsStatus} memberLabels={standingsLabels} meId={user.uid} myPhase={globalDemoData?'reunion':phase} pendingInvites={globalDemoData||activePool.ownerUid!==user.uid?[]:pendingPoolInvites} globalPool={activePool.global===true} membershipClosed={activePool.membershipClosed===true} demoMode={!!globalDemoData} presetPhaseScores={globalDemoData?.phaseScores||(activePool.global===true?globalPhaseScores:EMPTY_PHASE_SCORES)} ownerOverrides={activePool.global===true?standingsOwnerOverrides:{}} globalRowCount={globalDemoData?Object.keys(globalDemoData.players||{}).length:Number(globalStandings?.rowCount)||0} receipts={globalDemoData?[]:(shareStandings?.receipts||[])} poolName={activePool.name} seasonLabel={seasonLabelForPool(activePool)}/>
       {activePool.global&&!globalDemoData&&<div className="card">
-        <h3>Share the Global Pool</h3>
+        <h3>Invite friends to the Global Pool</h3>
         <p className="lede">The Global Pool is open to everyone. Share the app with friends and they can join from their own account.</p>
-        <button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Share Global Pool'}</button>
+        <button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Invite your Friends to Join'}</button>
         {globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}
       </div>}
       {!activePool.global&&<div className="card">
@@ -6905,10 +6910,12 @@ function App() {
     {poolTab==='rules' && cfg.PLAYABLE && <PhaseGuidePanel kind="rules" phaseLabel={RULES.phases[phase].label} tagline={phaseIntro.tagline} id="pool-panel-rules" labelledBy="pool-tab-rules">{phaseIntro.rules}</PhaseGuidePanel>}
     {poolTab==='scoring' && cfg.PLAYABLE && <PhaseGuidePanel kind="scoring" phaseLabel={RULES.phases[phase].label} id="pool-panel-scoring" labelledBy="pool-tab-scoring">{phaseIntro.scoring}</PhaseGuidePanel>}
     {poolTab==='play' && !cfg.PLAYABLE && <div className="card ph-no-capture" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
-      <h2>Your pool is ready</h2>
+      <h2>{activePool.global===true?'You’re registered for the Global Pool':'Your pool is ready'}</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
-      <div className="notice"><b>Season has not started.</b> {activePool.global===true?'The Global Pool is open to everyone. Share the app with friends and they can join from their own account.':'Use the Standings tab to invite your friends now.'} Predictions will open shortly after the first episodes drop.</div>
-      {activePool.global===true&&<React.Fragment><button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Share Global Pool'}</button>{globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
+      {activePool.global===true&&seasonForPool(activePool).id==='love-is-blind-us-11'
+        ? <React.Fragment><div className="notice"><b>Episode 1 drops October 14.</b> Watch it first, then come back—predictions begin after Episode 1 and will be available here later that day.</div><p className="subtle">Through the Wall is run by one person. I need a little time to watch the episode, verify what happened, and load the next prediction window. Thanks for your patience while I keep the game accurate and spoiler-safe.</p></React.Fragment>
+        : <div className="notice"><b>Season has not started.</b> {activePool.global===true?'The Global Pool is open to everyone. Share the app with friends and they can join from their own account.':'Use the Standings tab to invite your friends now.'} Predictions will open shortly after the first episodes drop.</div>}
+      {activePool.global===true&&<React.Fragment><button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Invite your Friends to Join'}</button>{globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
       <button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Checking for updates…':'Check for season updates'}</button>
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <div className="ph-no-capture" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
