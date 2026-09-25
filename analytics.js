@@ -82,6 +82,13 @@
             return `${url.origin}${url.pathname}${url.hash}`;
           }catch(error){return value;}
         };
+        if(event&&event.event==='$snapshot'){
+          const snapshotData=event.properties&&event.properties.$snapshot_data;
+          if(Array.isArray(snapshotData))snapshotData.forEach(item=>{
+            if(item&&item.type===4&&item.data&&typeof item.data.href==='string')item.data.href=sanitizeUrl(item.data.href);
+          });
+          return event;
+        }
         const visited=new WeakSet();
         const sanitizeValue=value=>{
           if(typeof value==='string')return sanitizeUrl(value);

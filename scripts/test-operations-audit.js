@@ -655,6 +655,16 @@ for(const value of sanitizedStrings){
   assert(!/join=|signInEmail|oobCode/.test(value),'Sanitized PostHog event values must not retain join or sign-in secrets.');
 }
 assert.equal(sanitizedEvent.properties.$geoip_disable,true,'Automatic SDK events and replay snapshots must disable GeoIP enrichment before sending.');
+const replayEvent=posthogConfig.before_send({
+  event:'$snapshot',
+  properties:{$snapshot_data:[
+    {type:4,data:{href:'https://throughthewall.ca/?join=replay-code#/app/lobby'}},
+    {type:2,data:{node:{type:2,attributes:{href:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap'}}}},
+  ]},
+});
+assert.equal(replayEvent.properties.$snapshot_data[0].data.href,'https://throughthewall.ca/#/app/lobby','Replay page addresses must lose query strings without losing hash routes.');
+assert.equal(replayEvent.properties.$snapshot_data[1].data.node.attributes.href,'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap','Replay asset URLs must keep query strings needed to reproduce the page.');
+assert.equal(replayEvent.properties.$geoip_disable,true,'Replay snapshots must continue to disable GeoIP enrichment.');
 assert(html.includes("browserContext='instagram_in_app'")&&html.includes("browserContext='messenger_in_app'")&&html.includes("browserContext='tiktok_in_app'"),'Arrival telemetry must distinguish common in-app browsers.');
 assert(html.includes("reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'})"),'Unresolved auth returns must emit the bounded startup failure diagnostic.');
 assert(html.includes('const hasAuthReturn=window._fb.hasAuthRedirectParams()||window._fb.hasPendingAuthRedirect();'),'Startup diagnostics must retain redirect intent after Firebase removes its handler parameters.');
