@@ -460,7 +460,7 @@ assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Google sign-in start must emit a conversion event.');
 assert(html.includes('const embeddedBrowser=window.__TTW_EMBEDDED_BROWSER_CONTEXTS__?.includes(window.__TTW_BROWSING_CONTEXT__?.browserContext)===true;')&&html.includes('!embeddedBrowser&&<button className="btn-google"')&&html.includes("className={embeddedBrowser?'btn-primary':'btn-secondary'}"),'Embedded social browsers must hide Google sign-in and make email-link sign-in primary.');
-assert(html.includes('Signing in from Instagram? Use your email, or open this page in Safari or Chrome.'),'Embedded social browsers must explain the supported sign-in path.');
+assert(html.includes("Signing in from an app's browser? Use your email, or open this page in Safari or Chrome."),'Embedded social browsers must explain the supported sign-in path.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_success'"),'Successful redirect resolution must emit a conversion event.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_failure',{code:"),'Redirect failures must report their auth error code.');
 assert(html.includes("trackTtwEvent('app_arrival')"),'Every arrival must emit a conversion event.');
@@ -637,6 +637,7 @@ const sanitizedEvent=posthogConfig.before_send({
     $prev_pageview_pathname:'/welcome/',
     $pathname:'/app/',
     $web_vitals_FCP_event:{$current_url:'https://throughthewall.ca/?signInEmail=player@example.com&oobCode=vitals-secret'},
+    future_payload:{urls:['https://example.com/watch?join=pool.code',{target:'https://www.throughthewall.ca/deep/path/?oobCode=secret#results'}]},
   },
   $set:{$current_url:'https://throughthewall.ca/?join=set-code'},
   $set_once:{$initial_current_url:'https://throughthewall.ca/?join=first-code&signInEmail=player@example.com'},
@@ -644,6 +645,8 @@ const sanitizedEvent=posthogConfig.before_send({
 assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/#/app/lobby','Hash routes must survive URL sanitization.');
 assert.equal(sanitizedEvent.properties.$pathname,'/app/');
 assert.equal(sanitizedEvent.properties.$prev_pageview_pathname,'/welcome/');
+assert.equal(sanitizedEvent.properties.future_payload.urls[0],'https://example.com/watch');
+assert.equal(sanitizedEvent.properties.future_payload.urls[1].target,'https://www.throughthewall.ca/deep/path/#results');
 const sanitizedStrings=[];
 const collectStrings=value=>{if(typeof value==='string')sanitizedStrings.push(value);else if(value&&typeof value==='object')Object.values(value).forEach(collectStrings);};
 collectStrings(sanitizedEvent);
@@ -652,6 +655,18 @@ for(const value of sanitizedStrings){
   assert(!/join=|signInEmail|oobCode/.test(value),'Sanitized PostHog event values must not retain join or sign-in secrets.');
 }
 assert.equal(sanitizedEvent.properties.$geoip_disable,true,'Automatic SDK events and replay snapshots must disable GeoIP enrichment before sending.');
+const replayEvent=posthogConfig.before_send({
+  event:'$snapshot',
+  properties:{$snapshot_data:[
+    {type:4,data:{href:'https://throughthewall.ca/?join=replay-code#/app/lobby'}},
+    {type:2,data:{node:{type:2,attributes:{href:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap'}}}},
+    {type:5,data:{tag:'$url_changed',payload:{href:'https://throughthewall.ca/?join=changed-replay-code#/app/pool'}}},
+  ]},
+});
+assert.equal(replayEvent.properties.$snapshot_data[0].data.href,'https://throughthewall.ca/#/app/lobby','Replay page addresses must lose query strings without losing hash routes.');
+assert.equal(replayEvent.properties.$snapshot_data[1].data.node.attributes.href,'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap','Replay asset URLs must keep query strings needed to reproduce the page.');
+assert.equal(replayEvent.properties.$snapshot_data[2].data.payload.href,'https://throughthewall.ca/#/app/pool','Replay URL-change addresses must lose join-code query strings without losing hash routes.');
+assert.equal(replayEvent.properties.$geoip_disable,true,'Replay snapshots must continue to disable GeoIP enrichment.');
 assert(html.includes("browserContext='instagram_in_app'")&&html.includes("browserContext='messenger_in_app'")&&html.includes("browserContext='tiktok_in_app'"),'Arrival telemetry must distinguish common in-app browsers.');
 assert(html.includes("reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'})"),'Unresolved auth returns must emit the bounded startup failure diagnostic.');
 assert(html.includes('const hasAuthReturn=window._fb.hasAuthRedirectParams()||window._fb.hasPendingAuthRedirect();'),'Startup diagnostics must retain redirect intent after Firebase removes its handler parameters.');
