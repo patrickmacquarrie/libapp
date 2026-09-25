@@ -7,9 +7,11 @@
   const APP_BUILD='__APP_BUILD_TIMESTAMP__';
   const ACQUISITION_STORAGE_KEY='through-the-wall-acquisition';
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
-  const PRICE_VARIANTS=Object.freeze({a:'4.99',b:'9.99',c:'12.99'});
+  const PRICE_VARIANTS=Object.freeze({a:'4.99',c:'12.99'});
   const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true});
+  const PERSONAL_DATA_PROPERTIES=Object.freeze(['join','signInEmail','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
   const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST);
+  let capturingStopped=false;
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
   const readStoredAcquisition=()=>{
@@ -62,23 +64,37 @@
       api_host:API_HOST,
       defaults:'2026-05-30',
       person_profiles:'identified_only',
-      capture_pageview:true,
+      capture_pageview:window.__TTW_MANUAL_PAGEVIEWS__?false:true,
       autocapture:true,
       mask_all_text:true,
       mask_all_element_attributes:true,
+      mask_personal_data_properties:true,
+      custom_personal_data_properties:PERSONAL_DATA_PROPERTIES,
       property_denylist:['email','username','displayName','name','toEmail','inviteEmail'],
       before_send:event=>{
         const properties=event&&event.properties;
-        if(!properties)return event;
-        properties.$geoip_disable=true;
-        ['$current_url','$referrer','$initial_referrer'].forEach(key=>{
-          const value=properties[key];
-          if(!value)return;
+        if(properties)properties.$geoip_disable=true;
+        const sanitizeUrl=value=>{
+          if(typeof value!=='string')return value;
           try{
-            const url=new URL(value,window.location.origin);
-            properties[key]=`${url.origin}${url.pathname}`;
-          }catch(error){}
-        });
+            const url=new URL(value);
+            if(!['throughthewall.ca','www.throughthewall.ca'].includes(url.hostname))return value;
+            return `${url.origin}${url.pathname}${url.hash}`;
+          }catch(error){return value;}
+        };
+        const sanitizeObject=object=>{
+          if(!object||typeof object!=='object'||Array.isArray(object))return;
+          Object.keys(object).forEach(key=>{
+            const value=object[key];
+            if(typeof value==='string')object[key]=sanitizeUrl(value);
+            else if(value&&typeof value==='object'&&!Array.isArray(value)){
+              Object.keys(value).forEach(nestedKey=>{
+                if(typeof value[nestedKey]==='string')value[nestedKey]=sanitizeUrl(value[nestedKey]);
+              });
+            }
+          });
+        };
+        [event&&event.properties,event&&event.$set,event&&event.$set_once].forEach(sanitizeObject);
         return event;
       },
       session_recording:{
@@ -103,6 +119,7 @@
   });
   const track=(event,details={})=>{
     const payload={...eventPayload(details),event};
+    if(capturingStopped)return payload;
     window.dataLayer=window.dataLayer||[];
     window.dataLayer.push(payload);
     window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));
@@ -110,15 +127,19 @@
     return payload;
   };
   const identify=(firebaseUid,{seasonId=''}={})=>{
-    if(!configured||!firebaseUid)return;
+    if(!configured||!firebaseUid||capturingStopped)return;
     const setOnce={acquisition_source:cohort};
     if(seasonId)setOnce.first_seen_season=seasonId;
     window.posthog.identify(String(firebaseUid),{},setOnce);
     window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES});
   };
   const reset=()=>{if(configured)window.posthog?.reset();};
+  const stop=()=>{
+    capturingStopped=true;
+    if(configured)window.posthog?.opt_out_capturing();
+  };
   const capturePageview=route=>{
-    if(!configured||!route)return;
+    if(!configured||!route||capturingStopped)return;
     const cleanBase=window.location.origin==='null'?window.location.pathname:window.location.origin+window.location.pathname;
     window.posthog?.capture('$pageview',{$current_url:`${cleanBase}#${String(route).replace(/^#+/,'')}`,route,app_build:APP_BUILD,acquisition_source:cohort,...PRIVACY_PROPERTIES});
   };
@@ -143,6 +164,7 @@
     track,
     identify,
     reset,
+    stop,
     capturePageview,
     onPriceVariant,
   });
