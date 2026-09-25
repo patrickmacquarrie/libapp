@@ -78,23 +78,19 @@
           if(typeof value!=='string')return value;
           try{
             const url=new URL(value);
-            if(!['throughthewall.ca','www.throughthewall.ca'].includes(url.hostname))return value;
+            if(!['http:','https:'].includes(url.protocol))return value;
             return `${url.origin}${url.pathname}${url.hash}`;
           }catch(error){return value;}
         };
-        const sanitizeObject=object=>{
-          if(!object||typeof object!=='object'||Array.isArray(object))return;
-          Object.keys(object).forEach(key=>{
-            const value=object[key];
-            if(typeof value==='string')object[key]=sanitizeUrl(value);
-            else if(value&&typeof value==='object'&&!Array.isArray(value)){
-              Object.keys(value).forEach(nestedKey=>{
-                if(typeof value[nestedKey]==='string')value[nestedKey]=sanitizeUrl(value[nestedKey]);
-              });
-            }
-          });
+        const visited=new WeakSet();
+        const sanitizeValue=value=>{
+          if(typeof value==='string')return sanitizeUrl(value);
+          if(!value||typeof value!=='object'||visited.has(value))return value;
+          visited.add(value);
+          Object.keys(value).forEach(key=>{value[key]=sanitizeValue(value[key]);});
+          return value;
         };
-        [event&&event.properties,event&&event.$set,event&&event.$set_once].forEach(sanitizeObject);
+        [event&&event.properties,event&&event.$set,event&&event.$set_once].forEach(sanitizeValue);
         return event;
       },
       session_recording:{

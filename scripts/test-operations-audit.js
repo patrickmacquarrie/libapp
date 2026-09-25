@@ -460,7 +460,7 @@ assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Google sign-in start must emit a conversion event.');
 assert(html.includes('const embeddedBrowser=window.__TTW_EMBEDDED_BROWSER_CONTEXTS__?.includes(window.__TTW_BROWSING_CONTEXT__?.browserContext)===true;')&&html.includes('!embeddedBrowser&&<button className="btn-google"')&&html.includes("className={embeddedBrowser?'btn-primary':'btn-secondary'}"),'Embedded social browsers must hide Google sign-in and make email-link sign-in primary.');
-assert(html.includes('Signing in from Instagram? Use your email, or open this page in Safari or Chrome.'),'Embedded social browsers must explain the supported sign-in path.');
+assert(html.includes("Signing in from an app's browser? Use your email, or open this page in Safari or Chrome."),'Embedded social browsers must explain the supported sign-in path.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_success'"),'Successful redirect resolution must emit a conversion event.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_failure',{code:"),'Redirect failures must report their auth error code.');
 assert(html.includes("trackTtwEvent('app_arrival')"),'Every arrival must emit a conversion event.');
@@ -637,6 +637,7 @@ const sanitizedEvent=posthogConfig.before_send({
     $prev_pageview_pathname:'/welcome/',
     $pathname:'/app/',
     $web_vitals_FCP_event:{$current_url:'https://throughthewall.ca/?signInEmail=player@example.com&oobCode=vitals-secret'},
+    future_payload:{urls:['https://example.com/watch?join=pool.code',{target:'https://www.throughthewall.ca/deep/path/?oobCode=secret#results'}]},
   },
   $set:{$current_url:'https://throughthewall.ca/?join=set-code'},
   $set_once:{$initial_current_url:'https://throughthewall.ca/?join=first-code&signInEmail=player@example.com'},
@@ -644,6 +645,8 @@ const sanitizedEvent=posthogConfig.before_send({
 assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/#/app/lobby','Hash routes must survive URL sanitization.');
 assert.equal(sanitizedEvent.properties.$pathname,'/app/');
 assert.equal(sanitizedEvent.properties.$prev_pageview_pathname,'/welcome/');
+assert.equal(sanitizedEvent.properties.future_payload.urls[0],'https://example.com/watch');
+assert.equal(sanitizedEvent.properties.future_payload.urls[1].target,'https://www.throughthewall.ca/deep/path/#results');
 const sanitizedStrings=[];
 const collectStrings=value=>{if(typeof value==='string')sanitizedStrings.push(value);else if(value&&typeof value==='object')Object.values(value).forEach(collectStrings);};
 collectStrings(sanitizedEvent);
