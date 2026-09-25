@@ -86,6 +86,7 @@
           const snapshotData=event.properties&&event.properties.$snapshot_data;
           if(Array.isArray(snapshotData))snapshotData.forEach(item=>{
             if(item&&item.type===4&&item.data&&typeof item.data.href==='string')item.data.href=sanitizeUrl(item.data.href);
+            if(item&&item.type===5&&item.data&&item.data.tag==='$url_changed'&&item.data.payload&&typeof item.data.payload.href==='string')item.data.payload.href=sanitizeUrl(item.data.payload.href);
           });
           return event;
         }

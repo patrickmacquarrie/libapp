@@ -660,10 +660,12 @@ const replayEvent=posthogConfig.before_send({
   properties:{$snapshot_data:[
     {type:4,data:{href:'https://throughthewall.ca/?join=replay-code#/app/lobby'}},
     {type:2,data:{node:{type:2,attributes:{href:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap'}}}},
+    {type:5,data:{tag:'$url_changed',payload:{href:'https://throughthewall.ca/?join=changed-replay-code#/app/pool'}}},
   ]},
 });
 assert.equal(replayEvent.properties.$snapshot_data[0].data.href,'https://throughthewall.ca/#/app/lobby','Replay page addresses must lose query strings without losing hash routes.');
 assert.equal(replayEvent.properties.$snapshot_data[1].data.node.attributes.href,'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap','Replay asset URLs must keep query strings needed to reproduce the page.');
+assert.equal(replayEvent.properties.$snapshot_data[2].data.payload.href,'https://throughthewall.ca/#/app/pool','Replay URL-change addresses must lose join-code query strings without losing hash routes.');
 assert.equal(replayEvent.properties.$geoip_disable,true,'Replay snapshots must continue to disable GeoIP enrichment.');
 assert(html.includes("browserContext='instagram_in_app'")&&html.includes("browserContext='messenger_in_app'")&&html.includes("browserContext='tiktok_in_app'"),'Arrival telemetry must distinguish common in-app browsers.');
 assert(html.includes("reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'})"),'Unresolved auth returns must emit the bounded startup failure diagnostic.');
