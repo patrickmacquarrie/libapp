@@ -214,6 +214,14 @@ assert(html.includes('html{width:100%;min-width:0')&&html.includes('.app{width:1
 assert(html.includes('if(dirty&&!seasonChanged)return;')&&html.includes('[seasonId,myRatingDoc?.updatedAt,dirty]'),'A live Heat Check refresh must not replace an unsaved private draft, while a season change must still hydrate the new season.');
 assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings()"),'Friend Heat Check activity must refresh community results without reloading the private draft.');
 assert(html.includes('await onSave(eng.CAST.filter')&&html.includes('setDirty(false);'),'Heat Check drafts must become clean only after a successful save.');
+assert(html.includes("useState(()=>globalPool?false:community?.mySharing!==false)"),'New friend-pool Heat Check scorecards must be shared by default while preserving an existing hide choice.');
+assert(html.includes("mySharing:entries.find(entry=>entry.uid===currentUid)?.shared"),'Heat Check community loads must return the current player’s saved sharing preference without exposing hidden ratings.');
+assert(html.includes('checked={!shareWithFriends}')&&html.includes('Hide my Heat Check picks from this friend pool'),'The friend-pool privacy control must be an opt-out placed with the save controls.');
+assert(html.includes('const includeInGlobal=globalPool||contributeToGlobal===true;')&&html.includes('...(includeInGlobal?{globalRatings:safeRatings}:{})'),'A registered Global Pool player’s friend-pool ratings must continue feeding the anonymous global aggregate.');
+assert(html.includes('Global averages are anonymous')&&html.includes('They are never shown there with your name or traceable back to your scorecard.'),'Heat Check must explain the Global Pool aggregation privacy boundary.');
+assert(html.includes('Start a New Private Pool')&&html.includes('Create a Private Pool'),'The empty lobby must distinguish private pools from the Global Pool.');
+assert(html.includes('You’re registered for the Global Pool')&&html.includes('Invite your Friends to Join'),'Prelaunch Global Pool onboarding must confirm registration and invite sharing.');
+assert(html.includes('Episode 1 drops October 14.')&&html.includes('predictions begin after Episode 1')&&html.includes('Through the Wall is run by one person.'),'US11 prelaunch copy must set the release, prediction, and manual publishing expectations.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
 const enterPoolSource=html.slice(html.indexOf('const enterPool = async'),html.indexOf('\n  const analyticsRoute=',html.indexOf('const enterPool = async')));
