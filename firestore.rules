@@ -290,7 +290,7 @@ service cloud.firestore {
       allow list: if signedIn() &&
         request.auth.uid in resource.data.members;
 
-      // Ordinary users create private pools only. Global pools are created
+      // Ordinary users create friend pools only. Global pools are created
       // through trusted administrator tooling.
       allow create: if signedIn() &&
         !poolId.matches('^global__.*') &&
@@ -557,7 +557,7 @@ service cloud.firestore {
       }
 
       // ----------------------------------------------------------
-      // Private-pool Heat Check snapshots
+      // Opt-in friend-pool Heat Check snapshots
       // A non-shared document contains no rating values.
       // ----------------------------------------------------------
 
