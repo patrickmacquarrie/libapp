@@ -2,7 +2,7 @@
 
 ## Ready in this codebase
 
-- Global and friend-pool picks require the viewer to complete/lock the matching checkpoint before another player's picks can be read.
+- Global and private-pool picks require the viewer to complete/lock the matching checkpoint before another player's picks can be read.
 - Reunion picks become immutable as soon as the player's public state enters the locked watch flow.
 - Only the pool owner can freeze a validated scoring-rules snapshot.
 - Global Heat Check aggregates are written by a trusted Firestore trigger; browser aggregate writes are denied.
@@ -10,7 +10,7 @@
 - Authenticated feedback/support messages use an App Check-protected callable, idempotent submission IDs, and a five-message-per-account daily limit; browser clients cannot read the mail queue.
 - Invitation matching requires a verified provider email address, including the verified Apple relay address when Hide My Email is used.
 - Same-day invitation resends create a fresh delivery message instead of colliding with the first send.
-- Shareable friend-pool join links avoid exact email matching.
+- Shareable private-pool join links avoid exact email matching.
 - Pool owners can invalidate an old share link immediately, and only the new link remains valid.
 - Pool deletion, leaving pools, and account deletion run through trusted callable functions; account deletion also removes queued mail and bounded client diagnostics.
 - Entering a new pool remains usable when one mirrored phase is already locked; the app reports and skips only that phase.
@@ -35,7 +35,7 @@
 
 After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
 
-Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address on the same UTC day and confirm both create delivery attempts. Rotate a friend-pool invite link and confirm the old link is rejected while the new link joins successfully. Run the PostHog release verification in `POSTHOG-BETA-RUNBOOK.md` before opening beta access.
+Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address on the same UTC day and confirm both create delivery attempts. Rotate a private-pool invite link and confirm the old link is rejected while the new link joins successfully. Run the PostHog release verification in `POSTHOG-BETA-RUNBOOK.md` before opening beta access.
 
 ```sh
 gcloud run services update reopenphase \

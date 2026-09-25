@@ -47,7 +47,7 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
   const liveThree=makeEngine(cfg(couples),3).scorePhase('pods',{
     early:[{c:'Alex|Casey',s:20,w:1}],other:[{c:'Blair|Drew',s:10,w:1}],later:[{c:'Blair|Casey',s:10,w:1}],
   }).totals.early;
-  assert.notEqual(liveTwo,liveThree,'Friend-pool live denominators must continue changing when another active player joins the phase.');
+  assert.notEqual(liveTwo,liveThree,'Private-pool live denominators must continue changing when another active player joins the phase.');
   assert.equal(freezeScoredTotal(liveTwo,liveThree),liveTwo,'A trusted Global score must retain its first scored total after the population grows.');
 }
 
@@ -277,8 +277,8 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 }
 
 {
-  assert(source.includes('Link my Global Pool game'),'Friend-pool creation must offer a linked Global game.');
-  assert(source.includes("let activeDuplicateFrom=duplicateFromPoolId||''"),'A friend pool must be allowed to use the Global Pool as its pick source.');
+  assert(source.includes('Link my Global Pool game'),'Private-pool creation must offer a linked Global game.');
+  assert(source.includes("let activeDuplicateFrom=duplicateFromPoolId||''"),'A private pool must be allowed to use the Global Pool as its pick source.');
   assert(source.includes('const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId)'),'Pick synchronization must support either pool type as the target.');
   assert(source.includes('Synced with ${linkedPoolNames.length===1'),'Linked pools must visibly identify their connection below the pool title.');
   assert(source.includes('matchingGlobalPool?.members?.includes(user.uid)'),'The mirror option must be limited to matching Global Pool members.');
