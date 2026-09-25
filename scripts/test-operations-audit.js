@@ -221,7 +221,12 @@ assert(html.includes('const includeInGlobal=globalPool||contributeToGlobal===tru
 assert(html.includes('Global averages are anonymous')&&html.includes('They are never shown there with your name or traceable back to your scorecard.'),'Heat Check must explain the Global Pool aggregation privacy boundary.');
 assert(html.includes('Start a New Private Pool')&&html.includes('Create a Private Pool'),'The empty lobby must distinguish private pools from the Global Pool.');
 assert(html.includes('You’re registered for the Global Pool')&&html.includes('Invite your Friends to Join'),'Prelaunch Global Pool onboarding must confirm registration and invite sharing.');
+assert(html.includes('<h3>Email notifications</h3>')&&html.includes('aria-label="Email notification choices"'),'Settings must identify notification choices as email notifications.');
 assert(html.includes('Predictions will open on October 14.')&&html.includes('Everyone should watch episode 1 before coming back to make predictions.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
+const prelaunchPanelStart=html.indexOf("poolTab==='play' && !cfg.PLAYABLE");
+const prelaunchPanelEnd=html.indexOf("poolTab==='play' && cfg.PLAYABLE",prelaunchPanelStart);
+const prelaunchPanel=html.slice(prelaunchPanelStart,prelaunchPanelEnd);
+assert(prelaunchPanel.indexOf('Invite your Friends to Join')<prelaunchPanel.indexOf('Check for season updates')&&prelaunchPanel.indexOf('Check for season updates')<prelaunchPanel.indexOf('Test the app with past seasons'),'The past-season test path must follow the invite and season-update actions.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
 const enterPoolSource=html.slice(html.indexOf('const enterPool = async'),html.indexOf('\n  const analyticsRoute=',html.indexOf('const enterPool = async')));
@@ -230,7 +235,7 @@ assert(!enterPoolSource.includes('The pool owner needs to open this pool once'),
 const refreshPoolSource=html.slice(html.indexOf('const refreshPool = async'),html.indexOf('\n  const shareFriendPool = async',html.indexOf('const refreshPool = async')));
 assert(refreshPoolSource.includes('!pool.rulesSnapshot&&pool.global!==true&&pool.ownerUid===user.uid'),'Only the owner may freeze rules while refreshing an unfrozen private pool.');
 assert(!refreshPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to refresh an unfrozen pool using the live season configuration.');
-assert(analyticsSource.includes("Object.freeze({a:'4.99',b:'9.99',c:'12.99'})"),'The price experiment must use the approved three price points.');
+assert(analyticsSource.includes("Object.freeze({a:'4.99',c:'12.99'})"),'Pricing research must compare only the two endpoint prices.');
 assert(functionsSource.includes('db.recursiveDelete(db.doc(`clientErrors/${uid}`))'),'Account deletion must remove client diagnostics.');
 assert(!functionsSource.includes("collectionGroup('members')"),'Half-finished member-subcollection cleanup must not abort account deletion before Phase 5.');
 assert(html.includes('updateProfileUsername'),'Username changes must use an update that preserves createdAt.');
@@ -474,8 +479,11 @@ assert(html.includes("window.ttwAnalytics?.identify(u.uid,{seasonId:"),'Authenti
 assert(html.includes("window.ttwAnalytics?.reset();identifiedAnalyticsUid.current=''"),'Sign-out and account deletion must reset PostHog identity.');
 assert(analyticsSource.includes("const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true})"),'PostHog events must opt out of GeoIP enrichment before leaving the browser.');
 assert(analyticsSource.includes("window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES})"),'Acquisition source, app build, and privacy controls must be PostHog super-properties.');
-assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'The price fake door must wait for a resolved PostHog feature flag.');
-['invite_sent','invite_link_opened','invite_accepted','episode_return','notif_opt_in','price_fakedoor_click','founding_email_captured'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'Pricing research must wait for a resolved PostHog feature flag.');
+assert(html.includes('if(!pricingPrompt){setPriceVariant(null);return()=>{};}')&&html.includes('window.ttwAnalytics?.onPriceVariant(setPriceVariant)'),'The price flag must not be read until an owner becomes eligible for the prompt.');
+assert(html.includes("pricingPrompt?.poolId===activePool.id&&pricingPrice&&<PricingResearchCard"),'The pricing card must not render until a supported price variant has resolved.');
+['invite_sent','invite_link_opened','invite_accepted','episode_return','notif_opt_in','price_prompt_shown','price_response'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+assert(!html.includes("trackTtwEvent('price_fakedoor_click'")&&!html.includes("trackTtwEvent('founding_email_captured'"),'The obsolete two-step fake-door events must not remain in the app.');
 const saveUsernameStart=html.indexOf('const saveUsername = async () =>');
 const changeUsernameStart=html.indexOf('const changeUsername = async rawValue =>',saveUsernameStart);
 const addInviteEmailStart=html.indexOf('const addInviteEmail = () =>',changeUsernameStart);
@@ -490,6 +498,10 @@ assert(phaseCompletionStart>=0&&phaseCompletionEnd>phaseCompletionStart,'Could n
 const phaseCompletionSource=html.slice(phaseCompletionStart,phaseCompletionEnd);
 assert(!phaseCompletionSource.includes("if(phaseId==='pods')"),'first_checkpoint_locked must not be limited to the Pods phase.');
 assert(phaseCompletionSource.includes("const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid")&&phaseCompletionSource.includes('if(!localStorage.getItem(analyticsKey))')&&phaseCompletionSource.includes("localStorage.setItem(analyticsKey,'1')"),'first_checkpoint_locked must retain its once-per-pool-per-player localStorage guard.');
+assert(phaseCompletionSource.includes('firstCheckpoint&&!globalPool&&activePool?.id===poolId&&activePool.ownerUid===uid&&promptSeason?.id===defaultSeasonId')&&!phaseCompletionSource.includes("promptSeason?.id==='love-is-blind-us-11'")&&phaseCompletionSource.includes('setPricingPrompt({poolId,phase:phaseId,seasonId:promptSeason.id'),'Pricing research must follow the configured live/default season and remain limited to the private-pool owner’s first completed checkpoint.');
+assert(phaseCompletionSource.includes("localStorage.getItem('through-the-wall-pricing-prompted-'+uid)==='1'")&&html.includes("localStorage.setItem('through-the-wall-pricing-prompted-'+user.uid,'1')"),'Pricing research must be suppressed per identified user after it is shown on a device.');
+assert(html.includes('Help us price private pools')&&html.includes('Your pool is free for all of {seasonLabel}.')&&html.includes("onRespond('yes')")&&html.includes("onRespond('maybe')")&&html.includes("onRespond('no')")&&html.includes("onRespond('dismissed')"),'The pricing card must state the current-season guarantee and collect Yes, Maybe, No, or dismissed.');
+assert(html.includes("member_count:memberCount")&&html.includes("response,member_count:memberCount"),'Pricing responses must record the owner’s current private-pool member count.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'})"),'A successful invitation-link join must emit invite_accepted.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'})"),'An accepted email invitation must identify its acceptance channel.');
 assert(html.includes('className="modal ph-no-capture"'),'Settings must be excluded from session replay so account, pool, email, and support details never leave the browser.');

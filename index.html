@@ -661,10 +661,14 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .premium-fakedoor-kicker{color:var(--purple);font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
 .premium-fakedoor h3{margin:5px 0 6px;color:var(--wine);font:700 22px/1.1 'Playfair Display',Georgia,serif}
 .premium-fakedoor p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}
-.premium-price{display:flex;align-items:baseline;gap:5px;margin:13px 0 3px;color:var(--wine)}
-.premium-price strong{font:700 31px/1 'Playfair Display',Georgia,serif}
-.premium-price span{font-size:11px;font-weight:700;color:var(--muted)}
 .premium-fakedoor .btn-secondary,.premium-fakedoor .btn-primary{margin-top:12px}
+.pricing-research{position:relative;margin-top:14px;padding-right:46px}
+.pricing-dismiss{position:absolute;top:10px;right:10px;width:30px;height:30px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
+.pricing-dismiss:hover{border-color:var(--rose);color:var(--wine)}
+.pricing-research .pricing-free-guarantee{margin-top:10px;color:var(--wine)}
+.pricing-response-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.pricing-response-options .btn-secondary{margin:0;padding:10px 8px}
+.pricing-research .pricing-thanks{margin-top:12px;font-weight:700;color:var(--purple)}
 .chemistry-savebar{position:sticky;z-index:4;bottom:12px;margin:18px 0 4px;padding:10px;border:1px solid color-mix(in srgb,var(--rose) 26%,var(--line));border-radius:17px;background:color-mix(in srgb,var(--card) 92%,transparent);box-shadow:0 12px 34px rgba(67,17,39,.15);backdrop-filter:blur(12px)}
 .chemistry-savebar .btn-primary{margin:0}
 .chemistry-empty{padding:30px 20px;text-align:center;border:1px dashed var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 72%,var(--blush-soft))}
@@ -4913,7 +4917,24 @@ function HowItWorksModal({onClose,rules=null,poolSize=null}) {
     </div>
   </div>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,priceVariant=null,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function PricingResearchCard({price,seasonLabel,response,onShown,onRespond}) {
+  useEffect(()=>{onShown?.();},[]);
+  return <section className="premium-fakedoor pricing-research" aria-labelledby="pricing-research-title">
+    <button type="button" className="pricing-dismiss" aria-label="Dismiss pricing question" title="Dismiss" onClick={()=>onRespond('dismissed')}>×</button>
+    <div className="premium-fakedoor-kicker">One quick question</div>
+    <h3 id="pricing-research-title">Help us price private pools</h3>
+    <p>If everyone else could join free, would you pay <strong>${price}</strong> once to host a private pool for a full season?</p>
+    <p className="pricing-free-guarantee"><strong>Your pool is free for all of {seasonLabel}.</strong> This is research only; nothing is for sale.</p>
+    {response
+      ? <p className="pricing-thanks" role="status">Thanks—your answer is recorded. You will not be charged.</p>
+      : <div className="pricing-response-options" role="group" aria-label="Private pool pricing response">
+          <button type="button" className="btn-secondary" onClick={()=>onRespond('yes')}>Yes, I would</button>
+          <button type="button" className="btn-secondary" onClick={()=>onRespond('maybe')}>Maybe</button>
+          <button type="button" className="btn-secondary" onClick={()=>onRespond('no')}>No</button>
+        </div>}
+  </section>;
+}
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4924,8 +4945,6 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [accountUsername,setAccountUsername]=useState(profileUsername);
   const [settingsFeedback,setSettingsFeedback]=useState('');
   const [savingProfile,setSavingProfile]=useState(false);
-  const [premiumExpanded,setPremiumExpanded]=useState(false);
-  const [foundingReserved,setFoundingReserved]=useState(false);
   const [supportCategory,setSupportCategory]=useState('feedback');
   const [supportMessage,setSupportMessage]=useState('');
   const [supportSending,setSupportSending]=useState(false);
@@ -4949,9 +4968,6 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(e?.message||'The pool name could not be changed.');}finally{setSavingProfile(false);}};
   const finishResetLink=async()=>{if(!resetLinkPool||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onResetPoolJoinCode?.(resetLinkPool);setSettingsFeedback('Invite link reset. Share the new link with anyone who should still join.');setResetLinkPool(null);}catch(e){setSettingsFeedback(e?.message||'The invite link could not be reset.');}finally{setSavingProfile(false);}};
   const finishUsername=async()=>{if(savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(e?.message||'The username could not be changed.');}finally{setSavingProfile(false);}};
-  const premiumPrice=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
-  const openPremium=()=>{if(!premiumPrice)return;trackTtwEvent('price_fakedoor_click',{price_variant:priceVariant,sku:'founding_premium'});setPremiumExpanded(true);};
-  const reserveFoundingPrice=()=>{if(!premiumPrice||foundingReserved)return;trackTtwEvent('founding_email_captured',{price_variant:priceVariant});setFoundingReserved(true);};
   const submitSupport=async event=>{
     event.preventDefault();
     const message=supportMessage.trim();
@@ -4996,16 +5012,9 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh confirmed-watch ledger at Episode 0. Established Global-to-private sync links are preserved; each linked tester’s game progress is also cleared in their paired private pool so old progress cannot immediately sync back. Other private-pool members and settings are not changed.</p>
         <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset Global + linked testers</button>
       </div>}
-      <h3>Notifications</h3>
+      <h3>Email notifications</h3>
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
       <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
-      {premiumPrice&&<div className="premium-fakedoor">
-        <div className="premium-fakedoor-kicker">Help us test an idea</div>
-        <h3>Would you pay once to play a season with friends?</h3>
-        <p>We’re testing whether a one-time season pass could support Through the Wall. This is an interest check only—nothing is for sale and you will not be charged.</p>
-        <div className="premium-price"><strong>${premiumPrice}</strong><span>possible one-time price per season</span></div>
-        {!premiumExpanded?<button className="btn-secondary" type="button" onClick={openPremium}>I might pay this for a season</button>:foundingReserved?<p role="status" style={{marginTop:12,fontWeight:700,color:'var(--purple)'}}>Thanks—that interest is recorded. No charge was made.</p>:<React.Fragment><p className="ph-no-capture" style={{marginTop:10}}>Tell us this price feels reasonable using your signed-in account{userEmail?` (${userEmail})`:''}. This does not create a purchase or reservation.</p><button className="btn-primary" type="button" onClick={reserveFoundingPrice}>Yes, I’d consider this price</button></React.Fragment>}
-      </div>}
       <form className="support-panel" onSubmit={submitSupport} aria-labelledby="support-title">
         <div className="premium-fakedoor-kicker">Feedback &amp; support</div>
         <h3 id="support-title">Tell us what happened—or what would make this better.</h3>
@@ -5113,6 +5122,8 @@ function App() {
   const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
   const [priceVariant,setPriceVariant]=useState(null);
+  const [pricingPrompt,setPricingPrompt]=useState(null);
+  const [pricingResponse,setPricingResponse]=useState('');
   // Config
   const [cfg, setCfg] = useState(null);
   const [,setSeasonCatalogVersion] = useState(0);
@@ -5202,6 +5213,7 @@ function App() {
   const pendingMirroredGlobalLocks = useRef(new Set());
   const pendingJoinedPool = useRef(null);
   const identifiedAnalyticsUid = useRef('');
+  const pricingPromptShown = useRef('');
   const confirmResolver=useRef(null);
   const lastStandingsRefresh=useRef(0);
   const globalPoolSeason=seasonById(defaultSeasonId)||seasonById(DEFAULT_SEASON_ID);
@@ -5229,6 +5241,23 @@ function App() {
     }
     catch(error){console.error('Notification preferences could not be saved.',error);setNotificationPreferences(previous);setErr('Your nudge setting did not save. Give it another tap.');}
     finally{setNotificationSaving(false);}
+  };
+  const submitPricingResponse=response=>{
+    const price=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
+    if(!pricingPrompt||!price||pricingResponse||!['yes','maybe','no','dismissed'].includes(response))return;
+    const memberCount=activePool?.id===pricingPrompt.poolId&&Array.isArray(activePool.members)?activePool.members.length:pricingPrompt.memberCount;
+    trackTtwEvent('price_response',{poolId:pricingPrompt.poolId,seasonId:pricingPrompt.seasonId,phase:pricingPrompt.phase,price_variant:priceVariant,price,response,member_count:memberCount});
+    setPricingResponse(response);
+    if(response==='dismissed')setPricingPrompt(null);
+  };
+  const notePricingPromptShown=()=>{
+    const price=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
+    if(!pricingPrompt||!price||!user?.uid)return;
+    const shownKey=`${user.uid}:${pricingPrompt.poolId}:${priceVariant}`;
+    if(pricingPromptShown.current===shownKey)return;
+    pricingPromptShown.current=shownKey;
+    trackTtwEvent('price_prompt_shown',{poolId:pricingPrompt.poolId,seasonId:pricingPrompt.seasonId,phase:pricingPrompt.phase,price_variant:priceVariant,price,member_count:pricingPrompt.memberCount});
+    try{localStorage.setItem('through-the-wall-pricing-prompted-'+user.uid,'1');}catch(error){}
   };
   const replayPendingSave = useCallback(async uid=>{
     try {
@@ -5292,7 +5321,10 @@ function App() {
     }).catch(error=>console.info('The live/default season could not be refreshed.',error));
     return()=>{cancelled=true;};
   },[]);
-  useEffect(()=>window.ttwAnalytics?.onPriceVariant(setPriceVariant),[]);
+  useEffect(()=>{
+    if(!pricingPrompt){setPriceVariant(null);return()=>{};}
+    return window.ttwAnalytics?.onPriceVariant(setPriceVariant);
+  },[pricingPrompt]);
   useEffect(()=>{
     if(authState!=='signedin')return;
     let cancelled=false;
@@ -5376,6 +5408,7 @@ function App() {
     let entryMirrorFailed=false;
     try {
       setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab(pool.global===true&&GLOBAL_POOL_DEMO_MODE?'standings':'play');
+      setPricingPrompt(null);setPricingResponse('');setPriceVariant(null);
       setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
       setPhaseCompletionError(''); phaseCompletionAttempted.current='';
       setSeenRetroNotices([]);setSessionRetroNotices([]);
@@ -5853,6 +5886,7 @@ function App() {
     try {
       setActivePool(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({}); setPendingPoolInvites([]); setDuplicateFromPoolId(''); setSeenRetroNotices([]);setSessionRetroNotices([]);setEng(null);
       setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
+      setPricingPrompt(null);setPricingResponse('');setPriceVariant(null);
       resetRuntimeConfig();
       await loadLobby();
       return true;
@@ -5878,7 +5912,7 @@ function App() {
   const handleSignOut = async () => {
     if(signingOut||!await confirmExitWithUnsavedChanges())return;
     setSigningOut(true);setErr('');setShowSettings(false);
-    try{await window._fb.signOut();setActivePool(null);resetRuntimeConfig();}
+    try{await window._fb.signOut();setActivePool(null);setPricingPrompt(null);setPricingResponse('');setPriceVariant(null);resetRuntimeConfig();}
     catch(e){setErr(window._fb.authErrorMessage(e,'You could not be signed out. Please try again.'));}
     finally{setSigningOut(false);}
   };
@@ -6289,7 +6323,24 @@ function App() {
         if(completionResult?.data?.standingsStale)setGlobalStandingsNotice('Your checkpoint is safely completed. The leaderboard update is delayed and will retry automatically.');
         confirmedStatus={completedMembers:[uid],updatedAt:Date.now()};
       }else confirmedStatus=await window._fb.completePhase(poolId,phaseId,uid);
-      try{const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid;if(!localStorage.getItem(analyticsKey)){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});localStorage.setItem(analyticsKey,'1');}}catch(e){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});}
+      let firstCheckpoint=false;
+      try{
+        const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid;
+        if(!localStorage.getItem(analyticsKey)){
+          firstCheckpoint=true;
+          trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});
+          localStorage.setItem(analyticsKey,'1');
+        }
+      }catch(e){firstCheckpoint=true;trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});}
+      const promptSeason=activePool?seasonForPool(activePool):null;
+      if(firstCheckpoint&&!globalPool&&activePool?.id===poolId&&activePool.ownerUid===uid&&promptSeason?.id===defaultSeasonId){
+        let alreadyPrompted=false;
+        try{alreadyPrompted=localStorage.getItem('through-the-wall-pricing-prompted-'+uid)==='1';}catch(error){}
+        if(!alreadyPrompted){
+          setPricingResponse('');
+          setPricingPrompt({poolId,phase:phaseId,seasonId:promptSeason.id,seasonLabel:promptSeason.seasonNumber?`Season ${promptSeason.seasonNumber}`:formatSeasonLabel(promptSeason),memberCount:Array.isArray(activePool.members)?activePool.members.length:1});
+        }
+      }
       if(confirmedStatus)setPoolStatus(current=>({...current,[phaseId]:confirmedStatus}));
       setPhaseCompletionError('');
       setErr(current=>current===message?'':current);
@@ -6316,7 +6367,7 @@ function App() {
       setErr(message);
       return false;
     } finally { setRetryingPhaseCompletion(false); }
-  },[picks,PH_SPAN]);
+  },[picks,PH_SPAN,activePool?.id,activePool?.ownerUid,defaultSeasonId]);
   const finishWatch = async (targetOverride=null) => {
     const requestedTarget=Number.isFinite(targetOverride)?targetOverride:watchThrough;
     const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);
@@ -6791,7 +6842,7 @@ function App() {
       {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={availableHistoricalSeasonCount()>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onWatchChange={initialWatchedThrough=>setGlobalJoin(current=>({...current,initialWatchedThrough}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
@@ -6808,6 +6859,7 @@ function App() {
     window.location.assign(url.toString());
   };
   const saveBadge = <div className="save-status" role={saveState==='error'?'alert':'status'} aria-live={saveState==='error'?'assertive':'polite'} aria-atomic="true">{saveState&&<React.Fragment><span className={`savebadge ${saveState}`}>{saveState==='saving'?'saving…':saveState==='saved'?'✓ saved':'! not saved'}</span>{saveState==='error'&&<button className="save-retry" onClick={()=>flushSave().catch(()=>{})}>Retry save</button>}</React.Fragment>}</div>;
+  const pricingPrice=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
   const linkedPoolNames=linkedMirrorPeers(pickMirrorLinks.current,activePool.id).map(link=>{
     if(link.poolId.startsWith('global__'))return 'Global Pool';
     return pools.find(candidate=>candidate.id===link.poolId)?.name||'linked private pool';
@@ -6917,10 +6969,11 @@ function App() {
       <h2>{activePool.global===true?'You’re registered for the Global Pool':'Your pool is ready'}</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
       {activePool.global===true&&seasonForPool(activePool).id==='love-is-blind-us-11'
-        ? <React.Fragment><div className="notice"><b>Episode 1 drops October 14.</b> Watch it first, then come back—predictions begin after Episode 1 and will be available here later that day.</div><p className="subtle">Predictions will open on October 14. Thanks for your patience while we keep the game accurate and spoiler-safe. Everyone should watch episode 1 before coming back to make predictions.</p><div className="notice" style={{marginTop:14}}><b>Test the app with past seasons</b><p style={{margin:'6px 0 10px'}}>Start a private pool with a completed season while you wait for Season 11.</p><button type="button" className="btn-secondary" onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool</button></div></React.Fragment>
+        ? <React.Fragment><div className="notice"><b>Episode 1 drops October 14.</b> Watch it first, then come back—predictions begin after Episode 1 and will be available here later that day.</div><p className="subtle">Predictions will open on October 14. Thanks for your patience while we keep the game accurate and spoiler-safe. Everyone should watch episode 1 before coming back to make predictions.</p></React.Fragment>
         : <div className="notice"><b>Season has not started.</b> {activePool.global===true?'The Global Pool is open to everyone. Share the app with friends and they can join from their own account.':'Use the Standings tab to invite your friends now.'} Predictions will open shortly after the first episodes drop.</div>}
       {activePool.global===true&&<React.Fragment><button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Invite your Friends to Join'}</button>{globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
       <button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Checking for updates…':'Check for season updates'}</button>
+      {activePool.global===true&&seasonForPool(activePool).id==='love-is-blind-us-11'&&<div className="notice" style={{marginTop:14}}><b>Test the app with past seasons</b><p style={{margin:'6px 0 10px'}}>Start a private pool with a completed season while you wait for Season 11.</p><button type="button" className="btn-secondary" onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool</button></div>}
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <div className="ph-no-capture" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
       <Stepper phase={phase} RULES={RULES}/>
@@ -6973,6 +7026,7 @@ function App() {
           {phaseCompletionError&&<ErrorCard title="Completion not registered" message={phaseCompletionError}><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying…':'Retry phase completion'}</button></ErrorCard>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+navigationPhaseLabel(NEXT_PH[phase],RULES)+' →':'Finish the season →'}</button>
         </div>
+        {pricingPrompt?.poolId===activePool.id&&pricingPrice&&<PricingResearchCard price={pricingPrice} seasonLabel={pricingPrompt.seasonLabel} response={pricingResponse} onShown={notePricingPromptShown} onRespond={submitPricingResponse}/>}
       </React.Fragment>}
       {screen==='final'&&<div className="card gatecard">
         <div className="crown">👑</div>
@@ -6983,7 +7037,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} priceVariant={priceVariant} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }
