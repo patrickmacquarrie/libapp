@@ -993,14 +993,14 @@ async function resetHistoricalGlobalSimulation(request){
   playersSnapshot.docs.forEach(document=>batch.set(document.ref,{
     phase:'pods',screen:'intro',w:0,watchThrough:0,completed:{},
     // Preserve duplicateFromPoolId. Historical testers must keep their
-    // established private-pool links after the confirmed-watch ledger resets;
+    // established friend-pool links after the confirmed-watch ledger resets;
     // leaving and rejoining must not change player-relative scoring rules.
     lastPredictionAt:FieldValue.delete(),
   },{merge:true}));
   phasePicksSnapshot.docs.forEach(document=>batch.delete(document.ref));
   PHASES.forEach(phase=>batch.set(poolRef.collection('phaseStatus').doc(phase),{completedMembers:[],updatedAt:resetAt}));
   batch.delete(poolRef.collection('standings').doc('current'));
-  // A preserved link would otherwise replay the linked player's old private-pool
+  // A preserved link would otherwise replay the linked player's old friend-pool
   // progress into Global as soon as either pool opens. Reset only that player's
   // game state on the source side; pool membership and every other player stay intact.
   resettableLinks.forEach(({uid,sourcePoolId})=>{
