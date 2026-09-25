@@ -459,13 +459,17 @@ assert(html.includes('<b>Invitation link saved.</b> You won’t need to reopen i
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Google sign-in start must emit a conversion event.');
+assert(html.includes("!EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)&&<button className=\"btn-google\"")&&html.includes("EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)?'btn-primary':'btn-secondary'"),'Embedded social browsers must hide Google sign-in and make email-link sign-in primary.');
+assert(html.includes('Signing in from Instagram? Use your email, or open this page in Safari or Chrome.'),'Embedded social browsers must explain the supported sign-in path.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_success'"),'Successful redirect resolution must emit a conversion event.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_failure',{code:"),'Redirect failures must report their auth error code.');
 assert(html.includes("trackTtwEvent('app_arrival')"),'Every arrival must emit a conversion event.');
 assert(html.includes("const trackTtwEvent=(event,details={})=>window.ttwAnalytics?.track(event,details)"),'Named product analytics must retain one dispatcher.');
 assert(analyticsSource.includes('window.posthog?.capture(event,payload)'),'The shared dispatcher must fan every named event out to PostHog.');
 assert(!html.includes('posthog.capture('),'PostHog event capture must not be scattered through the app.');
-assert(analyticsSource.includes("person_profiles:'identified_only'")&&analyticsSource.includes('capture_pageview:true')&&analyticsSource.includes('autocapture:true'),'PostHog must initialize with the beta product-analytics settings.');
+assert(analyticsSource.includes("person_profiles:'identified_only'")&&analyticsSource.includes('capture_pageview:window.__TTW_MANUAL_PAGEVIEWS__?false:true')&&analyticsSource.includes('autocapture:true'),'PostHog must initialize with the beta product-analytics settings and respect manual pageviews.');
+assert(html.indexOf('window.__TTW_MANUAL_PAGEVIEWS__=true')<html.indexOf('<script src="analytics.js"></script>'),'The app must disable automatic PostHog pageviews before analytics loads.');
+assert(html.includes("const analyticsRoute=!['signedin','signedout','profileerror'].includes(authState)")&&html.includes('if(analyticsRoute)window.ttwAnalytics?.capturePageview(analyticsRoute)'),'Transient authentication routes must not send manual app pageviews.');
 assert(analyticsSource.includes("mask_all_text:true")&&analyticsSource.includes("mask_all_element_attributes:true"),'PostHog autocapture must mask rendered text and element attributes.');
 const sessionRecordingStart=analyticsSource.indexOf('session_recording:{');
 const sessionRecordingEnd=analyticsSource.indexOf('\n      },\n    });',sessionRecordingStart);
@@ -473,7 +477,7 @@ assert(sessionRecordingStart>=0&&sessionRecordingEnd>sessionRecordingStart,'Post
 const sessionRecordingSource=analyticsSource.slice(sessionRecordingStart,sessionRecordingEnd);
 assert(sessionRecordingSource.includes('maskAllInputs:true')&&sessionRecordingSource.includes("maskTextSelector:'*'"),'Session replay must use PostHog\'s maximum supported input and rendered-text masking.');
 assert(analyticsSource.includes("property_denylist:['email','username','displayName','name','toEmail','inviteEmail']"),'PostHog must drop PII-shaped event properties.');
-assert(analyticsSource.includes("['$current_url','$referrer','$initial_referrer']"),'PostHog page and referrer properties must remove query strings before sending.');
+assert(analyticsSource.includes('mask_personal_data_properties:true')&&analyticsSource.includes("['join','signInEmail','oobCode','apiKey','continueUrl','mode','lang','tenantId']"),'PostHog must mask the configured personal URL properties.');
 assert(analyticsSource.includes("window.posthog.identify(String(firebaseUid),{},setOnce)"),'PostHog identity must use only the stable Firebase UID plus set-once cohort properties.');
 assert(html.includes("window.ttwAnalytics?.identify(u.uid,{seasonId:"),'Authenticated sessions must identify with the Firebase UID.');
 assert(html.includes("window.ttwAnalytics?.reset();identifiedAnalyticsUid.current=''"),'Sign-out and account deletion must reset PostHog identity.');
@@ -482,7 +486,7 @@ assert(analyticsSource.includes("window.posthog.register({acquisition_source:coh
 assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'Pricing research must wait for a resolved PostHog feature flag.');
 assert(html.includes('if(!pricingPrompt){setPriceVariant(null);return()=>{};}')&&html.includes('window.ttwAnalytics?.onPriceVariant(setPriceVariant)'),'The price flag must not be read until an owner becomes eligible for the prompt.');
 assert(html.includes("pricingPrompt?.poolId===activePool.id&&pricingPrice&&<PricingResearchCard"),'The pricing card must not render until a supported price variant has resolved.');
-['invite_sent','invite_link_opened','invite_accepted','episode_return','notif_opt_in','price_prompt_shown','price_response'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+['invite_sent','invite_link_opened','invite_accepted','global_pool_joined','episode_return','notif_opt_in','price_prompt_shown','price_response'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
 assert(!html.includes("trackTtwEvent('price_fakedoor_click'")&&!html.includes("trackTtwEvent('founding_email_captured'"),'The obsolete two-step fake-door events must not remain in the app.');
 const saveUsernameStart=html.indexOf('const saveUsername = async () =>');
 const changeUsernameStart=html.indexOf('const changeUsername = async rawValue =>',saveUsernameStart);
@@ -504,6 +508,14 @@ assert(html.includes('Help us price private pools')&&html.includes('Your pool is
 assert(html.includes("member_count:memberCount")&&html.includes("response,member_count:memberCount"),'Pricing responses must record the owner’s current private-pool member count.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'})"),'A successful invitation-link join must emit invite_accepted.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'})"),'An accepted email invitation must identify its acceptance channel.');
+const openGlobalPoolStart=html.indexOf('const openGlobalPool = async season =>');
+const joinGlobalPoolStart=html.indexOf('const doJoinGlobalPool = async () =>',openGlobalPoolStart);
+const acceptInvitationStart=html.indexOf('const doAccept = async',joinGlobalPoolStart);
+assert(openGlobalPoolStart>=0&&joinGlobalPoolStart>openGlobalPoolStart&&acceptInvitationStart>joinGlobalPoolStart,'Could not isolate the Global Pool open and join paths.');
+const openGlobalPoolSource=html.slice(openGlobalPoolStart,joinGlobalPoolStart);
+const joinGlobalPoolSource=html.slice(joinGlobalPoolStart,acceptInvitationStart);
+assert(!openGlobalPoolSource.includes("trackTtwEvent('global_pool_joined'"),'Reopening an existing Global Pool membership must not emit a new join.');
+assert(joinGlobalPoolSource.indexOf("trackTtwEvent('global_pool_joined',{seasonId:season.id,initialWatchedThrough,mirrored:!!sourcePoolId})")>joinGlobalPoolSource.indexOf('await window._fb.joinGlobalPool(season,initialWatchedThrough)'),'A successful new Global Pool join must emit its season, starting watch position, and mirror state after the join completes.');
 assert(html.includes('className="modal ph-no-capture"'),'Settings must be excluded from session replay so account, pool, email, and support details never leave the browser.');
 assert(html.includes('className="pool-row ph-no-capture"'),'User-created pool names must be excluded from session replay.');
 assert(html.includes('className="invite-row ph-no-capture"'),'Invitation details must be excluded from session replay.');
@@ -545,6 +557,16 @@ assert(!Object.hasOwn(inviteWithUtm.stored,'join'),'Invite campaign acquisition 
 assert.equal(loadAcquisitionAnalytics().acquisitionSource,'organic_direct','An empty first visit must remain organic direct.');
 assert.equal(loadAcquisitionAnalytics({referrer:'https://example.test/article'}).acquisitionSource,'organic_referral','A referred first visit must remain organic referral.');
 
+const emailReturnHelperStart=html.indexOf("const emailSignInReturnUrl=");
+const emailReturnHelperEnd=html.indexOf('\n/* AUTH HELPERS END */',emailReturnHelperStart);
+assert(emailReturnHelperStart>=0&&emailReturnHelperEnd>emailReturnHelperStart,'Could not isolate the email sign-in return URL helper.');
+const emailSignInReturnUrl=vm.runInNewContext(`${html.slice(emailReturnHelperStart,emailReturnHelperEnd)}\nemailSignInReturnUrl`,{URL});
+const paidEmailReturn=emailSignInReturnUrl('https://throughthewall.ca/?join=pool.code&utm_campaign=launch','paid_meta');
+assert.equal(paidEmailReturn.searchParams.get('acquisition_source'),'paid_meta','Email sign-in must carry the first-touch acquisition source into the destination browser.');
+assert.equal(paidEmailReturn.searchParams.get('join'),'pool.code','Email sign-in must preserve the pending invitation parameter.');
+assert.equal(paidEmailReturn.searchParams.get('utm_campaign'),'launch','Email sign-in must preserve existing campaign parameters.');
+assert.equal(emailSignInReturnUrl('https://throughthewall.ca/?acquisition_source=invite','paid_meta').searchParams.get('acquisition_source'),'invite','Email sign-in must not overwrite an explicit acquisition source.');
+
 const analyticsListeners=new Map();
 const analyticsStorage=new Map();
 class AnalyticsCustomEvent{
@@ -555,6 +577,7 @@ const analyticsWindow={
   addEventListener:(type,listener)=>analyticsListeners.set(type,listener),
   dispatchEvent:event=>{analyticsListeners.get(event.type)?.(event);return true;},
   __TTW_BROWSING_CONTEXT__:{browser_context:'browser'},
+  __TTW_MANUAL_PAGEVIEWS__:true,
 };
 const analyticsDocument={
   referrer:'',
@@ -598,12 +621,36 @@ assert.deepEqual(JSON.parse(JSON.stringify(identifyCall)),['identify','firebase-
 const posthogConfig=analyticsWindow.posthog._i[0][1];
 const registrationCall=analyticsWindow.posthog.find(call=>call[0]==='register');
 assert.equal(registrationCall[1].$geoip_disable,true,'Automatic PostHog events and feature-flag requests must disable GeoIP enrichment.');
+assert.equal(posthogConfig.capture_pageview,false,'The app shell must disable PostHog automatic pageviews.');
+assert.equal(posthogConfig.mask_personal_data_properties,true,'PostHog personal-data masking must be enabled.');
+assert.deepEqual(Array.from(posthogConfig.custom_personal_data_properties),['join','signInEmail','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
 assert.equal(posthogConfig.session_recording.maskAllInputs,true,'Session replay must mask form input values.');
 assert.equal(posthogConfig.session_recording.maskTextSelector,'*','Session replay must mask every rendered text node.');
 assert.equal(posthogConfig.session_recording.maskAllElementAttributes,undefined,'Session replay must not pretend the unsupported maskAllElementAttributes option protects accessibility attributes; sensitive regions use ph-no-capture instead.');
-const sanitizedEvent=posthogConfig.before_send({properties:{$current_url:'https://throughthewall.ca/?join=secret-token',$referrer:'https://example.test/path?private=yes'}});
-assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/');
-assert.equal(sanitizedEvent.properties.$referrer,'https://example.test/path');
+const sanitizedEvent=posthogConfig.before_send({
+  properties:{
+    $current_url:'https://throughthewall.ca/?join=secret-token#/app/lobby',
+    $referrer:'https://www.throughthewall.ca/sign-in?signInEmail=player@example.com&oobCode=secret',
+    $initial_referrer:'https://throughthewall.ca/?join=initial-code',
+    $session_entry_url:'https://throughthewall.ca/?join=session-code',
+    $session_entry_referrer:'https://throughthewall.ca/?oobCode=session-secret',
+    $prev_pageview_pathname:'/welcome/',
+    $pathname:'/app/',
+    $web_vitals_FCP_event:{$current_url:'https://throughthewall.ca/?signInEmail=player@example.com&oobCode=vitals-secret'},
+  },
+  $set:{$current_url:'https://throughthewall.ca/?join=set-code'},
+  $set_once:{$initial_current_url:'https://throughthewall.ca/?join=first-code&signInEmail=player@example.com'},
+});
+assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/#/app/lobby','Hash routes must survive URL sanitization.');
+assert.equal(sanitizedEvent.properties.$pathname,'/app/');
+assert.equal(sanitizedEvent.properties.$prev_pageview_pathname,'/welcome/');
+const sanitizedStrings=[];
+const collectStrings=value=>{if(typeof value==='string')sanitizedStrings.push(value);else if(value&&typeof value==='object')Object.values(value).forEach(collectStrings);};
+collectStrings(sanitizedEvent);
+for(const value of sanitizedStrings){
+  assert(!value.includes('?'),'Sanitized PostHog event values must not retain URL query strings.');
+  assert(!/join=|signInEmail|oobCode/.test(value),'Sanitized PostHog event values must not retain join or sign-in secrets.');
+}
 assert.equal(sanitizedEvent.properties.$geoip_disable,true,'Automatic SDK events and replay snapshots must disable GeoIP enrichment before sending.');
 assert(html.includes("browserContext='instagram_in_app'")&&html.includes("browserContext='messenger_in_app'")&&html.includes("browserContext='tiktok_in_app'"),'Arrival telemetry must distinguish common in-app browsers.');
 assert(html.includes("reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'})"),'Unresolved auth returns must emit the bounded startup failure diagnostic.');

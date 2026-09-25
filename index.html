@@ -23,6 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>window.__TTW_MANUAL_PAGEVIEWS__=true;</script>
 <script src="analytics.js"></script>
 <script defer data-domain="throughthewall.ca" src="https://plausible.io/js/script.js"></script>
 <script>try{const t=localStorage.getItem('prediction-pool-theme')==='dark'?'dark':'light';document.documentElement.dataset.theme=t;document.querySelector('meta[name="theme-color"]').content=t==='dark'?'#170a11':'#431127';}catch(e){document.documentElement.dataset.theme='light';}</script>
@@ -873,6 +874,11 @@ const cleanEmailSignInUrl=href=>{
   ['apiKey','oobCode','mode','continueUrl','lang','tenantId',EMAIL_SIGN_IN_QUERY].forEach(key=>url.searchParams.delete(key));
   return url.toString();
 };
+const emailSignInReturnUrl=(href,acquisitionSource='')=>{
+  const returnUrl=new URL(href);
+  if(acquisitionSource&&!returnUrl.searchParams.has('acquisition_source'))returnUrl.searchParams.set('acquisition_source',acquisitionSource);
+  return returnUrl;
+};
 /* AUTH HELPERS END */
 const firebaseConfig = {
   apiKey: "AIzaSyDmP4Y7-mFQNvbbd2EpKqY0WAPNO96LzEs",
@@ -910,6 +916,7 @@ const detectBrowsingContext=()=>{
   return {browserContext,platform};
 };
 const BROWSING_CONTEXT=Object.freeze(detectBrowsingContext());
+const EMBEDDED_BROWSER_CONTEXTS=Object.freeze(['instagram_in_app','facebook_in_app','messenger_in_app','tiktok_in_app','android_webview','ios_webview']);
 window.__TTW_BROWSING_CONTEXT__=BROWSING_CONTEXT;
 const dispatchAuthConversion=(event,details={})=>window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:{event,...BROWSING_CONTEXT,...details}}));
 const hasAuthRedirectParams=()=>{
@@ -1126,7 +1133,7 @@ window._fb = {
   hasPendingAuthRedirect,
   hasPendingFriendInvitation,
   sendEmailSignInLink: async email => {
-    const returnUrl=new URL(window.location.href);
+    const returnUrl=emailSignInReturnUrl(window.location.href,window.ttwAnalytics?.acquisitionSource||'');
     returnUrl.searchParams.set(EMAIL_SIGN_IN_QUERY,email);
     await sendSignInLinkToEmail(auth,email,{url:returnUrl.toString(),handleCodeInApp:true});
     localStorage.setItem('through-the-wall-email-signin',email);
@@ -5731,14 +5738,16 @@ function App() {
     pendingJoinedPool.current=null;
     enterPool(invitedPool);
   },[authState,profile?.username,pools,activePool,enteringPool]);
-  const analyticsRoute=authState!=='signedin'
-    ? `/app/${authState}`
+  const analyticsRoute=!['signedin','signedout','profileerror'].includes(authState)
+    ? null
+    : authState!=='signedin'
+      ? `/app/${authState}`
     : !profile?.username
       ? '/app/profile'
       : activePool
         ? `/app/pool/${activePool.id}/${poolTab}/${phase}/${screen}`
         : creating?'/app/create':'/app/lobby';
-  useEffect(()=>{window.ttwAnalytics?.capturePageview(analyticsRoute);},[analyticsRoute]);
+  useEffect(()=>{if(analyticsRoute)window.ttwAnalytics?.capturePageview(analyticsRoute);},[analyticsRoute]);
   /* ── Save player state ── */
   const flushSave = useCallback(async () => {
     clearTimeout(saveTimer.current);
@@ -5993,6 +6002,7 @@ function App() {
     try {
       setJoiningGlobal(true);setErr('');
       const globalPool=await window._fb.joinGlobalPool(season,initialWatchedThrough);
+      trackTtwEvent('global_pool_joined',{seasonId:season.id,initialWatchedThrough,mirrored:!!sourcePoolId});
       setGlobalPools(current=>({...current,[season.id]:globalPool}));
       if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
@@ -6102,7 +6112,7 @@ function App() {
     if(destructiveActionPending)return;
     if(!await requestConfirmation({title:'Permanently delete your account?',body:'This removes your profile, predictions, Heat Check ratings, and pool history. Pools you own will also be deleted. This cannot be undone.',confirmLabel:'Delete my account',cancelLabel:'Keep my account'}))return;
     setDestructiveActionPending(true);setErr('');
-    try{await window._fb.deleteMyAccount();if(identifiedAnalyticsUid.current){window.ttwAnalytics?.reset();identifiedAnalyticsUid.current='';}setShowSettings(false);setActivePool(null);resetRuntimeConfig();}
+    try{await window._fb.deleteMyAccount();window.ttwAnalytics?.stop();identifiedAnalyticsUid.current='';setShowSettings(false);setActivePool(null);resetRuntimeConfig();}
     catch(e){console.error(e);setErr(e?.message||'Your account could not be deleted. Please try again.');}
     finally{setDestructiveActionPending(false);}
   };
@@ -6704,12 +6714,13 @@ function App() {
       <h2>{pendingFriendInvitation?'Sign in to accept your invitation':'Ready to start your season?'}</h2>
       <p className="lede">{pendingFriendInvitation?'We saved this invitation in your browser and will take you to the pool after sign-in.':'Sign in to create a private pool or join a friend. Your confirmed predictions will be saved to your account as the season unfolds.'}</p>
       {pendingFriendInvitation&&<div className="notice" role="status"><b>Invitation link saved.</b> You won’t need to reopen it after signing in.</div>}
-      <button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
+      {!EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)&&<button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
         {signingIn?'Opening sign-in…':pendingFriendInvitation?'Sign in with Google to join':'Sign in with Google'}
-      </button>
-      <div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>
-      {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on any device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className="btn-secondary" type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
+      </button>}
+      {EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)&&<p className="notice">Signing in from Instagram? Use your email, or open this page in Safari or Chrome.</p>}
+      {!EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)&&<div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>}
+      {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on any device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className={EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)?'btn-primary':'btn-secondary'} type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
       <p className="subtle" style={{marginTop:14}}>By continuing, you agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p>
       {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     </div>
