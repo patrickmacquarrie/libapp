@@ -468,6 +468,20 @@ assert(analyticsSource.includes("const PRIVACY_PROPERTIES=Object.freeze({$geoip_
 assert(analyticsSource.includes("window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES})"),'Acquisition source, app build, and privacy controls must be PostHog super-properties.');
 assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'The price fake door must wait for a resolved PostHog feature flag.');
 ['invite_sent','invite_link_opened','invite_accepted','episode_return','notif_opt_in','price_fakedoor_click','founding_email_captured'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+const saveUsernameStart=html.indexOf('const saveUsername = async () =>');
+const changeUsernameStart=html.indexOf('const changeUsername = async rawValue =>',saveUsernameStart);
+const addInviteEmailStart=html.indexOf('const addInviteEmail = () =>',changeUsernameStart);
+assert(saveUsernameStart>=0&&changeUsernameStart>saveUsernameStart&&addInviteEmailStart>changeUsernameStart,'Could not isolate the username creation and change paths.');
+const saveUsernameSource=html.slice(saveUsernameStart,changeUsernameStart);
+const changeUsernameSource=html.slice(changeUsernameStart,addInviteEmailStart);
+assert(saveUsernameSource.indexOf("trackTtwEvent('account_created'")>saveUsernameSource.indexOf('await window._fb.setProfile('),'account_created must fire only after the initial profile is saved.');
+assert(!changeUsernameSource.includes("trackTtwEvent('account_created'"),'Changing an existing username must not fire account_created.');
+const phaseCompletionStart=html.indexOf('const registerPhaseCompletion = useCallback(');
+const phaseCompletionEnd=html.indexOf('\n  const finishWatch = async',phaseCompletionStart);
+assert(phaseCompletionStart>=0&&phaseCompletionEnd>phaseCompletionStart,'Could not isolate the phase-completion path.');
+const phaseCompletionSource=html.slice(phaseCompletionStart,phaseCompletionEnd);
+assert(!phaseCompletionSource.includes("if(phaseId==='pods')"),'first_checkpoint_locked must not be limited to the Pods phase.');
+assert(phaseCompletionSource.includes("const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid")&&phaseCompletionSource.includes('if(!localStorage.getItem(analyticsKey))')&&phaseCompletionSource.includes("localStorage.setItem(analyticsKey,'1')"),'first_checkpoint_locked must retain its once-per-pool-per-player localStorage guard.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'})"),'A successful invitation-link join must emit invite_accepted.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'})"),'An accepted email invitation must identify its acceptance channel.');
 assert(html.includes('className="modal ph-no-capture"'),'Settings must be excluded from session replay so account, pool, email, and support details never leave the browser.');
@@ -476,6 +490,40 @@ assert(html.includes('className="invite-row ph-no-capture"'),'Invitation details
 assert(html.includes('className="ph-no-capture" id="pool-panel-standings"'),'Player names, scores, and prediction receipts must be excluded from session replay.');
 assert(html.includes('className="ph-no-capture" id="pool-panel-chemistry"'),'Heat Check names, scores, and accessibility attributes must be excluded from session replay.');
 assert(html.includes('className="ph-no-capture" id="pool-panel-play"'),'Prediction content and contestant accessibility attributes must be excluded from session replay.');
+
+const loadAcquisitionAnalytics=({search='',referrer='',storage=new Map()}={})=>{
+  const listeners=new Map();
+  class AcquisitionCustomEvent{
+    constructor(type,options={}){this.type=type;this.detail=options.detail;}
+  }
+  const testWindow={
+    location:{search,origin:'https://throughthewall.ca',pathname:'/'},
+    addEventListener:(type,listener)=>listeners.set(type,listener),
+    dispatchEvent:event=>{listeners.get(event.type)?.(event);return true;},
+  };
+  const testDocument={referrer};
+  const testLocalStorage={
+    getItem:key=>storage.get(key)||null,
+    setItem:(key,value)=>storage.set(key,String(value)),
+  };
+  vm.runInNewContext(analyticsSource,{window:testWindow,document:testDocument,localStorage:testLocalStorage,URL,URLSearchParams,CustomEvent:AcquisitionCustomEvent});
+  const stored=JSON.parse(storage.get('through-the-wall-acquisition')||'{}');
+  return {acquisitionSource:testWindow.ttwAnalytics.acquisitionSource,stored,storage};
+};
+const inviteAcquisition=loadAcquisitionAnalytics({search:'?join=abc.def'});
+assert.equal(inviteAcquisition.acquisitionSource,'invite');
+assert.equal(inviteAcquisition.stored.acquisition_source,'invite');
+assert(!Object.hasOwn(inviteAcquisition.stored,'join'),'The private pool join code must never be persisted with acquisition data.');
+const restoredInviteAcquisition=loadAcquisitionAnalytics({storage:inviteAcquisition.storage});
+assert.equal(restoredInviteAcquisition.acquisitionSource,'invite','Invite acquisition must survive the authentication redirect.');
+const paidStorage=new Map([['through-the-wall-acquisition',JSON.stringify({fbclid:'x'})]]);
+assert.equal(loadAcquisitionAnalytics({search:'?join=abc.def',storage:paidStorage}).acquisitionSource,'paid_meta','A later invitation must not overwrite an earlier paid first touch.');
+const inviteWithUtm=loadAcquisitionAnalytics({search:'?join=abc.def&utm_source=tiktok'});
+assert.equal(inviteWithUtm.acquisitionSource,'invite');
+assert.equal(inviteWithUtm.stored.utm_source,'tiktok','Invite acquisition must retain accompanying campaign parameters.');
+assert(!Object.hasOwn(inviteWithUtm.stored,'join'),'Invite campaign acquisition must not persist the pool join code.');
+assert.equal(loadAcquisitionAnalytics().acquisitionSource,'organic_direct','An empty first visit must remain organic direct.');
+assert.equal(loadAcquisitionAnalytics({referrer:'https://example.test/article'}).acquisitionSource,'organic_referral','A referred first visit must remain organic referral.');
 
 const analyticsListeners=new Map();
 const analyticsStorage=new Map();

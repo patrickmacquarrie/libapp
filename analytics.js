@@ -19,19 +19,20 @@
   const currentAcquisition=()=>{
     const params=new URLSearchParams(window.location.search);
     const incoming=Object.fromEntries(ACQUISITION_KEYS.map(key=>[key,params.get(key)]).filter(([,value])=>value));
-    if(Object.keys(incoming).length){
-      const stored=readStoredAcquisition();
-      const firstTouch=Object.keys(stored).length?stored:{...incoming,capturedAt:Date.now()};
+    const stored=readStoredAcquisition();
+    if(Object.keys(stored).length)return stored;
+    const invited=!!params.get('join');
+    if(Object.keys(incoming).length||invited){
+      const firstTouch={...incoming,...(invited?{acquisition_source:'invite'}:{}),capturedAt:Date.now()};
       try{localStorage.setItem(ACQUISITION_STORAGE_KEY,JSON.stringify(firstTouch));}catch(error){}
       return firstTouch;
     }
-    return readStoredAcquisition();
+    return stored;
   };
   const acquisition=currentAcquisition();
   const acquisitionSource=()=>{
     const explicit=safeSlug(acquisition.acquisition_source||acquisition.cohort);
     if(['seed','invite','share_card'].includes(explicit)||explicit.startsWith('organic_')||explicit.startsWith('paid_'))return explicit;
-    if(new URLSearchParams(window.location.search).has('join'))return 'invite';
     const source=safeSlug(acquisition.utm_source);
     const medium=safeSlug(acquisition.utm_medium);
     if(source==='share_card'||medium==='share_card'||medium==='social_share')return 'share_card';

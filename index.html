@@ -5887,6 +5887,7 @@ function App() {
     try {
       const createdAt=Date.now();
       await window._fb.setProfile(user.uid, {username:uname,createdAt});
+      trackTtwEvent('account_created',{provider:user.providerData?.[0]?.providerId||'unknown'});
       setProfile({username:uname,createdAt});
     } catch(e) {
       console.error(e);setUsernameError('Your username could not be saved. Please try again.');
@@ -6283,7 +6284,7 @@ function App() {
         if(completionResult?.data?.standingsStale)setGlobalStandingsNotice('Your checkpoint is safely completed. The leaderboard update is delayed and will retry automatically.');
         confirmedStatus={completedMembers:[uid],updatedAt:Date.now()};
       }else confirmedStatus=await window._fb.completePhase(poolId,phaseId,uid);
-      if(phaseId==='pods'){try{const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid;if(!localStorage.getItem(analyticsKey)){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});localStorage.setItem(analyticsKey,'1');}}catch(e){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});}}
+      try{const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid;if(!localStorage.getItem(analyticsKey)){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});localStorage.setItem(analyticsKey,'1');}}catch(e){trackTtwEvent('first_checkpoint_locked',{poolId,phase:phaseId});}
       if(confirmedStatus)setPoolStatus(current=>({...current,[phaseId]:confirmedStatus}));
       setPhaseCompletionError('');
       setErr(current=>current===message?'':current);
