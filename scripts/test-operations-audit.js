@@ -60,7 +60,7 @@ const globalJoinWatchEnd=html.indexOf('\nfunction GlobalPoolJoinModal',globalJoi
 assert(globalJoinWatchStart>=0&&globalJoinWatchEnd>globalJoinWatchStart,'Could not isolate the Global join watch selection.');
 const globalJoinWatchSelection=vm.runInNewContext(`${html.slice(globalJoinWatchStart,globalJoinWatchEnd)}\nglobalJoinWatchSelection`,{Math,Number});
 assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:3,ask:true});
-assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'friend-pool',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:0,ask:false},'A mirror-linked Global join must skip the question and start at zero.');
+assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'private-pool',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:0,ask:false},'A mirror-linked Global join must skip the question and start at zero.');
 assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:0,initialWatchedThrough:0}))),{availableThroughEp:0,initialWatchedThrough:0,ask:false},'A pre-premiere Global join must skip the watch question.');
 assert.equal(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:5,initialWatchedThrough:99}).initialWatchedThrough,5,'The client selection must stay inside the published range before the server clamps it again.');
 
@@ -105,7 +105,7 @@ assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','https://
 assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8',''),'','A missing cast name and photo must not create a broken URL.');
 assert(html.includes('getPublicAppConfig'),'The app must read the public live/default season configuration.');
 assert(html.includes('const globalPoolSeason=seasonById(defaultSeasonId)'),'The active Global Pool must follow the configured default season.');
-assert(html.includes('Past Global Pools'),'Previous Global Pools must remain accessible to their members.');
+assert(!html.includes('Past Global Pools')&&!html.includes('pastGlobalPools'),'Previous Global Pools must not be listed in the player lobby.');
 assert(firestoreRules.includes('match /appConfig/public'),'Firestore rules must expose only the public runtime routing document.');
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
@@ -158,8 +158,8 @@ assert(functionsSource.includes("collection('standings').doc('current')"),'The s
 assert(html.includes('watchGlobalStandings'),'Global clients must subscribe to the single trusted standings document.');
 assert(html.includes("if(activePool.global===true){\n      if(poolTab!=='standings'"),'Global standings must bypass the collection fan-out watcher.');
 const loadAllPlayersCalls=[...html.matchAll(/window\._fb\.loadAllPlayers\(([^\n]+)\)/g)].map(match=>match[1]);
-assert(loadAllPlayersCalls.length>0,'Friend-pool loading must retain its bounded player collection path.');
-assert(loadAllPlayersCalls.every(call=>call.includes(',false,')),'Every player collection load must be explicitly limited to a friend pool.');
+assert(loadAllPlayersCalls.length>0,'Private-pool loading must retain its bounded player collection path.');
+assert(loadAllPlayersCalls.every(call=>call.includes(',false,')),'Every player collection load must be explicitly limited to a private pool.');
 assert(!html.includes('window._fb.loadAllPlayers(pool.id,user.uid,true'),'Global pools must never read the players collection.');
 assert(scoringEngineSource.includes('validateLockedPhasePicks'),'Trusted pick validation must live with the shared engine.');
 assert(functionsSource.includes('authoritativeWindow=resolveGlobalWatchWindow(previous)'),'The scorer must resolve foresight from the server-held per-player ledger.');
@@ -214,21 +214,21 @@ assert(html.includes('html{width:100%;min-width:0')&&html.includes('.app{width:1
 assert(html.includes('if(dirty&&!seasonChanged)return;')&&html.includes('[seasonId,myRatingDoc?.updatedAt,dirty]'),'A live Heat Check refresh must not replace an unsaved private draft, while a season change must still hydrate the new season.');
 assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings()"),'Friend Heat Check activity must refresh community results without reloading the private draft.');
 assert(html.includes('await onSave(eng.CAST.filter')&&html.includes('setDirty(false);'),'Heat Check drafts must become clean only after a successful save.');
-assert(html.includes("useState(()=>globalPool?false:community?.mySharing!==false)"),'New friend-pool Heat Check scorecards must be shared by default while preserving an existing hide choice.');
+assert(html.includes("useState(()=>globalPool?false:community?.mySharing!==false)"),'New private-pool Heat Check scorecards must be shared by default while preserving an existing hide choice.');
 assert(html.includes("mySharing:entries.find(entry=>entry.uid===currentUid)?.shared"),'Heat Check community loads must return the current player’s saved sharing preference without exposing hidden ratings.');
-assert(html.includes('checked={!shareWithFriends}')&&html.includes('Hide my Heat Check picks from this friend pool'),'The friend-pool privacy control must be an opt-out placed with the save controls.');
-assert(html.includes('const includeInGlobal=globalPool||contributeToGlobal===true;')&&html.includes('...(includeInGlobal?{globalRatings:safeRatings}:{})'),'A registered Global Pool player’s friend-pool ratings must continue feeding the anonymous global aggregate.');
+assert(html.includes('checked={!shareWithFriends}')&&html.includes('Hide my Heat Check picks from this private pool'),'The private-pool privacy control must be an opt-out placed with the save controls.');
+assert(html.includes('const includeInGlobal=globalPool||contributeToGlobal===true;')&&html.includes('...(includeInGlobal?{globalRatings:safeRatings}:{})'),'A registered Global Pool player’s private-pool ratings must continue feeding the anonymous global aggregate.');
 assert(html.includes('Global averages are anonymous')&&html.includes('They are never shown there with your name or traceable back to your scorecard.'),'Heat Check must explain the Global Pool aggregation privacy boundary.');
 assert(html.includes('Start a New Private Pool')&&html.includes('Create a Private Pool'),'The empty lobby must distinguish private pools from the Global Pool.');
 assert(html.includes('You’re registered for the Global Pool')&&html.includes('Invite your Friends to Join'),'Prelaunch Global Pool onboarding must confirm registration and invite sharing.');
-assert(html.includes('Episode 1 drops October 14.')&&html.includes('predictions begin after Episode 1')&&html.includes('Through the Wall is run by one person.'),'US11 prelaunch copy must set the release, prediction, and manual publishing expectations.');
+assert(html.includes('Predictions will open on October 14.')&&html.includes('Everyone should watch episode 1 before coming back to make predictions.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
 const enterPoolSource=html.slice(html.indexOf('const enterPool = async'),html.indexOf('\n  const analyticsRoute=',html.indexOf('const enterPool = async')));
-assert(enterPoolSource.includes('!enteredPool.rulesSnapshot&&enteredPool.global!==true&&enteredPool.ownerUid===user.uid'),'Only the owner may freeze rules when entering an unfrozen friend pool.');
+assert(enterPoolSource.includes('!enteredPool.rulesSnapshot&&enteredPool.global!==true&&enteredPool.ownerUid===user.uid'),'Only the owner may freeze rules when entering an unfrozen private pool.');
 assert(!enterPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to enter an unfrozen pool using the live season configuration.');
 const refreshPoolSource=html.slice(html.indexOf('const refreshPool = async'),html.indexOf('\n  const shareFriendPool = async',html.indexOf('const refreshPool = async')));
-assert(refreshPoolSource.includes('!pool.rulesSnapshot&&pool.global!==true&&pool.ownerUid===user.uid'),'Only the owner may freeze rules while refreshing an unfrozen friend pool.');
+assert(refreshPoolSource.includes('!pool.rulesSnapshot&&pool.global!==true&&pool.ownerUid===user.uid'),'Only the owner may freeze rules while refreshing an unfrozen private pool.');
 assert(!refreshPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to refresh an unfrozen pool using the live season configuration.');
 assert(analyticsSource.includes("Object.freeze({a:'4.99',b:'9.99',c:'12.99'})"),'The price experiment must use the approved three price points.');
 assert(functionsSource.includes('db.recursiveDelete(db.doc(`clientErrors/${uid}`))'),'Account deletion must remove client diagnostics.');
@@ -747,7 +747,7 @@ async function assertMirrorEntryRegression(){
     advanceGlobalWatch:async()=>friendProgressCalls.push('trusted'),
     syncPublicProgress:async(...args)=>{friendProgressCalls.push(['public',...args]);return {w:4,watchThrough:4};},
   });
-  assert.equal(friendProgressCalls.length,1,'A Global-linked friend pool must receive public progress without calling the Global ledger.');
+  assert.equal(friendProgressCalls.length,1,'A Global-linked private pool must receive public progress without calling the Global ledger.');
   assert.deepEqual(friendProgressCalls[0].slice(0,3),['public','friend','viewer']);
   const intentOnly=context.__mergeMirroredCheckpointState(
     {phase:'pods',screen:'board',w:0,watchThrough:0,completed:{}},sourceState,spans,13,
@@ -757,7 +757,7 @@ async function assertMirrorEntryRegression(){
   const safeFriendPicks=context.__friendSafeMirroredPicks('pods',[
     {c:'Alex|Casey',s:20,w:9,lockedAt:123,releasedThroughAtLock:11},
   ],[{c:'Casey|Alex',s:10,w:2}],5);
-  assert.equal(safeFriendPicks[0].w,2,'Mirroring into a friend pool must preserve the matching friend pick window.');
+  assert.equal(safeFriendPicks[0].w,2,'Mirroring into a private pool must preserve the matching private pick window.');
   assert.equal('lockedAt' in safeFriendPicks[0],false);
   assert.equal('releasedThroughAtLock' in safeFriendPicks[0],false);
   const forward=context.__mergeMirroredCheckpointState(
@@ -816,20 +816,20 @@ async function assertMirrorEntryRegression(){
   const historicalResetEnd=functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate',historicalResetStart);
   const historicalResetSource=functionsSource.slice(historicalResetStart,historicalResetEnd);
   assert(historicalResetStart>=0&&historicalResetEnd>historicalResetStart,'The historical reset implementation must remain auditable.');
-  assert(!historicalResetSource.includes('duplicateFromPoolId:FieldValue.delete()'),'Historical reset must preserve established friend-pool links.');
+  assert(!historicalResetSource.includes('duplicateFromPoolId:FieldValue.delete()'),'Historical reset must preserve established private-pool links.');
   assert(historicalResetSource.includes('linksPreserved'),'Historical reset must report how many Global-to-friend links survived.');
   assert(historicalResetSource.includes('linkedPlayersReset'),'Historical reset must report how many linked friend-player states were cleared.');
   assert(historicalResetSource.includes('completedMembers:FieldValue.arrayRemove(...uids)'),'Historical reset must prevent old linked completions from replaying into Global.');
   assert(historicalResetSource.includes("sourcePoolRef.collection('phasePicks').doc(`${phase}__${uid}`)"),'Historical reset must clear the linked tester picks that would otherwise replay into Global.');
   assert(html.includes('sync links are preserved'),'The reset confirmation must explain that linked pools stay connected.');
-  assert(html.includes('Other friend-pool members and settings are not changed'),'The reset confirmation must define the linked friend-pool blast radius.');
+  assert(html.includes('Other private-pool members and settings are not changed'),'The reset confirmation must define the linked private-pool blast radius.');
   const historicalRepairStart=functionsSource.indexOf('async function relaxHistoricalJoinFloor(request)');
   const historicalRepairSource=functionsSource.slice(historicalRepairStart,historicalResetEnd);
   assert(historicalRepairStart>=0,'The historical scoring repair implementation must remain auditable.');
   assert(historicalRepairSource.includes('const confirmedSource=linkedPlayer?.data||publicPlayer?.data||{};'),'A linked friend player must be the canonical confirmed-watch source for repair.');
   assert(historicalRepairSource.includes('watchedThrough:confirmedWatch'),'The admin repair must replace a contaminated trusted watch ledger with confirmed progress.');
   assert(historicalRepairSource.includes("batch.set(publicPlayer.ref,{w:confirmedWatch},{merge:true})"),'The admin repair must also correct a contaminated public Global w.');
-  assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked friend pools.');
+  assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked private pools.');
   assert(!historicalRepairSource.includes('cfg.AVAILABLE_THROUGH_EP<seasonEnd'),'The confirmed-watch repair must be permitted while a season is live.');
   assert(html.includes('This repair is safe while a season is live.'),'The admin UI must describe the live-season repair precondition accurately.');
 }

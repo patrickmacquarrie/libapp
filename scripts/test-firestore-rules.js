@@ -240,8 +240,8 @@ async function main(){
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Wrong date'),createdAt:numberValue(Date.now())},token),403,'username update cannot move account creation date');
 
   const rotatedJoinCode='abcdefghijklmnop';
-  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],rotatedJoinCode,v5CreatedAt),token),200,'owner rotates friend-pool join code');
-  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'qrstuvwxyzabcdef',v5CreatedAt),second.token),403,'non-owner cannot rotate friend-pool join code');
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],rotatedJoinCode,v5CreatedAt),token),200,'owner rotates private-pool join code');
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'qrstuvwxyzabcdef',v5CreatedAt),second.token),403,'non-owner cannot rotate private-pool join code');
   await expectStatus(await deleteDocument('pools/v5-valid',token),403,'pool owner must use recursive delete callable');
 
   const invitePool='invite-privacy';
