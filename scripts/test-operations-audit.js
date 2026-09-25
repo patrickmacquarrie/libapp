@@ -459,7 +459,7 @@ assert(html.includes('<b>Invitation link saved.</b> You won’t need to reopen i
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Google sign-in start must emit a conversion event.');
-assert(html.includes("!EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)&&<button className=\"btn-google\"")&&html.includes("EMBEDDED_BROWSER_CONTEXTS.includes(BROWSING_CONTEXT.browserContext)?'btn-primary':'btn-secondary'"),'Embedded social browsers must hide Google sign-in and make email-link sign-in primary.');
+assert(html.includes('const embeddedBrowser=window.__TTW_EMBEDDED_BROWSER_CONTEXTS__?.includes(window.__TTW_BROWSING_CONTEXT__?.browserContext)===true;')&&html.includes('!embeddedBrowser&&<button className="btn-google"')&&html.includes("className={embeddedBrowser?'btn-primary':'btn-secondary'}"),'Embedded social browsers must hide Google sign-in and make email-link sign-in primary.');
 assert(html.includes('Signing in from Instagram? Use your email, or open this page in Safari or Chrome.'),'Embedded social browsers must explain the supported sign-in path.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_success'"),'Successful redirect resolution must emit a conversion event.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_failure',{code:"),'Redirect failures must report their auth error code.');
