@@ -32,7 +32,7 @@ When episodes are already available, a player joining the Global Pool directly i
 
 This question improves accuracy for honest late joiners: someone already through Episode 3 starts in window 3 instead of receiving Episode 0 foresight. It does not create a stronger anti-cheating claim. The answer remains self-reported, a player may understate it, and the free beta continues to operate on the honour-system principle approved above.
 
-Pre-premiere joins skip the question and start at `0`. Mirror-linked joins also start at `0` without prompting because the friend pool already owns the player's watch flow; normal mirror synchronization and `advanceGlobalWatch` move the trusted Global ledger forward afterward. Once recorded, watch progress remains monotonic and cannot move backward.
+Pre-premiere joins skip the question and start at `0`. Mirror-linked joins also start at `0` without prompting because the private pool already owns the player's watch flow; normal mirror synchronization and `advanceGlobalWatch` move the trusted Global ledger forward afterward. Once recorded, watch progress remains monotonic and cannot move backward.
 
 This decision must change if a paid tier ever attaches money, prizes, or other stakes to the shared leaderboard. Self-reported watch progress would then be insufficient. Paid competition should use release-based scoring or a separately designed verifiable commitment/access model; the free-tier ledger must not silently become a money-bearing trust boundary.
 

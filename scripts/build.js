@@ -318,7 +318,7 @@ async function build() {
     const welcome=fs.readFileSync(welcomePath,'utf8').replace('<!-- SEASON_MENU_OPTIONS -->',seasonMenuOptions(available));
     fs.writeFileSync(welcomePath,welcome);
   }
-  for(const file of ['manifest.webmanifest','privacy.html','terms.html']) {
+  for(const file of ['manifest.webmanifest','privacy.html','terms.html','sw.js']) {
     const input=path.join(root,file);
     if(fs.existsSync(input)) fs.copyFileSync(input,path.join(dist,file));
   }

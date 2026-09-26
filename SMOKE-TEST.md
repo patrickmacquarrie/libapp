@@ -33,7 +33,7 @@ Run this two-account checklist against production before the August 19, 2026 UK3
 
 **Recorded result — PASS (August 24, 2026).** Patrick reported that the full four-row device matrix passed against the production build then live. Read-only release verification identified that build as main commit `b8f9d80f4d869c30ced55c30223cfb0f161dcb3d`, deployed by GitHub Actions run `32541755756` on August 21 at 6:54 PM Mountain time. That revision contains `cf1afbe` through merge commit `4d8e7c1`, and the fetched production app contains the expiring `localStorage` fallback for `?join=`. The result therefore covers the invitation round trip across Google redirect, not only bare sign-in. Do not repeat this matrix for the current release; retain the checklist below for the next public launch.
 
-Prepare one throwaway friend pool and copy its full `https://throughthewall.ca/?join=<pool>.<code>` invitation link. Use an account that is not yet in that pool. For each test below, the pass condition is: the link opens on `throughthewall.ca`, Google sign-in replaces the whole page rather than opening a popup, the app returns to `throughthewall.ca`, the intended pool is joined, and no Firebase error code or CSP violation appears. Do not reuse the same account after it joins; reset the invite link or use another throwaway account.
+Prepare one throwaway private pool and copy its full `https://throughthewall.ca/?join=<pool>.<code>` invitation link. Use an account that is not yet in that pool. For each test below, the pass condition is: the link opens on `throughthewall.ca`, Google sign-in replaces the whole page rather than opening a popup, the app returns to `throughthewall.ca`, the intended pool is joined, and no Firebase error code or CSP violation appears. Do not reuse the same account after it joins; reset the invite link or use another throwaway account.
 
 ### iOS Safari
 
@@ -90,16 +90,16 @@ For any failed in-app-browser attempt, repeat the same invitation with that app'
 
 ## Global/friend pick mirroring
 
-- [ ] Join the Global Pool, make at least one unlocked pick, then return to the lobby and start a friend pool for the same season.
+- [ ] Join the Global Pool, make at least one unlocked pick, then return to the lobby and start a private pool for the same season.
 - [ ] Confirm “Link my Global Pool game” appears only for that matching season. Select it and create the pool.
-- [ ] Confirm the new friend pool adopts the existing Global picks and confirmed watch progress without moving either pool backward.
-- [ ] Before completing the friend-pool checkpoint, change the pick in the Global Pool and confirm the matching friend-pool pick updates. Confirm a completed friend-pool checkpoint remains immutable.
-- [ ] With a separate friend pool selected while joining Global, advance that friend pool through Episode 3 and leave Global linked to it. Open Global and confirm it also shows Episode 3 as watched, while the friend pool remains the selected pick source.
+- [ ] Confirm the new private pool adopts the existing Global picks and confirmed watch progress without moving either pool backward.
+- [ ] Before completing the private-pool checkpoint, change the pick in the Global Pool and confirm the matching private-pool pick updates. Confirm a completed private-pool checkpoint remains immutable.
+- [ ] With a separate private pool selected while joining Global, advance that private pool through Episode 3 and leave Global linked to it. Open Global and confirm it also shows Episode 3 as watched, while the private pool remains the selected pick source.
 - [ ] Lock an imported Global pick made after Episode 3. Confirm its Global receipt says **Locked after Episode 3**, not the episode when the player first joined Global. Picks made before Global membership must still be floored at the Global join episode.
-- [ ] Advance a linked Global source and confirm its friend-pool target advances too. Then advance a linked friend source and confirm Global advances. Neither direction may move a player backward.
+- [ ] Advance a linked Global source and confirm its private-pool target advances too. Then advance a linked private source and confirm Global advances. Neither direction may move a player backward.
 - [ ] Complete Pods in either linked source. Confirm Pods closes in the target pool as well and neither pool allows another Pods prediction.
-- [ ] In a fully released historical Global test, use the admin-only simulation reset. Confirm it clears Global test picks/progress/scores, preserves established friend-pool sync links, clears only each linked tester’s game state in the paired friend pool (not other members or pool settings), refuses a partially released season, and causes new Global receipts to display the server-credited episode used for scoring.
-- [ ] Delete a throwaway friend pool that is still selected as a Global mirror source. Reopen Global and confirm it opens, preserves its already-copied picks and progress, removes the stale link, and explains that Global is now independent.
+- [ ] In a fully released historical Global test, use the admin-only simulation reset. Confirm it clears Global test picks/progress/scores, preserves established private-pool sync links, clears only each linked tester’s game state in the paired private pool (not other members or pool settings), refuses a partially released season, and causes new Global receipts to display the server-credited episode used for scoring.
+- [ ] Delete a throwaway private pool that is still selected as a Global mirror source. Reopen Global and confirm it opens, preserves its already-copied picks and progress, removes the stale link, and explains that Global is now independent.
 
 ## Pass criteria
 

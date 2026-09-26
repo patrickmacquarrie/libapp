@@ -25,6 +25,12 @@
         {"order": "ASCENDING", "queryScope": "COLLECTION"},
         {"order": "DESCENDING", "queryScope": "COLLECTION"}
       ]
+    },
+    {
+      "collectionGroup": "mail",
+      "fieldPath": "delivery.expireAt",
+      "ttl": true,
+      "indexes": []
     }
   ]
 }

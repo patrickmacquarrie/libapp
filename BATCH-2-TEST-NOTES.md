@@ -33,6 +33,6 @@ The committed fixture contains the 47 Settings values from the authenticated Fir
 
 ## Clone rehearsal
 
-`npm run test:clone-rehearsal` accepts the private checkpoint through `UK3_CHECKPOINT_PATH` and refuses to run unless it is connected to a local Firestore emulator. The completed rehearsal cloned 41 documents across the UK3 season, friend pool, Global Pool, player state, phase status, picks, trusted scoring inputs, and standings. The atomic release and exact rollback passed, and every cloned pool document remained unchanged.
+`npm run test:clone-rehearsal` accepts the private checkpoint through `UK3_CHECKPOINT_PATH` and refuses to run unless it is connected to a local Firestore emulator. The completed rehearsal cloned 41 documents across the UK3 season, private pool, Global Pool, player state, phase status, picks, trusted scoring inputs, and standings. The atomic release and exact rollback passed, and every cloned pool document remained unchanged.
 
 Only the non-sensitive counts and checkpoint hash are committed in `scripts/fixtures/uk3-clone-rehearsal.json`.

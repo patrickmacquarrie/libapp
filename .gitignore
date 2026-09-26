@@ -1,6 +1,8 @@
 node_modules/
 dist/
 extensions/*.secret.local
+functions/.secret.local
+functions/.env.demo-libapp
 private-reports/
 firebase-debug.log
 firestore-debug.log

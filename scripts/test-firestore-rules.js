@@ -183,6 +183,7 @@ async function main(){
   await expectStatus(await writeDocument('pools/v3-missing-race',poolFields(uid,rulesSnapshot(3)),token),403,'v3 snapshot without RACE_MULT');
   const v5CreatedAt=Date.now();
   await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'123456789012',v5CreatedAt),token),200,'v5 snapshot without RACE_MULT');
+  await expectStatus(await writeDocument('pools/global__reserved-prefix',poolFields(uid,rulesSnapshot(5)),token),403,'ordinary user cannot reserve the global pool prefix');
   await expectStatus(await writeDocument('pools/v5-invalid-race',poolFields(uid,rulesSnapshot(5,'string')),token),403,'v5 snapshot with invalid optional RACE_MULT');
   await expectStatus(await readDocument('pools/does-not-exist',token),404,'signed-in missing pool read returns not found');
   await expectStatus(await readDocument('pools/does-not-exist',''),403,'signed-out missing pool read stays private');
@@ -236,11 +237,20 @@ async function main(){
   const profileCreatedAt=Date.now()-1000;
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Original'),createdAt:numberValue(profileCreatedAt)},token),200,'user creates profile');
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Renamed'),createdAt:numberValue(profileCreatedAt)},token),200,'username update preserves account creation date');
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('scam.site'),createdAt:numberValue(profileCreatedAt)},token),403,'link-like username is denied');
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('J.Lo'),createdAt:numberValue(profileCreatedAt)},token),200,'non-link dotted username is allowed');
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Wrong date'),createdAt:numberValue(Date.now())},token),403,'username update cannot move account creation date');
 
+  await expectStatus(await writeDocument('pools/link-name-create-denied',{...poolFields(uid,rulesSnapshot(5)),name:stringValue('scam.site')},token),403,'link-like pool name is denied on create');
+  await expectStatus(await writeDocument('pools/dotted-name-create',{...poolFields(uid,rulesSnapshot(5)),name:stringValue('J.Lo')},token),200,'non-link dotted pool name is allowed on create');
+  const renameCreatedAt=Date.now();
+  await expectStatus(await writeDocument('pools/link-name-rename',poolFields(uid,rulesSnapshot(5),[uid],'123456789012',renameCreatedAt),'owner'),200,'admin seeds pool rename fixture');
+  await expectStatus(await writeDocument('pools/link-name-rename',{...poolFields(uid,rulesSnapshot(5),[uid],'123456789012',renameCreatedAt),name:stringValue('J.Lo'),nameUpdatedAt:numberValue(Date.now())},token),200,'non-link dotted pool name is allowed on rename');
+  await expectStatus(await writeDocument('pools/link-name-rename',{...poolFields(uid,rulesSnapshot(5),[uid],'123456789012',renameCreatedAt),name:stringValue('scam.site'),nameUpdatedAt:numberValue(Date.now()+1)},token),403,'link-like pool name is denied on rename');
+
   const rotatedJoinCode='abcdefghijklmnop';
-  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],rotatedJoinCode,v5CreatedAt),token),200,'owner rotates friend-pool join code');
-  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'qrstuvwxyzabcdef',v5CreatedAt),second.token),403,'non-owner cannot rotate friend-pool join code');
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],rotatedJoinCode,v5CreatedAt),token),200,'owner rotates private-pool join code');
+  await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],'qrstuvwxyzabcdef',v5CreatedAt),second.token),403,'non-owner cannot rotate private-pool join code');
   await expectStatus(await deleteDocument('pools/v5-valid',token),403,'pool owner must use recursive delete callable');
 
   const invitePool='invite-privacy';
@@ -268,11 +278,86 @@ async function main(){
   await expectStatus(await writeDocument(unverifiedInvitePath,inviteFields(invitePool,uid,unverified.email),token),200,'pool owner creates invitation for unverified address');
   await expectStatus(await readDocument(unverifiedInvitePath,unverified.token),403,'unverified token email cannot claim invitation');
 
+  const memberIds=count=>[uid,...Array.from({length:count-1},(_,index)=>`member-${index}`)];
+  const joinCode='friend-pool-code';
+  const joinByCodeFields=(members,joiningUser,createdAt)=>({
+    ...poolFields(uid,rulesSnapshot(5),members,joinCode,createdAt),
+    members:arrayValue([...members,joiningUser].map(stringValue)),
+    lastJoinUid:stringValue(joiningUser),lastJoinProof:stringValue(joinCode),
+  });
+  const joinCap39CreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument('pools/join-cap-39',poolFields(uid,rulesSnapshot(5),memberIds(39),joinCode,joinCap39CreatedAt),'owner'),
+    200,
+    'admin seeds a 39-member friend pool'
+  );
+  await expectStatus(
+    await writeDocument('pools/join-cap-39',joinByCodeFields(memberIds(39),second.uid,joinCap39CreatedAt),second.token),
+    200,
+    'joining by code fills the fortieth friend-pool seat'
+  );
+  const joinCap40CreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument('pools/join-cap-40',poolFields(uid,rulesSnapshot(5),memberIds(40),joinCode,joinCap40CreatedAt),'owner'),
+    200,
+    'admin seeds a full 40-member friend pool'
+  );
+  await expectStatus(
+    await writeDocument('pools/join-cap-40',joinByCodeFields(memberIds(40),second.uid,joinCap40CreatedAt),second.token),
+    403,
+    'joining by code cannot exceed the friend-pool cap'
+  );
+  const availableInvitePool='invite-cap-39';
+  const availableInviteCreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument(`pools/${availableInvitePool}`,poolFields(uid,rulesSnapshot(5),memberIds(39),'123456789012',availableInviteCreatedAt),'owner'),
+    200,
+    'admin seeds a 39-member invited friend pool'
+  );
+  await expectStatus(
+    await writeDocument(`invites/${availableInvitePool}__${invited.email}`,inviteFields(availableInvitePool,uid,invited.email),'owner'),
+    200,
+    'admin seeds a pending invitation to the 39-member pool'
+  );
+  await expectStatus(
+    await writeDocument(`pools/${availableInvitePool}`,{
+      ...poolFields(uid,rulesSnapshot(5),memberIds(39),'123456789012',availableInviteCreatedAt),
+      members:arrayValue([...memberIds(39),invited.uid].map(stringValue)),
+    },invited.token),
+    200,
+    'accepting an invitation fills the fortieth friend-pool seat'
+  );
+  const fullInvitePool='invite-cap-40';
+  const fullInviteCreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument(`pools/${fullInvitePool}`,poolFields(uid,rulesSnapshot(5),memberIds(40),'123456789012',fullInviteCreatedAt),'owner'),
+    200,
+    'admin seeds a full invited friend pool'
+  );
+  await expectStatus(
+    await writeDocument(`invites/${fullInvitePool}__${invited.email}`,inviteFields(fullInvitePool,uid,invited.email),'owner'),
+    200,
+    'admin seeds a pending invitation to the full pool'
+  );
+  await expectStatus(
+    await writeDocument(`pools/${fullInvitePool}`,{
+      ...poolFields(uid,rulesSnapshot(5),memberIds(40),'123456789012',fullInviteCreatedAt),
+      members:arrayValue([...memberIds(40),invited.uid].map(stringValue)),
+    },invited.token),
+    403,
+    'accepting an invitation cannot exceed the friend-pool cap'
+  );
+
   const clientErrorPath=`clientErrors/${uid}/categories/save_failed`;
   await expectStatus(
     await writeDocumentAtServerTime(clientErrorPath,clientErrorFields(uid),token),
     200,
     'signed-in user creates a bounded client diagnostic'
+  );
+  await expectStatus(
+    await writeDocumentAtServerTime(`clientErrors/${uid}/categories/global_join_failed`,clientErrorFields(uid,'global_join_failed',{operation:stringValue('join_global_pool')}),token),
+    200,
+    'global join failure is an accepted diagnostic category'
   );
   await expectStatus(await readDocument(clientErrorPath,token),403,'browser client cannot read diagnostics');
   await expectStatus(

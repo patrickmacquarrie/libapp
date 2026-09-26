@@ -259,19 +259,19 @@ The first requires `friendPhaseLocks=true`; the Reunion completion form requires
 If this exact rehearsal is repeated later, the episode IDs created this weekend will be a real dedupe trap. Choose explicitly:
 
 1. Preferred for another UK3 notification test: obtain approval, export the matching IDs for the four test UIDs, then delete only those exact `mail/episodes_love-is-blind-uk-3_{episode}_{uid}` documents. Deleting mail is a production write and account deletion may already have removed some recipient mail.
-2. For phase-lock mail, use a fresh friend pool. The pool ID changes every dedupe key without deleting delivery history.
+2. For phase-lock mail, use a fresh private pool. The pool ID changes every dedupe key without deleting delivery history.
 3. If delivery itself is not under test, keep the documents and record that repeat nudges are knowingly suppressed.
 4. Use another season only if the goal changes from “UK3 behaves as an August 29 drop.” It is not the preferred solution for this rehearsal.
 
 ## Linked Global/friend two-account regression
 
-Run these checks before the broader four-account rehearsal. Use two accounts linked to the same historical Global Pool through two separate friend pools, and keep the accounts at different watch positions.
+Run these checks before the broader four-account rehearsal. Use two accounts linked to the same historical Global Pool through two separate private pools, and keep the accounts at different watch positions.
 
-1. Reset the controlled Global simulation, then have Account A link a friend pool before Episode 1. Confirm both pool headers say they are synced and neither shows **Linked pool out of sync**.
-2. In Account A's friend pool, lock a recognisable Pods pick after Episode 1 and advance to Episode 3. Open Global and confirm the same pick, `w=1`, watch position, phase, screen, and completed checkpoints followed forward.
+1. Reset the controlled Global simulation, then have Account A link a private pool before Episode 1. Confirm both pool headers say they are synced and neither shows **Linked pool out of sync**.
+2. In Account A's private pool, lock a recognisable Pods pick after Episode 1 and advance to Episode 3. Open Global and confirm the same pick, `w=1`, watch position, phase, screen, and completed checkpoints followed forward.
 3. Keep Account B at Episode 1, make the same prediction and stake, then advance Account A farther. Confirm neither account inherits the other account's watch position.
-4. Advance and lock in the Global Pool first. Open the linked friend pool and confirm picks, watch position, phase, screen, and completed checkpoints all followed forward. If the header reports **Linked pool out of sync**, use **Retry now** and repeat the verification.
-5. Finish Pods from opposite directions: Account A completes it in the friend pool; Account B completes it in Global. Confirm Pods is closed in each linked peer, later Pods predictions remain unavailable, and opening the next phase never rewinds either game.
+4. Advance and lock in the Global Pool first. Open the linked private pool and confirm picks, watch position, phase, screen, and completed checkpoints all followed forward. If the header reports **Linked pool out of sync**, use **Retry now** and repeat the verification.
+5. Finish Pods from opposite directions: Account A completes it in the private pool; Account B completes it in Global. Confirm Pods is closed in each linked peer, later Pods predictions remain unavailable, and opening the next phase never rewinds either game.
 6. Inspect both Global and friend receipts, not only their totals. Each receipt must show **Credited after Episode …** and the expected Against-the-Clock multiplier. For a 20-Heart Episode 5 engagement, a pick credited after Episode 3 should show ×1.5 and 30 base clock points; one credited after Episode 1 should show ×2.5 and 50 base clock points before any Against-the-Grain adjustment.
 
 Also inspect both player documents. Each must contain the other pool ID in `duplicateFromPoolId`; `w`, `watchThrough`, `phase`, `screen`, and `completed` may move only forward. In friend `phasePicks`, an existing matching pick must retain its original per-pick `w` and must not receive Global-only `lockedAt` or `releasedThroughAtLock` fields.
@@ -293,7 +293,7 @@ For every UI save, wait for **saved** before navigating. Keep Firestore and four
 
 This gate is part of the rehearsal. Do it before entering season picks because the first operational act is sharing a real link.
 
-- [ ] Account A creates a disposable friend pool named `UK3 Device Gate` and copies its full `https://throughthewall.ca/?join={poolId}.{joinCode}` URL.
+- [ ] Account A creates a disposable private pool named `UK3 Device Gate` and copies its full `https://throughthewall.ca/?join={poolId}.{joinCode}` URL.
 - [ ] In `pools/{gatePoolId}`, record `joinCode`; confirm `rulesSnapshot.version=5` and the pre-flight UK3 starts/spans.
 - [ ] Test cross-device email-link sign-in once as B. Request B's link in one profile and open it in a signed-out second device/profile. Expect sign-in without an email prompt, Firebase action parameters removed, and `join` preserved until the pool join is processed. Leave the gate pool and sign out afterward.
 - [ ] Run the four rows below. Use an account not currently in the gate pool. After each successful join, confirm the Firestore evidence, leave the pool, reset the link, and use the new link for the next row.
@@ -376,7 +376,7 @@ Additional end-specific checks:
 - [ ] At P7, no Retreats row is pending and the provisional-results notice disappears once `DATING_RESULTS_READY=TRUE`.
 - [ ] At P10, every resolved wedding outcome scores and the Reunion relationship-status options are present.
 - [ ] At P11, the final account reaches **Season complete**. For D's first-place completion, inspect `mail/complete_{poolId}_reunion_{D}_{recipientUid}` with `friendPoolCompletions=true` on the recipient.
-- [ ] Close the friend pool to new players only after the intended membership is final. In `pools/{poolId}`, expect `membershipClosed=true`. Once all four are complete and all results are ready, expect Final standings and Wrapped rather than a permanently live leaderboard.
+- [ ] Close the private pool to new players only after the intended membership is final. In `pools/{poolId}`, expect `membershipClosed=true`. Once all four are complete and all results are ready, expect Final standings and Wrapped rather than a permanently live leaderboard.
 
 There is no trusted leaderboard document to inspect. Friend standings are computed in each client from `phaseStatus`, locked `phasePicks`, and the published season snapshot. Firestore proves the inputs, while agreement across the four UIs is the integration check.
 

@@ -5,7 +5,7 @@ This plan uses an honour-system threat model. Through the Wall is a social predi
 ## Accepted risks
 
 - Players can find episode spoilers outside the app.
-- Friend pools depend primarily on trust between their members.
+- Private pools depend primarily on trust between their members.
 - A determined technical user may inspect published browser data or make unusual requests.
 - Published season results are not confidential after their intended release.
 
@@ -57,7 +57,7 @@ Before the first post-test deployment:
 
 ### Batch 3: beta canary
 
-- Introduce corrected friend-pool validation and scoring only under a new scoring version.
+- Introduce corrected private-pool validation and scoring only under a new scoring version.
 - Apply lightweight Global Pool pick-read and write protections.
 - Add pool-size limits and bounded notification processing.
 - Run a canary pool before opening the public beta more broadly.

@@ -1,6 +1,8 @@
 const assert=require('node:assert/strict');
 const admin=require('../functions/node_modules/firebase-admin');
+const crypto=require('node:crypto');
 const {makeEngine}=require('../functions/shared/scoring-engine');
+const {signEmailPreferenceToken}=require('../functions/shared/email-preferences');
 
 const projectId=process.env.GCLOUD_PROJECT||'demo-libapp';
 const authHost=process.env.FIREBASE_AUTH_EMULATOR_HOST;
@@ -64,12 +66,22 @@ async function createUser(email,username){
 
 async function call(functionName,user,data){
   const response=await fetch(`http://${functionsHost}/${projectId}/us-central1/${functionName}`,{
-    method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${user.token}`},
+    method:'POST',headers:{'Content-Type':'application/json',...(user?.token?{Authorization:`Bearer ${user.token}`}:{})},
     body:JSON.stringify({data}),
   });
   const payload=await response.json();
   if(!response.ok||payload.error)throw new Error(`${functionName} failed (${response.status}): ${JSON.stringify(payload)}`);
   return payload.result;
+}
+
+async function callFailure(functionName,user,data){
+  const response=await fetch(`http://${functionsHost}/${projectId}/us-central1/${functionName}`,{
+    method:'POST',headers:{'Content-Type':'application/json',...(user?.token?{Authorization:`Bearer ${user.token}`}:{})},
+    body:JSON.stringify({data}),
+  });
+  const payload=await response.json();
+  assert(payload.error,`${functionName} unexpectedly succeeded: ${JSON.stringify(payload)}`);
+  return payload.error;
 }
 
 async function main(){
@@ -87,34 +99,50 @@ async function main(){
   await call('openGlobalPool',first,{seasonId,initialWatchedThrough:0});
   await call('openGlobalPool',second,{seasonId,initialWatchedThrough:3});
   assert.equal((await db.doc(`pools/${poolId}/trustedPlayers/${second.uid}`).get()).data().watchedThrough,3);
+  // This proves transaction correctness under concurrent callers; the local
+  // emulator does not reproduce production lock contention and is not a load test.
+  const concurrentUsers=await Promise.all(Array.from({length:25},(_,index)=>
+    createUser(`global-concurrent-${index}@example.test`,`Concurrent ${index}`)
+  ));
+  await Promise.all(concurrentUsers.map(user=>call('openGlobalPool',user,{seasonId,initialWatchedThrough:0})));
+  const concurrentMembers=(await db.doc(`pools/${poolId}`).get()).data().members;
+  assert.equal(concurrentMembers.length,27);
+  concurrentUsers.forEach(user=>assert(concurrentMembers.includes(user.uid)));
 
   let standingsWrites=0;
   const stopStandings=db.doc(`pools/${poolId}/standings/current`).onSnapshot(snapshot=>{
     if(snapshot.exists)standingsWrites++;
   });
   const pick={c:'Alex|Casey',s:20,w:99};
-  await Promise.all([
-    call('openGlobalPool',first,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}}),
-    call('openGlobalPool',second,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}}),
-  ]);
-  await waitFor('the coalesced lock rebuild',
+  await call('openGlobalPool',first,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}});
+  const firstClaimSnapshot=await waitFor('the first lock rebuild to begin',
     async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
-    snapshot=>snapshot.exists&&snapshot.data().lastCompletedAt,
+    snapshot=>snapshot.exists&&snapshot.data().lastRunAt,
+  );
+  const firstClaimAt=firstClaimSnapshot.data().lastRunAt.toMillis();
+  await call('openGlobalPool',second,{action:'lockGlobalPicks',poolId,phases:{pods:[pick]}});
+  const datingPick={m:'sex',c:'alex-casey',s:20,w:99};
+  await Promise.all([
+    call('openGlobalPool',second,{action:'lockGlobalPicks',poolId,phases:{dating:[datingPick]}}),
+    call('openGlobalPool',second,{action:'completeGlobalPhase',poolId,phase:'pods'}),
+  ]);
+  const trustedAfterRace=(await db.doc(`pools/${poolId}/trustedPlayers/${second.uid}`).get()).data();
+  assert(Number.isFinite(Number(trustedAfterRace.completedAt?.pods)),'A concurrent pick lock must not erase Pods completion.');
+  assert.equal(trustedAfterRace.picks.pods.length,1);
+  assert.equal(trustedAfterRace.picks.dating.length,1);
+
+  await waitFor('the trailing completed Pods standings',
+    async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
+    snapshot=>{
+      const data=snapshot.data()||{},lastRunAt=data.lastRunAt?.toMillis?.()||0,lastCompletedAt=data.lastCompletedAt?.toMillis?.()||0;
+      return snapshot.exists&&lastRunAt>firstClaimAt&&lastCompletedAt>=lastRunAt;
+    },
+    {timeoutMs:45000},
   );
   await sleep(500);
   stopStandings();
-  assert.equal(standingsWrites,1,'Two locks inside the 20-second window must produce one standings recompute.');
-
-  await sleep(20500);
-  const beforeCompletion=(await db.doc(`pools/${poolId}/standings/rebuild`).get()).data().lastCompletedAt.toMillis();
-  await Promise.all([
-    call('openGlobalPool',first,{action:'completeGlobalPhase',poolId,phase:'pods'}),
-    call('openGlobalPool',second,{action:'completeGlobalPhase',poolId,phase:'pods'}),
-  ]);
-  await waitFor('the completed Pods standings',
-    async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
-    snapshot=>snapshot.exists&&snapshot.data().lastCompletedAt?.toMillis()>beforeCompletion,
-  );
+  assert(standingsWrites>=2,'A write during the cooldown must produce a trailing standings recompute.');
+  assert(standingsWrites<=2,'Cooldown coalescing must cap this two-wave scenario at two standings recomputes.');
   const [standingsSnapshot,rowSnapshot,trustedSnapshot]=await Promise.all([
     db.doc(`pools/${poolId}/standings/current`).get(),
     db.doc(`pools/${poolId}/standingsRows/${second.uid}`).get(),
@@ -122,6 +150,9 @@ async function main(){
   ]);
   assert(standingsSnapshot.exists&&rowSnapshot.exists);
   const standings=standingsSnapshot.data(),row=rowSnapshot.data(),trusted=trustedSnapshot.data();
+  assert.equal(standings.activeCounts.pods,1,'The trailing rebuild must include the second player’s completed Pods phase.');
+  assert.equal(Object.values(standings.ownerCounts.pods).reduce((sum,count)=>sum+Number(count||0),0),1,'The trailing rebuild must include the second player’s locked pick.');
+  assert(row.completedPhases.includes('pods'));
   const receipt=makeEngine(engineConfig,Number(standings.activeCounts.pods)||1).scorePhase(
     'pods',{[second.uid]:trusted.picks.pods},
     {ownerCounts:standings.ownerCounts.pods,activeCount:standings.activeCounts.pods},
@@ -135,7 +166,48 @@ async function main(){
   assert((await db.doc(`pools/${poolId}`).get()).data().members.includes(second.uid));
   assert.equal((await db.doc(`pools/${poolId}/trustedPlayers/${second.uid}`).get()).data().watchedThrough,3);
 
-  console.log('Two-account Global Pool emulator walkthrough passed.');
+  const emailPoolId='email-safety-pool',invitee='invitee@example.test';
+  await Promise.all([
+    db.doc(`users/${first.uid}`).set({username:'scam.site'},{merge:true}),
+    db.doc(`pools/${emailPoolId}`).set({
+      name:'scam.site',ownerUid:first.uid,members:[first.uid],membershipClosed:false,
+      joinCode:'email-safety-code',season:{id:seasonId,label:'Love Is Blind Emulator'},createdAt:Date.now(),
+    }),
+  ]);
+  await call('sendPoolInvite',first,{poolId:emailPoolId,toEmail:invitee});
+  const inviteDoc=(await db.doc(`invites/${emailPoolId}__${invitee}`).get()).data();
+  const mailDoc=(await db.doc(`mail/invite_${emailPoolId}__${encodeURIComponent(invitee)}`).get()).data();
+  assert.equal(inviteDoc.poolName,'a Through the Wall pool');
+  assert.equal(inviteDoc.fromUsername,'A friend');
+  assert(!JSON.stringify({subject:mailDoc.message.subject,text:mailDoc.message.text,html:mailDoc.message.html}).includes('scam.site'));
+  assert(mailDoc.from&&mailDoc.replyTo&&!mailDoc.message.from&&!mailDoc.message.replyTo);
+  assert(mailDoc.headers['List-Unsubscribe'].includes('emailPreferences='));
+  assert(mailDoc.message.text.includes('123 Test Street, Edmonton AB')&&mailDoc.message.html.includes('123 Test Street, Edmonton AB'));
+  const duplicate=await callFailure('sendPoolInvite',first,{poolId:emailPoolId,toEmail:invitee});
+  assert.equal(duplicate.status,'ALREADY_EXISTS');
+  assert(duplicate.message.includes("You've already invited"));
+
+  const suppressed='suppressed@example.test',suppressedHash=crypto.createHash('sha256').update(suppressed).digest('hex');
+  await db.doc(`emailSuppressions/${suppressedHash}`).set({invites:true,createdAt:Date.now()});
+  const suppressionFailure=await callFailure('sendPoolInvite',first,{poolId:emailPoolId,toEmail:suppressed});
+  assert.equal(suppressionFailure.status,'FAILED_PRECONDITION');
+
+  const invalidToken=await callFailure('sendPoolInvite',null,{action:'emailPreferences',token:'invalid',apply:false});
+  assert.equal(invalidToken.status,'INVALID_ARGUMENT');
+  const secret='local-emulator-secret-not-for-production';
+  const inviteToken=signEmailPreferenceToken({v:1,t:'invite',e:suppressedHash},secret);
+  await call('sendPoolInvite',second,{action:'emailPreferences',token:inviteToken,apply:true});
+  await call('sendPoolInvite',second,{action:'emailPreferences',token:inviteToken,apply:true});
+  const nudgeToken=signEmailPreferenceToken({v:1,t:'nudge',u:second.uid,p:'newEpisodes'},secret);
+  await db.doc(`notificationPreferences/${second.uid}`).set({emailNudges:true});
+  await call('sendPoolInvite',null,{action:'emailPreferences',token:nudgeToken,apply:true,all:false});
+  const preferences=(await db.doc(`notificationPreferences/${second.uid}`).get()).data();
+  assert.deepEqual(Object.keys(preferences).sort(),['friendPhaseLocks','friendPoolCompletions','newEpisodes','newSeasons','updatedAt'].sort());
+  assert.equal(preferences.newEpisodes,false);
+  assert.equal(preferences.friendPhaseLocks,true);
+  assert.equal(typeof preferences.updatedAt,'number');
+
+  console.log('Global Pool concurrency and email-safety emulator walkthrough passed.');
 }
 
 main().catch(error=>{console.error(error);process.exitCode=1;});

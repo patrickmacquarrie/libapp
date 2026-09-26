@@ -10,6 +10,8 @@ const analyticsSource=read('analytics.js');
 const functionsSource=read('functions/index.js');
 const scoringEngineSource=read('functions/shared/scoring-engine.js');
 const globalWatchLedgerSource=read('functions/shared/global-watch-ledger.js');
+const linkTextSource=read('functions/shared/link-text.js');
+const emailPreferencesSource=read('functions/shared/email-preferences.js');
 const firestoreRules=read('firestore.rules');
 const publisher=read('scripts/season-publisher/Code.gs');
 const seasonAdmin=read('scripts/season-publisher/Admin.html');
@@ -60,7 +62,7 @@ const globalJoinWatchEnd=html.indexOf('\nfunction GlobalPoolJoinModal',globalJoi
 assert(globalJoinWatchStart>=0&&globalJoinWatchEnd>globalJoinWatchStart,'Could not isolate the Global join watch selection.');
 const globalJoinWatchSelection=vm.runInNewContext(`${html.slice(globalJoinWatchStart,globalJoinWatchEnd)}\nglobalJoinWatchSelection`,{Math,Number});
 assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:3,ask:true});
-assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'friend-pool',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:0,ask:false},'A mirror-linked Global join must skip the question and start at zero.');
+assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'private-pool',availableThroughEp:5,initialWatchedThrough:3}))),{availableThroughEp:5,initialWatchedThrough:0,ask:false},'A mirror-linked Global join must skip the question and start at zero.');
 assert.deepEqual(JSON.parse(JSON.stringify(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:0,initialWatchedThrough:0}))),{availableThroughEp:0,initialWatchedThrough:0,ask:false},'A pre-premiere Global join must skip the watch question.');
 assert.equal(globalJoinWatchSelection({sourcePoolId:'',availableThroughEp:5,initialWatchedThrough:99}).initialWatchedThrough,5,'The client selection must stay inside the published range before the server clamps it again.');
 
@@ -71,12 +73,27 @@ assert(!html.includes("httpsCallable(functions,'reportClientError')"),'Client fa
 assert(firestoreRules.includes('match /clientErrors/{userId}/categories/{category}'),'Firestore rules must protect client diagnostics.');
 assert(firestoreRules.includes('allow read, delete: if false'),'Browser clients must not read or delete diagnostics.');
 assert(firestoreRules.includes("duration.value(1, 'm')"),'Repeated diagnostics must be throttled in Firestore rules.');
-['save_failed','season_load_failed','pool_open_failed','pool_create_failed','invite_send_failed','invite_accept_failed','mirror_sync_failed'].forEach(category=>{
+['save_failed','season_load_failed','pool_open_failed','pool_create_failed','invite_send_failed','invite_accept_failed','mirror_sync_failed','global_join_failed'].forEach(category=>{
   assert(firestoreRules.includes(`'${category}'`),`${category} must be accepted by the diagnostic rules.`);
   assert(html.includes(`reportTtwError('${category}'`),`${category} must be reported by the app.`);
 });
 assert(!html.includes('data?.message'),'Browser error messages must not be copied into production diagnostics.');
 assert(!html.includes('data?.stack'),'Browser stack traces must not be copied into production diagnostics.');
+assert(html.includes('const FRIEND_POOL_MEMBER_LIMIT=40;'),'The browser friend-pool member limit must remain 40.');
+assert(firestoreRules.includes('FRIEND_POOL_MEMBER_LIMIT, keep in sync with index.html and functions/index.js.')&&firestoreRules.includes('request.resource.data.members.size() <= 40'),'Firestore rules must enforce the shared 40-player friend-pool limit.');
+[
+  'The Global Pool was blocked while',
+  'Publish the latest Firestore rules',
+  'The first Pods episode is not available yet',
+  'The matching Firestore privacy rules may still need to be published',
+  'The pool admin needs to republish the season',
+  'Firebase rejected this invitation',
+].forEach(copy=>assert(!html.includes(copy),`Developer-facing player copy must be removed: ${copy}`));
+assert(html.includes('const playerErrorMessage=')&&html.includes("code.startsWith('functions/')&&code!=='functions/internal'"),'Player-visible errors must expose only authored callable and plain Error messages.');
+const setterLiteralPattern=/(?:setErr|setPoolInviteFeedback|setGlobalShareFeedback|setSettingsFeedback)\(\s*(['"`])([^\n]*?)\1/g;
+for(const match of html.matchAll(setterLiteralPattern))assert(!/Firestore|Firebase rejected|insufficient permissions|Publish the/i.test(match[2]),`Player setter contains banned technical copy: ${match[2]}`);
+assert(html.includes("const APP_SHARE_URL='https://throughthewall.ca/?utm_source=share_card';"),'Share cards must carry the share_card source tag.');
+assert(html.includes("+'?utm_source=global_share';"),'Global Pool sharing must carry the global_share source tag.');
 assert(html.includes('listPublishedSeasonSnapshots'),'The app must discover newly published roadmap seasons from Firestore.');
 assert(html.includes('applyPublishedSeasonSnapshots'),'Published season snapshots must activate their matching season-library entries.');
 assert(html.includes("season.releaseLabel=rl"),'applyPublishedSeasonSnapshots must reconcile releaseLabel from the snapshot Settings onto the season object.');
@@ -105,7 +122,7 @@ assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','https://
 assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8',''),'','A missing cast name and photo must not create a broken URL.');
 assert(html.includes('getPublicAppConfig'),'The app must read the public live/default season configuration.');
 assert(html.includes('const globalPoolSeason=seasonById(defaultSeasonId)'),'The active Global Pool must follow the configured default season.');
-assert(html.includes('Past Global Pools'),'Previous Global Pools must remain accessible to their members.');
+assert(!html.includes('Past Global Pools')&&!html.includes('pastGlobalPools'),'Previous Global Pools must not be listed in the player lobby.');
 assert(firestoreRules.includes('match /appConfig/public'),'Firestore rules must expose only the public runtime routing document.');
 
 assert(publisher.includes('PropertiesService.getScriptProperties()'),'The publisher must read season configuration from Script properties.');
@@ -158,8 +175,8 @@ assert(functionsSource.includes("collection('standings').doc('current')"),'The s
 assert(html.includes('watchGlobalStandings'),'Global clients must subscribe to the single trusted standings document.');
 assert(html.includes("if(activePool.global===true){\n      if(poolTab!=='standings'"),'Global standings must bypass the collection fan-out watcher.');
 const loadAllPlayersCalls=[...html.matchAll(/window\._fb\.loadAllPlayers\(([^\n]+)\)/g)].map(match=>match[1]);
-assert(loadAllPlayersCalls.length>0,'Friend-pool loading must retain its bounded player collection path.');
-assert(loadAllPlayersCalls.every(call=>call.includes(',false,')),'Every player collection load must be explicitly limited to a friend pool.');
+assert(loadAllPlayersCalls.length>0,'Private-pool loading must retain its bounded player collection path.');
+assert(loadAllPlayersCalls.every(call=>call.includes(',false,')),'Every player collection load must be explicitly limited to a private pool.');
 assert(!html.includes('window._fb.loadAllPlayers(pool.id,user.uid,true'),'Global pools must never read the players collection.');
 assert(scoringEngineSource.includes('validateLockedPhasePicks'),'Trusted pick validation must live with the shared engine.');
 assert(functionsSource.includes('authoritativeWindow=resolveGlobalWatchWindow(previous)'),'The scorer must resolve foresight from the server-held per-player ledger.');
@@ -170,7 +187,21 @@ assert(!globalWatchLedgerSource.includes('globalJoinFloorForSeason'),'Release st
 assert(globalWatchLedgerSource.includes('fields.joinedAtEp=0'),'A fresh Global ledger must neutralise the legacy join marker.');
 assert.equal((functionsSource.match(/globalLedgerFieldsForJoin\(/g)||[]).length,2,'Both Global join paths must use the same player-relative ledger initializer.');
 assert(globalWatchLedgerSource.includes('join time do\n// not prove what a player knows'),'The trusted-player anti-backdating design decision must remain explicit.');
-assert(functionsSource.includes('batch.set(trustedRef,{')&&functionsSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,completedAt:previous.completedAt||{},updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
+const globalLockSource=functionsSource.slice(functionsSource.indexOf('async function lockGlobalPicks('),functionsSource.indexOf('\nasync function completeGlobalPhase('));
+assert(globalLockSource.includes('retryAborted(()=>db.runTransaction'),'Trusted Global lock writes must retry transaction contention.');
+const globalLockTransaction=globalLockSource.slice(globalLockSource.indexOf('retryAborted(()=>db.runTransaction'));
+assert(globalLockSource.indexOf('poolRef.get()')<globalLockSource.indexOf('retryAborted(()=>db.runTransaction')&&globalLockSource.indexOf('seasonRef.get()')<globalLockSource.indexOf('retryAborted(()=>db.runTransaction'),'Pool membership and season configuration must be validated before opening the per-player lock transaction.');
+assert(globalLockTransaction.includes('transaction.get(trustedRef)')&&!globalLockTransaction.includes('transaction.get(poolRef)')&&!globalLockTransaction.includes('transaction.get(seasonRef)')&&!globalLockTransaction.includes('transaction.get(profileRef)'),'Global pick locking must hold a read lock only on the trusted player document.');
+const globalLockTransactionBody=globalLockTransaction.slice(0,globalLockTransaction.indexOf('\n  }));'));
+assert(!globalLockTransactionBody.includes("collection('phasePicks')"),'The contention-sensitive transaction must read and write only the trusted player document.');
+assert(globalLockSource.includes('transaction.set(trustedRef,{')&&globalLockSource.includes('scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,updatedAt:lockedAt,'),'Trusted Global lock writes must merge so ledger fields survive.');
+assert(!globalLockSource.includes('completedAt:'),'Locking picks must not overwrite a phase completion written by a concurrent request.');
+const standingsRebuildSource=functionsSource.slice(functionsSource.indexOf('exports.rebuildGlobalStandings='),functionsSource.indexOf('\nfunction cleanRatings(',functionsSource.indexOf('exports.rebuildGlobalStandings=')));
+assert(standingsRebuildSource.includes('failureCount:0'),'A successful standings rebuild must reset the consecutive failure count.');
+assert(functionsSource.includes('dirty:failures<3,failureCount:failures'),'A persistent standings rebuild failure must stop dirty retries after three attempts.');
+const seasonRebuildSource=functionsSource.slice(functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate='),functionsSource.indexOf('\nexports.deleteMyAccount=',functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate=')));
+assert(seasonRebuildSource.includes("requestGlobalStandingsRebuild(poolId,'season-updated')"),'Season updates must enter the same serialized standings rebuild queue.');
+assert(!seasonRebuildSource.includes('await recomputeGlobalStandings(poolId)'),'Season updates must not bypass the standings rebuild queue.');
 const finishWatchSave=html.indexOf('await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);');
 const finishWatchAdvance=html.indexOf("if(activePool.global===true)await window._fb.advanceGlobalWatch(activePool.id,target);");
 const finishWatchLocalAdvance=html.indexOf('setW(target);setWatchThrough(target);',finishWatchSave);
@@ -183,9 +214,9 @@ assert(functionsSource.includes('exports.deletePool=onCall'),'Pool deletion must
 assert(functionsSource.includes('await db.recursiveDelete(poolRef)'),'Pool deletion must recursively remove every subcollection.');
 assert(html.includes("deletePool: pool => httpsCallable(functions,'deletePool')"),'The browser must use recursive server-side pool deletion.');
 assert(!html.includes('6 * members'),'Pool deletion must not rely on one member-sized browser batch.');
-assert(functionsSource.includes("_${day}_${invitationCount}`"),'Each deliberate same-day invitation resend must create a distinct mail document.');
-assert(!html.includes('already has a pending invitation'),'The invitation form must allow a deliberate same-day resend.');
-assert(html.includes("resendingPendingInvite?'Invitation sent again to '"),'The invitation form must clearly confirm a resend.');
+assert(functionsSource.includes("mail/invite_${poolId}__${encodeURIComponent(toEmail)}`"),'Each pool and address must map to one stable invitation mail document.');
+assert(html.includes("You've already invited ${email}"),'The invitation form must refuse a duplicate pending invitation before calling the function.');
+assert(!html.includes('resendingPendingInvite'),'The invitation form must not keep the old resend path.');
 assert(functionsSource.includes("db.collection('mail').where('to','array-contains',email)"),'Account deletion must remove queued mail addressed to the user.');
 assert(functionsSource.includes("if(request.data?.action==='feedback')return submitFeedback(request)"),'Feedback must be routed through the existing App Check-protected email callable.');
 assert(functionsSource.includes('const DAILY_FEEDBACK_LIMIT=5'),'Feedback delivery must have a bounded daily account limit.');
@@ -200,9 +231,28 @@ assert(html.includes('html{width:100%;min-width:0')&&html.includes('.app{width:1
 assert(html.includes('if(dirty&&!seasonChanged)return;')&&html.includes('[seasonId,myRatingDoc?.updatedAt,dirty]'),'A live Heat Check refresh must not replace an unsaved private draft, while a season change must still hydrate the new season.');
 assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings()"),'Friend Heat Check activity must refresh community results without reloading the private draft.');
 assert(html.includes('await onSave(eng.CAST.filter')&&html.includes('setDirty(false);'),'Heat Check drafts must become clean only after a successful save.');
+assert(html.includes("useState(()=>globalPool?false:community?.mySharing!==false)"),'New private-pool Heat Check scorecards must be shared by default while preserving an existing hide choice.');
+assert(html.includes("mySharing:entries.find(entry=>entry.uid===currentUid)?.shared"),'Heat Check community loads must return the current player’s saved sharing preference without exposing hidden ratings.');
+assert(html.includes('checked={!shareWithFriends}')&&html.includes('Hide my Heat Check picks from this private pool'),'The private-pool privacy control must be an opt-out placed with the save controls.');
+assert(html.includes('const includeInGlobal=globalPool||contributeToGlobal===true;')&&html.includes('...(includeInGlobal?{globalRatings:safeRatings}:{})'),'A registered Global Pool player’s private-pool ratings must continue feeding the anonymous global aggregate.');
+assert(html.includes('Global averages are anonymous')&&html.includes('They are never shown there with your name or traceable back to your scorecard.'),'Heat Check must explain the Global Pool aggregation privacy boundary.');
+assert(html.includes('Start a New Private Pool')&&html.includes('Create a Private Pool'),'The empty lobby must distinguish private pools from the Global Pool.');
+assert(html.includes('You’re registered for the Global Pool')&&html.includes('Invite your Friends to Join'),'Prelaunch Global Pool onboarding must confirm registration and invite sharing.');
+assert(html.includes('<h3>Email notifications</h3>')&&html.includes('aria-label="Email notification choices"'),'Settings must identify notification choices as email notifications.');
+assert(html.includes('Predictions will open on October 14.')&&html.includes('Everyone should watch episode 1 before coming back to make predictions.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
+const prelaunchPanelStart=html.indexOf("poolTab==='play' && !cfg.PLAYABLE");
+const prelaunchPanelEnd=html.indexOf("poolTab==='play' && cfg.PLAYABLE",prelaunchPanelStart);
+const prelaunchPanel=html.slice(prelaunchPanelStart,prelaunchPanelEnd);
+assert(prelaunchPanel.indexOf('Invite your Friends to Join')<prelaunchPanel.indexOf('Check for season updates')&&prelaunchPanel.indexOf('Check for season updates')<prelaunchPanel.indexOf('Test the app with past seasons'),'The past-season test path must follow the invite and season-update actions.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
-assert(analyticsSource.includes("Object.freeze({a:'4.99',b:'9.99',c:'12.99'})"),'The price experiment must use the approved three price points.');
+const enterPoolSource=html.slice(html.indexOf('const enterPool = async'),html.indexOf('\n  const analyticsRoute=',html.indexOf('const enterPool = async')));
+assert(enterPoolSource.includes('!enteredPool.rulesSnapshot&&enteredPool.global!==true&&enteredPool.ownerUid===user.uid'),'Only the owner may freeze rules when entering an unfrozen private pool.');
+assert(!enterPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to enter an unfrozen pool using the live season configuration.');
+const refreshPoolSource=html.slice(html.indexOf('const refreshPool = async'),html.indexOf('\n  const shareFriendPool = async',html.indexOf('const refreshPool = async')));
+assert(refreshPoolSource.includes('!pool.rulesSnapshot&&pool.global!==true&&pool.ownerUid===user.uid'),'Only the owner may freeze rules while refreshing an unfrozen private pool.');
+assert(!refreshPoolSource.includes('The pool owner needs to open this pool once'),'A non-owner must be able to refresh an unfrozen pool using the live season configuration.');
+assert(analyticsSource.includes("Object.freeze({a:'4.99',c:'12.99'})"),'Pricing research must compare only the two endpoint prices.');
 assert(functionsSource.includes('db.recursiveDelete(db.doc(`clientErrors/${uid}`))'),'Account deletion must remove client diagnostics.');
 assert(!functionsSource.includes("collectionGroup('members')"),'Half-finished member-subcollection cleanup must not abort account deletion before Phase 5.');
 assert(html.includes('updateProfileUsername'),'Username changes must use an update that preserves createdAt.');
@@ -215,6 +265,14 @@ assert(!firestoreRules.includes("request.resource.data.revealed"),'The deprecate
 assert(firestoreRules.includes("'updatedAt',\n            'revealed'"),'Rules must permit a full replacement to remove the deprecated phase-status field.');
 assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
 assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
+const linkPattern='.*(://|www[.]).*|.*[.](com|net|org|ca|co|io|app|site|xyz|link|ly|me|gg|tv|info|biz|shop|online|live|club|us|uk|to|cc|sh)([^a-z0-9].*)?';
+[linkTextSource,html,firestoreRules].forEach(source=>assert(source.includes(linkPattern),'Link-like name validation must use the identical shared pattern.'));
+assert(functionsSource.includes('const FRIEND_POOL_MEMBER_LIMIT=40;'),'Functions must share the 40-player friend-pool limit.');
+assert(!/message\s*:\s*\{[^}]*\b(?:from|replyTo)\s*:/s.test(functionsSource),'Mail sender and reply-to fields must never be nested inside message.');
+assert(emailPreferencesSource.includes("crypto.timingSafeEqual"),'Email preference tokens must use timing-safe signature comparison.');
+assert(firestoreIndexes.fieldOverrides.some(field=>field.collectionGroup==='mail'&&field.fieldPath==='delivery.expireAt'&&field.ttl===true),'Mail delivery expiry must have a versioned TTL override.');
+assert(workflow.includes('functions extensions')&&workflow.includes('Functions, or extensions'),'Extension changes must hold Hosting until the backend is deployed.');
+assert.equal((functionsSource.match(/exports\.[A-Za-z0-9_]+\s*=/g)||[]).length,11,'The project-owned function inventory must remain eleven exports.');
 assert(functionsSource.includes("const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'}"),'Every callable must enforce App Check outside the local Firebase emulator.');
 assert(!/onCall\(FUNCTION_LIMITS/.test(functionsSource),'No callable may bypass App Check enforcement.');
 assert(html.includes('initializeAppCheck(fbApp'),'The production client must initialize Firebase App Check.');
@@ -429,13 +487,17 @@ assert(html.includes('<b>Invitation link saved.</b> You won’t need to reopen i
 assert(html.includes('authDomain: "throughthewall.ca"'),'Firebase Auth redirects must stay on the production custom domain.');
 assert(html.indexOf('await window._fb.completeAuthRedirect()')<html.indexOf('unsubscribe=window._fb.onAuthStateChanged'),'Redirect results must settle before signed-out UI.');
 assert(html.includes("trackTtwEvent('sign_in_started',{method:'google'})"),'Google sign-in start must emit a conversion event.');
+assert(html.includes('const embeddedBrowser=window.__TTW_EMBEDDED_BROWSER_CONTEXTS__?.includes(window.__TTW_BROWSING_CONTEXT__?.browserContext)===true;')&&html.includes('!embeddedBrowser&&<button className="btn-google"')&&html.includes("className={embeddedBrowser?'btn-primary':'btn-secondary'}"),'Embedded social browsers must hide Google sign-in and make email-link sign-in primary.');
+assert(html.includes("Signing in from an app's browser? Use your email, or open this page in Safari or Chrome."),'Embedded social browsers must explain the supported sign-in path.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_success'"),'Successful redirect resolution must emit a conversion event.');
 assert(html.includes("dispatchAuthConversion('sign_in_redirect_failure',{code:"),'Redirect failures must report their auth error code.');
 assert(html.includes("trackTtwEvent('app_arrival')"),'Every arrival must emit a conversion event.');
 assert(html.includes("const trackTtwEvent=(event,details={})=>window.ttwAnalytics?.track(event,details)"),'Named product analytics must retain one dispatcher.');
 assert(analyticsSource.includes('window.posthog?.capture(event,payload)'),'The shared dispatcher must fan every named event out to PostHog.');
 assert(!html.includes('posthog.capture('),'PostHog event capture must not be scattered through the app.');
-assert(analyticsSource.includes("person_profiles:'identified_only'")&&analyticsSource.includes('capture_pageview:true')&&analyticsSource.includes('autocapture:true'),'PostHog must initialize with the beta product-analytics settings.');
+assert(analyticsSource.includes("person_profiles:'identified_only'")&&analyticsSource.includes('capture_pageview:window.__TTW_MANUAL_PAGEVIEWS__?false:true')&&analyticsSource.includes('autocapture:true'),'PostHog must initialize with the beta product-analytics settings and respect manual pageviews.');
+assert(html.indexOf('window.__TTW_MANUAL_PAGEVIEWS__=true')<html.indexOf('<script src="analytics.js"></script>'),'The app must disable automatic PostHog pageviews before analytics loads.');
+assert(html.includes("const analyticsRoute=!['signedin','signedout','profileerror'].includes(authState)")&&html.includes('if(analyticsRoute)window.ttwAnalytics?.capturePageview(analyticsRoute)'),'Transient authentication routes must not send manual app pageviews.');
 assert(analyticsSource.includes("mask_all_text:true")&&analyticsSource.includes("mask_all_element_attributes:true"),'PostHog autocapture must mask rendered text and element attributes.');
 const sessionRecordingStart=analyticsSource.indexOf('session_recording:{');
 const sessionRecordingEnd=analyticsSource.indexOf('\n      },\n    });',sessionRecordingStart);
@@ -443,16 +505,45 @@ assert(sessionRecordingStart>=0&&sessionRecordingEnd>sessionRecordingStart,'Post
 const sessionRecordingSource=analyticsSource.slice(sessionRecordingStart,sessionRecordingEnd);
 assert(sessionRecordingSource.includes('maskAllInputs:true')&&sessionRecordingSource.includes("maskTextSelector:'*'"),'Session replay must use PostHog\'s maximum supported input and rendered-text masking.');
 assert(analyticsSource.includes("property_denylist:['email','username','displayName','name','toEmail','inviteEmail']"),'PostHog must drop PII-shaped event properties.');
-assert(analyticsSource.includes("['$current_url','$referrer','$initial_referrer']"),'PostHog page and referrer properties must remove query strings before sending.');
+assert(analyticsSource.includes('mask_personal_data_properties:true')&&analyticsSource.includes("['join','signInEmail','emailPreferences','oobCode','apiKey','continueUrl','mode','lang','tenantId']"),'PostHog must mask the configured personal URL properties.');
 assert(analyticsSource.includes("window.posthog.identify(String(firebaseUid),{},setOnce)"),'PostHog identity must use only the stable Firebase UID plus set-once cohort properties.');
 assert(html.includes("window.ttwAnalytics?.identify(u.uid,{seasonId:"),'Authenticated sessions must identify with the Firebase UID.');
 assert(html.includes("window.ttwAnalytics?.reset();identifiedAnalyticsUid.current=''"),'Sign-out and account deletion must reset PostHog identity.');
 assert(analyticsSource.includes("const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true})"),'PostHog events must opt out of GeoIP enrichment before leaving the browser.');
 assert(analyticsSource.includes("window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES})"),'Acquisition source, app build, and privacy controls must be PostHog super-properties.');
-assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'The price fake door must wait for a resolved PostHog feature flag.');
-['invite_sent','invite_link_opened','invite_accepted','episode_return','notif_opt_in','price_fakedoor_click','founding_email_captured'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+assert(analyticsSource.includes("window.posthog.getFeatureFlag('price_variant')")&&analyticsSource.includes('window.posthog.onFeatureFlags'),'Pricing research must wait for a resolved PostHog feature flag.');
+assert(html.includes('if(!pricingPrompt){setPriceVariant(null);return()=>{};}')&&html.includes('window.ttwAnalytics?.onPriceVariant(setPriceVariant)'),'The price flag must not be read until an owner becomes eligible for the prompt.');
+assert(html.includes("pricingPrompt?.poolId===activePool.id&&pricingPrice&&<PricingResearchCard"),'The pricing card must not render until a supported price variant has resolved.');
+['invite_sent','invite_link_opened','invite_accepted','global_pool_joined','episode_return','notif_opt_in','price_prompt_shown','price_response'].forEach(event=>assert(html.includes(`trackTtwEvent('${event}'`),`${event} must be emitted through the shared dispatcher.`));
+assert(!html.includes("trackTtwEvent('price_fakedoor_click'")&&!html.includes("trackTtwEvent('founding_email_captured'"),'The obsolete two-step fake-door events must not remain in the app.');
+const saveUsernameStart=html.indexOf('const saveUsername = async () =>');
+const changeUsernameStart=html.indexOf('const changeUsername = async rawValue =>',saveUsernameStart);
+const addInviteEmailStart=html.indexOf('const addInviteEmail = () =>',changeUsernameStart);
+assert(saveUsernameStart>=0&&changeUsernameStart>saveUsernameStart&&addInviteEmailStart>changeUsernameStart,'Could not isolate the username creation and change paths.');
+const saveUsernameSource=html.slice(saveUsernameStart,changeUsernameStart);
+const changeUsernameSource=html.slice(changeUsernameStart,addInviteEmailStart);
+assert(saveUsernameSource.indexOf("trackTtwEvent('account_created'")>saveUsernameSource.indexOf('await window._fb.setProfile('),'account_created must fire only after the initial profile is saved.');
+assert(!changeUsernameSource.includes("trackTtwEvent('account_created'"),'Changing an existing username must not fire account_created.');
+const phaseCompletionStart=html.indexOf('const registerPhaseCompletion = useCallback(');
+const phaseCompletionEnd=html.indexOf('\n  const finishWatch = async',phaseCompletionStart);
+assert(phaseCompletionStart>=0&&phaseCompletionEnd>phaseCompletionStart,'Could not isolate the phase-completion path.');
+const phaseCompletionSource=html.slice(phaseCompletionStart,phaseCompletionEnd);
+assert(!phaseCompletionSource.includes("if(phaseId==='pods')"),'first_checkpoint_locked must not be limited to the Pods phase.');
+assert(phaseCompletionSource.includes("const analyticsKey='through-the-wall-first-checkpoint-'+poolId+'-'+uid")&&phaseCompletionSource.includes('if(!localStorage.getItem(analyticsKey))')&&phaseCompletionSource.includes("localStorage.setItem(analyticsKey,'1')"),'first_checkpoint_locked must retain its once-per-pool-per-player localStorage guard.');
+assert(phaseCompletionSource.includes('firstCheckpoint&&!globalPool&&activePool?.id===poolId&&activePool.ownerUid===uid&&promptSeason?.id===defaultSeasonId')&&!phaseCompletionSource.includes("promptSeason?.id==='love-is-blind-us-11'")&&phaseCompletionSource.includes('setPricingPrompt({poolId,phase:phaseId,seasonId:promptSeason.id'),'Pricing research must follow the configured live/default season and remain limited to the private-pool owner’s first completed checkpoint.');
+assert(phaseCompletionSource.includes("localStorage.getItem('through-the-wall-pricing-prompted-'+uid)==='1'")&&html.includes("localStorage.setItem('through-the-wall-pricing-prompted-'+user.uid,'1')"),'Pricing research must be suppressed per identified user after it is shown on a device.');
+assert(html.includes('Help us price private pools')&&html.includes('Your pool is free for all of {seasonLabel}.')&&html.includes("onRespond('yes')")&&html.includes("onRespond('maybe')")&&html.includes("onRespond('no')")&&html.includes("onRespond('dismissed')"),'The pricing card must state the current-season guarantee and collect Yes, Maybe, No, or dismissed.');
+assert(html.includes("member_count:memberCount")&&html.includes("response,member_count:memberCount"),'Pricing responses must record the owner’s current private-pool member count.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'})"),'A successful invitation-link join must emit invite_accepted.');
 assert(html.includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'})"),'An accepted email invitation must identify its acceptance channel.');
+const openGlobalPoolStart=html.indexOf('const openGlobalPool = async season =>');
+const joinGlobalPoolStart=html.indexOf('const doJoinGlobalPool = async () =>',openGlobalPoolStart);
+const acceptInvitationStart=html.indexOf('const doAccept = async',joinGlobalPoolStart);
+assert(openGlobalPoolStart>=0&&joinGlobalPoolStart>openGlobalPoolStart&&acceptInvitationStart>joinGlobalPoolStart,'Could not isolate the Global Pool open and join paths.');
+const openGlobalPoolSource=html.slice(openGlobalPoolStart,joinGlobalPoolStart);
+const joinGlobalPoolSource=html.slice(joinGlobalPoolStart,acceptInvitationStart);
+assert(!openGlobalPoolSource.includes("trackTtwEvent('global_pool_joined'"),'Reopening an existing Global Pool membership must not emit a new join.');
+assert(joinGlobalPoolSource.indexOf("trackTtwEvent('global_pool_joined',{seasonId:season.id,initialWatchedThrough,mirrored:!!sourcePoolId})")>joinGlobalPoolSource.indexOf('await window._fb.joinGlobalPool(season,initialWatchedThrough)'),'A successful new Global Pool join must emit its season, starting watch position, and mirror state after the join completes.');
 assert(html.includes('className="modal ph-no-capture"'),'Settings must be excluded from session replay so account, pool, email, and support details never leave the browser.');
 assert(html.includes('className="pool-row ph-no-capture"'),'User-created pool names must be excluded from session replay.');
 assert(html.includes('className="invite-row ph-no-capture"'),'Invitation details must be excluded from session replay.');
@@ -460,16 +551,61 @@ assert(html.includes('className="ph-no-capture" id="pool-panel-standings"'),'Pla
 assert(html.includes('className="ph-no-capture" id="pool-panel-chemistry"'),'Heat Check names, scores, and accessibility attributes must be excluded from session replay.');
 assert(html.includes('className="ph-no-capture" id="pool-panel-play"'),'Prediction content and contestant accessibility attributes must be excluded from session replay.');
 
+const loadAcquisitionAnalytics=({search='',referrer='',storage=new Map()}={})=>{
+  const listeners=new Map();
+  class AcquisitionCustomEvent{
+    constructor(type,options={}){this.type=type;this.detail=options.detail;}
+  }
+  const testWindow={
+    location:{search,origin:'https://throughthewall.ca',pathname:'/'},
+    addEventListener:(type,listener)=>listeners.set(type,listener),
+    dispatchEvent:event=>{listeners.get(event.type)?.(event);return true;},
+  };
+  const testDocument={referrer};
+  const testLocalStorage={
+    getItem:key=>storage.get(key)||null,
+    setItem:(key,value)=>storage.set(key,String(value)),
+  };
+  vm.runInNewContext(analyticsSource,{window:testWindow,document:testDocument,localStorage:testLocalStorage,URL,URLSearchParams,CustomEvent:AcquisitionCustomEvent});
+  const stored=JSON.parse(storage.get('through-the-wall-acquisition')||'{}');
+  return {acquisitionSource:testWindow.ttwAnalytics.acquisitionSource,stored,storage};
+};
+const inviteAcquisition=loadAcquisitionAnalytics({search:'?join=abc.def'});
+assert.equal(inviteAcquisition.acquisitionSource,'invite');
+assert.equal(inviteAcquisition.stored.acquisition_source,'invite');
+assert(!Object.hasOwn(inviteAcquisition.stored,'join'),'The private pool join code must never be persisted with acquisition data.');
+const restoredInviteAcquisition=loadAcquisitionAnalytics({storage:inviteAcquisition.storage});
+assert.equal(restoredInviteAcquisition.acquisitionSource,'invite','Invite acquisition must survive the authentication redirect.');
+const paidStorage=new Map([['through-the-wall-acquisition',JSON.stringify({fbclid:'x'})]]);
+assert.equal(loadAcquisitionAnalytics({search:'?join=abc.def',storage:paidStorage}).acquisitionSource,'paid_meta','A later invitation must not overwrite an earlier paid first touch.');
+const inviteWithUtm=loadAcquisitionAnalytics({search:'?join=abc.def&utm_source=tiktok'});
+assert.equal(inviteWithUtm.acquisitionSource,'invite');
+assert.equal(inviteWithUtm.stored.utm_source,'tiktok','Invite acquisition must retain accompanying campaign parameters.');
+assert(!Object.hasOwn(inviteWithUtm.stored,'join'),'Invite campaign acquisition must not persist the pool join code.');
+assert.equal(loadAcquisitionAnalytics().acquisitionSource,'organic_direct','An empty first visit must remain organic direct.');
+assert.equal(loadAcquisitionAnalytics({referrer:'https://example.test/article'}).acquisitionSource,'organic_referral','A referred first visit must remain organic referral.');
+
+const emailReturnHelperStart=html.indexOf("const emailSignInReturnUrl=");
+const emailReturnHelperEnd=html.indexOf('\n/* AUTH HELPERS END */',emailReturnHelperStart);
+assert(emailReturnHelperStart>=0&&emailReturnHelperEnd>emailReturnHelperStart,'Could not isolate the email sign-in return URL helper.');
+const emailSignInReturnUrl=vm.runInNewContext(`${html.slice(emailReturnHelperStart,emailReturnHelperEnd)}\nemailSignInReturnUrl`,{URL});
+const paidEmailReturn=emailSignInReturnUrl('https://throughthewall.ca/?join=pool.code&utm_campaign=launch','paid_meta');
+assert.equal(paidEmailReturn.searchParams.get('acquisition_source'),'paid_meta','Email sign-in must carry the first-touch acquisition source into the destination browser.');
+assert.equal(paidEmailReturn.searchParams.get('join'),'pool.code','Email sign-in must preserve the pending invitation parameter.');
+assert.equal(paidEmailReturn.searchParams.get('utm_campaign'),'launch','Email sign-in must preserve existing campaign parameters.');
+assert.equal(emailSignInReturnUrl('https://throughthewall.ca/?acquisition_source=invite','paid_meta').searchParams.get('acquisition_source'),'invite','Email sign-in must not overwrite an explicit acquisition source.');
+
 const analyticsListeners=new Map();
 const analyticsStorage=new Map();
 class AnalyticsCustomEvent{
   constructor(type,options={}){this.type=type;this.detail=options.detail;}
 }
 const analyticsWindow={
-  location:{search:'?utm_source=launch_list&utm_medium=email',origin:'https://throughthewall.ca',pathname:'/'},
+  location:{search:'?utm_source=launch_list&utm_medium=email',origin:'https://throughthewall.ca',hostname:'throughthewall.ca',pathname:'/'},
   addEventListener:(type,listener)=>analyticsListeners.set(type,listener),
   dispatchEvent:event=>{analyticsListeners.get(event.type)?.(event);return true;},
   __TTW_BROWSING_CONTEXT__:{browser_context:'browser'},
+  __TTW_MANUAL_PAGEVIEWS__:true,
 };
 const analyticsDocument={
   referrer:'',
@@ -513,13 +649,52 @@ assert.deepEqual(JSON.parse(JSON.stringify(identifyCall)),['identify','firebase-
 const posthogConfig=analyticsWindow.posthog._i[0][1];
 const registrationCall=analyticsWindow.posthog.find(call=>call[0]==='register');
 assert.equal(registrationCall[1].$geoip_disable,true,'Automatic PostHog events and feature-flag requests must disable GeoIP enrichment.');
+assert.equal(posthogConfig.capture_pageview,false,'The app shell must disable PostHog automatic pageviews.');
+assert.equal(posthogConfig.mask_personal_data_properties,true,'PostHog personal-data masking must be enabled.');
+assert.deepEqual(Array.from(posthogConfig.custom_personal_data_properties),['join','signInEmail','emailPreferences','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
 assert.equal(posthogConfig.session_recording.maskAllInputs,true,'Session replay must mask form input values.');
 assert.equal(posthogConfig.session_recording.maskTextSelector,'*','Session replay must mask every rendered text node.');
 assert.equal(posthogConfig.session_recording.maskAllElementAttributes,undefined,'Session replay must not pretend the unsupported maskAllElementAttributes option protects accessibility attributes; sensitive regions use ph-no-capture instead.');
-const sanitizedEvent=posthogConfig.before_send({properties:{$current_url:'https://throughthewall.ca/?join=secret-token',$referrer:'https://example.test/path?private=yes'}});
-assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/');
-assert.equal(sanitizedEvent.properties.$referrer,'https://example.test/path');
+const sanitizedEvent=posthogConfig.before_send({
+  properties:{
+    $current_url:'https://throughthewall.ca/?join=secret-token#/app/lobby',
+    $referrer:'https://www.throughthewall.ca/sign-in?signInEmail=player@example.com&oobCode=secret',
+    $initial_referrer:'https://throughthewall.ca/?join=initial-code',
+    $session_entry_url:'https://throughthewall.ca/?join=session-code',
+    $session_entry_referrer:'https://throughthewall.ca/?oobCode=session-secret',
+    $prev_pageview_pathname:'/welcome/',
+    $pathname:'/app/',
+    $web_vitals_FCP_event:{$current_url:'https://throughthewall.ca/?signInEmail=player@example.com&oobCode=vitals-secret'},
+    future_payload:{urls:['https://example.com/watch?join=pool.code',{target:'https://www.throughthewall.ca/deep/path/?oobCode=secret#results'}]},
+  },
+  $set:{$current_url:'https://throughthewall.ca/?join=set-code'},
+  $set_once:{$initial_current_url:'https://throughthewall.ca/?join=first-code&signInEmail=player@example.com'},
+});
+assert.equal(sanitizedEvent.properties.$current_url,'https://throughthewall.ca/#/app/lobby','Hash routes must survive URL sanitization.');
+assert.equal(sanitizedEvent.properties.$pathname,'/app/');
+assert.equal(sanitizedEvent.properties.$prev_pageview_pathname,'/welcome/');
+assert.equal(sanitizedEvent.properties.future_payload.urls[0],'https://example.com/watch');
+assert.equal(sanitizedEvent.properties.future_payload.urls[1].target,'https://www.throughthewall.ca/deep/path/#results');
+const sanitizedStrings=[];
+const collectStrings=value=>{if(typeof value==='string')sanitizedStrings.push(value);else if(value&&typeof value==='object')Object.values(value).forEach(collectStrings);};
+collectStrings(sanitizedEvent);
+for(const value of sanitizedStrings){
+  assert(!value.includes('?'),'Sanitized PostHog event values must not retain URL query strings.');
+  assert(!/join=|signInEmail|oobCode/.test(value),'Sanitized PostHog event values must not retain join or sign-in secrets.');
+}
 assert.equal(sanitizedEvent.properties.$geoip_disable,true,'Automatic SDK events and replay snapshots must disable GeoIP enrichment before sending.');
+const replayEvent=posthogConfig.before_send({
+  event:'$snapshot',
+  properties:{$snapshot_data:[
+    {type:4,data:{href:'https://throughthewall.ca/?join=replay-code#/app/lobby'}},
+    {type:2,data:{node:{type:2,attributes:{href:'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap'}}}},
+    {type:5,data:{tag:'$url_changed',payload:{href:'https://throughthewall.ca/?join=changed-replay-code#/app/pool'}}},
+  ]},
+});
+assert.equal(replayEvent.properties.$snapshot_data[0].data.href,'https://throughthewall.ca/#/app/lobby','Replay page addresses must lose query strings without losing hash routes.');
+assert.equal(replayEvent.properties.$snapshot_data[1].data.node.attributes.href,'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap','Replay asset URLs must keep query strings needed to reproduce the page.');
+assert.equal(replayEvent.properties.$snapshot_data[2].data.payload.href,'https://throughthewall.ca/#/app/pool','Replay URL-change addresses must lose join-code query strings without losing hash routes.');
+assert.equal(replayEvent.properties.$geoip_disable,true,'Replay snapshots must continue to disable GeoIP enrichment.');
 assert(html.includes("browserContext='instagram_in_app'")&&html.includes("browserContext='messenger_in_app'")&&html.includes("browserContext='tiktok_in_app'"),'Arrival telemetry must distinguish common in-app browsers.');
 assert(html.includes("reportTtwError('startup_failed',error,{operation:'complete_auth_redirect'})"),'Unresolved auth returns must emit the bounded startup failure diagnostic.');
 assert(html.includes('const hasAuthReturn=window._fb.hasAuthRedirectParams()||window._fb.hasPendingAuthRedirect();'),'Startup diagnostics must retain redirect intent after Firebase removes its handler parameters.');
@@ -560,7 +735,8 @@ assert(productionCsp.includes("worker-src 'self' blob:"),'The production CSP mus
 assert(!productionCsp.includes('https://appleid.apple.com'),'The production CSP must not allow the disabled Apple provider.');
 assert(firebaseConfig.includes('// Apple sign-in: restore https://appleid.apple.com to frame-src before re-enabling the provider.'),'The Hosting config must preserve the Apple CSP re-enable warning beside frame-src.');
 assert(firebaseConfig.includes('"source": "/"')&&firebaseConfig.includes('"source": "**/*.html"'),'The app shell and direct HTML pages must have explicit cache rules.');
-assert(firebaseConfig.match(/"Cache-Control", "value": "no-cache, no-store, must-revalidate"/g)?.length===2,'The app shell must revalidate after every deployment instead of serving stale auth or invite code.');
+assert(firebaseConfig.match(/"Cache-Control", "value": "no-cache, no-store, must-revalidate"/g)?.length===3,'The app shell, HTML pages, and service-worker kill switch must revalidate after every deployment.');
+assert(firebaseConfig.includes('"source": "/sw.js"'),'The service-worker kill switch must have its own no-cache Hosting rule.');
 assert(firebaseConfig.includes('"source": "/assets/**"')&&firebaseConfig.includes('public, max-age=31536000, immutable'),'Hashed static assets must retain long-lived caching.');
 
 assert(workflow.includes('actions/checkout@v6'));
@@ -673,7 +849,7 @@ async function assertMirrorEntryRegression(){
     advanceGlobalWatch:async()=>friendProgressCalls.push('trusted'),
     syncPublicProgress:async(...args)=>{friendProgressCalls.push(['public',...args]);return {w:4,watchThrough:4};},
   });
-  assert.equal(friendProgressCalls.length,1,'A Global-linked friend pool must receive public progress without calling the Global ledger.');
+  assert.equal(friendProgressCalls.length,1,'A Global-linked private pool must receive public progress without calling the Global ledger.');
   assert.deepEqual(friendProgressCalls[0].slice(0,3),['public','friend','viewer']);
   const intentOnly=context.__mergeMirroredCheckpointState(
     {phase:'pods',screen:'board',w:0,watchThrough:0,completed:{}},sourceState,spans,13,
@@ -683,7 +859,7 @@ async function assertMirrorEntryRegression(){
   const safeFriendPicks=context.__friendSafeMirroredPicks('pods',[
     {c:'Alex|Casey',s:20,w:9,lockedAt:123,releasedThroughAtLock:11},
   ],[{c:'Casey|Alex',s:10,w:2}],5);
-  assert.equal(safeFriendPicks[0].w,2,'Mirroring into a friend pool must preserve the matching friend pick window.');
+  assert.equal(safeFriendPicks[0].w,2,'Mirroring into a private pool must preserve the matching private pick window.');
   assert.equal('lockedAt' in safeFriendPicks[0],false);
   assert.equal('releasedThroughAtLock' in safeFriendPicks[0],false);
   const forward=context.__mergeMirroredCheckpointState(
@@ -742,20 +918,20 @@ async function assertMirrorEntryRegression(){
   const historicalResetEnd=functionsSource.indexOf('exports.recomputeGlobalStandingsOnSeasonUpdate',historicalResetStart);
   const historicalResetSource=functionsSource.slice(historicalResetStart,historicalResetEnd);
   assert(historicalResetStart>=0&&historicalResetEnd>historicalResetStart,'The historical reset implementation must remain auditable.');
-  assert(!historicalResetSource.includes('duplicateFromPoolId:FieldValue.delete()'),'Historical reset must preserve established friend-pool links.');
+  assert(!historicalResetSource.includes('duplicateFromPoolId:FieldValue.delete()'),'Historical reset must preserve established private-pool links.');
   assert(historicalResetSource.includes('linksPreserved'),'Historical reset must report how many Global-to-friend links survived.');
   assert(historicalResetSource.includes('linkedPlayersReset'),'Historical reset must report how many linked friend-player states were cleared.');
   assert(historicalResetSource.includes('completedMembers:FieldValue.arrayRemove(...uids)'),'Historical reset must prevent old linked completions from replaying into Global.');
   assert(historicalResetSource.includes("sourcePoolRef.collection('phasePicks').doc(`${phase}__${uid}`)"),'Historical reset must clear the linked tester picks that would otherwise replay into Global.');
   assert(html.includes('sync links are preserved'),'The reset confirmation must explain that linked pools stay connected.');
-  assert(html.includes('Other friend-pool members and settings are not changed'),'The reset confirmation must define the linked friend-pool blast radius.');
+  assert(html.includes('Other private-pool members and settings are not changed'),'The reset confirmation must define the linked private-pool blast radius.');
   const historicalRepairStart=functionsSource.indexOf('async function relaxHistoricalJoinFloor(request)');
   const historicalRepairSource=functionsSource.slice(historicalRepairStart,historicalResetEnd);
   assert(historicalRepairStart>=0,'The historical scoring repair implementation must remain auditable.');
   assert(historicalRepairSource.includes('const confirmedSource=linkedPlayer?.data||publicPlayer?.data||{};'),'A linked friend player must be the canonical confirmed-watch source for repair.');
   assert(historicalRepairSource.includes('watchedThrough:confirmedWatch'),'The admin repair must replace a contaminated trusted watch ledger with confirmed progress.');
   assert(historicalRepairSource.includes("batch.set(publicPlayer.ref,{w:confirmedWatch},{merge:true})"),'The admin repair must also correct a contaminated public Global w.');
-  assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked friend pools.');
+  assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked private pools.');
   assert(!historicalRepairSource.includes('cfg.AVAILABLE_THROUGH_EP<seasonEnd'),'The confirmed-watch repair must be permitted while a season is live.');
   assert(html.includes('This repair is safe while a season is live.'),'The admin UI must describe the live-season repair precondition accurately.');
 }

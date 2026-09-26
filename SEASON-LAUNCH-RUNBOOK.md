@@ -20,7 +20,7 @@ With `CONFIG_VERSION=2`, a phase has no score anywhere until its `<PHASE>_RESULT
 - Update the season sheet only after confirming the episode results and phase boundary fields. Keep `SEASON_ID` and `SPREADSHEET_ID` paired in the publisher's Script properties.
 - Run `previewSeasonSnapshot`. Confirm the intended season, status, available-through episode, non-zero required-tab row counts, a document size below 900,000 bytes, and the returned `releaseHash`. Publishing will accept only that exact previewed sheet state.
 - Confirm the latest Firebase Hosting deployment from GitHub `main` is green. For a first-season launch, also run `npm run check` locally.
-- Keep one test friend pool and one Global Pool account available for verification.
+- Keep one test private pool and one Global Pool account available for verification.
 
 ## Publish and verify
 
@@ -32,7 +32,7 @@ With `CONFIG_VERSION=2`, a phase has no score anywhere until its `<PHASE>_RESULT
    - the correct episodes and cast are visible;
    - existing picks/progress load;
    - one harmless new pick saves and shows **saved**;
-   - the Global Pool and a friend pool both load;
+   - the Global Pool and a private pool both load;
    - an invitation can be sent or accepted when invitation behaviour changed.
 4. Check again on a phone-sized screen. Do not edit the sheet during verification.
 

@@ -1,0 +1,18 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const argv=process.argv.slice(2),hasFlag=flag=>argv.includes(flag),valueFor=flag=>{const i=argv.indexOf(flag);return i>=0?argv[i+1]:undefined;};
+const projectId=valueFor('--project')||'lib-oauth',accessToken=process.env.FIREBASE_ACCESS_TOKEN,apply=hasFlag('--apply');
+const backupPath=valueFor('--backup'),expectedRaw=valueFor('--expected-count'),expectedCount=expectedRaw===undefined?null:Number(expectedRaw);
+const database=`projects/${projectId}/databases/(default)`,apiBase=`https://firestore.googleapis.com/v1/${database}`;
+if(projectId!=='lib-oauth')throw new Error(`Refusing unexpected project: ${projectId}`);
+if(!accessToken)throw new Error('Set FIREBASE_ACCESS_TOKEN to a short-lived Google OAuth access token.');
+if(apply&&!backupPath)throw new Error('--apply requires --backup PATH.');
+if(apply&&(!Number.isInteger(expectedCount)||expectedCount<0))throw new Error('--apply requires --expected-count N.');
+async function request(url,options={}){const response=await fetch(url,{...options,headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json',...(options.headers||{})}});const text=await response.text();if(!response.ok)throw new Error(`${response.status} ${response.statusText}: ${text}`);return text?JSON.parse(text):null;}
+async function readMail(){const rows=await request(`${apiBase}/documents:runQuery`,{method:'POST',body:JSON.stringify({structuredQuery:{from:[{collectionId:'mail'}]}})});return rows.map(row=>row.document).filter(Boolean);}
+const mapFields=value=>value?.mapValue?.fields||{};
+function candidates(documents){return documents.flatMap(document=>{const delivery=mapFields(document.fields?.delivery),state=delivery.state?.stringValue;if(!['SUCCESS','ERROR'].includes(state)||delivery.expireAt)return [];const end=Date.parse(delivery.endTime?.timestampValue||'');if(!Number.isFinite(end))return [];const sevenDays=end+7*86400000,expireAt=new Date(sevenDays>Date.now()?sevenDays:Date.now()+86400000).toISOString();return [{document,expireAt,state}];});}
+function writeBackup(rows){const destination=path.resolve(backupPath);fs.mkdirSync(path.dirname(destination),{recursive:true});fs.writeFileSync(destination,JSON.stringify({projectId,createdAt:new Date().toISOString(),rows},null,2),{mode:0o600});return destination;}
+async function applyExpiry(rows){const writes=rows.map(({document,expireAt})=>({update:{name:document.name,fields:{delivery:{mapValue:{fields:{expireAt:{timestampValue:expireAt}}}}}},updateMask:{fieldPaths:['delivery.expireAt']},currentDocument:{updateTime:document.updateTime}}));for(let i=0;i<writes.length;i+=400)await request(`${apiBase}/documents:commit`,{method:'POST',body:JSON.stringify({writes:writes.slice(i,i+400)})});}
+async function main(){const documents=await readMail(),rows=candidates(documents);const states=rows.reduce((counts,row)=>({...counts,[row.state]:(counts[row.state]||0)+1}),{});console.log(JSON.stringify({mode:apply?'apply':'dry-run',projectId,documents:documents.length,candidates:rows.length,states},null,2));if(!apply){if(backupPath)console.log(`Backup written to ${writeBackup(rows)}`);return;}if(rows.length!==expectedCount)throw new Error(`Refusing migration: expected ${expectedCount} documents, found ${rows.length}.`);console.log(`Backup written to ${writeBackup(rows)}`);await applyExpiry(rows);const remaining=candidates(await readMail());if(remaining.length)throw new Error(`Verification failed: ${remaining.length} eligible documents still lack delivery.expireAt.`);console.log(JSON.stringify({applied:rows.length,remaining:0},null,2));}
+main().catch(error=>{console.error(error.message);process.exitCode=1;});
