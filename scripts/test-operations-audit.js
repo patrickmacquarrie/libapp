@@ -81,6 +81,19 @@ assert(!html.includes('data?.message'),'Browser error messages must not be copie
 assert(!html.includes('data?.stack'),'Browser stack traces must not be copied into production diagnostics.');
 assert(html.includes('const FRIEND_POOL_MEMBER_LIMIT=40;'),'The browser friend-pool member limit must remain 40.');
 assert(firestoreRules.includes('FRIEND_POOL_MEMBER_LIMIT, keep in sync with index.html and functions/index.js.')&&firestoreRules.includes('request.resource.data.members.size() <= 40'),'Firestore rules must enforce the shared 40-player friend-pool limit.');
+[
+  'The Global Pool was blocked while',
+  'Publish the latest Firestore rules',
+  'The first Pods episode is not available yet',
+  'The matching Firestore privacy rules may still need to be published',
+  'The pool admin needs to republish the season',
+  'Firebase rejected this invitation',
+].forEach(copy=>assert(!html.includes(copy),`Developer-facing player copy must be removed: ${copy}`));
+assert(html.includes('const playerErrorMessage=')&&html.includes("code.startsWith('functions/')&&code!=='functions/internal'"),'Player-visible errors must expose only authored callable and plain Error messages.');
+const setterLiteralPattern=/(?:setErr|setPoolInviteFeedback|setGlobalShareFeedback|setSettingsFeedback)\(\s*(['"`])([^\n]*?)\1/g;
+for(const match of html.matchAll(setterLiteralPattern))assert(!/Firestore|Firebase rejected|insufficient permissions|Publish the/i.test(match[2]),`Player setter contains banned technical copy: ${match[2]}`);
+assert(html.includes("const APP_SHARE_URL='https://throughthewall.ca/?utm_source=share_card';"),'Share cards must carry the share_card source tag.');
+assert(html.includes("+'?utm_source=global_share';"),'Global Pool sharing must carry the global_share source tag.');
 assert(html.includes('listPublishedSeasonSnapshots'),'The app must discover newly published roadmap seasons from Firestore.');
 assert(html.includes('applyPublishedSeasonSnapshots'),'Published season snapshots must activate their matching season-library entries.');
 assert(html.includes("season.releaseLabel=rl"),'applyPublishedSeasonSnapshots must reconcile releaseLabel from the snapshot Settings onto the season object.');
@@ -585,7 +598,7 @@ class AnalyticsCustomEvent{
   constructor(type,options={}){this.type=type;this.detail=options.detail;}
 }
 const analyticsWindow={
-  location:{search:'?utm_source=launch_list&utm_medium=email',origin:'https://throughthewall.ca',pathname:'/'},
+  location:{search:'?utm_source=launch_list&utm_medium=email',origin:'https://throughthewall.ca',hostname:'throughthewall.ca',pathname:'/'},
   addEventListener:(type,listener)=>analyticsListeners.set(type,listener),
   dispatchEvent:event=>{analyticsListeners.get(event.type)?.(event);return true;},
   __TTW_BROWSING_CONTEXT__:{browser_context:'browser'},

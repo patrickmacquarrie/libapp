@@ -1,6 +1,6 @@
 # PostHog beta setup and verification
 
-The browser integration is built for PostHog EU Cloud and stays disabled in ordinary local builds. Plausible remains enabled in parallel. Complete this runbook before releasing the beta.
+The browser integration is built for PostHog EU Cloud and initializes only on `throughthewall.ca` and `www.throughthewall.ca`; ordinary local builds and release smoke tests do not send events. Plausible remains enabled in parallel. Complete this runbook before releasing the beta.
 
 ## One-time PostHog setup
 
@@ -10,7 +10,7 @@ The browser integration is built for PostHog EU Cloud and stays disabled in ordi
 3. Enable Session Replay for the project. Set sampling to about 50% and the minimum recording duration to about 5 seconds. Keep the project’s default recording retention unless a shorter beta-specific retention period is required; the client masks form inputs, rendered text, URL query strings, and blocks the prediction, standings, Heat Check, settings, invitation, and user-created pool regions with PostHog’s supported `ph-no-capture` control. Do not remove those classes without re-running the replay privacy check below.
 4. Create a multivariate feature flag named `price_variant`. Give variants `a` and `c` equal rollout percentages. The app maps them to `$4.99` and `$12.99` respectively. Enable persistence across authentication so the same identified owner keeps the same price. Keep the PostHog description aligned with these prices, and do not enable another variant without adding its price to `analytics.js`.
 5. Under **Filter out internal and test users**, add a `distinct_id` filter matching the Firebase UIDs for your own and test accounts, then enable the filter on all new insights.
-6. The beta lifecycle event list includes `app_arrival`, `sign_in_completed`, `account_created`, `pool_created`, `invite_sent`, `invite_link_opened`, `invite_accepted`, `global_pool_joined`, `episode_return`, `first_checkpoint_locked`, `return_visit`, `notif_opt_in`, `price_prompt_shown`, and `price_response`.
+6. The beta lifecycle event list includes `app_arrival`, `sign_in_completed`, `account_created`, `pool_created`, `invite_sent`, `invite_link_opened`, `invite_accepted`, `email_unsubscribed`, `global_pool_joined`, `episode_return`, `first_checkpoint_locked`, `return_visit`, `notif_opt_in`, `price_prompt_shown`, and `price_response`.
 7. Keep these five saved insights with the internal/test-user filter enabled:
    - **Host acquisition funnel:** `account_created` → `pool_created` → `invite_sent`, sequential and broken down by `acquisition_source`. Do not use `sign_in_completed` as the first step because returning players emit it too.
    - **Invitee funnel:** `invite_link_opened` → `account_created` → `invite_accepted` → `first_checkpoint_locked`, sequential and broken down by `acquisition_source`.
@@ -23,6 +23,7 @@ The production deployment deliberately fails if `POSTHOG_PROJECT_TOKEN` is missi
 
 ## Release verification
 
+- In Settings, turn off analytics. Confirm PostHog capture and session replay stop in that browser, the pricing research card does not appear, and turning the setting back on permits capture after the next load.
 - Open PostHog Activity and click through the app. Confirm custom events arrive and include `app_build` and `acquisition_source`.
 - Open a fresh private window with an invitation URL. Confirm `invite_link_opened` and `app_arrival` are anonymous, sign in with Google, and verify those events, `sign_in_completed`, and `account_created` appear on one person whose distinct ID is the Firebase UID and whose `acquisition_source` is `invite`.
 - From the Instagram app, open your own ad preview link, use email-link sign-in, and confirm the resulting PostHog person has `acquisition_source = paid_meta` after the link opens in Safari or Chrome.
@@ -35,3 +36,5 @@ The production deployment deliberately fails if `POSTHOG_PROJECT_TOKEN` is missi
 - Confirm the app emits neither PostHog's automatic pageview nor a manual `/app/checking` or `/app/loading` pageview. These transient app pageviews are intentionally suppressed.
 
 The direct PostHog host can be blocked by content blockers. That expected loss is accepted for the first release; the optional first-party `/ingest/` proxy is a separate fast-follow and is not part of milestone 0.3.
+
+In `app_error`, treat `global_join_failed` as the category for Global Pool join failures. Watch it separately from invitation failures during premiere traffic.

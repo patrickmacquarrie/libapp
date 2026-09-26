@@ -6,16 +6,23 @@
   const API_HOST='__POSTHOG_HOST__';
   const APP_BUILD='__APP_BUILD_TIMESTAMP__';
   const ACQUISITION_STORAGE_KEY='through-the-wall-acquisition';
+  const ANALYTICS_OPT_OUT_KEY='through-the-wall-analytics-opt-out';
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
   const PRICE_VARIANTS=Object.freeze({a:'4.99',c:'12.99'});
   const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true});
   const PERSONAL_DATA_PROPERTIES=Object.freeze(['join','signInEmail','emailPreferences','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
-  const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST);
-  let capturingStopped=false;
+  const readStorage=key=>{try{return localStorage.getItem(key);}catch(error){return null;}};
+  const writeStorage=(key,value)=>{try{localStorage.setItem(key,value);}catch(error){}};
+  const removeStorage=key=>{try{localStorage.removeItem(key);}catch(error){}};
+  const optedOut=readStorage(ANALYTICS_OPT_OUT_KEY)==='1';
+  const productionHost=['throughthewall.ca','www.throughthewall.ca'].includes(window.location.hostname);
+  const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST)&&productionHost&&!optedOut;
+  let capturingStopped=!configured;
+  if(optedOut)writeStorage('plausible_ignore','true');
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
   const readStoredAcquisition=()=>{
-    try{return JSON.parse(localStorage.getItem(ACQUISITION_STORAGE_KEY)||'{}')||{};}
+    try{return JSON.parse(readStorage(ACQUISITION_STORAGE_KEY)||'{}')||{};}
     catch(error){return {};}
   };
   const currentAcquisition=()=>{
@@ -26,7 +33,7 @@
     const invited=!!params.get('join');
     if(Object.keys(incoming).length||invited){
       const firstTouch={...incoming,...(invited?{acquisition_source:'invite'}:{}),capturedAt:Date.now()};
-      try{localStorage.setItem(ACQUISITION_STORAGE_KEY,JSON.stringify(firstTouch));}catch(error){}
+      writeStorage(ACQUISITION_STORAGE_KEY,JSON.stringify(firstTouch));
       return firstTouch;
     }
     return stored;
@@ -141,7 +148,17 @@
   const stop=()=>{
     capturingStopped=true;
     if(configured)window.posthog?.opt_out_capturing();
+    window.posthog?.stopSessionRecording?.();
   };
+  const optOut=()=>{
+    writeStorage(ANALYTICS_OPT_OUT_KEY,'1');writeStorage('plausible_ignore','true');
+    capturingStopped=true;window.posthog?.opt_out_capturing?.();window.posthog?.stopSessionRecording?.();
+  };
+  const optIn=()=>{
+    removeStorage(ANALYTICS_OPT_OUT_KEY);removeStorage('plausible_ignore');
+    if(configured){capturingStopped=false;window.posthog?.opt_in_capturing?.();}
+  };
+  const isOptedOut=()=>readStorage(ANALYTICS_OPT_OUT_KEY)==='1';
   const capturePageview=route=>{
     if(!configured||!route||capturingStopped)return;
     const cleanBase=window.location.origin==='null'?window.location.pathname:window.location.origin+window.location.pathname;
@@ -149,7 +166,7 @@
   };
   const onPriceVariant=callback=>{
     if(typeof callback!=='function')return()=>{};
-    if(!configured){callback(null);return()=>{};}
+    if(!configured||capturingStopped){callback(null);return()=>{};}
     let active=true;
     window.posthog.onFeatureFlags((flags,variants,metadata={})=>{
       if(!active)return;
@@ -169,6 +186,9 @@
     identify,
     reset,
     stop,
+    optOut,
+    optIn,
+    isOptedOut,
     capturePageview,
     onPriceVariant,
   });

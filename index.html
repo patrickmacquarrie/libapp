@@ -2428,11 +2428,18 @@ function disambiguateMemberLabels(memberIds,rawLabels) {
     return [uid,duplicates.length>1?label+' · '+(duplicates.indexOf(uid)+1):label];
   }));
 }
+const playerErrorMessage=(error,fallback)=>{
+  const code=String(error?.code||'');
+  const message=String(error?.message||'');
+  if(!code)return message||fallback;
+  if(code.startsWith('functions/')&&code!=='functions/internal')return message||fallback;
+  return fallback;
+};
 const playerSeasonError = (error,fallback) => {
   const message=String(error?.message||'');
   return /^(Season data|Season config)/.test(message)
-    ? "This season's published setup has a problem and predictions are paused. The pool admin needs to republish the season."
-    : (message||fallback);
+    ? "This season's setup needs a quick fix, so predictions are paused. Check back soon."
+    : playerErrorMessage(error,fallback);
 };
 const CONFIG_CACHE_TTL_MS=60*1000;
 const configCache=new Map();
@@ -3072,7 +3079,7 @@ function ResultsBreakdown({entries=[],events=[],eng,meId,memberLabels}) {
     </details>}
   </React.Fragment>;
 }
-const APP_SHARE_URL='https://throughthewall.ca/';
+const APP_SHARE_URL='https://throughthewall.ca/?utm_source=share_card';
 const initialsFor=value=>String(value||'Player').trim().split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase()||'P';
 const wrapCanvasText=(ctx,text,maxWidth)=>{
   const words=String(text||'').split(/\s+/),lines=[];let line='';
@@ -4972,6 +4979,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [supportSending,setSupportSending]=useState(false);
   const [supportStatus,setSupportStatus]=useState({kind:'',message:''});
   const [captainStatus,setCaptainStatus]=useState('');
+  const [analyticsEnabled,setAnalyticsEnabled]=useState(()=>!window.ttwAnalytics?.isOptedOut?.());
   const modalRef=useModalLifecycle(onClose,!deleting);
   const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
@@ -4988,9 +4996,9 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
     catch(e){setDeleteError('The pool could not be deleted. Please try again.');}
     finally{setDeleting(false);}
   };
-  const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;const validation=linkNameValidationMessage(name);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(e?.message||'The pool name could not be changed.');}finally{setSavingProfile(false);}};
-  const finishResetLink=async()=>{if(!resetLinkPool||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onResetPoolJoinCode?.(resetLinkPool);setSettingsFeedback('Invite link reset. Share the new link with anyone who should still join.');setResetLinkPool(null);}catch(e){setSettingsFeedback(e?.message||'The invite link could not be reset.');}finally{setSavingProfile(false);}};
-  const finishUsername=async()=>{if(savingProfile)return;const validation=linkNameValidationMessage(accountUsername);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(e?.message||'The username could not be changed.');}finally{setSavingProfile(false);}};
+  const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;const validation=linkNameValidationMessage(name);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(playerErrorMessage(e,'The pool name could not be changed.'));}finally{setSavingProfile(false);}};
+  const finishResetLink=async()=>{if(!resetLinkPool||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onResetPoolJoinCode?.(resetLinkPool);setSettingsFeedback('Invite link reset. Share the new link with anyone who should still join.');setResetLinkPool(null);}catch(e){setSettingsFeedback(playerErrorMessage(e,'The invite link could not be reset.'));}finally{setSavingProfile(false);}};
+  const finishUsername=async()=>{if(savingProfile)return;const validation=linkNameValidationMessage(accountUsername);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(playerErrorMessage(e,'The username could not be changed.'));}finally{setSavingProfile(false);}};
   const submitSupport=async event=>{
     event.preventDefault();
     const message=supportMessage.trim();
@@ -5044,6 +5052,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       <h3>Email notifications</h3>
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
       <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
+      <h3>Analytics</h3>
+      <label className="chemistry-toggle"><input type="checkbox" checked={analyticsEnabled} onChange={event=>{const enabled=event.target.checked;if(enabled)window.ttwAnalytics?.optIn?.();else window.ttwAnalytics?.optOut?.();setAnalyticsEnabled(enabled);}}/><span><strong>Share usage analytics and masked session replays to help improve Through the Wall.</strong><span>This applies to this browser. Turning it off stops product analytics and session replay here. <a href="privacy.html">Privacy</a></span></span></label>
       <form className="support-panel" onSubmit={submitSupport} aria-labelledby="support-title">
         <div className="premium-fakedoor-kicker">Feedback &amp; support</div>
         <h3 id="support-title">Tell us what happened—or what would make this better.</h3>
@@ -5779,7 +5789,7 @@ function App() {
       reportTtwError('pool_open_failed',e,{operation:'enter_pool',entryStep,poolId:pool.id,seasonId:seasonForPool(pool).id});
       const message=playerSeasonError(e,'Could not open this pool. Please try again.');
       const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/insufficient permissions/i.test(String(e?.message||''));
-      setErr(permissionDenied&&pool.global===true?`The Global Pool was blocked while ${entryStep}. Missing or insufficient permissions.`:message);
+      setErr(permissionDenied&&pool.global===true?"The Global Pool couldn't open just now. Refresh and try again.":message);
       setActivePool(null); setEng(null); setPoolPlayers(null); setPoolUsers(null); setPoolStatus({});
     } finally { setLobbyLoading(false); setEnteringPool(false); }
   };
@@ -6027,7 +6037,7 @@ function App() {
       } catch(inviteError) {
         console.error('The pool was created, but one or more invitations failed.',inviteError);
         reportTtwError('invite_send_failed',inviteError,{operation:'send_creation_invites',poolId,seasonId:season.id});
-        setErr('Your pool was created, but an invitation could not be sent. Publish the latest Firestore rules, then invite your friend from the Standings tab.');
+        setErr("Your pool is ready, but an invitation didn't send. Invite friends from the Standings tab or share the pool link.");
       }
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(defaultSeasonId); setMirrorGlobalPicks(false); setInviteList([]);
       if(mirrorSourcePoolId) {
@@ -6087,7 +6097,7 @@ function App() {
         setErr((latestPool?.members||[]).length>=FRIEND_POOL_MEMBER_LIMIT
           ? `${latestPool.name||inv.poolName||'This pool'} is full (${FRIEND_POOL_MEMBER_LIMIT} players). You can still play in the Global Pool.`
           : "This invitation can't be used anymore. The pool may have been locked or deleted.");
-      }else setErr(e?.message||'Could not accept the invitation.');
+      }else setErr(playerErrorMessage(e,'Could not accept the invitation.'));
     }
     finally{setInviteAction('');}
   };
@@ -6132,7 +6142,7 @@ function App() {
       await window._fb.resetHistoricalGlobalSimulation(activePool.id);
       window.location.reload();
     }catch(e){
-      console.error(e);setErr(e?.message||'The historical Global simulation could not be reset.');
+      console.error(e);setErr(playerErrorMessage(e,'The historical Global simulation could not be reset.'));
       setDestructiveActionPending(false);
     }
   };
@@ -6151,7 +6161,7 @@ function App() {
       setErr(`Historical scoring repaired for ${repaired.membersRepaired||0} players and ${repaired.picksRestamped||0} locked picks. Refreshing…`);
       window.location.reload();
     }catch(e){
-      console.error(e);setErr(e?.message||'The historical scoring windows could not be repaired.');
+      console.error(e);setErr(playerErrorMessage(e,'The historical scoring windows could not be repaired.'));
       setDestructiveActionPending(false);
     }
   };
@@ -6164,7 +6174,7 @@ function App() {
       if(!confirmed)return;
       const result=(await window._fb.sendCaptainReminder({seasonId:defaultSeasonId,dryRun:false})).data;
       return `Captain reminders queued: ${result.queued||0}. Skipped: ${result.skipped||0}.`;
-    }catch(error){console.error(error);setErr(error?.message||'Captain reminders could not be sent.');}
+    }catch(error){console.error(error);setErr(playerErrorMessage(error,'Captain reminders could not be sent.'));}
     finally{setDestructiveActionPending(false);}
   };
   const doLeavePool = async pool => {
@@ -6176,7 +6186,7 @@ function App() {
       await window._fb.leavePool(pool.id);
       setShowSettings(false);setActivePool(null);setPoolPlayers(null);setPoolUsers(null);setPoolStatus({});resetRuntimeConfig();
       await loadLobby();
-    }catch(e){console.error(e);setErr(e?.message||'This pool could not be left. Please try again.');}
+    }catch(e){console.error(e);setErr(playerErrorMessage(e,'This pool could not be left. Please try again.'));}
     finally{setDestructiveActionPending(false);}
   };
   const doDeleteAccount = async () => {
@@ -6184,7 +6194,7 @@ function App() {
     if(!await requestConfirmation({title:'Permanently delete your account?',body:'This removes your profile, predictions, Heat Check ratings, and pool history. Pools you own will also be deleted. This cannot be undone.',confirmLabel:'Delete my account',cancelLabel:'Keep my account'}))return;
     setDestructiveActionPending(true);setErr('');
     try{await window._fb.deleteMyAccount();window.ttwAnalytics?.stop();identifiedAnalyticsUid.current='';setShowSettings(false);setActivePool(null);resetRuntimeConfig();}
-    catch(e){console.error(e);setErr(e?.message||'Your account could not be deleted. Please try again.');}
+    catch(e){console.error(e);setErr(playerErrorMessage(e,'Your account could not be deleted. Please try again.'));}
     finally{setDestructiveActionPending(false);}
   };
   const doSendPoolInvite = async () => {
@@ -6203,16 +6213,16 @@ function App() {
       trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'email',count:1});
       setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback('Invitation sent to '+email+'.');
     } catch(e) {
-      console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
+      console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(playerErrorMessage(e,'The invitation could not be sent. Please try again.'));setPoolInviteError(true);
     } finally { setSendingPoolInvite(false); }
   };
   const shareGlobalPool = async () => {
     if(sharingPool)return;
     setSharingPool(true);
     try {
-    const cleanUrl=window.location.origin==='null'
+    const cleanUrl=(window.location.origin==='null'
       ? window.location.href.split('#')[0]
-      : window.location.origin+window.location.pathname;
+      : window.location.origin+window.location.pathname)+'?utm_source=global_share';
     const shareData={
       title:'Through the Wall',
       text:'Join me in the Through the Wall Global Pool for '+seasonLabelForPool(activePool)+'.',
@@ -6255,7 +6265,7 @@ function App() {
       setPoolInviteFeedback(closed?'Pool closed to new players. Existing members can keep playing.':'Pool reopened. Friends can join and begin at Episode 1.');
       return true;
     } catch(e) {
-      console.error(e);setPoolInviteFeedback(e?.message||'The pool membership setting could not be changed.');setPoolInviteError(true);
+      console.error(e);setPoolInviteFeedback(playerErrorMessage(e,'The pool membership setting could not be changed.'));setPoolInviteError(true);
       return false;
     } finally {setUpdatingPoolMembership(false);}
   };
@@ -6307,7 +6317,7 @@ function App() {
   const startPods = async () => {
     if(gating) return;
     if(PH_STARTW.pods>AVAILABLE_THROUGH_EP) {
-      setErr('The first Pods episode is not available yet. Refresh after the season is published.');
+      setErr(`Predictions open once Episode ${PH_STARTW.pods} is out. Check back after it drops.`);
       return;
     }
     setGatingLabel('Opening the prediction board…');setGating(true);
@@ -6581,7 +6591,7 @@ function App() {
       setChemistryGlobalCommunity({...globalRatings,loadedAt});
     } catch(error) {
       console.error('Heat Check could not load.',error);
-      setErr('Heat Check is temporarily unavailable. The matching Firestore privacy rules may still need to be published.');
+      setErr("Heat Check didn't load. Refresh to try again.");
     } finally {setChemistryLoading(false);}
   };
   const refreshChemistryCommunity=async()=>{
@@ -6793,7 +6803,7 @@ function App() {
       {embeddedBrowser&&<p className="notice">Signing in from an app's browser? Use your email, or open this page in Safari or Chrome.</p>}
       {!embeddedBrowser&&<div className="subtle" style={{margin:'14px 0 8px'}}>or use a private email link</div>}
       {emailAuthSent?<div className="notice"><b>Check your inbox.</b> Open the sign-in link on any device to continue.</div>:<form onSubmit={handleEmailSignIn}><div className="field"><label className="small" htmlFor="signin-email">Email address</label><input id="signin-email" type="email" autoComplete="email" value={emailAuthEmail} onChange={event=>setEmailAuthEmail(event.target.value)} placeholder="you@example.com" required/></div><button className={embeddedBrowser?'btn-primary':'btn-secondary'} type="submit" disabled={emailAuthSending||!emailAuthEmail.trim()}>{emailAuthSending?'Sending…':'Email me a sign-in link'}</button></form>}
-      <p className="subtle" style={{marginTop:14}}>By continuing, you agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p>
+      <p className="subtle" style={{marginTop:14}}>By continuing, you confirm you're 18 or older, agree to the <a href="terms.html">Terms</a> and acknowledge the <a href="privacy.html">Privacy Policy</a>.</p>
       {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
     </div>
   </div>;
