@@ -77,6 +77,8 @@ assert(firestoreRules.includes("duration.value(1, 'm')"),'Repeated diagnostics m
 });
 assert(!html.includes('data?.message'),'Browser error messages must not be copied into production diagnostics.');
 assert(!html.includes('data?.stack'),'Browser stack traces must not be copied into production diagnostics.');
+assert(html.includes('const FRIEND_POOL_MEMBER_LIMIT=40;'),'The browser friend-pool member limit must remain 40.');
+assert(firestoreRules.includes('FRIEND_POOL_MEMBER_LIMIT, keep in sync with index.html and functions/index.js.')&&firestoreRules.includes('request.resource.data.members.size() <= 40'),'Firestore rules must enforce the shared 40-player friend-pool limit.');
 assert(html.includes('listPublishedSeasonSnapshots'),'The app must discover newly published roadmap seasons from Firestore.');
 assert(html.includes('applyPublishedSeasonSnapshots'),'Published season snapshots must activate their matching season-library entries.');
 assert(html.includes("season.releaseLabel=rl"),'applyPublishedSeasonSnapshots must reconcile releaseLabel from the snapshot Settings onto the season object.');

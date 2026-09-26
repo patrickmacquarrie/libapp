@@ -1630,6 +1630,7 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script type="text/babel" data-presets="react">
 const initialAppParams=new URLSearchParams(window.location.search);
 const APP_BUILD_TIMESTAMP='__APP_BUILD_TIMESTAMP__'.startsWith('__APP_')?'development source · '+document.lastModified:'__APP_BUILD_TIMESTAMP__';
+const FRIEND_POOL_MEMBER_LIMIT=40;
 window.__TTW_DIAGNOSTICS__={appBuildTimestamp:APP_BUILD_TIMESTAMP};
 const MARKETING_CREATE_INTENT=initialAppParams.get('start')==='create';
 // Emergency/admin-only diagnostic path. Player traffic must use the same
@@ -5373,7 +5374,10 @@ function App() {
           pendingJoinedPool.current=invitationPool;
         }catch(joinError){
           console.warn('Pool invitation link could not be used.',joinError);
-          setErr('That invite link is no longer valid — ask for a new one. Your existing pools are still here.');
+          const permissionDenied=['permission-denied','firestore/permission-denied'].includes(joinError?.code)||/permission/i.test(joinError?.message||'');
+          setErr(permissionDenied
+            ? "That pool can't take new players right now. It may be full, locked by its owner, or the link may have changed. You can still play in the Global Pool."
+            : 'That invite link is no longer valid. Ask for a new one. Your existing pools are still here.');
         }finally{
           currentUrl.searchParams.delete('join');
           history.replaceState({},'',currentUrl.toString());
@@ -6029,9 +6033,13 @@ function App() {
       reportTtwError('invite_accept_failed',e,{operation:'accept_invite',poolId:inv.poolId});
       setEnteringPool(false);
       const permissionDenied=['permission-denied','firestore/permission-denied'].includes(e?.code)||/permission/i.test(e?.message||'');
-      setErr(permissionDenied
-        ? 'Firebase rejected this invitation. Publish the matching asynchronous-pool Firestore rules and try again.'
-        : (e?.message||'Could not accept the invitation.'));
+      if(permissionDenied){
+        let latestPool=null;
+        try{latestPool=await window._fb.getPool(inv.poolId);}catch(readError){}
+        setErr((latestPool?.members||[]).length>=FRIEND_POOL_MEMBER_LIMIT
+          ? `${latestPool.name||inv.poolName||'This pool'} is full (${FRIEND_POOL_MEMBER_LIMIT} players). You can still play in the Global Pool.`
+          : "This invitation can't be used anymore. The pool may have been locked or deleted.");
+      }else setErr(e?.message||'Could not accept the invitation.');
     }
     finally{setInviteAction('');}
   };
@@ -6954,8 +6962,10 @@ function App() {
       {!activePool.global&&<div className="card">
         <h3>{activePool.membershipClosed===true?'This pool is locked for new players':'Invite someone'}</h3>
         <p className="lede">{activePool.membershipClosed===true?'Existing members can keep watching and predicting at their own pace.':'Friends can join at any time and begin their own game from Episode 1.'}</p>
-        {activePool.membershipClosed!==true&&activePool.joinCode&&<button className="btn-secondary" disabled={sharingPool} onClick={shareFriendPool}>{sharingPool?'Getting the link…':'Share pool link'}</button>}
-        {activePool.membershipClosed!==true&&activePool.ownerUid===user.uid&&<React.Fragment>
+        <p className="subtle">{(activePool.members||[]).length} of {FRIEND_POOL_MEMBER_LIMIT} players</p>
+        {(activePool.members||[]).length>=FRIEND_POOL_MEMBER_LIMIT&&<p className="notice">This pool is full. Friends can play in the Global Pool.</p>}
+        {activePool.membershipClosed!==true&&(activePool.members||[]).length<FRIEND_POOL_MEMBER_LIMIT&&activePool.joinCode&&<button className="btn-secondary" disabled={sharingPool} onClick={shareFriendPool}>{sharingPool?'Getting the link…':'Share pool link'}</button>}
+        {activePool.membershipClosed!==true&&(activePool.members||[]).length<FRIEND_POOL_MEMBER_LIMIT&&activePool.ownerUid===user.uid&&<React.Fragment>
           <p className="subtle" style={{marginTop:10}}>{Number.isInteger(poolInviteRemaining)?`${poolInviteRemaining} of 20 email invitations remaining today.`:'Or send up to 20 email invitations per day.'}</p>
           <div className="row">
             <div className="field"><label className="small" htmlFor="pool-invite-email">Email address</label>

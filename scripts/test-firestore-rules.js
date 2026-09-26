@@ -269,6 +269,76 @@ async function main(){
   await expectStatus(await writeDocument(unverifiedInvitePath,inviteFields(invitePool,uid,unverified.email),token),200,'pool owner creates invitation for unverified address');
   await expectStatus(await readDocument(unverifiedInvitePath,unverified.token),403,'unverified token email cannot claim invitation');
 
+  const memberIds=count=>[uid,...Array.from({length:count-1},(_,index)=>`member-${index}`)];
+  const joinCode='friend-pool-code';
+  const joinByCodeFields=(members,joiningUser,createdAt)=>({
+    ...poolFields(uid,rulesSnapshot(5),members,joinCode,createdAt),
+    members:arrayValue([...members,joiningUser].map(stringValue)),
+    lastJoinUid:stringValue(joiningUser),lastJoinProof:stringValue(joinCode),
+  });
+  const joinCap39CreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument('pools/join-cap-39',poolFields(uid,rulesSnapshot(5),memberIds(39),joinCode,joinCap39CreatedAt),'owner'),
+    200,
+    'admin seeds a 39-member friend pool'
+  );
+  await expectStatus(
+    await writeDocument('pools/join-cap-39',joinByCodeFields(memberIds(39),second.uid,joinCap39CreatedAt),second.token),
+    200,
+    'joining by code fills the fortieth friend-pool seat'
+  );
+  const joinCap40CreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument('pools/join-cap-40',poolFields(uid,rulesSnapshot(5),memberIds(40),joinCode,joinCap40CreatedAt),'owner'),
+    200,
+    'admin seeds a full 40-member friend pool'
+  );
+  await expectStatus(
+    await writeDocument('pools/join-cap-40',joinByCodeFields(memberIds(40),second.uid,joinCap40CreatedAt),second.token),
+    403,
+    'joining by code cannot exceed the friend-pool cap'
+  );
+  const availableInvitePool='invite-cap-39';
+  const availableInviteCreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument(`pools/${availableInvitePool}`,poolFields(uid,rulesSnapshot(5),memberIds(39),'123456789012',availableInviteCreatedAt),'owner'),
+    200,
+    'admin seeds a 39-member invited friend pool'
+  );
+  await expectStatus(
+    await writeDocument(`invites/${availableInvitePool}__${invited.email}`,inviteFields(availableInvitePool,uid,invited.email),'owner'),
+    200,
+    'admin seeds a pending invitation to the 39-member pool'
+  );
+  await expectStatus(
+    await writeDocument(`pools/${availableInvitePool}`,{
+      ...poolFields(uid,rulesSnapshot(5),memberIds(39),'123456789012',availableInviteCreatedAt),
+      members:arrayValue([...memberIds(39),invited.uid].map(stringValue)),
+    },invited.token),
+    200,
+    'accepting an invitation fills the fortieth friend-pool seat'
+  );
+  const fullInvitePool='invite-cap-40';
+  const fullInviteCreatedAt=Date.now();
+  await expectStatus(
+    await writeDocument(`pools/${fullInvitePool}`,poolFields(uid,rulesSnapshot(5),memberIds(40),'123456789012',fullInviteCreatedAt),'owner'),
+    200,
+    'admin seeds a full invited friend pool'
+  );
+  await expectStatus(
+    await writeDocument(`invites/${fullInvitePool}__${invited.email}`,inviteFields(fullInvitePool,uid,invited.email),'owner'),
+    200,
+    'admin seeds a pending invitation to the full pool'
+  );
+  await expectStatus(
+    await writeDocument(`pools/${fullInvitePool}`,{
+      ...poolFields(uid,rulesSnapshot(5),memberIds(40),'123456789012',fullInviteCreatedAt),
+      members:arrayValue([...memberIds(40),invited.uid].map(stringValue)),
+    },invited.token),
+    403,
+    'accepting an invitation cannot exceed the friend-pool cap'
+  );
+
   const clientErrorPath=`clientErrors/${uid}/categories/save_failed`;
   await expectStatus(
     await writeDocumentAtServerTime(clientErrorPath,clientErrorFields(uid),token),
