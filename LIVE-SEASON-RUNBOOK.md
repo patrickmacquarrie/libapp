@@ -2,6 +2,28 @@
 
 Use this procedure while updating an active season from the Google Sheet.
 
+## Drop-night rollback
+
+- **Hosting:** In Firebase Console, open Hosting → Release history, select the last known-good release, and roll it back. Firebase CLI 15.25.1 has no version-id rollback command; if the known-good build is preserved on a channel, promote it with `firebase hosting:clone lib-oauth:CHANNEL lib-oauth:live`.
+- **Functions:** Check out the previous release commit and redeploy its functions with `firebase deploy --only functions --project lib-oauth`. Never roll Functions behind Firestore rules they depend on; roll the coordinated backend forward or back together.
+- **Season data:** In the Season Publisher admin, run Rollback (`rollbackSeasonFromAdmin`). It restores the prior season snapshot. It restores the `appConfig/public` backup only when the rolled-back season is still the current default, which applies to US11.
+
+## Rename an offensive Global leaderboard username
+
+1. Edit `users/{uid}.username`.
+2. Edit `pools/global__{seasonId}/trustedPlayers/{uid}.username`. The trusted copy is made when picks lock, so changing only the profile does not change the leaderboard.
+3. Trigger a rebuild by merging these fields into `pools/global__{seasonId}/standings/rebuild`: `requestedAt` as the current Firestore timestamp, `requestVersion` incremented by 1, and `reason` set to a short value such as `username-moderation`. The `claimGlobalStandingsRebuild` transaction consumes that request version.
+
+## Email ceiling
+
+The UTC counter is `emailDailyCounts/{YYYY-MM-DD}`. If the invitation ceiling is reached, players see “Email invitations are paused for today. Share the pool link instead.” Counters reset at midnight UTC: 6 p.m. MT through October 31 and 5 p.m. MT after daylight time ends on November 1. Change `MAIL_PROJECT_DAILY_LIMIT` and `INVITE_PROJECT_DAILY_LIMIT` in `functions/index.js` when moving between Resend Free and Pro; the documented Free values are 80 total and 50 invitations.
+
+## Premiere-night watch list
+
+- Watch `clientErrors` categories `global_join_failed`, `invite_send_failed`, and `invite_accept_failed`.
+- Watch Resend for bounces and provider-level delivery failures.
+- Compare `pools/global__{seasonId}.members.length` with `GLOBAL_JOIN_CEILING` (8,000).
+
 ## When new episodes drop
 
 1. Update `AVAILABLE_THROUGH_EP` immediately, before entering any episode results. This is the hard gate on player progress.
