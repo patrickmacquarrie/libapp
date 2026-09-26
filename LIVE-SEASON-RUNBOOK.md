@@ -33,6 +33,14 @@ The UTC counter is `emailDailyCounts/{YYYY-MM-DD}`. If the invitation ceiling is
 5. Use the Retro Events tab for late reveals about an earlier phase. Add void rows there as well when a previously scored market must be cancelled.
 6. Never rename a Cast name or Couples id once `AVAILABLE_THROUGH_EP` is above 0; fix typos by adding a Retro/void row instead.
 
+## Weekly drop
+
+1. Edit the season Sheet.
+2. Save and preview it at 10 p.m. MT.
+3. Schedule the publish for 1:05 a.m. MT.
+4. Do not touch the Sheet after previewing; the scheduled publish verifies that the approved snapshot has not changed.
+5. Check the confirmation email in the morning. If the scheduled publish failed, open Season Admin, preview again, and publish manually.
+
 ## Results-ready switches
 
 Never set `PODS_RESULTS_READY`, `DATING_RESULTS_READY`, `WEDDINGS_RESULTS_READY`, or `REUNION_RESULTS_READY` to `TRUE` until every required outcome for that phase has been entered. Incomplete data after a phase is marked ready causes a season-config error and pauses predictions for every player in every pool on that season.

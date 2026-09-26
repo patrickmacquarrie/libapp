@@ -129,8 +129,12 @@
       return panelHead('Later corrections','Use this advanced section only when a later episode changes or invalidates an earlier scored outcome.')+`<div class="notice warning"><b>Use sparingly.</b> Corrections can change existing scores. Always preview before publishing.</div>`+rows+`<div class="table-actions"><button class="btn" type="button" data-add="retroEvents">+ Add later correction</button></div>`;
     }
     function renderRelease(){
+      const schedule=model.scheduledPublish;
+      const scheduleTime=schedule?.publishAt?new Intl.DateTimeFormat('en-CA',{timeZone:'America/Edmonton',dateStyle:'medium',timeStyle:'short'}).format(new Date(schedule.publishAt))+' MT':'';
+      const scheduleStatus=schedule?`<div class="notice ${schedule.status==='failed'?'error':''}"><b>${h(schedule.status==='failed'?'Scheduled publish failed':'Publish scheduled')}</b>${scheduleTime?' for '+h(scheduleTime):''}${schedule.error?'<br>'+h(schedule.error):''}</div>`:'<p class="hint">No publish is scheduled for this season.</p>';
       return panelHead('Preview & publish','Save whenever you like. Preview validates and approves that exact sheet state. Publish creates a backup before updating the live app; any intervening edit requires a new preview.')+
         `<div class="release-grid"><div class="release-card"><h3>1. Save draft</h3><p>Writes these forms back to the Google Sheet. Nothing changes in the live app.</p><button class="btn" type="button" data-action="save">Save draft</button></div><div class="release-card"><h3>2. Save & preview</h3><p>Compares published and pending release controls, cast/couple counts, and document size without changing Firestore. Backward episode availability appears as a warning.</p><button class="btn btn-primary" type="button" data-action="preview">Save & preview</button></div><div class="release-card publish"><h3>3. Publish live</h3><p>Requires the latest exact preview, backs up the current season, then replaces it with this version.</p><button class="btn btn-primary" type="button" data-action="publish">Publish to the app</button></div></div>
+        <div class="release-card" style="margin-top:14px"><h3>Schedule publish</h3><p>Choose Mountain Time. The server uses the Apps Script timezone, regardless of your browser timezone.</p><div class="field-grid"><div class="field"><label for="scheduledPublishAt">Publish date and time (MT)</label><input id="scheduledPublishAt" type="datetime-local"></div><div class="actions" style="align-items:end"><button class="btn btn-primary" type="button" data-action="schedule"${model.previewReady&&!dirty?'':' disabled'}>Schedule</button><button class="btn" type="button" data-action="cancelSchedule"${schedule?'':' disabled'}>Cancel</button></div></div>${scheduleStatus}<p class="hint">Don't edit the Sheet after previewing. The scheduled publish checks it hasn't changed.</p></div>
         <div class="release-grid" style="margin-top:14px"><div class="release-card rollback"><h3>Rollback</h3><p>Restores the latest recorded backup. The current live version is saved first.</p><button class="btn btn-danger" type="button" data-action="rollback">Restore latest backup</button></div><div class="release-card" style="grid-column:span 2"><h3>Latest backup</h3><p class="hint">${h(model.latestBackupPath||'No backup has been recorded for this season yet.')}</p></div></div>`+
         (lastResult?`<h3 style="margin-top:22px">${lastResultType==='error'?'Something needs fixing':'Latest result'}</h3>${lastResultType==='error'?'<div class="notice error"><b>The operation did not complete.</b> Read the result below, verify the live season if publishing had started, then preview again before retrying.</div>':''}<div class="result ${lastResultType==='error'?'result-error':''}">${h(lastResult)}</div>`:'');
     }
@@ -169,19 +173,29 @@
     function payload(){return {seasonId:model.seasonId,settings:{...defaults,...model.settings},cast:model.cast,couples:model.couples,datingResults:model.datingResults,reunionResults:model.reunionResults,retroEvents:model.retroEvents}}
     function runAction(action){
       if(action==='publish'&&dirty){alert('Save & preview these changes before publishing.');return;}
+      if(action==='schedule'&&dirty){alert('Save & preview these changes before scheduling.');return;}
+      if(action==='schedule'&&!model.previewReady){alert('Preview this season before scheduling it.');return;}
+      const publishAtLocal=action==='schedule'?$('scheduledPublishAt')?.value:'';
+      if(action==='schedule'&&!publishAtLocal){alert('Choose a publish date and time in Mountain Time.');return;}
       if(action==='publish'&&!confirm('Publish this season to the live app? The current version will be backed up first.'))return;
       if(action==='rollback'&&!confirm('Restore the latest season backup? The current live version will be saved first.'))return;
-      setBusy(true,{save:'Saving draft…',preview:'Validating preview…',publish:'Publishing season…',rollback:'Restoring backup…'}[action]);
+      if(action==='cancelSchedule'&&!confirm('Cancel this scheduled publish?'))return;
+      setBusy(true,{save:'Saving draft…',preview:'Validating preview…',publish:'Publishing season…',rollback:'Restoring backup…',schedule:'Scheduling publish…',cancelSchedule:'Cancelling scheduled publish…'}[action]);
       const runner=google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{
         setBusy(false);dirty=false;
         if(action==='save'){model=result.model;lastResult='Draft saved to '+model.spreadsheetName+'.';lastResultType='success';}
-        else{lastResult=JSON.stringify(result,null,2);lastResultType='success';active='release';if(action!=='preview')load(false,model.seasonId);}
+        else if(action==='preview'){model.previewReady=true;lastResult=JSON.stringify(result,null,2);lastResultType='success';active='release';}
+        else if(action==='schedule'){model.scheduledPublish=result;lastResult='Publish scheduled for '+result.publishAt+'.';lastResultType='success';active='release';}
+        else if(action==='cancelSchedule'){model.scheduledPublish=null;lastResult='Scheduled publish cancelled.';lastResultType='success';active='release';}
+        else{lastResult=JSON.stringify(result,null,2);lastResultType='success';active='release';load(false,model.seasonId);}
         render();
       });
       if(action==='save')runner.saveSeasonAdminDraft(payload());
       else if(action==='preview')runner.previewSeasonFromAdmin(payload());
       else if(action==='publish')runner.publishSeasonFromAdmin(model.seasonId);
-      else runner.rollbackSeasonFromAdmin(model.seasonId);
+      else if(action==='rollback')runner.rollbackSeasonFromAdmin(model.seasonId);
+      else if(action==='schedule')runner.scheduleSeasonPublishFromAdmin({seasonId:model.seasonId,publishAtLocal});
+      else runner.cancelScheduledSeasonPublishFromAdmin(model.seasonId);
     }
     function load(showOverlay=true,seasonId=''){if(showOverlay)setBusy(true,'Loading season…');google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{model=result;model.settings={...defaults,...model.settings};dirty=false;setBusy(false);render()}).getSeasonAdminData(seasonId)}
     $('connectSeasonButton').onclick=openConnectModal;

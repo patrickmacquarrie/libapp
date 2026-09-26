@@ -7,6 +7,8 @@ const APP_CONFIG_PATH = 'appConfig/public';
 const SEASON_CATALOG_PATH = 'appConfig/seasonCatalog';
 const APP_CONFIG_BACKUP_COLLECTION = 'appConfigBackups';
 const PREVIEW_HASH_PROPERTY_PREFIX = 'LAST_PREVIEW_HASH__';
+const SCHEDULED_PUBLISH_PROPERTY_PREFIX = 'SCHEDULED_PUBLISH__';
+const SCHEDULED_PUBLISH_HANDLER = 'runScheduledSeasonPublishes';
 const APP_CONFIG_BACKUP_PROPERTY_PREFIX = 'LAST_APP_CONFIG_BACKUP_PATH__';
 const MAX_SNAPSHOT_BYTES = 900000;
 const ADMIN_SETTING_DEFAULTS = {
@@ -95,7 +97,9 @@ function getSeasonAdminData(seasonId) {
     datingResults: readAdminTable_(spreadsheet, 'Dating Results'),
     reunionResults: readAdminTable_(spreadsheet, 'Reunion Results'),
     retroEvents: readAdminTable_(spreadsheet, 'Retro Events', true),
-    latestBackupPath: latestBackupPath_(config.seasonId)
+    latestBackupPath: latestBackupPath_(config.seasonId),
+    previewReady: !!PropertiesService.getScriptProperties().getProperty(previewHashPropertyKey_(config.seasonId)),
+    scheduledPublish: scheduledPublishForSeason_(config.seasonId)
   };
 }
 
@@ -214,6 +218,130 @@ function previewSeasonFromAdmin(payload) {
 function publishSeasonFromAdmin(seasonId) {
   const requestedSeasonId = typeof seasonId === 'object' && seasonId ? seasonId.seasonId : seasonId;
   return publishSeasonSnapshot(requestedSeasonId);
+}
+
+/** Schedules the latest approved preview for a one-off publish in the script timezone. */
+function scheduleSeasonPublishFromAdmin(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('The scheduled publish form was not received correctly.');
+  }
+  const config = publisherConfig_(payload.seasonId);
+  const publishAtLocal = String(payload.publishAtLocal || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(publishAtLocal)) {
+    throw new Error('Choose a valid publish date and time.');
+  }
+  const timeZone = Session.getScriptTimeZone();
+  const publishAtDate = Utilities.parseDate(publishAtLocal, timeZone, "yyyy-MM-dd'T'HH:mm");
+  if (!(publishAtDate instanceof Date) || !isFinite(publishAtDate.getTime())) {
+    throw new Error('Choose a valid publish date and time.');
+  }
+  const now = new Date();
+  const delay = publishAtDate.getTime() - now.getTime();
+  if (delay < 2 * 60 * 1000 || delay > 7 * 24 * 60 * 60 * 1000) {
+    throw new Error('Schedule the publish between 2 minutes and 7 days from now.');
+  }
+
+  const propertyStore = PropertiesService.getScriptProperties();
+  const previewHash = propertyStore.getProperty(previewHashPropertyKey_(config.seasonId));
+  if (!previewHash) throw new Error('Preview this season before scheduling it.');
+
+  const propertyKey = scheduledPublishPropertyKey_(config.seasonId);
+  const previous = scheduledPublishForSeason_(config.seasonId);
+  const trigger = ScriptApp.newTrigger(SCHEDULED_PUBLISH_HANDLER).timeBased().at(publishAtDate).create();
+  const entry = {
+    seasonId: config.seasonId,
+    publishAt: publishAtDate.toISOString(),
+    previewHash: previewHash,
+    triggerUid: trigger.getUniqueId(),
+    status: 'scheduled',
+    createdAt: now.toISOString()
+  };
+  try {
+    propertyStore.setProperty(propertyKey, JSON.stringify(entry));
+  } catch (error) {
+    ScriptApp.deleteTrigger(trigger);
+    throw error;
+  }
+  if (previous && previous.triggerUid && previous.triggerUid !== entry.triggerUid) {
+    deleteScheduledPublishTrigger_(previous.triggerUid);
+  }
+  removeOrphanedScheduledPublishTriggers_();
+  return entry;
+}
+
+/** Cancels a pending one-off publish without changing the approved preview. */
+function cancelScheduledSeasonPublishFromAdmin(seasonId) {
+  const config = publisherConfig_(seasonId);
+  const propertyStore = PropertiesService.getScriptProperties();
+  const entry = scheduledPublishForSeason_(config.seasonId);
+  propertyStore.deleteProperty(scheduledPublishPropertyKey_(config.seasonId));
+  if (entry && entry.triggerUid) deleteScheduledPublishTrigger_(entry.triggerUid);
+  removeOrphanedScheduledPublishTriggers_();
+  return {cancelled: !!entry, seasonId: config.seasonId};
+}
+
+/** Runs due one-off publishes. Time triggers may invoke this a little early or late. */
+function runScheduledSeasonPublishes(event) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const firedTriggerUid = event && event.triggerUid ? String(event.triggerUid) : '';
+  const results = [];
+  try {
+    const propertyStore = PropertiesService.getScriptProperties();
+    const now = new Date();
+    scheduledPublishEntries_().forEach(function(entry) {
+      if (!entry || entry.status !== 'scheduled') return;
+      const publishAtDate = new Date(entry.publishAt);
+      if (!isFinite(publishAtDate.getTime())) {
+        const invalidMessage = 'The scheduled publish time is invalid. Open Season Admin and schedule it again.';
+        entry.status = 'failed';
+        entry.error = invalidMessage;
+        propertyStore.setProperty(scheduledPublishPropertyKey_(entry.seasonId), JSON.stringify(entry));
+        sendScheduledPublishEmail_(entry, false, invalidMessage);
+        results.push({seasonId: entry.seasonId, status: 'failed', error: invalidMessage});
+        return;
+      }
+      if (publishAtDate.getTime() > now.getTime()) {
+        if (entry.triggerUid === firedTriggerUid) {
+          const replacement = ScriptApp.newTrigger(SCHEDULED_PUBLISH_HANDLER).timeBased().at(publishAtDate).create();
+          entry.triggerUid = replacement.getUniqueId();
+          propertyStore.setProperty(scheduledPublishPropertyKey_(entry.seasonId), JSON.stringify(entry));
+          results.push({seasonId: entry.seasonId, status: 'rescheduled', publishAt: entry.publishAt});
+        } else {
+          results.push({seasonId: entry.seasonId, status: 'not-due', publishAt: entry.publishAt});
+        }
+        return;
+      }
+      try {
+        const currentPreviewHash = propertyStore.getProperty(previewHashPropertyKey_(entry.seasonId));
+        if (!currentPreviewHash || currentPreviewHash !== entry.previewHash) {
+          throw new Error('The approved preview changed after this publish was scheduled. Preview again and publish manually.');
+        }
+        const summary = publishSeasonSnapshot(entry.seasonId);
+        propertyStore.deleteProperty(scheduledPublishPropertyKey_(entry.seasonId));
+        console.log(JSON.stringify({scheduledPublish: 'succeeded', summary: summary}));
+        sendScheduledPublishEmail_(entry, true, 'The scheduled publish completed successfully.');
+        results.push({seasonId: entry.seasonId, status: 'published', summary: summary});
+      } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        entry.status = 'failed';
+        entry.error = message;
+        entry.failedAt = new Date().toISOString();
+        propertyStore.setProperty(scheduledPublishPropertyKey_(entry.seasonId), JSON.stringify(entry));
+        console.error(JSON.stringify({scheduledPublish: 'failed', seasonId: entry.seasonId, error: message}));
+        sendScheduledPublishEmail_(entry, false, message);
+        results.push({seasonId: entry.seasonId, status: 'failed', error: message});
+      }
+    });
+  } finally {
+    try {
+      if (firedTriggerUid) deleteScheduledPublishTrigger_(firedTriggerUid);
+      removeOrphanedScheduledPublishTriggers_();
+    } finally {
+      lock.releaseLock();
+    }
+  }
+  return results;
 }
 
 /** Exposes the existing reversible rollback to the private admin UI. */
@@ -679,6 +807,76 @@ function seasonReleaseHash_(built) {
 
 function previewHashPropertyKey_(seasonId) {
   return PREVIEW_HASH_PROPERTY_PREFIX + seasonId;
+}
+
+function scheduledPublishPropertyKey_(seasonId) {
+  return SCHEDULED_PUBLISH_PROPERTY_PREFIX + seasonId;
+}
+
+function scheduledPublishForSeason_(seasonId) {
+  const raw = PropertiesService.getScriptProperties().getProperty(scheduledPublishPropertyKey_(seasonId));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error('Ignoring an invalid scheduled publish entry for ' + seasonId + ': ' + error.message);
+    return null;
+  }
+}
+
+function scheduledPublishEntries_() {
+  const properties = PropertiesService.getScriptProperties().getProperties();
+  return Object.keys(properties).filter(function(key) {
+    return key.indexOf(SCHEDULED_PUBLISH_PROPERTY_PREFIX) === 0;
+  }).map(function(key) {
+    try {
+      return JSON.parse(properties[key]);
+    } catch (error) {
+      console.error('Ignoring invalid scheduled publish property ' + key + ': ' + error.message);
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+function deleteScheduledPublishTrigger_(triggerUid) {
+  if (!triggerUid) return false;
+  const trigger = ScriptApp.getProjectTriggers().find(function(candidate) {
+    return candidate.getUniqueId() === triggerUid;
+  });
+  if (!trigger) return false;
+  ScriptApp.deleteTrigger(trigger);
+  return true;
+}
+
+function removeOrphanedScheduledPublishTriggers_() {
+  const activeTriggerUids = {};
+  scheduledPublishEntries_().forEach(function(entry) {
+    if (entry.status === 'scheduled' && entry.triggerUid) activeTriggerUids[entry.triggerUid] = true;
+  });
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === SCHEDULED_PUBLISH_HANDLER && !activeTriggerUids[trigger.getUniqueId()]) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+}
+
+function sendScheduledPublishEmail_(entry, succeeded, detail) {
+  try {
+    const recipient = Session.getEffectiveUser().getEmail();
+    if (!recipient) {
+      console.warn('Scheduled publish email skipped because the effective user has no email address.');
+      return;
+    }
+    const subject = succeeded
+      ? 'Season publish completed: ' + entry.seasonId
+      : 'Season publish failed: ' + entry.seasonId;
+    const body = succeeded
+      ? 'The scheduled publish for ' + entry.seasonId + ' completed.\n\nScheduled time: ' + entry.publishAt
+      : 'The scheduled publish for ' + entry.seasonId + ' failed.\n\n' + detail + '\n\nOpen Season Admin, preview again, and publish manually.';
+    MailApp.sendEmail(recipient, subject, body);
+  } catch (error) {
+    console.error('Scheduled publish email could not be sent: ' + error.message);
+  }
 }
 
 function recordPreviewHash_(seasonId, releaseHash) {
