@@ -237,7 +237,16 @@ async function main(){
   const profileCreatedAt=Date.now()-1000;
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Original'),createdAt:numberValue(profileCreatedAt)},token),200,'user creates profile');
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Renamed'),createdAt:numberValue(profileCreatedAt)},token),200,'username update preserves account creation date');
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('scam.site'),createdAt:numberValue(profileCreatedAt)},token),403,'link-like username is denied');
+  await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('J.Lo'),createdAt:numberValue(profileCreatedAt)},token),200,'non-link dotted username is allowed');
   await expectStatus(await writeDocument(`users/${uid}`,{username:stringValue('Wrong date'),createdAt:numberValue(Date.now())},token),403,'username update cannot move account creation date');
+
+  await expectStatus(await writeDocument('pools/link-name-create-denied',{...poolFields(uid,rulesSnapshot(5)),name:stringValue('scam.site')},token),403,'link-like pool name is denied on create');
+  await expectStatus(await writeDocument('pools/dotted-name-create',{...poolFields(uid,rulesSnapshot(5)),name:stringValue('J.Lo')},token),200,'non-link dotted pool name is allowed on create');
+  const renameCreatedAt=Date.now();
+  await expectStatus(await writeDocument('pools/link-name-rename',poolFields(uid,rulesSnapshot(5),[uid],'123456789012',renameCreatedAt),'owner'),200,'admin seeds pool rename fixture');
+  await expectStatus(await writeDocument('pools/link-name-rename',{...poolFields(uid,rulesSnapshot(5),[uid],'123456789012',renameCreatedAt),name:stringValue('J.Lo'),nameUpdatedAt:numberValue(Date.now())},token),200,'non-link dotted pool name is allowed on rename');
+  await expectStatus(await writeDocument('pools/link-name-rename',{...poolFields(uid,rulesSnapshot(5),[uid],'123456789012',renameCreatedAt),name:stringValue('scam.site'),nameUpdatedAt:numberValue(Date.now()+1)},token),403,'link-like pool name is denied on rename');
 
   const rotatedJoinCode='abcdefghijklmnop';
   await expectStatus(await writeDocument('pools/v5-valid',poolFields(uid,rulesSnapshot(5),[uid],rotatedJoinCode,v5CreatedAt),token),200,'owner rotates private-pool join code');
@@ -344,6 +353,11 @@ async function main(){
     await writeDocumentAtServerTime(clientErrorPath,clientErrorFields(uid),token),
     200,
     'signed-in user creates a bounded client diagnostic'
+  );
+  await expectStatus(
+    await writeDocumentAtServerTime(`clientErrors/${uid}/categories/global_join_failed`,clientErrorFields(uid,'global_join_failed',{operation:stringValue('join_global_pool')}),token),
+    200,
+    'global join failure is an accepted diagnostic category'
   );
   await expectStatus(await readDocument(clientErrorPath,token),403,'browser client cannot read diagnostics');
   await expectStatus(

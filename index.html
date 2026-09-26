@@ -988,7 +988,7 @@ const newPoolJoinCode = () => Array.from(crypto.getRandomValues(new Uint8Array(1
 const CAST_RATING_CATEGORIES = ['hotness','humour','intelligence','vibes'];
 const NOTIFICATION_DEFAULTS = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
 const CLIENT_ERROR_CATEGORIES = Object.freeze([
-  'invite_accept_failed','invite_send_failed','lobby_load_failed','mirror_sync_failed',
+  'global_join_failed','invite_accept_failed','invite_send_failed','lobby_load_failed','mirror_sync_failed',
   'pool_create_failed','pool_open_failed','render_failed','save_failed',
   'season_load_failed','startup_failed',
 ]);
@@ -1252,6 +1252,10 @@ window._fb = {
   },
   sendInvite: (poolId, poolName, seasonLabel, fromUid, fromUsername, toEmail) =>
     httpsCallable(functions,'sendPoolInvite')({poolId,toEmail:toEmail.toLowerCase()}),
+  emailPreferences: (token,apply=false,all=false) =>
+    httpsCallable(functions,'sendPoolInvite')({action:'emailPreferences',token,apply,all}),
+  sendCaptainReminder: data =>
+    httpsCallable(functions,'sendPoolInvite')({action:'captainReminder',...data}),
   submitFeedback: ({category,message,context={}}) => httpsCallable(functions,'sendPoolInvite')({
     action:'feedback',
     category,
@@ -1629,8 +1633,16 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script crossorigin="anonymous" integrity="sha512-Y37Caenc5CZqwSMwWZj+5uxkB3Loc9yJNHvb+eSwEsT6nhURSrPZo39vTnb5g8UvOGCNXRbQ+xQvnqr2rR9nRw==" src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.5/babel.min.js"></script>
 <script type="text/babel" data-presets="react">
 const initialAppParams=new URLSearchParams(window.location.search);
+const EMAIL_PREFERENCES_TOKEN=initialAppParams.get('emailPreferences')||'';
+if(EMAIL_PREFERENCES_TOKEN){
+  const cleanPreferencesUrl=new URL(window.location.href);cleanPreferencesUrl.searchParams.delete('emailPreferences');
+  history.replaceState({},'',cleanPreferencesUrl.toString());
+}
 const APP_BUILD_TIMESTAMP='__APP_BUILD_TIMESTAMP__'.startsWith('__APP_')?'development source · '+document.lastModified:'__APP_BUILD_TIMESTAMP__';
 const FRIEND_POOL_MEMBER_LIMIT=40;
+const LINK_TEXT_PATTERN='.*(://|www[.]).*|.*[.](com|net|org|ca|co|io|app|site|xyz|link|ly|me|gg|tv|info|biz|shop|online|live|club|us|uk|to|cc|sh)([^a-z0-9].*)?';
+const looksLikeLink=value=>new RegExp('^(?:'+LINK_TEXT_PATTERN+')$').test(String(value).toLowerCase());
+const linkNameValidationMessage=value=>looksLikeLink(String(value||'').trim())?"Names can't include links or web addresses.":'';
 window.__TTW_DIAGNOSTICS__={appBuildTimestamp:APP_BUILD_TIMESTAMP};
 const MARKETING_CREATE_INTENT=initialAppParams.get('start')==='create';
 // Emergency/admin-only diagnostic path. Player traffic must use the same
@@ -2401,6 +2413,7 @@ const usernameValidationMessage = value => {
   if(username.length>20) return 'Keep your username to 20 characters or fewer.';
   if(/[\u0000-\u001f\u007f]/.test(username)) return 'Remove control characters from your username.';
   if(!/[\p{L}\p{N}]/u.test(username)) return 'Include at least one letter or number.';
+  if(looksLikeLink(username)) return "Names can't include links or web addresses.";
   return '';
 };
 function disambiguateMemberLabels(memberIds,rawLabels) {
@@ -4943,7 +4956,7 @@ function PricingResearchCard({price,seasonLabel,response,onShown,onRespond}) {
         </div>}
   </section>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onSendCaptainReminder,onChangeUsername,onSignOut,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -4958,6 +4971,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [supportMessage,setSupportMessage]=useState('');
   const [supportSending,setSupportSending]=useState(false);
   const [supportStatus,setSupportStatus]=useState({kind:'',message:''});
+  const [captainStatus,setCaptainStatus]=useState('');
   const modalRef=useModalLifecycle(onClose,!deleting);
   const ownedPools=(activePool?[activePool]:pools).filter(p=>p.ownerUid===userId&&p.global!==true);
   const deleteConfirmed=confirmPool&&typedName.trim()===confirmPool.name;
@@ -4974,9 +4988,9 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
     catch(e){setDeleteError('The pool could not be deleted. Please try again.');}
     finally{setDeleting(false);}
   };
-  const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(e?.message||'The pool name could not be changed.');}finally{setSavingProfile(false);}};
+  const finishRename=async()=>{const name=renameValue.trim();if(!renamePool||!name||savingProfile)return;const validation=linkNameValidationMessage(name);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{await onRenamePool?.(renamePool,name);setSettingsFeedback('Pool name updated.');setRenamePool(null);}catch(e){setSettingsFeedback(e?.message||'The pool name could not be changed.');}finally{setSavingProfile(false);}};
   const finishResetLink=async()=>{if(!resetLinkPool||savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{await onResetPoolJoinCode?.(resetLinkPool);setSettingsFeedback('Invite link reset. Share the new link with anyone who should still join.');setResetLinkPool(null);}catch(e){setSettingsFeedback(e?.message||'The invite link could not be reset.');}finally{setSavingProfile(false);}};
-  const finishUsername=async()=>{if(savingProfile)return;setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(e?.message||'The username could not be changed.');}finally{setSavingProfile(false);}};
+  const finishUsername=async()=>{if(savingProfile)return;const validation=linkNameValidationMessage(accountUsername);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(e?.message||'The username could not be changed.');}finally{setSavingProfile(false);}};
   const submitSupport=async event=>{
     event.preventDefault();
     const message=supportMessage.trim();
@@ -4989,6 +5003,11 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
     }catch(error){
       setSupportStatus({kind:'error',message:error?.message||'Your message could not be sent. Email support@throughthewall.ca instead.'});
     }finally{setSupportSending(false);}
+  };
+  const sendCaptainReminder=async()=>{
+    setCaptainStatus('');
+    const message=await onSendCaptainReminder?.();
+    if(message)setCaptainStatus(message);
   };
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!deleting)onClose();}}>
     <div className="modal ph-no-capture" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -5021,6 +5040,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         <p>Admin test tool for a fully released season. It clears every player’s Global picks, progress, completed checkpoints, and scores, and gives the Global test a fresh confirmed-watch ledger at Episode 0. Established Global-to-private sync links are preserved; each linked tester’s game progress is also cleared in their paired private pool so old progress cannot immediately sync back. Other private-pool members and settings are not changed.</p>
         <button className="btn-danger-wide" disabled={deleting||membershipUpdating} onClick={onResetHistoricalGlobalSimulation}>Reset Global + linked testers</button>
       </div>}
+      {userEmail.trim().toLowerCase()==='patrick@blxckmarketing.com'&&onSendCaptainReminder&&<div className="danger-zone"><h3>Captain reminder</h3><p>Email opted-in owners of small, open pools before the season starts. You’ll see a dry-run count before anything sends.</p><button className="btn-secondary" disabled={deleting||membershipUpdating} onClick={sendCaptainReminder}>Preview captain reminder</button>{captainStatus&&<p className="subtle" role="status">{captainStatus}</p>}</div>}
       <h3>Email notifications</h3>
       <div className="notification-options" role="group" aria-label="Email notification choices">{notificationOptions.map(option=><label className="chemistry-toggle" key={option.key}><input type="checkbox" checked={notificationPreferences[option.key]===true} disabled={notificationSaving||!onNotificationChange} onChange={event=>onNotificationChange?.(option.key,event.target.checked)}/><span><strong>{option.label}</strong><span>{option.description}</span></span></label>)}</div>
       <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
@@ -5111,9 +5131,21 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onWatchCha
 /* ================================================================== */
 /*  APP                                                                */
 /* ================================================================== */
+function EmailPreferencesScreen({state,onApply}){
+  const busy=state.status==='loading'||state.status==='applying';
+  return <div className="app"><BrandHeader/><div className="card login-card">
+    <h2>Email preferences</h2>
+    {busy&&<div className="loading" role="status"><span className="spinner">♥</span>Loading your email choice…</div>}
+    {state.status==='ready'&&<React.Fragment><p className="lede">Turn off '{state.preferenceLabel}' emails?</p><button className="btn-primary" onClick={()=>onApply(false)}>Unsubscribe</button>{state.kind==='nudge'&&<button className="btn-secondary" onClick={()=>onApply(true)}>Turn off all Through the Wall emails</button>}</React.Fragment>}
+    {state.status==='done'&&<p className="notice" role="status">You’re unsubscribed. This email choice has been saved.</p>}
+    {state.status==='invalid'&&<ErrorCard message="This unsubscribe link isn't valid. Email support@throughthewall.ca and we'll take care of it."/>}
+    {state.status==='error'&&<ErrorCard message="We couldn't reach Through the Wall. Email support@throughthewall.ca with the subject 'unsubscribe' and we'll turn it off."/>}
+  </div></div>;
+}
 function App() {
   const [theme,setTheme]=useState(()=>document.documentElement.dataset.theme==='dark'?'dark':'light');
   const [showSettings,setShowSettings]=useState(false);
+  const [emailPreferencesState,setEmailPreferencesState]=useState(EMAIL_PREFERENCES_TOKEN?{status:'loading',kind:'',preferenceLabel:''}:null);
   // Auth + profile
   const [authState, setAuthState] = useState('checking');
   const [user, setUser] = useState(null);
@@ -5168,6 +5200,20 @@ function App() {
   const [globalShareFeedback, setGlobalShareFeedback] = useState('');
   const [sharingPool,setSharingPool]=useState(false);
   const [updatingPoolMembership, setUpdatingPoolMembership] = useState(false);
+  useEffect(()=>{
+    if(!EMAIL_PREFERENCES_TOKEN)return;
+    window._fb.emailPreferences(EMAIL_PREFERENCES_TOKEN,false,false).then(result=>setEmailPreferencesState({status:'ready',...result.data})).catch(error=>{
+      setEmailPreferencesState({status:error?.code==='functions/invalid-argument'?'invalid':'error',kind:'',preferenceLabel:''});
+    });
+  },[]);
+  const applyEmailPreferences=async all=>{
+    setEmailPreferencesState(current=>({...current,status:'applying'}));
+    try{
+      const result=await window._fb.emailPreferences(EMAIL_PREFERENCES_TOKEN,true,all);
+      trackTtwEvent('email_unsubscribed',{kind:result.data.kind});
+      setEmailPreferencesState(current=>({...current,status:'done',kind:result.data.kind}));
+    }catch(error){setEmailPreferencesState(current=>({...current,status:error?.code==='functions/invalid-argument'?'invalid':'error'}));}
+  };
   const [destructiveActionPending,setDestructiveActionPending]=useState(false);
   // Active pool + game
   const [activePool, setActivePool] = useState(null);
@@ -5964,6 +6010,8 @@ function App() {
     const name = newPoolName.trim();
     const season = seasonById(selectedSeasonId);
     if (!name||!season?.available||creatingPool) return;
+    const nameValidation=linkNameValidationMessage(name);
+    if(nameValidation){setErr(nameValidation);return;}
     setCreatingPool(true);
     try {
       setErr('');
@@ -6013,7 +6061,7 @@ function App() {
       if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
       await enterPool(globalPool,sourcePoolId);
-    } catch(e) { console.error(e);setErr(playerSeasonError(e,'Could not join the global pool. Please try again.')); }
+    } catch(e) { console.error(e);reportTtwError('global_join_failed',e,{operation:'join_global_pool',seasonId:season.id});setErr(playerSeasonError(e,'Could not join the global pool. Please try again.')); }
     finally { setJoiningGlobal(false); }
   };
   const doAccept = async (inv) => {
@@ -6058,6 +6106,7 @@ function App() {
   const doRenamePool = async (pool,name) => {
     const nextName=String(name||'').trim();
     if(!pool||pool.ownerUid!==user.uid||!nextName)throw new Error('Enter a pool name.');
+    const validation=linkNameValidationMessage(nextName);if(validation)throw new Error(validation);
     await window._fb.renamePool(pool.id,user.uid,nextName);
     setPools(current=>current.map(item=>item.id===pool.id?{...item,name:nextName}:item));
     setActivePool(current=>current?.id===pool.id?{...current,name:nextName}:current);
@@ -6106,6 +6155,18 @@ function App() {
       setDestructiveActionPending(false);
     }
   };
+  const doSendCaptainReminder = async () => {
+    if(String(user.email||'').trim().toLowerCase()!=='patrick@blxckmarketing.com'||destructiveActionPending)return;
+    setDestructiveActionPending(true);setErr('');
+    try{
+      const preview=(await window._fb.sendCaptainReminder({seasonId:defaultSeasonId,dryRun:true})).data;
+      const confirmed=await requestConfirmation({title:'Send captain reminders?',body:`Email ${preview.owners||0} owners of ${preview.pools||0} small pools?`,confirmLabel:'Send reminders',cancelLabel:'Cancel'});
+      if(!confirmed)return;
+      const result=(await window._fb.sendCaptainReminder({seasonId:defaultSeasonId,dryRun:false})).data;
+      return `Captain reminders queued: ${result.queued||0}. Skipped: ${result.skipped||0}.`;
+    }catch(error){console.error(error);setErr(error?.message||'Captain reminders could not be sent.');}
+    finally{setDestructiveActionPending(false);}
+  };
   const doLeavePool = async pool => {
     if(!pool||pool.ownerUid===user.uid||destructiveActionPending)return;
     if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:'Your predictions, progress, and shared Heat Check ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
@@ -6129,18 +6190,18 @@ function App() {
   const doSendPoolInvite = async () => {
     if (!activePool || sendingPoolInvite) return;
     const email=poolInviteEmail.trim().toLowerCase();
-    const resendingPendingInvite=pendingPoolInvites.some(inv=>inv.toEmail===email);
     setPoolInviteFeedback('');setPoolInviteError(false);
     if (!email || !email.includes('@')) { setPoolInviteFeedback('Enter a valid email address.');setPoolInviteError(true);return; }
     if (activePool.membershipClosed===true) { setPoolInviteFeedback('This pool is locked for new players. Reopen it when the group chat grows.');setPoolInviteError(true);return; }
     if (email===(user.email||'').toLowerCase()) { setPoolInviteFeedback('You are already in this pool.');setPoolInviteError(true);return; }
+    if(pendingPoolInvites.some(inv=>inv.toEmail===email)){setPoolInviteFeedback(`You've already invited ${email}. If they can't find it, share the pool link instead.`);setPoolInviteError(true);return;}
     setSendingPoolInvite(true);
     try {
       const inviteResult=await window._fb.sendInvite(activePool.id,activePool.name,seasonLabelForPool(activePool),user.uid,profile.username,email);
       const pending=await window._fb.poolInvites(activePool.id);
       if(Number.isInteger(inviteResult?.data?.remaining))setPoolInviteRemaining(inviteResult.data.remaining);
       trackTtwEvent('invite_sent',{poolId:activePool.id,channel:'email',count:1});
-      setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback((resendingPendingInvite?'Invitation sent again to ':'Invitation sent to ')+email+'.');
+      setPendingPoolInvites(pending);setPoolInviteEmail('');setPoolInviteFeedback('Invitation sent to '+email+'.');
     } catch(e) {
       console.error(e);reportTtwError('invite_send_failed',e,{operation:'send_pool_invite',poolId:activePool.id,seasonId:seasonForPool(activePool).id});setPoolInviteFeedback(e?.message||'The invitation could not be sent. Please try again.');setPoolInviteError(true);
     } finally { setSendingPoolInvite(false); }
@@ -6713,6 +6774,7 @@ function App() {
     lobbyLoading?'Refreshing your pools…':
     saveState==='saving'?'Saving your picks…':'';
   /* ── RENDER ── */
+  if(emailPreferencesState)return <EmailPreferencesScreen state={emailPreferencesState} onApply={applyEmailPreferences}/>;
   if (authState==='checking') return <div className="app"><BrandHeader/><div className="loading" role="status"><span className="spinner">♥</span>Getting the pods ready…</div></div>;
   if (authState==='profileerror') return <div className="app"><BrandHeader/><div className="card login-card"><ErrorCard title="Profile unavailable" message={authError}/><button className="btn-primary" onClick={()=>user&&loadAuthenticatedProfile(user)}>Try again</button></div></div>;
   if (authState==='signedout') return <div className="app">
@@ -6863,7 +6925,7 @@ function App() {
       {HISTORICAL_SEASON_ROADMAP.length===0?<p className="lede">Historical seasons will appear here as their outcomes are added.</p>:<div id="historical-season-list" hidden={availableHistoricalSeasonCount()>1&&!historicalLibraryOpen}>{HISTORICAL_SEASON_ROADMAP.map(season=><div className={'pool-row season-library-row'+(season.available?'':' unavailable')} aria-disabled={!season.available} key={season.id}><div><div className="pname">{formatSeasonLabel(season)}</div><div className="pmeta">{season.available?'Ready to play':'Coming soon'}</div></div><button type="button" className={'btn-small'+(season.available?' filled':'')} disabled={!season.available} onClick={()=>season.available&&startPoolFromLibrary(season.id)}>{season.available?'Start a new pool':'Coming soon'}</button></div>)}</div>}
     </div>
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onSendCaptainReminder={doSendCaptainReminder} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onWatchChange={initialWatchedThrough=>setGlobalJoin(current=>({...current,initialWatchedThrough}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
@@ -7060,7 +7122,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onSendCaptainReminder={doSendCaptainReminder} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }

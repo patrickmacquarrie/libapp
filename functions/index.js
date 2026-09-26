@@ -1,10 +1,14 @@
 const {onCall,HttpsError}=require('firebase-functions/v2/https');
 const {onDocumentWritten}=require('firebase-functions/v2/firestore');
+const {defineString,defineSecret}=require('firebase-functions/params');
 const {initializeApp}=require('firebase-admin/app');
 const {getAuth}=require('firebase-admin/auth');
 const {getFirestore,FieldValue,FieldPath}=require('firebase-admin/firestore');
 const {makeEngine,PH_ORDER,DEFAULT_DATING_MULT,DEFAULT_WED_MULT,DEFAULT_REU_MULT,validateLockedPhasePicks,freezeScoredTotal}=require('./shared/scoring-engine');
 const {advanceGlobalWatchValue,globalLedgerFieldsForJoin,globalWatchLedgerReady,resolveGlobalWatchWindow}=require('./shared/global-watch-ledger');
+const {safeHeaderText,stripLinkText}=require('./shared/link-text');
+const {PREFERENCE_LABELS,signEmailPreferenceToken,verifyEmailPreferenceToken,emailPreferencesUrl,buildEmailFooter}=require('./shared/email-preferences');
+const crypto=require('node:crypto');
 
 initializeApp();
 const db=getFirestore();
@@ -14,11 +18,18 @@ const STANDINGS_DOCUMENT_SOFT_LIMIT=850000;
 const GLOBAL_STANDINGS_ROW_LIMIT=500;
 const STANDINGS_REBUILD_COOLDOWN_MS=20000;
 const GLOBAL_JOIN_CEILING=8000;
+const FRIEND_POOL_MEMBER_LIMIT=40;
+const MAIL_PROJECT_DAILY_LIMIT=1500; // Resend Free: 80
+const INVITE_PROJECT_DAILY_LIMIT=600; // Resend Free: 50
 const RATING_CATEGORIES=['hotness','humour','intelligence','vibes'];
 const FUNCTION_LIMITS={minInstances:0,maxInstances:5};
 // The Firebase emulator cannot mint App Check tokens. Keep enforcement on in
 // every deployed environment while allowing authenticated integration tests.
 const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'};
+const MAIL_POSTAL_ADDRESS=defineString('MAIL_POSTAL_ADDRESS');
+const EMAIL_PREFERENCES_SECRET=defineSecret('EMAIL_PREFERENCES_SECRET');
+const MAIL_FUNCTION_LIMITS={...FUNCTION_LIMITS,secrets:[EMAIL_PREFERENCES_SECRET]};
+const MAIL_CALLABLE_LIMITS={...CALLABLE_LIMITS,secrets:[EMAIL_PREFERENCES_SECRET]};
 const GLOBAL_POOL_ADMINS=new Set(['patrick@blxckmarketing.com']);
 const APP_URL='https://throughthewall.ca/';
 // Resend lets us use these clear sender identities because throughthewall.ca
@@ -34,14 +45,14 @@ function requireUser(request){
   if(!request.auth)throw new HttpsError('unauthenticated','Sign in to continue.');
   return request.auth.uid;
 }
+function isGlobalPoolAdmin(request){
+  const email=String(request.auth?.token?.email||'').trim().toLowerCase();
+  return request.auth?.token?.email_verified===true&&GLOBAL_POOL_ADMINS.has(email);
+}
 
 function escapeHtml(value){
   return String(value||'').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
 }
-function safeHeaderText(value,maxLength=100){
-  return String(value||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().slice(0,maxLength);
-}
-
 const firestoreMillis=value=>typeof value?.toMillis==='function'?value.toMillis():value instanceof Date?value.getTime():Number(value)||0;
 const boundedGlobalStandingsRows=(rows,limit=GLOBAL_STANDINGS_ROW_LIMIT)=>({
   rows:(Array.isArray(rows)?rows:[]).slice(0,limit),
@@ -60,7 +71,7 @@ async function retryAborted(operation,attempts=3){
     catch(error){
       lastError=error;
       if(!abortedFirestoreWrite(error)||attempt===attempts-1)throw error;
-      await new Promise(resolve=>setTimeout(resolve,40+Math.floor(Math.random()*120)*(attempt+1)));
+      await new Promise(resolve=>setTimeout(resolve,Math.min(1600,100*2**attempt)+Math.floor(Math.random()*150)));
     }
   }
   throw lastError;
@@ -88,18 +99,37 @@ function nudgePreferenceEnabled(preferences,key){
   return preferences?.emailNudges===true&&['newEpisodes','friendPhaseLocks'].includes(key);
 }
 
-async function queueNudgeForUser(user,messageId,subject,text){
+const utcDay=now=>new Date(now).toISOString().slice(0,10);
+const emailHash=email=>crypto.createHash('sha256').update(String(email||'').trim().toLowerCase()).digest('hex');
+const mailCounterRef=now=>db.doc(`emailDailyCounts/${utcDay(now)}`);
+const mailUnsubscribeHeaders=token=>({'List-Unsubscribe':`<${emailPreferencesUrl(token)}>, <mailto:support@throughthewall.ca?subject=unsubscribe>`});
+
+async function reserveMailBudget(n){
+  const requested=Math.max(0,Math.trunc(Number(n)||0)),now=Date.now(),ref=mailCounterRef(now);
+  return db.runTransaction(async tx=>{
+    const snapshot=await tx.get(ref),data=snapshot.exists?snapshot.data():{};
+    const count=Math.max(0,Number(data.count)||0),granted=Math.max(0,Math.min(requested,MAIL_PROJECT_DAILY_LIMIT-count));
+    tx.set(ref,{count:count+granted,invites:Math.max(0,Number(data.invites)||0),updatedAt:now},{merge:true});
+    return granted;
+  });
+}
+
+async function queueNudgeForUser(user,messageId,subject,text,preferenceKey){
   if(!user?.email)return false;
   const safeText=String(text||'');
+  const token=signEmailPreferenceToken({v:1,t:'nudge',u:user.uid,p:preferenceKey},EMAIL_PREFERENCES_SECRET.value());
+  const preferencesUrl=emailPreferencesUrl(token);
+  const footer=buildEmailFooter({kind:'nudge',preferenceLabel:PREFERENCE_LABELS[preferenceKey],postalAddress:MAIL_POSTAL_ADDRESS.value(),preferencesUrl});
   try{
     await db.doc(`mail/${messageId}`).create({
       to:[user.email],
+      from:MAIL_SENDERS.updates,
+      replyTo:MAIL_REPLY_TO,
+      headers:mailUnsubscribeHeaders(token),
       message:{
-        from:MAIL_SENDERS.updates,
-        replyTo:MAIL_REPLY_TO,
         subject,
-        text:safeText+`\n\nOpen Through the Wall: ${APP_URL}`,
-        html:`<p>${escapeHtml(safeText)}</p><p><a href="${APP_URL}">Open Through the Wall</a></p>`,
+        text:safeText+`\n\nOpen Through the Wall: ${APP_URL}\n\n${footer.text}`,
+        html:`<p>${escapeHtml(safeText)}</p><p><a href="${APP_URL}">Open Through the Wall</a></p>${footer.html}`,
       },
     });
   }catch(error){
@@ -114,7 +144,7 @@ async function queueNudge(uid,messageId,subject,text,preferenceKey){
   const preferences=await db.doc(`notificationPreferences/${uid}`).get();
   if(!preferences.exists||!nudgePreferenceEnabled(preferences.data(),preferenceKey))return false;
   const user=await getAuth().getUser(uid).catch(()=>null);
-  return queueNudgeForUser(user,messageId,subject,text);
+  return queueNudgeForUser(user,messageId,subject,text,preferenceKey);
 }
 
 async function enabledNotificationRecipients(preferenceKey){
@@ -130,10 +160,14 @@ async function queueNudgeChunks(uids,messageFor){
   const sent=new Set(),unique=[...new Set(uids)];
   for(let offset=0;offset<unique.length;offset+=50){
     const chunk=unique.slice(offset,offset+50);
-    const result=await getAuth().getUsers(chunk.map(uid=>({uid})));
+    const granted=await reserveMailBudget(chunk.length);
+    const approved=chunk.slice(0,granted);
+    if(granted<chunk.length)console.warn(`Daily mail ceiling skipped ${chunk.length-granted} nudge email(s).`);
+    if(!approved.length)continue;
+    const result=await getAuth().getUsers(approved.map(uid=>({uid})));
     await Promise.all(result.users.map(async user=>{
       const message=messageFor(user.uid);
-      if(message&&await queueNudgeForUser(user,message.id,message.subject,message.text))sent.add(user.uid);
+      if(message&&await queueNudgeForUser(user,message.id,message.subject,message.text,message.preferenceKey))sent.add(user.uid);
     }));
   }
   return sent;
@@ -500,7 +534,7 @@ exports.aggregateCastRatings=onDocumentWritten({...FUNCTION_LIMITS,document:'cas
   });
 });
 
-exports.sendPhaseLockNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'pools/{poolId}/phaseStatus/{phase}'},async event=>{
+exports.sendPhaseLockNudges=onDocumentWritten({...MAIL_FUNCTION_LIMITS,document:'pools/{poolId}/phaseStatus/{phase}'},async event=>{
   const after=event.data?.after.exists?event.data.after.data():null;
   if(!after)return;
   const beforeMembers=new Set(event.data?.before.exists?(event.data.before.data().completedMembers||[]):[]);
@@ -513,19 +547,28 @@ exports.sendPhaseLockNudges=onDocumentWritten({...FUNCTION_LIMITS,document:'pool
   const completedPool=phase==='reunion';
   for(const lockerUid of newlyLocked){
     const profile=await db.doc(`users/${lockerUid}`).get();
-    const lockerName=profile.data()?.username||'A friend';
-    const recipients=(Array.isArray(pool.members)?pool.members:[]).filter(uid=>uid!==lockerUid);
-    await Promise.all(recipients.map(uid=>queueNudge(
-      uid,
-      `${completedPool?'complete':'phase'}_${event.params.poolId}_${phase}_${lockerUid}_${uid}`,
-      completedPool?`${lockerName} completed ${pool.name}`:`${lockerName} locked their ${phaseLabel} picks`,
-      completedPool?`${lockerName} made it through every phase in ${pool.name}. See how the final standings look.`:`${lockerName} just locked their ${phaseLabel} picks in ${pool.name}. The tea is moving.`,
-      completedPool?'friendPoolCompletions':'friendPhaseLocks',
+    const lockerName=stripLinkText(profile.data()?.username,'A friend',40);
+    const poolName=stripLinkText(pool.name,'your Through the Wall pool',100);
+    const preferenceKey=completedPool?'friendPoolCompletions':'friendPhaseLocks';
+    const candidates=(Array.isArray(pool.members)?pool.members:[]).filter(uid=>uid!==lockerUid);
+    const preferences=await Promise.all(candidates.map(uid=>db.doc(`notificationPreferences/${uid}`).get()));
+    const recipients=candidates.filter((uid,index)=>preferences[index].exists&&nudgePreferenceEnabled(preferences[index].data(),preferenceKey));
+    const granted=await reserveMailBudget(recipients.length);
+    if(granted<recipients.length)console.warn(`Daily mail ceiling skipped ${recipients.length-granted} phase-lock nudge email(s).`);
+    const approved=recipients.slice(0,granted);
+    if(!approved.length)continue;
+    const users=await getAuth().getUsers(approved.map(uid=>({uid})));
+    await Promise.all(users.users.map(user=>queueNudgeForUser(
+      user,
+      `${completedPool?'complete':'phase'}_${event.params.poolId}_${phase}_${lockerUid}_${user.uid}`,
+      completedPool?`${lockerName} completed ${poolName}`:`${lockerName} locked their ${phaseLabel} picks`,
+      completedPool?`${lockerName} made it through every phase in ${poolName}. See how the final standings look.`:`${lockerName} just locked their ${phaseLabel} picks in ${poolName}. The tea is moving.`,
+      preferenceKey,
     )));
   }
 });
 
-exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,timeoutSeconds:540,document:'seasons/{seasonId}'},async event=>{
+exports.sendNewEpisodeNudges=onDocumentWritten({...MAIL_FUNCTION_LIMITS,timeoutSeconds:540,document:'seasons/{seasonId}'},async event=>{
   if(!event.data?.after.exists)return;
   const before=event.data?.before.exists?event.data.before.data():{};
   const after=event.data.after.data();
@@ -544,6 +587,7 @@ exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,timeoutSecond
       id:`season_${event.params.seasonId}_${uid}`,
       subject:`${seasonLabel} just dropped`,
       text:`${seasonLabel} is open for predictions. Build your pool before the group chat starts calling it.`,
+      preferenceKey:'newSeasons',
     }));
   }
   if(afterEpisode<=beforeEpisode)return;
@@ -555,6 +599,7 @@ exports.sendNewEpisodeNudges=onDocumentWritten({...FUNCTION_LIMITS,timeoutSecond
     id:`episodes_${event.params.seasonId}_${afterEpisode}_${uid}`,
     subject:'New episodes are out — your picks are waiting',
     text:`New episodes are out through Episode ${afterEpisode}. Your picks are waiting before you watch.`,
+    preferenceKey:'newEpisodes',
   }));
 });
 
@@ -676,9 +721,10 @@ async function submitFeedback(request){
   const day=new Date(createdAt).toISOString().slice(0,10);
   const limitRef=db.doc(`feedbackRateLimits/${uid}__${day}`);
   const mailRef=db.doc(`mail/feedback_${uid}_${submissionId}`);
+  const dailyRef=mailCounterRef(createdAt);
   let remaining=0,alreadySubmitted=false;
   await db.runTransaction(async tx=>{
-    const [limitSnapshot,mailSnapshot]=await Promise.all([tx.get(limitRef),tx.get(mailRef)]);
+    const [limitSnapshot,mailSnapshot,dailySnapshot]=await Promise.all([tx.get(limitRef),tx.get(mailRef),tx.get(dailyRef)]);
     if(mailSnapshot.exists){alreadySubmitted=true;remaining=Math.max(0,DAILY_FEEDBACK_LIMIT-(Number(limitSnapshot.data()?.count)||0));return;}
     const count=Number(limitSnapshot.data()?.count)||0;
     if(count>=DAILY_FEEDBACK_LIMIT)throw new HttpsError('resource-exhausted','You have reached today’s support-message limit. Email support@throughthewall.ca if this is urgent.');
@@ -693,11 +739,12 @@ async function submitFeedback(request){
     ].join('\n');
     const contextHtml=contextLines.map(line=>`<li>${escapeHtml(line)}</li>`).join('');
     tx.set(limitRef,{uid,day,count:count+1,updatedAt:createdAt},{merge:true});
+    tx.set(dailyRef,{count:(Number(dailySnapshot.data()?.count)||0)+1,invites:Number(dailySnapshot.data()?.invites)||0,updatedAt:createdAt},{merge:true});
     tx.create(mailRef,{
       to:[MAIL_REPLY_TO],feedbackUserId:uid,feedbackCategory:category,createdAt,
+      from:MAIL_SENDERS.support,
+      replyTo:email||MAIL_REPLY_TO,
       message:{
-        from:MAIL_SENDERS.support,
-        replyTo:email||MAIL_REPLY_TO,
         subject:`[Through the Wall] ${label} from ${username}`,
         text,
         html:`<p><b>${escapeHtml(label)} from ${escapeHtml(username)}</b></p><p>Account email: ${escapeHtml(email||'Unavailable')}</p>${contextHtml?`<ul>${contextHtml}</ul>`:''}<hr><p style="white-space:pre-wrap">${escapeHtml(message)}</p>`,
@@ -708,47 +755,119 @@ async function submitFeedback(request){
   return {ok:true,alreadySubmitted,limit:DAILY_FEEDBACK_LIMIT,remaining};
 }
 
-exports.sendPoolInvite=onCall(CALLABLE_LIMITS,async request=>{
+const alreadyExistsError=error=>['6','already-exists','already_exists'].includes(String(error?.code??'').toLowerCase());
+
+async function emailPreferences(request){
+  const token=String(request.data?.token||''),payload=verifyEmailPreferenceToken(token,EMAIL_PREFERENCES_SECRET.value());
+  if(!payload)throw new HttpsError('invalid-argument',"This unsubscribe link isn't valid. Email support@throughthewall.ca and we'll take care of it.");
+  const kind=payload.t==='invite'?'invite':'nudge';
+  const preferenceLabel=kind==='invite'?'Through the Wall invitations':PREFERENCE_LABELS[payload.p];
+  if(request.data?.apply!==true)return {kind,preferenceLabel};
+  if(kind==='invite'){
+    await db.doc(`emailSuppressions/${payload.e}`).set({invites:true,createdAt:Date.now()},{merge:true});
+  }else{
+    const ref=db.doc(`notificationPreferences/${payload.u}`),all=request.data?.all===true;
+    await db.runTransaction(async tx=>{
+      const snapshot=await tx.get(ref),current=snapshot.exists?snapshot.data():{};
+      const normalized=Object.fromEntries(Object.keys(PREFERENCE_LABELS).map(key=>[key,nudgePreferenceEnabled(current,key)]));
+      if(all)Object.keys(normalized).forEach(key=>{normalized[key]=false;});
+      else normalized[payload.p]=false;
+      tx.set(ref,{...normalized,updatedAt:Date.now()});
+    });
+  }
+  return {kind,applied:true};
+}
+
+async function captainReminder(request){
+  requireUser(request);
+  if(!isGlobalPoolAdmin(request))throw new HttpsError('permission-denied','Only the app administrator can send captain reminders.');
+  const seasonId=String(request.data?.seasonId||'').trim();
+  const dropTimeText=safeHeaderText(request.data?.dropTimeText||'3 a.m. ET / 1 a.m. MT',100);
+  if(!seasonId)throw new HttpsError('invalid-argument','Choose a season.');
+  const poolsSnapshot=await db.collection('pools').where('season.id','==',seasonId).get();
+  const groups=new Map();
+  poolsSnapshot.docs.forEach(document=>{
+    const pool=document.data(),members=Array.isArray(pool.members)?pool.members:[];
+    if(pool.global===true||pool.membershipClosed===true||members.length>=4||!pool.ownerUid)return;
+    groups.set(pool.ownerUid,[...(groups.get(pool.ownerUid)||[]),{id:document.id,...pool,members}]);
+  });
+  const owners=[];
+  for(const [uid,pools] of groups){
+    const preference=await db.doc(`notificationPreferences/${uid}`).get();
+    if(preference.data()?.newSeasons===true)owners.push({uid,pools});
+  }
+  const poolCount=owners.reduce((sum,owner)=>sum+owner.pools.length,0);
+  if(request.data?.dryRun===true)return {owners:owners.length,pools:poolCount};
+  const granted=await reserveMailBudget(owners.length),approved=owners.slice(0,granted);
+  if(granted<owners.length)console.warn(`Daily mail ceiling skipped ${owners.length-granted} captain reminder email(s).`);
+  const authResult=approved.length?await getAuth().getUsers(approved.map(owner=>({uid:owner.uid}))):{users:[]};
+  const users=new Map(authResult.users.map(user=>[user.uid,user]));
+  let queued=0,skipped=owners.length-approved.length;
+  for(const owner of approved){
+    const user=users.get(owner.uid);
+    if(!user?.email){skipped++;continue;}
+    const seasonLabel=stripLinkText(owner.pools[0]?.season?.label,'Love Is Blind',100);
+    const paragraphs=owner.pools.map(pool=>{
+      const poolName=stripLinkText(pool.name,'your Through the Wall pool',100);
+      const inviteUrl=pool.joinCode?`${APP_URL}?join=${encodeURIComponent(pool.id)}.${encodeURIComponent(pool.joinCode)}`:APP_URL;
+      return `Your pool ${poolName} has ${pool.members.length} player(s). ${seasonLabel} drops at ${dropTimeText}. Send your friends the invite link: ${inviteUrl}`;
+    });
+    const body=[...paragraphs,'Watch Episode 1, then make your picks before Episode 2.'].join('\n\n');
+    const token=signEmailPreferenceToken({v:1,t:'nudge',u:owner.uid,p:'newSeasons'},EMAIL_PREFERENCES_SECRET.value());
+    const footer=buildEmailFooter({kind:'nudge',preferenceLabel:PREFERENCE_LABELS.newSeasons,postalAddress:MAIL_POSTAL_ADDRESS.value(),preferencesUrl:emailPreferencesUrl(token)});
+    try{
+      await db.doc(`mail/captain_${seasonId}_${owner.uid}`).create({
+        to:[user.email],from:MAIL_SENDERS.updates,replyTo:MAIL_REPLY_TO,headers:mailUnsubscribeHeaders(token),
+        message:{subject:`${seasonLabel} starts tonight. Bring your group chat.`,text:`${body}\n\n${footer.text}`,html:body.split('\n\n').map(text=>`<p>${escapeHtml(text)}</p>`).join('')+footer.html},
+      });
+      queued++;
+    }catch(error){if(alreadyExistsError(error))skipped++;else throw error;}
+  }
+  return {queued,skipped};
+}
+
+exports.sendPoolInvite=onCall(MAIL_CALLABLE_LIMITS,async request=>{
   if(request.data?.action==='feedback')return submitFeedback(request);
-  const uid=requireUser(request);
-  const poolId=String(request.data?.poolId||'');
+  if(request.data?.action==='emailPreferences')return emailPreferences(request);
+  if(request.data?.action==='captainReminder')return captainReminder(request);
+  const uid=requireUser(request),poolId=String(request.data?.poolId||'');
   const toEmail=String(request.data?.toEmail||'').trim().toLowerCase();
   if(!poolId||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(toEmail))throw new HttpsError('invalid-argument','Enter a valid email address.');
-  const poolRef=db.doc(`pools/${poolId}`);
-  const poolSnap=await poolRef.get();
-  if(!poolSnap.exists||poolSnap.data().ownerUid!==uid)throw new HttpsError('permission-denied','Only the pool owner can email invitations.');
-  if(poolSnap.data().membershipClosed===true)throw new HttpsError('failed-precondition','This pool is locked for new players.');
-  const createdAt=Date.now();
-  const day=new Date(createdAt).toISOString().slice(0,10);
-  const limitRef=db.doc(`inviteRateLimits/${uid}__${day}`);
-  const profileSnap=await db.doc(`users/${uid}`).get();
+  const createdAt=Date.now(),day=utcDay(createdAt),poolRef=db.doc(`pools/${poolId}`);
+  const inviteRef=db.doc(`invites/${poolId}__${toEmail}`),mailRef=db.doc(`mail/invite_${poolId}__${encodeURIComponent(toEmail)}`);
+  const limitRef=db.doc(`inviteRateLimits/${uid}__${day}`),dailyRef=mailCounterRef(createdAt);
+  const suppressionRef=db.doc(`emailSuppressions/${emailHash(toEmail)}`),profileSnap=await db.doc(`users/${uid}`).get();
   let invitationCount=0;
   await db.runTransaction(async tx=>{
-    const limitSnap=await tx.get(limitRef);
-    const count=Number(limitSnap.data()?.count)||0;
+    const [poolSnap,existing,mailSnap,suppression,limitSnap,dailySnap]=await Promise.all([
+      tx.get(poolRef),tx.get(inviteRef),tx.get(mailRef),tx.get(suppressionRef),tx.get(limitRef),tx.get(dailyRef),
+    ]);
+    if(!poolSnap.exists||poolSnap.data().ownerUid!==uid)throw new HttpsError('permission-denied','Only the pool owner can email invitations.');
+    const pool=poolSnap.data(),members=Array.isArray(pool.members)?pool.members:[];
+    if(pool.membershipClosed===true)throw new HttpsError('failed-precondition','This pool is locked for new players.');
+    if(members.length>=FRIEND_POOL_MEMBER_LIMIT)throw new HttpsError('failed-precondition','This pool is full. Friends can play in the Global Pool instead.');
+    if(existing.exists){
+      if(existing.data().status==='pending')throw new HttpsError('already-exists',`You've already invited ${toEmail}. If they can't find it, share the pool link instead.`);
+      throw new HttpsError('already-exists','That invitation was already answered. Share the pool link instead.');
+    }
+    if(mailSnap.exists)throw new HttpsError('already-exists',`You've already invited ${toEmail}. If they can't find it, share the pool link instead.`);
+    if(suppression.data()?.invites===true)throw new HttpsError('failed-precondition',"We can't email an invitation to this address. Share the pool link instead.");
+    const count=Number(limitSnap.data()?.count)||0,dailyCount=Number(dailySnap.data()?.count)||0,dailyInvites=Number(dailySnap.data()?.invites)||0;
     if(count>=DAILY_EMAIL_INVITE_LIMIT)throw new HttpsError('resource-exhausted','You have reached today’s invitation limit. Share the pool link instead.');
-    const pool=poolSnap.data();
-    const inviteRef=db.doc(`invites/${poolId}__${toEmail}`);
-    const existing=await tx.get(inviteRef);
-    if(existing.exists&&existing.data().status!=='pending')throw new HttpsError('already-exists','That invitation was already answered. Share the pool link instead.');
-    tx.set(inviteRef,{poolId,poolName:pool.name,seasonLabel:pool.season?.label||'',fromUid:uid,fromUsername:profileSnap.data()?.username||'A friend',toEmail,status:'pending',createdAt});
-    tx.set(limitRef,{uid,day,count:count+1,updatedAt:Date.now()},{merge:true});
-    invitationCount=count+1;
-  });
-  const pool=poolSnap.data();
-  const inviter=safeHeaderText(profileSnap.data()?.username||'A friend',40)||'A friend';
-  const inviteUrl=new URL(APP_URL);
-  inviteUrl.searchParams.set('join',poolId+'.'+String(pool.joinCode||''));
-  const logoUrl=new URL('images/through-the-wall-app-icon.png',APP_URL).href;
-  const logoUrlWithVersion=logoUrl+'?v=2';
-  const seasonLabel=String(pool.season?.label||'Love Is Blind');
-  const safePoolName=safeHeaderText(pool.name,100)||'a Through the Wall pool';
-  const subject=`${inviter} invited you to ${safePoolName}`;
-  const text=`${inviter} invited you to join their Through the Wall prediction pool, “${pool.name},” for ${seasonLabel}.\n\nJoin the pool: ${inviteUrl}`;
-  const inviteHtml=`<!doctype html>
+    if(dailyInvites>=INVITE_PROJECT_DAILY_LIMIT||dailyCount>=MAIL_PROJECT_DAILY_LIMIT)throw new HttpsError('resource-exhausted','Email invitations are paused for today. Share the pool link instead.');
+    const inviterName=stripLinkText(profileSnap.data()?.username,'A friend',40);
+    const poolNameForEmail=stripLinkText(pool.name,'a Through the Wall pool',100);
+    const seasonLabel=stripLinkText(pool.season?.label,'Love Is Blind',100);
+    const inviteUrl=new URL(APP_URL);inviteUrl.searchParams.set('join',poolId+'.'+String(pool.joinCode||''));
+    const token=signEmailPreferenceToken({v:1,t:'invite',e:emailHash(toEmail)},EMAIL_PREFERENCES_SECRET.value());
+    const footer=buildEmailFooter({kind:'invite',inviterName,postalAddress:MAIL_POSTAL_ADDRESS.value(),preferencesUrl:emailPreferencesUrl(token)});
+    const subject=`${inviterName} invited you to ${poolNameForEmail}`;
+    const text=`${inviterName} invited you to join their Through the Wall prediction pool, “${poolNameForEmail},” for ${seasonLabel}.\n\nJoin the pool: ${inviteUrl}\n\n${footer.text}`;
+    const logoUrlWithVersion=new URL('images/through-the-wall-app-icon.png?v=2',APP_URL).href;
+    const html=`<!doctype html>
 <html lang="en">
   <body style="margin:0;padding:0;background:#f7f4ff;font-family:Arial,Helvetica,sans-serif;color:#211a37;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(inviter)} wants you in their unofficial Love Is Blind prediction pool. Your pod is waiting.</div>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">${escapeHtml(inviterName)} wants you in their unofficial Love Is Blind prediction pool. Your pod is waiting.</div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;padding:28px 12px;background:#f7f4ff;">
       <tr><td align="center">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:560px;background:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 10px 30px rgba(52,31,98,.13);">
@@ -758,14 +877,14 @@ exports.sendPoolInvite=onCall(CALLABLE_LIMITS,async request=>{
               <td valign="middle" style="padding-left:11px;"><div style="font-size:13px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase;opacity:.9;">Through the Wall</div><div style="margin-top:5px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;opacity:.78;">An unofficial Love Is Blind prediction pool</div></td>
             </tr></table>
             <div style="margin-top:14px;font-size:32px;line-height:1.12;font-weight:800;">You’re in the pods. 💜</div>
-            <div style="margin-top:10px;font-size:16px;line-height:1.5;color:#f6ecff;">${escapeHtml(inviter)} is building their pod squad. You’re on the list.</div>
+            <div style="margin-top:10px;font-size:16px;line-height:1.5;color:#f6ecff;">${escapeHtml(inviterName)} is building their pod squad. You’re on the list.</div>
           </td></tr>
           <tr><td style="padding:32px;">
             <p style="margin:0 0 22px;font-size:17px;line-height:1.55;">Make your predictions, lock them in, and earn your group-chat bragging rights.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 26px;background:#f7f1ff;border:1px solid #eadcff;border-radius:16px;">
               <tr><td style="padding:18px 20px;">
                 <div style="font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#7b2cbf;">Your pool</div>
-                <div style="margin-top:6px;font-size:21px;line-height:1.25;font-weight:800;color:#211a37;">${escapeHtml(pool.name)}</div>
+                <div style="margin-top:6px;font-size:21px;line-height:1.25;font-weight:800;color:#211a37;">${escapeHtml(poolNameForEmail)}</div>
                 <div style="margin-top:7px;font-size:14px;line-height:1.4;color:#625675;">${escapeHtml(seasonLabel)}</div>
               </td></tr>
             </table>
@@ -775,21 +894,17 @@ exports.sendPoolInvite=onCall(CALLABLE_LIMITS,async request=>{
               </td></tr>
             </table>
           </td></tr>
-          <tr><td style="padding:19px 32px;background:#211a37;text-align:center;color:#d9d1e7;font-size:12px;line-height:1.5;">Through the Wall · Watch. Predict. Brag.</td></tr>
+          <tr><td style="padding:0;">${footer.html}</td></tr>
         </table>
       </td></tr>
     </table>
   </body>
 </html>`;
-  await db.doc(`mail/invite_${poolId}__${encodeURIComponent(toEmail)}_${day}_${invitationCount}`).create({
-    to:[toEmail],
-    message:{
-      from:MAIL_SENDERS.invites,
-      replyTo:MAIL_REPLY_TO,
-      subject,
-      text,
-      html:inviteHtml,
-    },
+    tx.create(inviteRef,{poolId,poolName:poolNameForEmail,seasonLabel,fromUid:uid,fromUsername:inviterName,toEmail,status:'pending',createdAt});
+    tx.set(limitRef,{uid,day,count:count+1,updatedAt:createdAt},{merge:true});
+    tx.set(dailyRef,{count:dailyCount+1,invites:dailyInvites+1,updatedAt:createdAt},{merge:true});
+    tx.create(mailRef,{to:[toEmail],from:MAIL_SENDERS.invites,replyTo:MAIL_REPLY_TO,headers:mailUnsubscribeHeaders(token),message:{subject,text,html}});
+    invitationCount=count+1;
   });
   return {ok:true,limit:DAILY_EMAIL_INVITE_LIMIT,remaining:Math.max(0,DAILY_EMAIL_INVITE_LIMIT-invitationCount)};
 });
@@ -803,13 +918,12 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
   if(action==='relaxHistoricalJoinFloor')return relaxHistoricalJoinFloor(request);
   if(action!=='open')throw new HttpsError('invalid-argument','Choose a valid Global Pool action.');
   const uid=requireUser(request);
-  const email=String(request.auth.token?.email||'').trim().toLowerCase();
   const seasonId=String(request.data?.seasonId||'');
   const initialWatchedThrough=Number(request.data?.initialWatchedThrough);
   const ref=db.doc(`pools/global__${seasonId}`);
   const trustedRef=ref.collection('trustedPlayers').doc(uid);
   const configRef=db.doc('appConfig/public');
-  await retryAborted(()=>db.runTransaction(async tx=>{
+  try{await retryAborted(()=>db.runTransaction(async tx=>{
     const configSnapshot=await tx.get(configRef);
     const season=globalPoolSeasonFromConfig(configSnapshot.exists?configSnapshot.data():null);
     if(seasonId!==season.id)throw new HttpsError('invalid-argument','That season is not the active Global Pool season.');
@@ -836,13 +950,16 @@ exports.openGlobalPool=onCall(CALLABLE_LIMITS,async request=>{
       if(Object.keys(ledgerFields).length)tx.set(trustedRef,ledgerFields,{merge:true});
       return;
     }
-    if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','The app administrator needs to open this global pool first.');
+    if(!isGlobalPoolAdmin(request))throw new HttpsError('permission-denied','The app administrator needs to open this global pool first.');
     tx.create(ref,{
       name:`Global Pool · ${season.label}`,ownerUid:uid,members:[uid],global:true,globalSeasonId:seasonId,
       membershipClosed:false,season,rulesSnapshot:null,scoringVersion:GLOBAL_SCORING_VERSION,createdAt:Date.now(),
     });
     tx.set(trustedRef,{uid,...globalLedgerFieldsForJoin({},initialWatchedThrough,cfg.AVAILABLE_THROUGH_EP)});
-  }));
+  }),6);}catch(error){
+    if(abortedFirestoreWrite(error))throw new HttpsError('unavailable','The Global Pool is busy right now. Try again in a few seconds.');
+    throw error;
+  }
   return {ok:true,poolId:ref.id};
 });
 
@@ -901,7 +1018,7 @@ async function lockGlobalPicks(request){
       nextPicks[phase]=validateLockedPhasePicks({engine,phase,incoming:serverStampedIncoming,existing:nextPicks[phase],lockedAt,authoritativeWindow});
     }
     transaction.set(trustedRef,{
-      uid,username:safeHeaderText(profileSnapshot.data()?.username||previous.username||'Player',40)||'Player',seasonId,
+      uid,username:stripLinkText(profileSnapshot.data()?.username||previous.username,'Player',40),seasonId,
       scoringVersion:GLOBAL_SCORING_VERSION,picks:nextPicks,updatedAt:lockedAt,
     },{merge:true});
   }));
@@ -947,8 +1064,8 @@ async function completeGlobalPhase(request){
 }
 
 async function resetHistoricalGlobalSimulation(request){
-  const uid=requireUser(request),email=String(request.auth.token?.email||'').trim().toLowerCase();
-  if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','Only the app administrator can reset a historical Global simulation.');
+  const uid=requireUser(request);
+  if(!isGlobalPoolAdmin(request))throw new HttpsError('permission-denied','Only the app administrator can reset a historical Global simulation.');
   const poolId=String(request.data?.poolId||'');
   if(!poolId)throw new HttpsError('invalid-argument','Choose a Global Pool to reset.');
   const poolRef=db.doc(`pools/${poolId}`),poolSnapshot=await poolRef.get();
@@ -1028,8 +1145,8 @@ async function resetHistoricalGlobalSimulation(request){
 }
 
 async function relaxHistoricalJoinFloor(request){
-  const uid=requireUser(request),email=String(request.auth.token?.email||'').trim().toLowerCase();
-  if(!GLOBAL_POOL_ADMINS.has(email))throw new HttpsError('permission-denied','Only the app administrator can repair a historical Global simulation.');
+  const uid=requireUser(request);
+  if(!isGlobalPoolAdmin(request))throw new HttpsError('permission-denied','Only the app administrator can repair a historical Global simulation.');
   const poolId=String(request.data?.poolId||'');
   if(!poolId)throw new HttpsError('invalid-argument','Choose a Global Pool to repair.');
   const poolRef=db.doc(`pools/${poolId}`),poolSnapshot=await poolRef.get();

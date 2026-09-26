@@ -9,7 +9,7 @@
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
   const PRICE_VARIANTS=Object.freeze({a:'4.99',c:'12.99'});
   const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true});
-  const PERSONAL_DATA_PROPERTIES=Object.freeze(['join','signInEmail','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
+  const PERSONAL_DATA_PROPERTIES=Object.freeze(['join','signInEmail','emailPreferences','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
   const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST);
   let capturingStopped=false;
 

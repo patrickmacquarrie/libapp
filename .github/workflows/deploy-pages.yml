@@ -104,13 +104,13 @@ jobs:
               hold_message="Hosting was not released because the push baseline is unavailable in this checkout. This can happen on a multi-commit or force push. Deploy the matching backend, then use the confirmed manual release."
             else
               set +e
-              git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json firebase.json functions
+              git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json firebase.json functions extensions
               diff_status=$?
               set -e
               if [ "$diff_status" -eq 1 ]; then
                 hold_hosting=true
                 hold_reason=backend_changed
-                hold_message="Hosting was not released because this push changes Firestore rules, indexes, Firebase configuration, or Functions. Deploy the matching backend, then use the confirmed manual release."
+                hold_message="Hosting was not released because this push changes Firestore rules, indexes, Firebase configuration, Functions, or extensions. Deploy the matching backend, then use the confirmed manual release."
               elif [ "$diff_status" -gt 1 ]; then
                 hold_hosting=true
                 hold_reason=comparison_failed
