@@ -9,7 +9,7 @@
 - Email invitations are owner-only, capped at 20 per owner per UTC day, and answered invites cannot be reset to pending.
 - Authenticated feedback/support messages use an App Check-protected callable, idempotent submission IDs, and a five-message-per-account daily limit; browser clients cannot read the mail queue.
 - Invitation matching requires a verified provider email address, including the verified Apple relay address when Hide My Email is used.
-- Same-day invitation resends create a fresh delivery message instead of colliding with the first send.
+- Each address can be invited only once per pool; pending invitations direct the owner to share the pool link instead.
 - Shareable private-pool join links avoid exact email matching.
 - Pool owners can invalidate an old share link immediately, and only the new link remains valid.
 - Pool deletion, leaving pools, and account deletion run through trusted callable functions; account deletion also removes queued mail and bounded client diagnostics.
@@ -24,7 +24,7 @@
 
 ## Console activation required
 
-1. Deploy `firestore.rules`, `firestore.indexes.json`, and `functions/` together.
+1. Deploy `firestore.rules`, `firestore.indexes.json`, `functions/`, and `extensions/` together.
 2. Install Firebase's Trigger Email extension, point it at the `mail` collection, and configure the production SMTP sender.
 3. Enable Google and Email link providers in Firebase Authentication. Add `throughthewall.ca` and `www.throughthewall.ca` to Authorized domains. Keep Apple hidden until its service ID, team ID, key ID, and private key are configured.
 4. Connect the production custom domain in Firebase Hosting and wait for its certificate to become active before changing DNS. Confirm the `github-actions/libapp` Workload Identity provider can impersonate the dedicated `github-firebase-hosting` service account; no persistent JSON key or repository secret should exist.
@@ -35,7 +35,7 @@
 
 After every `firebase deploy`, sign in and call `reopenPhase` once against any pool. Confirm the response is a domain error such as `invalid-argument` or `failed-precondition`, not an HTTP 403. If it returns 403, restore the callable's public ingress setting:
 
-Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address on the same UTC day and confirm both create delivery attempts. Rotate a private-pool invite link and confirm the old link is rejected while the new link joins successfully. Run the PostHog release verification in `POSTHOG-BETA-RUNBOOK.md` before opening beta access.
+Repeat the ingress check against `sendPoolInvite`; a domain error is expected, not an HTTP 403. Also confirm Google and cross-device email-link sign-in on `throughthewall.ca`; verify Google allows `https://throughthewall.ca/__/auth/handler` as a return URL, redirect sign-in preserves invite links, and the browser console has no CSP violations or missing local React assets. Send two invitations to the same address and confirm the second is refused with the already-invited message. Rotate a private-pool invite link and confirm the old link is rejected while the new link joins successfully. Run the PostHog release verification in `POSTHOG-BETA-RUNBOOK.md` before opening beta access.
 
 ```sh
 gcloud run services update reopenphase \
@@ -46,9 +46,9 @@ gcloud run services update reopenphase \
 
 ## Production function inventory
 
-The application deploys ten project-owned functions:
+The application deploys eleven project-owned functions:
 
-- Firestore triggers: `aggregateCastRatings`, `sendPhaseLockNudges`, `sendNewEpisodeNudges`, and `recomputeGlobalStandingsOnSeasonUpdate`.
+- Firestore triggers: `aggregateCastRatings`, `sendPhaseLockNudges`, `sendNewEpisodeNudges`, `rebuildGlobalStandings`, and `recomputeGlobalStandingsOnSeasonUpdate`.
 - Callables: `leavePool`, `deletePool`, `reopenPhase`, `sendPoolInvite`, `openGlobalPool`, and `deleteMyAccount`.
 
 The Trigger Email extension also deploys its own `ext-firestore-send-email-processqueue` function. It is legitimate infrastructure and must not be removed as an orphan. `lockGlobalPicks`, `completeGlobalPhase`, and `advanceGlobalWatch` are actions handled inside `openGlobalPool`, not separately deployed services.

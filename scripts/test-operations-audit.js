@@ -10,6 +10,8 @@ const analyticsSource=read('analytics.js');
 const functionsSource=read('functions/index.js');
 const scoringEngineSource=read('functions/shared/scoring-engine.js');
 const globalWatchLedgerSource=read('functions/shared/global-watch-ledger.js');
+const linkTextSource=read('functions/shared/link-text.js');
+const emailPreferencesSource=read('functions/shared/email-preferences.js');
 const firestoreRules=read('firestore.rules');
 const publisher=read('scripts/season-publisher/Code.gs');
 const seasonAdmin=read('scripts/season-publisher/Admin.html');
@@ -71,7 +73,7 @@ assert(!html.includes("httpsCallable(functions,'reportClientError')"),'Client fa
 assert(firestoreRules.includes('match /clientErrors/{userId}/categories/{category}'),'Firestore rules must protect client diagnostics.');
 assert(firestoreRules.includes('allow read, delete: if false'),'Browser clients must not read or delete diagnostics.');
 assert(firestoreRules.includes("duration.value(1, 'm')"),'Repeated diagnostics must be throttled in Firestore rules.');
-['save_failed','season_load_failed','pool_open_failed','pool_create_failed','invite_send_failed','invite_accept_failed','mirror_sync_failed'].forEach(category=>{
+['save_failed','season_load_failed','pool_open_failed','pool_create_failed','invite_send_failed','invite_accept_failed','mirror_sync_failed','global_join_failed'].forEach(category=>{
   assert(firestoreRules.includes(`'${category}'`),`${category} must be accepted by the diagnostic rules.`);
   assert(html.includes(`reportTtwError('${category}'`),`${category} must be reported by the app.`);
 });
@@ -199,9 +201,9 @@ assert(functionsSource.includes('exports.deletePool=onCall'),'Pool deletion must
 assert(functionsSource.includes('await db.recursiveDelete(poolRef)'),'Pool deletion must recursively remove every subcollection.');
 assert(html.includes("deletePool: pool => httpsCallable(functions,'deletePool')"),'The browser must use recursive server-side pool deletion.');
 assert(!html.includes('6 * members'),'Pool deletion must not rely on one member-sized browser batch.');
-assert(functionsSource.includes("_${day}_${invitationCount}`"),'Each deliberate same-day invitation resend must create a distinct mail document.');
-assert(!html.includes('already has a pending invitation'),'The invitation form must allow a deliberate same-day resend.');
-assert(html.includes("resendingPendingInvite?'Invitation sent again to '"),'The invitation form must clearly confirm a resend.');
+assert(functionsSource.includes("mail/invite_${poolId}__${encodeURIComponent(toEmail)}`"),'Each pool and address must map to one stable invitation mail document.');
+assert(html.includes("You've already invited ${email}"),'The invitation form must refuse a duplicate pending invitation before calling the function.');
+assert(!html.includes('resendingPendingInvite'),'The invitation form must not keep the old resend path.');
 assert(functionsSource.includes("db.collection('mail').where('to','array-contains',email)"),'Account deletion must remove queued mail addressed to the user.');
 assert(functionsSource.includes("if(request.data?.action==='feedback')return submitFeedback(request)"),'Feedback must be routed through the existing App Check-protected email callable.');
 assert(functionsSource.includes('const DAILY_FEEDBACK_LIMIT=5'),'Feedback delivery must have a bounded daily account limit.');
@@ -250,6 +252,14 @@ assert(!firestoreRules.includes("request.resource.data.revealed"),'The deprecate
 assert(firestoreRules.includes("'updatedAt',\n            'revealed'"),'Rules must permit a full replacement to remove the deprecated phase-status field.');
 assert(firestoreRules.includes("data.keys().hasOnly([\n              'username',\n              'phase',\n              'screen'"),'Public player documents must use an explicit field allowlist.');
 assert(firebaseConfig.includes('"indexes": "firestore.indexes.json"'),'Firebase deployment must include versioned Firestore indexes.');
+const linkPattern='.*(://|www[.]).*|.*[.](com|net|org|ca|co|io|app|site|xyz|link|ly|me|gg|tv|info|biz|shop|online|live|club|us|uk|to|cc|sh)([^a-z0-9].*)?';
+[linkTextSource,html,firestoreRules].forEach(source=>assert(source.includes(linkPattern),'Link-like name validation must use the identical shared pattern.'));
+assert(functionsSource.includes('const FRIEND_POOL_MEMBER_LIMIT=40;'),'Functions must share the 40-player friend-pool limit.');
+assert(!/message\s*:\s*\{[^}]*\b(?:from|replyTo)\s*:/s.test(functionsSource),'Mail sender and reply-to fields must never be nested inside message.');
+assert(emailPreferencesSource.includes("crypto.timingSafeEqual"),'Email preference tokens must use timing-safe signature comparison.');
+assert(firestoreIndexes.fieldOverrides.some(field=>field.collectionGroup==='mail'&&field.fieldPath==='delivery.expireAt'&&field.ttl===true),'Mail delivery expiry must have a versioned TTL override.');
+assert(workflow.includes('functions extensions')&&workflow.includes('Functions, or extensions'),'Extension changes must hold Hosting until the backend is deployed.');
+assert.equal((functionsSource.match(/exports\.[A-Za-z0-9_]+\s*=/g)||[]).length,11,'The project-owned function inventory must remain eleven exports.');
 assert(functionsSource.includes("const CALLABLE_LIMITS={...FUNCTION_LIMITS,enforceAppCheck:process.env.FUNCTIONS_EMULATOR!=='true'}"),'Every callable must enforce App Check outside the local Firebase emulator.');
 assert(!/onCall\(FUNCTION_LIMITS/.test(functionsSource),'No callable may bypass App Check enforcement.');
 assert(html.includes('initializeAppCheck(fbApp'),'The production client must initialize Firebase App Check.');
@@ -479,7 +489,7 @@ assert(sessionRecordingStart>=0&&sessionRecordingEnd>sessionRecordingStart,'Post
 const sessionRecordingSource=analyticsSource.slice(sessionRecordingStart,sessionRecordingEnd);
 assert(sessionRecordingSource.includes('maskAllInputs:true')&&sessionRecordingSource.includes("maskTextSelector:'*'"),'Session replay must use PostHog\'s maximum supported input and rendered-text masking.');
 assert(analyticsSource.includes("property_denylist:['email','username','displayName','name','toEmail','inviteEmail']"),'PostHog must drop PII-shaped event properties.');
-assert(analyticsSource.includes('mask_personal_data_properties:true')&&analyticsSource.includes("['join','signInEmail','oobCode','apiKey','continueUrl','mode','lang','tenantId']"),'PostHog must mask the configured personal URL properties.');
+assert(analyticsSource.includes('mask_personal_data_properties:true')&&analyticsSource.includes("['join','signInEmail','emailPreferences','oobCode','apiKey','continueUrl','mode','lang','tenantId']"),'PostHog must mask the configured personal URL properties.');
 assert(analyticsSource.includes("window.posthog.identify(String(firebaseUid),{},setOnce)"),'PostHog identity must use only the stable Firebase UID plus set-once cohort properties.');
 assert(html.includes("window.ttwAnalytics?.identify(u.uid,{seasonId:"),'Authenticated sessions must identify with the Firebase UID.');
 assert(html.includes("window.ttwAnalytics?.reset();identifiedAnalyticsUid.current=''"),'Sign-out and account deletion must reset PostHog identity.');
@@ -625,7 +635,7 @@ const registrationCall=analyticsWindow.posthog.find(call=>call[0]==='register');
 assert.equal(registrationCall[1].$geoip_disable,true,'Automatic PostHog events and feature-flag requests must disable GeoIP enrichment.');
 assert.equal(posthogConfig.capture_pageview,false,'The app shell must disable PostHog automatic pageviews.');
 assert.equal(posthogConfig.mask_personal_data_properties,true,'PostHog personal-data masking must be enabled.');
-assert.deepEqual(Array.from(posthogConfig.custom_personal_data_properties),['join','signInEmail','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
+assert.deepEqual(Array.from(posthogConfig.custom_personal_data_properties),['join','signInEmail','emailPreferences','oobCode','apiKey','continueUrl','mode','lang','tenantId']);
 assert.equal(posthogConfig.session_recording.maskAllInputs,true,'Session replay must mask form input values.');
 assert.equal(posthogConfig.session_recording.maskTextSelector,'*','Session replay must mask every rendered text node.');
 assert.equal(posthogConfig.session_recording.maskAllElementAttributes,undefined,'Session replay must not pretend the unsupported maskAllElementAttributes option protects accessibility attributes; sensitive regions use ph-no-capture instead.');

@@ -130,6 +130,8 @@ async function verifyNotificationChunking(){
       chunkSizes.push(identifiers.length);
       return {users:identifiers.map(({uid})=>({uid,email:`${uid}@example.test`}))};
     }}),
+    reserveMailBudget:async requested=>requested,
+    console:{warn:()=>{}},
     queueNudgeForUser:async()=>true,
   });
   const recipients=Array.from({length:120},(_,index)=>`user-${index}`);

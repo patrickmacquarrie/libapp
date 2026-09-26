@@ -27,6 +27,10 @@ service cloud.firestore {
       return phase in ['pods', 'dating', 'weddings', 'reunion'];
     }
 
+    function linkLike(value) {
+      return value.lower().matches('.*(://|www[.]).*|.*[.](com|net|org|ca|co|io|app|site|xyz|link|ly|me|gg|tv|info|biz|shop|online|live|club|us|uk|to|cc|sh)([^a-z0-9].*)?');
+    }
+
     function poolExists(poolId) {
       return exists(/databases/$(database)/documents/pools/$(poolId));
     }
@@ -105,6 +109,7 @@ service cloud.firestore {
         request.resource.data.username is string &&
         request.resource.data.username.size() >= 1 &&
         request.resource.data.username.size() <= 40 &&
+        !linkLike(request.resource.data.username) &&
         request.resource.data.createdAt is number;
 
       allow update: if signedIn() &&
@@ -114,6 +119,7 @@ service cloud.firestore {
         request.resource.data.username is string &&
         request.resource.data.username.size() >= 1 &&
         request.resource.data.username.size() <= 40 &&
+        !linkLike(request.resource.data.username) &&
         request.resource.data.createdAt == resource.data.createdAt;
 
       allow delete: if false;
@@ -274,6 +280,7 @@ service cloud.firestore {
           request.resource.data.name is string &&
           request.resource.data.name.size() >= 1 &&
           request.resource.data.name.size() <= 100 &&
+          !linkLike(request.resource.data.name) &&
           request.resource.data.nameUpdatedAt is number;
       }
 
@@ -309,6 +316,7 @@ service cloud.firestore {
         request.resource.data.name is string &&
         request.resource.data.name.size() >= 1 &&
         request.resource.data.name.size() <= 100 &&
+        !linkLike(request.resource.data.name) &&
         request.resource.data.ownerUid == request.auth.uid &&
         request.resource.data.members == [request.auth.uid] &&
         request.resource.data.joinCode is string &&
@@ -799,6 +807,7 @@ service cloud.firestore {
     match /clientErrors/{userId}/categories/{category} {
       function validClientErrorCategory() {
         return category in [
+          'global_join_failed',
           'invite_accept_failed',
           'invite_send_failed',
           'lobby_load_failed',
@@ -867,6 +876,14 @@ service cloud.firestore {
     }
 
     match /mail/{messageId} {
+      allow read, write: if false;
+    }
+
+    match /emailSuppressions/{id} {
+      allow read, write: if false;
+    }
+
+    match /emailDailyCounts/{day} {
       allow read, write: if false;
     }
 
