@@ -1828,10 +1828,26 @@ const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
 /* EMAIL OPT-IN PROMPT HELPERS START */
 const episodeEmailPromptStorageKey = uid => 'through-the-wall-episode-email-prompt-answered-'+String(uid||'');
+const episodeEmailPromptPendingStorageKey = uid => 'through-the-wall-episode-email-prompt-pending-'+String(uid||'');
 const episodeEmailPromptAnswered = uid => {
   if(!uid)return false;
   try{return localStorage.getItem(episodeEmailPromptStorageKey(uid))==='1';}
   catch(error){return false;}
+};
+const episodeEmailPromptPending = uid => {
+  if(!uid)return false;
+  try{return sessionStorage.getItem(episodeEmailPromptPendingStorageKey(uid))==='1';}
+  catch(error){return false;}
+};
+const rememberEpisodeEmailPromptPending = uid => {
+  if(!uid)return;
+  try{sessionStorage.setItem(episodeEmailPromptPendingStorageKey(uid),'1');}
+  catch(error){}
+};
+const clearEpisodeEmailPromptPending = uid => {
+  if(!uid)return;
+  try{sessionStorage.removeItem(episodeEmailPromptPendingStorageKey(uid));}
+  catch(error){}
 };
 const rememberEpisodeEmailPromptAnswer = uid => {
   if(!uid)return;
@@ -5171,7 +5187,12 @@ function EmailPreferencesScreen({state,onApply}){
   </div></div>;
 }
 function EpisodeEmailOptInCard({email='',saving=false,onAccept,onDecline}){
-  return <section className="card episode-email-opt-in" role="region" aria-labelledby="episode-email-opt-in-title">
+  const cardRef=useRef(null);
+  useEffect(()=>{
+    const timer=setTimeout(()=>cardRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),0);
+    return()=>clearTimeout(timer);
+  },[]);
+  return <section ref={cardRef} className="card episode-email-opt-in" role="region" aria-labelledby="episode-email-opt-in-title">
     <div className="episode-email-opt-in-icon" aria-hidden="true">✉</div>
     <div className="episode-email-opt-in-copy">
       <span className="episode-email-opt-in-kicker">Stay in the loop</span>
@@ -5347,18 +5368,31 @@ function App() {
   const requestEpisodeEmailPrompt=()=>{
     if(!user?.uid||episodeEmailPromptAnswered(user.uid))return;
     if(notificationPreferences.newEpisodes===true&&notificationPreferences.newSeasons===true)return;
+    rememberEpisodeEmailPromptPending(user.uid);
     setShowEpisodeEmailPrompt(true);
   };
   const declineEpisodeEmailPrompt=()=>{
     rememberEpisodeEmailPromptAnswer(user?.uid);
+    clearEpisodeEmailPromptPending(user?.uid);
     setShowEpisodeEmailPrompt(false);
   };
   const acceptEpisodeEmailPrompt=async()=>{
     const saved=await persistNotificationPreferences({newEpisodes:true,newSeasons:true});
     if(!saved)return;
     rememberEpisodeEmailPromptAnswer(user.uid);
+    clearEpisodeEmailPromptPending(user.uid);
     setShowEpisodeEmailPrompt(false);
   };
+  useEffect(()=>{
+    if(authState!=='signedin'||!user?.uid||!episodeEmailPromptPending(user.uid))return;
+    if(episodeEmailPromptAnswered(user.uid)||(
+      notificationPreferences.newEpisodes===true&&notificationPreferences.newSeasons===true
+    )){
+      clearEpisodeEmailPromptPending(user.uid);
+      return;
+    }
+    setShowEpisodeEmailPrompt(true);
+  },[authState,user?.uid,notificationPreferences.newEpisodes,notificationPreferences.newSeasons,activePool?.id]);
   const submitPricingResponse=response=>{
     const price=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
     if(!pricingPrompt||!price||pricingResponse||!['yes','maybe','no','dismissed'].includes(response))return;
