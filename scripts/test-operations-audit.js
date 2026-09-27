@@ -249,11 +249,20 @@ assert(!episodeEmailCardSource.includes('type="checkbox"')&&!episodeEmailCardSou
 const episodeEmailHelpersStart=html.indexOf('/* EMAIL OPT-IN PROMPT HELPERS START */');
 const episodeEmailHelpersEnd=html.indexOf('/* EMAIL OPT-IN PROMPT HELPERS END */');
 assert(episodeEmailHelpersStart>=0&&episodeEmailHelpersEnd>episodeEmailHelpersStart,'The one-time email prompt must have isolated storage helpers.');
-const episodeEmailStorage=new Map();
-const episodeEmailContext={localStorage:{getItem:key=>episodeEmailStorage.get(key)||null,setItem:(key,value)=>episodeEmailStorage.set(key,String(value))},String};
+const episodeEmailStorage=new Map(),episodeEmailSessionStorage=new Map();
+const episodeEmailContext={
+  localStorage:{getItem:key=>episodeEmailStorage.get(key)||null,setItem:(key,value)=>episodeEmailStorage.set(key,String(value))},
+  sessionStorage:{getItem:key=>episodeEmailSessionStorage.get(key)||null,setItem:(key,value)=>episodeEmailSessionStorage.set(key,String(value)),removeItem:key=>episodeEmailSessionStorage.delete(key)},
+  String,
+};
 vm.createContext(episodeEmailContext);
-vm.runInContext(`${html.slice(episodeEmailHelpersStart,episodeEmailHelpersEnd)}\nthis.__answered=episodeEmailPromptAnswered;this.__remember=rememberEpisodeEmailPromptAnswer;`,episodeEmailContext);
+vm.runInContext(`${html.slice(episodeEmailHelpersStart,episodeEmailHelpersEnd)}\nthis.__answered=episodeEmailPromptAnswered;this.__remember=rememberEpisodeEmailPromptAnswer;this.__pending=episodeEmailPromptPending;this.__queue=rememberEpisodeEmailPromptPending;this.__clear=clearEpisodeEmailPromptPending;`,episodeEmailContext);
 assert.equal(episodeEmailContext.__answered('player-1'),false,'A player must remain unprompted until they answer.');
+assert.equal(episodeEmailContext.__pending('player-1'),false,'A player must not start with a pending prompt.');
+episodeEmailContext.__queue('player-1');
+assert.equal(episodeEmailContext.__pending('player-1'),true,'A requested prompt must survive a render or reload in the current tab.');
+episodeEmailContext.__clear('player-1');
+assert.equal(episodeEmailContext.__pending('player-1'),false,'Answering the prompt must clear its pending state.');
 episodeEmailContext.__remember('player-1');
 assert.equal(episodeEmailContext.__answered('player-1'),true,'Either prompt answer must suppress future prompts for that account on the device.');
 assert.equal(episodeEmailContext.__answered('player-2'),false,'One account’s answer must not suppress another account’s prompt.');
@@ -263,6 +272,8 @@ const notificationPersistSource=html.slice(notificationPersistStart,pricingRespo
 assert(notificationPersistSource.includes('await window._fb.setNotificationPreferences(user.uid,next)'),'The card must use the existing notification-preference write.');
 assert(notificationPersistSource.includes("persistNotificationPreferences({newEpisodes:true,newSeasons:true})"),'Yes must enable episode and new-season emails in one write.');
 assert(notificationPersistSource.includes("trackTtwEvent('notif_opt_in'"),'The shared preference save must retain the existing opt-in event.');
+assert(notificationPersistSource.includes('rememberEpisodeEmailPromptPending(user.uid)'),'Requesting the email prompt must persist its pending state through the new-account flow.');
+assert(notificationPersistSource.includes('episodeEmailPromptPending(user.uid)'),'A pending email prompt must be restored after a render or reload.');
 const createPoolStart=html.indexOf('const doCreatePool = async () =>');
 const joinGlobalStart=html.indexOf('const doJoinGlobalPool = async () =>',createPoolStart);
 const acceptInviteStart=html.indexOf('const doAccept = async',joinGlobalStart);
