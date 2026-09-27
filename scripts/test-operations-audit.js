@@ -266,8 +266,13 @@ assert(notificationPersistSource.includes("trackTtwEvent('notif_opt_in'"),'The s
 const createPoolStart=html.indexOf('const doCreatePool = async () =>');
 const joinGlobalStart=html.indexOf('const doJoinGlobalPool = async () =>',createPoolStart);
 const acceptInviteStart=html.indexOf('const doAccept = async',joinGlobalStart);
+const declineInviteStart=html.indexOf('const doDecline = async',acceptInviteStart);
+const loadLobbyStart=html.indexOf('const loadLobby = useCallback(async () =>');
+const createPoolAfterLobbyStart=html.indexOf('const doCreatePool = async () =>',loadLobbyStart);
 assert(html.slice(createPoolStart,joinGlobalStart).includes('requestEpisodeEmailPrompt();'),'A successful private-pool creation must request the one-time email card.');
 assert(html.slice(joinGlobalStart,acceptInviteStart).includes('requestEpisodeEmailPrompt();'),'A successful Global Pool join must request the one-time email card.');
+assert(html.slice(acceptInviteStart,declineInviteStart).includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'});\n      requestEpisodeEmailPrompt();"),'Accepting an email invitation must request the one-time email card after the successful join.');
+assert(html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'});\n              requestEpisodeEmailPrompt();"),'Joining through a pool link must request the one-time email card after the successful join.');
 assert(html.includes('Predictions will open on October 14.')&&html.includes('Everyone should watch episode 1 before coming back to make predictions.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
 const prelaunchPanelStart=html.indexOf("poolTab==='play' && !cfg.PLAYABLE");
 const prelaunchPanelEnd=html.indexOf("poolTab==='play' && cfg.PLAYABLE",prelaunchPanelStart);
