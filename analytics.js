@@ -7,6 +7,7 @@
   const APP_BUILD='__APP_BUILD_TIMESTAMP__';
   const ACQUISITION_STORAGE_KEY='through-the-wall-acquisition';
   const ANALYTICS_OPT_OUT_KEY='through-the-wall-analytics-opt-out';
+  const ANALYTICS_OPT_IN_PENDING_KEY='through-the-wall-analytics-opt-in-pending';
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
   const PRICE_VARIANTS=Object.freeze({a:'4.99',c:'12.99'});
   const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true});
@@ -16,7 +17,8 @@
   const removeStorage=key=>{try{localStorage.removeItem(key);}catch(error){}};
   const optedOut=readStorage(ANALYTICS_OPT_OUT_KEY)==='1';
   const productionHost=['throughthewall.ca','www.throughthewall.ca'].includes(window.location.hostname);
-  const configured=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST)&&productionHost&&!optedOut;
+  const posthogAvailable=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST)&&productionHost;
+  const configured=posthogAvailable&&!optedOut;
   let capturingStopped=!configured;
   if(optedOut)writeStorage('plausible_ignore','true');
 
@@ -117,6 +119,10 @@
         },
       },
     });
+    if(readStorage(ANALYTICS_OPT_IN_PENDING_KEY)==='1'){
+      window.posthog.opt_in_capturing();
+      removeStorage(ANALYTICS_OPT_IN_PENDING_KEY);
+    }
     window.posthog.register({acquisition_source:cohort,app_build:APP_BUILD,...PRIVACY_PROPERTIES});
   }
 
@@ -151,12 +157,13 @@
     window.posthog?.stopSessionRecording?.();
   };
   const optOut=()=>{
-    writeStorage(ANALYTICS_OPT_OUT_KEY,'1');writeStorage('plausible_ignore','true');
+    writeStorage(ANALYTICS_OPT_OUT_KEY,'1');removeStorage(ANALYTICS_OPT_IN_PENDING_KEY);writeStorage('plausible_ignore','true');
     capturingStopped=true;window.posthog?.opt_out_capturing?.();window.posthog?.stopSessionRecording?.();
   };
   const optIn=()=>{
     removeStorage(ANALYTICS_OPT_OUT_KEY);removeStorage('plausible_ignore');
     if(configured){capturingStopped=false;window.posthog?.opt_in_capturing?.();}
+    else if(posthogAvailable)writeStorage(ANALYTICS_OPT_IN_PENDING_KEY,'1');
   };
   const isOptedOut=()=>readStorage(ANALYTICS_OPT_OUT_KEY)==='1';
   const capturePageview=route=>{

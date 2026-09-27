@@ -7,8 +7,8 @@ const source=fs.readFileSync(path.join(__dirname,'..','analytics.js'),'utf8')
   .replaceAll('__POSTHOG_HOST__','https://eu.i.posthog.com')
   .replaceAll('__APP_BUILD_TIMESTAMP__','privacy-test-build');
 
-function load({hostname='throughthewall.ca',optedOut=false}={}){
-  const storage=new Map(optedOut?[['through-the-wall-analytics-opt-out','1']]:[]),listeners=new Map();
+function load({hostname='throughthewall.ca',optedOut=false,storage:existingStorage}={}){
+  const storage=existingStorage||new Map(optedOut?[['through-the-wall-analytics-opt-out','1']]:[]),listeners=new Map();
   class CustomEvent{constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const window={
     location:{hostname,origin:`https://${hostname}`,pathname:'/',search:''},
@@ -41,4 +41,19 @@ production.window.ttwAnalytics.optOut();
 assert.equal(production.storage.get('through-the-wall-analytics-opt-out'),'1');
 production.window.ttwAnalytics.optIn();
 assert.equal(production.storage.has('through-the-wall-analytics-opt-out'),false);
+
+const reloadStorage=new Map();
+const beforeOptOut=load({storage:reloadStorage});
+beforeOptOut.window.ttwAnalytics.optOut();
+const optedOutReload=load({storage:reloadStorage});
+assert.equal(optedOutReload.window.posthog,undefined,'PostHog must remain unloaded after reloading while opted out.');
+optedOutReload.window.ttwAnalytics.optIn();
+assert.equal(reloadStorage.has('through-the-wall-analytics-opt-out'),false,'Opting back in must clear the app opt-out flag.');
+assert.equal(reloadStorage.get('through-the-wall-analytics-opt-in-pending'),'1','Opting in without a loaded SDK must schedule provider consent restoration.');
+const restoredReload=load({storage:reloadStorage});
+assert.equal(restoredReload.window.ttwAnalytics.enabled,true,'The next production load must re-enable analytics.');
+assert(restoredReload.window.posthog.some(call=>call[0]==='opt_in_capturing'),'The next production load must clear PostHog’s persisted opt-out.');
+assert.equal(reloadStorage.has('through-the-wall-analytics-opt-in-pending'),false,'Provider consent restoration must be consumed once.');
+restoredReload.window.ttwAnalytics.track('capture_after_opt_in');
+assert(restoredReload.window.posthog.some(call=>call[0]==='capture'&&call[1]==='capture_after_opt_in'),'Capture must resume after the opt-out, reload, opt-in, reload sequence.');
 console.log('Analytics production-host and opt-out assertions passed.');
