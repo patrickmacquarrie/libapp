@@ -75,6 +75,12 @@
       person_profiles:'identified_only',
       capture_pageview:window.__TTW_MANUAL_PAGEVIEWS__?false:true,
       autocapture:true,
+      loaded:posthog=>{
+        // The app's preference is authoritative. Repair browsers left in
+        // PostHog's persisted opt-out state by the pre-fix reload flow.
+        if(readStorage(ANALYTICS_OPT_OUT_KEY)!=='1'&&posthog.has_opted_out_capturing?.())posthog.opt_in_capturing();
+        removeStorage(ANALYTICS_OPT_IN_PENDING_KEY);
+      },
       mask_all_text:true,
       mask_all_element_attributes:true,
       mask_personal_data_properties:true,

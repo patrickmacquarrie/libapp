@@ -56,4 +56,16 @@ assert(restoredReload.window.posthog.some(call=>call[0]==='opt_in_capturing'),'T
 assert.equal(reloadStorage.has('through-the-wall-analytics-opt-in-pending'),false,'Provider consent restoration must be consumed once.');
 restoredReload.window.ttwAnalytics.track('capture_after_opt_in');
 assert(restoredReload.window.posthog.some(call=>call[0]==='capture'&&call[1]==='capture_after_opt_in'),'Capture must resume after the opt-out, reload, opt-in, reload sequence.');
+
+const legacyStuck=load();
+const legacyConfig=legacyStuck.window.posthog._i[0][1];
+let legacyOptInCalls=0;
+legacyConfig.loaded({has_opted_out_capturing:()=>true,opt_in_capturing:()=>{legacyOptInCalls+=1;}});
+assert.equal(legacyOptInCalls,1,'A browser stuck in PostHog’s legacy provider opt-out must be repaired when the SDK loads.');
+
+const alreadyEnabled=load();
+const enabledConfig=alreadyEnabled.window.posthog._i[0][1];
+let unnecessaryOptInCalls=0;
+enabledConfig.loaded({has_opted_out_capturing:()=>false,opt_in_capturing:()=>{unnecessaryOptInCalls+=1;}});
+assert.equal(unnecessaryOptInCalls,0,'An already-enabled browser must not emit a redundant provider opt-in.');
 console.log('Analytics production-host and opt-out assertions passed.');
