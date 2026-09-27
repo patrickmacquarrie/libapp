@@ -658,6 +658,11 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .notification-options{display:grid;gap:9px;margin:12px 0 6px}
 .notification-options .chemistry-toggle{margin:0;padding:12px 14px}
 .notification-destination{margin:9px 0 18px;color:var(--muted);font-size:11.5px;line-height:1.45}
+.episode-email-opt-in{position:relative;overflow:hidden;display:grid;grid-template-columns:52px minmax(0,1fr);gap:14px;border-color:color-mix(in srgb,var(--rose) 38%,var(--line));background:radial-gradient(circle at 94% 4%,color-mix(in srgb,var(--purple) 15%,transparent),transparent 34%),linear-gradient(135deg,color-mix(in srgb,var(--rose) 7%,var(--card)),var(--card))}
+.episode-email-opt-in::after{content:'\2726';position:absolute;right:17px;top:10px;color:var(--gold);font-size:24px;opacity:.72;pointer-events:none}
+.episode-email-opt-in-icon{display:grid;place-items:center;width:52px;height:52px;border-radius:17px;background:linear-gradient(135deg,var(--rose),var(--purple));color:#fff;font-size:24px;box-shadow:0 8px 20px color-mix(in srgb,var(--rose) 24%,transparent)}
+.episode-email-opt-in-copy{min-width:0;padding-right:24px}.episode-email-opt-in-kicker{display:block;margin-bottom:4px;color:var(--purple);font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.episode-email-opt-in h2{margin:0 0 6px;color:var(--wine);font:700 24px/1.12 'Playfair Display',Georgia,serif}.episode-email-opt-in p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.episode-email-opt-in-destination{margin-top:6px!important;color:var(--soft-text)!important;font-size:10.5px!important}.episode-email-opt-in-actions{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px}.episode-email-opt-in-actions .btn-primary,.episode-email-opt-in-actions .btn-secondary{width:100%;margin:0}
+@media(max-width:480px){.episode-email-opt-in{grid-template-columns:42px minmax(0,1fr);gap:11px}.episode-email-opt-in-icon{width:42px;height:42px;border-radius:14px;font-size:20px}.episode-email-opt-in h2{font-size:21px}.episode-email-opt-in-actions{grid-template-columns:1fr}}
 .premium-fakedoor{margin:18px 0;padding:17px;border:1px solid color-mix(in srgb,var(--purple) 35%,var(--line));border-radius:16px;background:radial-gradient(circle at 92% 5%,color-mix(in srgb,var(--purple) 16%,transparent),transparent 34%),linear-gradient(135deg,color-mix(in srgb,var(--blush-soft) 60%,var(--surface)),var(--surface))}
 .premium-fakedoor-kicker{color:var(--purple);font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}
 .premium-fakedoor h3{margin:5px 0 6px;color:var(--wine);font:700 22px/1.1 'Playfair Display',Georgia,serif}
@@ -1821,6 +1826,19 @@ if(landingJoinToken){
 try{if(localStorage.getItem('through-the-wall-visited'))trackTtwEvent('return_visit',{path:location.pathname});localStorage.setItem('through-the-wall-visited',String(Date.now()));}catch(e){}
 const DEFAULT_SEASON_ID = 'love-is-blind-uk-3';
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({newEpisodes:false,newSeasons:false,friendPhaseLocks:false,friendPoolCompletions:false});
+/* EMAIL OPT-IN PROMPT HELPERS START */
+const episodeEmailPromptStorageKey = uid => 'through-the-wall-episode-email-prompt-answered-'+String(uid||'');
+const episodeEmailPromptAnswered = uid => {
+  if(!uid)return false;
+  try{return localStorage.getItem(episodeEmailPromptStorageKey(uid))==='1';}
+  catch(error){return false;}
+};
+const rememberEpisodeEmailPromptAnswer = uid => {
+  if(!uid)return;
+  try{localStorage.setItem(episodeEmailPromptStorageKey(uid),'1');}
+  catch(error){}
+};
+/* EMAIL OPT-IN PROMPT HELPERS END */
 const SEASON_BANK = [
   // ── Completed friends-test season ────────────────────────────
   {
@@ -5152,6 +5170,21 @@ function EmailPreferencesScreen({state,onApply}){
     {state.status==='error'&&<ErrorCard message="We couldn't reach Through the Wall. Email support@throughthewall.ca with the subject 'unsubscribe' and we'll turn it off."/>}
   </div></div>;
 }
+function EpisodeEmailOptInCard({email='',saving=false,onAccept,onDecline}){
+  return <section className="card episode-email-opt-in" role="region" aria-labelledby="episode-email-opt-in-title">
+    <div className="episode-email-opt-in-icon" aria-hidden="true">✉</div>
+    <div className="episode-email-opt-in-copy">
+      <span className="episode-email-opt-in-kicker">Stay in the loop</span>
+      <h2 id="episode-email-opt-in-title">Want an email when new episodes drop?</h2>
+      <p>“Yes” turns on both <b>New episodes drop</b> and <b>A new season drops</b>. Change either choice anytime in Settings.</p>
+      {email&&<p className="episode-email-opt-in-destination ph-no-capture">Emails will go to {email}.</p>}
+    </div>
+    <div className="episode-email-opt-in-actions">
+      <button type="button" className="btn-primary" disabled={saving} onClick={onAccept}>{saving?'Saving…':'Yes, email me'}</button>
+      <button type="button" className="btn-secondary" disabled={saving} onClick={onDecline}>No thanks</button>
+    </div>
+  </section>;
+}
 function App() {
   const [theme,setTheme]=useState(()=>document.documentElement.dataset.theme==='dark'?'dark':'light');
   const [showSettings,setShowSettings]=useState(false);
@@ -5173,6 +5206,7 @@ function App() {
   const embeddedBrowser=window.__TTW_EMBEDDED_BROWSER_CONTEXTS__?.includes(window.__TTW_BROWSING_CONTEXT__?.browserContext)===true;
   const [notificationPreferences,setNotificationPreferences]=useState({...DEFAULT_NOTIFICATION_PREFERENCES});
   const [notificationSaving,setNotificationSaving]=useState(false);
+  const [showEpisodeEmailPrompt,setShowEpisodeEmailPrompt]=useState(false);
   const [priceVariant,setPriceVariant]=useState(null);
   const [pricingPrompt,setPricingPrompt]=useState(null);
   const [pricingResponse,setPricingResponse]=useState('');
@@ -5296,17 +5330,34 @@ function App() {
     if(themeMeta)themeMeta.setAttribute('content',next==='dark'?'#170a11':'#431127');
     try{localStorage.setItem('prediction-pool-theme',next);}catch(e){}
   };
-  const saveNotificationPreference=async (key,enabled)=>{
-    if(!user?.uid||notificationSaving)return;
+  const persistNotificationPreferences=async changes=>{
+    if(!user?.uid||notificationSaving)return false;
     const previous=notificationPreferences;
-    const next={...DEFAULT_NOTIFICATION_PREFERENCES,...notificationPreferences,[key]:enabled===true};
+    const next={...DEFAULT_NOTIFICATION_PREFERENCES,...notificationPreferences,...changes};
     setNotificationPreferences(next);setNotificationSaving(true);
     try{
       await window._fb.setNotificationPreferences(user.uid,next);
-      if(enabled===true&&previous[key]!==true)trackTtwEvent('notif_opt_in',{types:Object.keys(next).filter(type=>next[type]===true)});
+      if(Object.keys(next).some(key=>next[key]===true&&previous[key]!==true))trackTtwEvent('notif_opt_in',{types:Object.keys(next).filter(type=>next[type]===true)});
+      return true;
     }
-    catch(error){console.error('Notification preferences could not be saved.',error);setNotificationPreferences(previous);setErr('Your nudge setting did not save. Give it another tap.');}
+    catch(error){console.error('Notification preferences could not be saved.',error);setNotificationPreferences(previous);setErr('Your nudge setting did not save. Give it another tap.');return false;}
     finally{setNotificationSaving(false);}
+  };
+  const saveNotificationPreference=(key,enabled)=>persistNotificationPreferences({[key]:enabled===true});
+  const requestEpisodeEmailPrompt=()=>{
+    if(!user?.uid||episodeEmailPromptAnswered(user.uid))return;
+    if(notificationPreferences.newEpisodes===true&&notificationPreferences.newSeasons===true)return;
+    setShowEpisodeEmailPrompt(true);
+  };
+  const declineEpisodeEmailPrompt=()=>{
+    rememberEpisodeEmailPromptAnswer(user?.uid);
+    setShowEpisodeEmailPrompt(false);
+  };
+  const acceptEpisodeEmailPrompt=async()=>{
+    const saved=await persistNotificationPreferences({newEpisodes:true,newSeasons:true});
+    if(!saved)return;
+    rememberEpisodeEmailPromptAnswer(user.uid);
+    setShowEpisodeEmailPrompt(false);
   };
   const submitPricingResponse=response=>{
     const price=window.ttwAnalytics?.priceVariants?.[priceVariant]||'';
@@ -5369,7 +5420,7 @@ function App() {
         if (u) loadAuthenticatedProfile(u);
         else {
           if(identifiedAnalyticsUid.current){window.ttwAnalytics?.reset();identifiedAnalyticsUid.current='';}
-          setUser(null);setProfile(null);setAuthError('');setAuthState('signedout');
+          setUser(null);setProfile(null);setAuthError('');setShowEpisodeEmailPrompt(false);setAuthState('signedout');
         }
       });
     };
@@ -5424,6 +5475,7 @@ function App() {
             if(joined){
               invitationPool=joined;availablePools=[...availablePools,joined];
               trackTtwEvent('invite_accepted',{poolId,channel:'link'});
+              requestEpisodeEmailPrompt();
             }
             else throw new Error('That pool invitation could not be found.');
           }
@@ -6031,6 +6083,7 @@ function App() {
       const initialRules = seasonCfg.PLAYABLE ? rulesSnapshotFrom(seasonCfg) : null;
       const poolId = await window._fb.createPool(name, user.uid, initialRules, season);
       trackTtwEvent('pool_created',{seasonId:season.id,invitationCount:inviteList.length,mirrorsGlobalPicks:!!mirrorSourcePoolId});
+      requestEpisodeEmailPrompt();
       try {
         await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
         if(inviteList.length)trackTtwEvent('invite_sent',{poolId,channel:'email',count:inviteList.length});
@@ -6067,6 +6120,7 @@ function App() {
       setJoiningGlobal(true);setErr('');
       const globalPool=await window._fb.joinGlobalPool(season,initialWatchedThrough);
       trackTtwEvent('global_pool_joined',{seasonId:season.id,initialWatchedThrough,mirrored:!!sourcePoolId});
+      requestEpisodeEmailPrompt();
       setGlobalPools(current=>({...current,[season.id]:globalPool}));
       if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
@@ -6081,6 +6135,7 @@ function App() {
       setErr('');
       await window._fb.acceptInvite(inv, user.uid);
       trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'});
+      requestEpisodeEmailPrompt();
       setEnteringPool(true);
       const joinedPool=await window._fb.getPool(inv.poolId);
       if(!joinedPool) throw new Error('This pool is no longer available.');
@@ -6866,6 +6921,7 @@ function App() {
     </BrandHeader>
     {offline&&<div className="offline-banner" role="status">You’re offline. Prediction changes will retry automatically when your connection returns; wait to change other settings.</div>}
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
+    {showEpisodeEmailPrompt&&<EpisodeEmailOptInCard email={user.email||''} saving={notificationSaving} onAccept={acceptEpisodeEmailPrompt} onDecline={declineEpisodeEmailPrompt}/>}
     {invites.length>0 && <div className="card">
       <h2>Invites</h2>
       {invites.map(inv=><div className="invite-row ph-no-capture" key={inv.id}>
@@ -7018,6 +7074,7 @@ function App() {
     {eng.DATA_SOURCE==='admin-sheet-fallback'&&<div className="notice" role="alert"><b>Admin sheet fallback is active.</b> This browser may not match server scoring. Republish Firestore before testing gameplay or sharing the app.</div>}
     {offline&&<div className="offline-banner" role="status">You’re offline. Prediction changes will retry automatically when your connection returns; wait to change other settings.</div>}
     {err && <ErrorCard message={err} onDismiss={()=>setErr('')}/>}
+    {showEpisodeEmailPrompt&&<EpisodeEmailOptInCard email={user.email||''} saving={notificationSaving} onAccept={acceptEpisodeEmailPrompt} onDecline={declineEpisodeEmailPrompt}/>}
     <PoolTabs tabs={availablePoolTabs} active={poolTab} onChange={switchPoolTab}/>
     {poolTab==='standings' && poolPlayers && <div className="ph-no-capture" id="pool-panel-standings" role="tabpanel" aria-labelledby="pool-tab-standings">
       {globalStandingsNotice&&activePool.global===true&&<div className="notice" role="status"><b>Leaderboard update delayed.</b> {globalStandingsNotice}</div>}
