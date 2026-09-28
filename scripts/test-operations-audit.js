@@ -925,16 +925,35 @@ async function assertMirrorEntryRegression(){
   assert.equal(JSON.stringify(backward),JSON.stringify({phase:'dating',screen:'close',w:8,watchThrough:8,completed:{pods:true,dating:true}}),'Mirror reconciliation must never move checkpoint state backward.');
   const completionCalls=[];
   await context.__syncMirroredPhaseCompletion({
-    poolId:'global__season',uid:'viewer',phase:'pods',picks:[{c:'Alex|Casey',s:20}],globalTarget:true,confirmedWatch:6,
-    lockGlobalPicks:async()=>{completionCalls.push('lock');return {data:{accepted:{pods:1}}};},
-    completeGlobalPhase:async()=>completionCalls.push('complete-global'),
+    poolId:'global__season',uid:'viewer',phase:'pods',picks:[{c:'Alex|Casey',s:20}],globalTarget:true,confirmedWatch:6,globalConfirmedWatch:4,
+    advanceGlobalWatch:async(...args)=>completionCalls.push(['advance',...args]),
+    lockGlobalPicks:async()=>{completionCalls.push(['lock']);return {data:{accepted:{pods:1}}};},
+    completeGlobalPhase:async()=>completionCalls.push(['complete-global']),
     completeFriendPhase:async()=>completionCalls.push('complete-friend'),
     syncPublicCompletion:async()=>completionCalls.push('public'),
   });
-  assert.deepEqual(completionCalls,['lock','complete-global'],'A linked Global checkpoint must trusted-lock its picks before completing.');
+  assert.deepEqual(completionCalls,[
+    ['advance','global__season',4],
+    ['lock'],
+    ['complete-global'],
+  ],'A linked Global checkpoint must advance the trusted ledger before locking and completing.');
+  for(const globalConfirmedWatch of [0,undefined]){
+    const zeroWatchCalls=[];
+    await context.__syncMirroredPhaseCompletion({
+      poolId:'global__season',uid:'viewer',phase:'pods',picks:[],globalTarget:true,confirmedWatch:6,
+      ...(globalConfirmedWatch===undefined?{}:{globalConfirmedWatch}),
+      advanceGlobalWatch:async()=>zeroWatchCalls.push('advance'),
+      lockGlobalPicks:async()=>{zeroWatchCalls.push('lock');return {data:{accepted:{pods:0}}};},
+      completeGlobalPhase:async()=>zeroWatchCalls.push('complete-global'),
+      completeFriendPhase:async()=>zeroWatchCalls.push('complete-friend'),
+      syncPublicCompletion:async()=>zeroWatchCalls.push('public'),
+    });
+    assert.deepEqual(zeroWatchCalls,['lock','complete-global'],'A zero or missing confirmed Global watch must not advance the ledger.');
+  }
   const friendCompletionCalls=[];
   await context.__syncMirroredPhaseCompletion({
-    poolId:'friend',uid:'viewer',phase:'pods',picks:[],globalTarget:false,confirmedWatch:6,
+    poolId:'friend',uid:'viewer',phase:'pods',picks:[],globalTarget:false,confirmedWatch:6,globalConfirmedWatch:4,
+    advanceGlobalWatch:async()=>friendCompletionCalls.push('advance'),
     lockGlobalPicks:async()=>friendCompletionCalls.push('lock'),
     completeGlobalPhase:async()=>friendCompletionCalls.push('complete-global'),
     completeFriendPhase:async(...args)=>friendCompletionCalls.push(['complete-friend',...args]),
@@ -944,6 +963,21 @@ async function assertMirrorEntryRegression(){
     ['complete-friend','friend','pods','viewer'],
     ['public','friend','viewer','pods',6],
   ],'A linked friend checkpoint must register completion before closing its public player state.');
+  const entryCompletionCalls=[...enterPoolSource.matchAll(/await syncMirroredPhaseCompletion\(\{([\s\S]*?)\n\s*\}\);/g)].map(match=>match[1]);
+  assert.equal(entryCompletionCalls.length,3,'Pool entry must keep exactly three mirrored-completion paths.');
+  entryCompletionCalls.forEach(source=>{
+    assert(source.includes('globalConfirmedWatch:'),'Every pool-entry mirrored completion must pass confirmed Global progress.');
+    assert(source.includes('advanceGlobalWatch:window._fb.advanceGlobalWatch'),'Every pool-entry mirrored completion must inject the trusted-ledger writer.');
+    assert(!/globalConfirmedWatch:[^,\n]*watchThrough/.test(source),'Confirmed Global progress must never come from watchThrough intent.');
+  });
+  assert(entryCompletionCalls[0].includes('globalConfirmedWatch:Number(mine.w)||0'),'Target-led repair must use the entered player confirmed watch.');
+  assert(entryCompletionCalls[1].includes('globalConfirmedWatch:Number(sourcePlayer.w)||0'),'Source-led repair must use the source player confirmed watch.');
+  assert(entryCompletionCalls[2].includes('globalConfirmedWatch:Number(sourcePlayer?.w)||0'),'First entry must tolerate a missing source player.');
+  const selfHealStart=enterPoolSource.indexOf("if(enteredPool.global===true&&Math.trunc(Number(mine.w)||0)>0)");
+  const savedNoticesStart=enterPoolSource.indexOf('const savedRetroNotices=',selfHealStart);
+  const selfHealSource=enterPoolSource.slice(selfHealStart,savedNoticesStart);
+  assert(selfHealStart>=0&&savedNoticesStart>selfHealStart,'Opening an existing Global membership must self-heal its trusted watch ledger before reading retro notices.');
+  assert(selfHealSource.includes('try{await window._fb.advanceGlobalWatch(pool.id,Math.trunc(Number(mine.w)||0));}')&&selfHealSource.includes("catch(error){reportTtwError('pool_open_failed',error,{operation:'resync_global_watch'"),'The Global entry self-heal must be best-effort and report failures without aborting entry.');
   assert(html.includes("linkMirrorPeers: async (poolId,peerPoolId,uid)"),'A linked pair must be written to both player documents.');
   assert(html.includes("clearMirrorSource: async (poolId,uid,peerPoolId='')"),'A stale mirror source must be removable symmetrically without deleting copied game state.');
   assert(html.includes("const linkedPeer=linkedMirrorPeers(pickMirrorLinks.current,enteredPool.id)[0]"),'Entry reconciliation must resolve a peer no matter which linked pool is opened.');
