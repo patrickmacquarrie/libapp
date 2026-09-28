@@ -4521,6 +4521,11 @@ const friendReunionScoringState=({memberIds,playersById,completedMembers,configV
 const reunionStandingsGateRequired=({next,globalPool,phase,screen,completed,configVersion})=>
   Number(configVersion)>=2&&next==='standings'&&globalPool!==true&&phase==='reunion'&&
   screen==='watch'&&completed!==true;
+const countedRetroEntries=({entries,globalPool,presetPhaseScores,phaseMembers})=>(entries||[]).filter(entry=>{
+  if(entry.pending)return false;
+  if(!globalPool)return true;
+  return (phaseMembers?.[entry.retroPhase]||[]).includes(entry.member)&&!Number.isFinite(presetPhaseScores?.[entry.retroPhase]?.[entry.member]);
+});
 function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhase, pendingInvites=[], globalPool=false, membershipClosed=false, demoMode=false, presetPhaseScores=EMPTY_PHASE_SCORES, ownerOverrides={}, globalRowCount=0, receipts=[], poolName='Through the Wall', seasonLabel=''}) {
   const {RULES,RESULTS_READY:configuredResultsReady,scorePhase,scoreRetroAdjustments} = eng;
   const resultsReady=demoMode?Object.fromEntries(PH_ORDER.map(ph=>[ph,true])):configuredResultsReady;
@@ -4597,7 +4602,8 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
   const hasRetro=activeRetroEvents.length>0;
   const viewerWatched=Number(playersById[meId]?.w)||0;
   const retroSpoilerHidden=activeRetroEvents.some(event=>event.revealedEp>viewerWatched);
-  if(!retroSpoilerHidden)memberIds.forEach(id=>grandTotals[id]+=(retro.totals[id]||0));
+  const countedRetro=countedRetroEntries({entries:retro.entries,globalPool,presetPhaseScores,phaseMembers});
+  if(!retroSpoilerHidden)countedRetro.forEach(entry=>{grandTotals[entry.member]=(grandTotals[entry.member]||0)+entry.points;});
   const rankedIds=memberIds.filter(id=>PH_ORDER.some(ph=>(phaseMembers[ph]||[]).includes(id)));
   const ranked = rankedIds.slice().sort((a,b)=>grandTotals[b]-grandTotals[a]||alphaByName(memberLabels[a]||a,memberLabels[b]||b)||String(a).localeCompare(String(b)));
   const rankById={};
@@ -4613,7 +4619,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     checkpointTotals[ph]={...runningById};
   });
   if(!retroSpoilerHidden) {
-    retro.entries.filter(entry=>!entry.pending).forEach(entry=>{
+    countedRetro.forEach(entry=>{
       const revealIndex=PH_ORDER.indexOf(entry.retroPhase);
       scoredPhases.forEach(ph=>{
         if(PH_ORDER.indexOf(ph)>=revealIndex&&checkpointTotals[ph])checkpointTotals[ph][entry.member]=(checkpointTotals[ph][entry.member]||0)+entry.points;

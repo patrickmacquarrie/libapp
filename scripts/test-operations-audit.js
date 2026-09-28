@@ -43,7 +43,7 @@ const reunionScoringEnd=html.indexOf('\nfunction Scoreboard',reunionScoringStart
 assert(reunionScoringStart>=0&&reunionScoringEnd>reunionScoringStart,'Could not isolate the friend Reunion scoring helpers.');
 const reunionScoringContext={Number,Set};
 vm.createContext(reunionScoringContext);
-vm.runInContext(`${html.slice(reunionScoringStart,reunionScoringEnd)}\nthis.__friendReunionScoringState=friendReunionScoringState;this.__reunionStandingsGateRequired=reunionStandingsGateRequired;`,reunionScoringContext);
+vm.runInContext(`${html.slice(reunionScoringStart,reunionScoringEnd)}\nthis.__friendReunionScoringState=friendReunionScoringState;this.__reunionStandingsGateRequired=reunionStandingsGateRequired;this.__countedRetroEntries=countedRetroEntries;`,reunionScoringContext);
 const reunionPlayers={
   locked:{phase:'reunion',screen:'watch',lockedPhases:{reunion:true},completed:{}},
   screenOnly:{phase:'reunion',screen:'watch',completed:{}},
@@ -56,6 +56,30 @@ assert.deepEqual(Array.from(v2Reunion.scoredMembers),['completed','locked'],'Con
 assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:false,phase:'reunion',screen:'watch',completed:false,configVersion:2}),true);
 assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:false,phase:'reunion',screen:'watch',completed:false,configVersion:1}),false,'UK3 legacy pools must retain their existing tab behavior.');
 assert.equal(reunionScoringContext.__reunionStandingsGateRequired({next:'standings',globalPool:true,phase:'reunion',screen:'watch',completed:false,configVersion:2}),false);
+const retroEntries=[
+  {member:'viewer',retroPhase:'pods',points:7,pending:false},
+  {member:'friend',retroPhase:'dating',points:-2,pending:false},
+  {member:'viewer',retroPhase:'weddings',points:99,pending:true},
+];
+const privateRetro=Array.from(reunionScoringContext.__countedRetroEntries({entries:retroEntries,globalPool:false,presetPhaseScores:{},phaseMembers:{}}));
+assert.equal(privateRetro.reduce((sum,entry)=>sum+entry.points,0),5,'Private pools must keep adding every resolved retro adjustment exactly once.');
+assert.equal(privateRetro.some(entry=>entry.pending),false,'Pending retro adjustments must never count.');
+assert.deepEqual(Array.from(reunionScoringContext.__countedRetroEntries({
+  entries:[retroEntries[0]],globalPool:true,presetPhaseScores:{pods:{viewer:40}},phaseMembers:{pods:['viewer']},
+})),[],'A frozen Global phase score already contains its retro adjustment.');
+assert.deepEqual(Array.from(reunionScoringContext.__countedRetroEntries({
+  entries:[retroEntries[0]],globalPool:true,presetPhaseScores:{pods:{}},phaseMembers:{pods:['viewer']},
+})),[retroEntries[0]],'A completed Global phase awaiting its rebuilt preset must add the retro adjustment once.');
+assert.deepEqual(Array.from(reunionScoringContext.__countedRetroEntries({
+  entries:[retroEntries[0]],globalPool:true,presetPhaseScores:{pods:{}},phaseMembers:{pods:[]},
+})),[],'A Global player who did not complete the revealing phase must not receive its retro adjustment.');
+const scoreboardStart=html.indexOf('function Scoreboard');
+const scoreboardEnd=html.indexOf('\nfunction ScoreboardView',scoreboardStart);
+const scoreboardSource=html.slice(scoreboardStart,scoreboardEnd>scoreboardStart?scoreboardEnd:undefined);
+assert(!scoreboardSource.includes('grandTotals[id]+=(retro.totals[id]||0)'),'Global totals must not add server-frozen retro totals a second time.');
+assert(scoreboardSource.includes('const countedRetro=countedRetroEntries('),'Scoreboard must select retro adjustments through the shared helper.');
+assert(scoreboardSource.includes('countedRetro.forEach(entry=>{grandTotals['),'Grand totals must use the helper-selected retro entries.');
+assert(scoreboardSource.includes('countedRetro.forEach(entry=>{\n      const revealIndex='),'Checkpoint totals must use the same helper-selected retro entries.');
 
 const globalJoinWatchStart=html.indexOf('const globalJoinWatchSelection=');
 const globalJoinWatchEnd=html.indexOf('\nfunction GlobalPoolJoinModal',globalJoinWatchStart);
