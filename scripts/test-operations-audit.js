@@ -507,6 +507,11 @@ assert(liveRunbook.includes('Editing the Google Sheet changes nothing in the liv
 assert(liveRunbook.includes('ALLOW_INCOMPLETE_CAST'),'The live runbook must document deliberate staged-cast releases.');
 assert(liveRunbook.includes('Episode 0 keeps predictions closed while allowing pools to form'),'The live runbook must document pre-drop pool creation.');
 assert(liveRunbook.includes('After every publish:'),'The live runbook must require verification after each publish.');
+assert(liveRunbook.includes('Raise `AVAILABLE_THROUGH_EP` only as far as the last episode whose results are entered')&&liveRunbook.includes('Episode 1 is the exception'),'The live runbook must keep availability behind entered results while documenting the Episode 1 exception.');
+assert(liveRunbook.includes('Correct a Global phase after its scores froze')&&liveRunbook.includes('scripts/unfreeze-global-phase.js'),'The live runbook must document the Global phase correction procedure.');
+assert(liveRunbook.includes('Remove a player from the Global Pool')&&liveRunbook.includes('phasePicks/{phase}__{uid}'),'The live runbook must document complete Global player removal.');
+assert(liveRunbook.includes('`SEASON_LABEL` Settings row')&&liveRunbook.includes('mergeAdminSettings_'),'The live runbook must require the player-facing email season label.');
+assert(runbook.includes('Correct a Global phase after its scores froze')&&runbook.includes('`SEASON_LABEL` Settings row'),'The launch runbook must point post-freeze corrections to the live procedure and require the season label.');
 
 const authHelpersStart=html.indexOf('/* AUTH HELPERS START */');
 const authHelpersEnd=html.indexOf('/* AUTH HELPERS END */');

@@ -1,8 +1,12 @@
 const assert=require('node:assert/strict');
 const admin=require('../functions/node_modules/firebase-admin');
 const crypto=require('node:crypto');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
 const {makeEngine}=require('../functions/shared/scoring-engine');
 const {signEmailPreferenceToken}=require('../functions/shared/email-preferences');
+const {run:runGlobalPhaseUnfreeze}=require('./unfreeze-global-phase');
 
 const projectId=process.env.GCLOUD_PROJECT||'demo-libapp';
 const authHost=process.env.FIREBASE_AUTH_EMULATOR_HOST;
@@ -158,6 +162,41 @@ async function main(){
     {ownerCounts:standings.ownerCounts.pods,activeCount:standings.activeCounts.pods},
   );
   assert.equal(receipt.totals[second.uid],row.total,'The viewer receipt must equal the trusted personal standings-row total.');
+  const frozenPodsScore=row.phaseScores.pods;
+  assert(Number.isFinite(frozenPodsScore)&&frozenPodsScore>0,'The correction walkthrough needs a non-zero frozen Pods score.');
+  const markerBeforeCorrection=(await db.doc(`pools/${poolId}/standings/rebuild`).get()).data()||{};
+  const correctionStartedAt=Date.now();
+  await db.doc(`seasons/${seasonId}`).set({
+    ...seasonDocument,
+    Couples:[{...seasonDocument.Couples[0],engaged_ep:'1'}],
+  });
+  await waitFor('the frozen-score rebuild after the corrected season',
+    async()=>db.doc(`pools/${poolId}/standings/rebuild`).get(),
+    snapshot=>{
+      const data=snapshot.data()||{};
+      return Number(data.handledRequestVersion||0)>Number(markerBeforeCorrection.requestVersion||0)&&
+        (data.lastCompletedAt?.toMillis?.()||0)>=correctionStartedAt;
+    },
+    {timeoutMs:60000},
+  );
+  const frozenAfterCorrection=(await db.doc(`pools/${poolId}/standingsRows/${second.uid}`).get()).data();
+  assert.equal(frozenAfterCorrection.phaseScores.pods,frozenPodsScore,'A normal rebuild must preserve the frozen Pods score after a result correction.');
+  const unfreezeDryRun=await runGlobalPhaseUnfreeze({
+    argv:['--project',projectId,'--season',seasonId,'--phase','pods'],
+    env:{...process.env,GCLOUD_PROJECT:projectId},
+  });
+  assert.equal(unfreezeDryRun.summary.affectedCount,1);
+  assert.equal(unfreezeDryRun.summary.pointSum,frozenPodsScore);
+  const unfreezeBackup=path.join(os.tmpdir(),`ttw-global-unfreeze-${process.pid}.json`);
+  const unfreezeResult=await runGlobalPhaseUnfreeze({
+    argv:['--project',projectId,'--season',seasonId,'--phase','pods','--reason','emulator-correction','--apply','--backup',unfreezeBackup,'--expected-count','1'],
+    env:{...process.env,GCLOUD_PROJECT:projectId},verifyTimeoutMs:90000,pollMs:200,
+  });
+  assert.equal(fs.statSync(unfreezeBackup).mode&0o777,0o600,'The unfreeze backup must be owner-readable only.');
+  const correctedRow=(await db.doc(`pools/${poolId}/standingsRows/${second.uid}`).get()).data();
+  assert.equal(correctedRow.phaseScores.pods,0,'Unfreezing must let the corrected Episode 1 engagement replace the frozen Pods score.');
+  assert.equal(unfreezeResult.verification.changedValues,1,'The unfreeze report must identify the corrected row.');
+  assert(Number.isFinite(unfreezeResult.verification.computedAt),'Verification must observe the rebuilt standings/current document.');
 
   await call('leavePool',second,{poolId});
   assert(!(await db.doc(`pools/${poolId}`).get()).data().members.includes(second.uid));
