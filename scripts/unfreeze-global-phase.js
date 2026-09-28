@@ -60,11 +60,17 @@ function markerSummary(document){
   return {
     requestVersion:fieldNumber(fields.requestVersion)||0,
     handledRequestVersion:fieldNumber(fields.handledRequestVersion)||0,
+    lastRunAt:fields.lastRunAt?.timestampValue||null,
     lastCompletedAt:fields.lastCompletedAt?.timestampValue||null,
     failureCount:fieldNumber(fields.failureCount)||0,
     lastError:fields.lastError?.stringValue||null,
     lastErrorAt:fields.lastErrorAt?.timestampValue||null,
   };
+}
+
+function rebuildIsRunning(document,nowMs=Date.now(),windowMs=6*60*1000){
+  const summary=markerSummary(document),lastRunMs=Date.parse(summary.lastRunAt||''),lastCompletedMs=Date.parse(summary.lastCompletedAt||'');
+  return Number.isFinite(lastRunMs)&&(!Number.isFinite(lastCompletedMs)||lastRunMs>lastCompletedMs)&&lastRunMs<=nowMs&&nowMs-lastRunMs<=windowMs;
 }
 
 function summarizePlan({rows,current,marker,phase}){
@@ -93,16 +99,23 @@ function buildRowDeleteWrite(row,phase){
   };
 }
 
-function buildFinalWrites({current,marker,markerName,requestedAt,reason}){
+function buildFinalWrites({current,markerName,requestedAt,reason}){
   const writes=[];
   if(current)writes.push({delete:current.name,currentDocument:{updateTime:current.updateTime}});
   writes.push({
     update:{name:markerName,fields:{requestedAt:{timestampValue:requestedAt},reason:{stringValue:reason}}},
     updateMask:{fieldPaths:['requestedAt','reason']},
     updateTransforms:[{fieldPath:'requestVersion',increment:{integerValue:'1'}}],
-    currentDocument:marker?{updateTime:marker.updateTime}:{exists:false},
   });
   return writes;
+}
+
+function rowsOverwrittenAfterStrip({affected,refreshed,writeUpdateTimes}){
+  const refreshedByName=new Map((refreshed||[]).map(document=>[document.name,document]));
+  return (affected||[]).flatMap(row=>{
+    const expected=writeUpdateTimes?.[row.document.name],actual=refreshedByName.get(row.document.name)?.updateTime;
+    return expected&&actual===expected?[]:[row.document.name];
+  });
 }
 
 const encodedPath=documentPath=>documentPath.split('/').map(encodeURIComponent).join('/');
@@ -152,15 +165,17 @@ function writeBackup({destination,projectId,seasonId,phase,affected,current,mark
 const isPreconditionFailure=error=>[409,412].includes(error?.status)||/ABORTED|FAILED_PRECONDITION|precondition/i.test(String(error?.responseText||error?.message||''));
 const sleep=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
 
-async function waitForRebuild({client,markerPath,targetVersion,applyStartedAt,timeoutMs=180000,pollMs=2000}){
-  const deadline=Date.now()+timeoutMs,applyStartedMs=Date.parse(applyStartedAt);
-  let marker=null,summary=null;
+async function waitForRebuild({client,markerPath,currentPath,targetVersion,finalCommitTime,timeoutMs=180000,pollMs=2000}){
+  const deadline=Date.now()+timeoutMs,finalCommitMs=Date.parse(finalCommitTime);
+  let marker=null,current=null,summary=null;
   while(Date.now()<deadline){
-    marker=await client.readDocument(markerPath);summary=markerSummary(marker);
-    const completedMs=Date.parse(summary.lastCompletedAt||'');
-    if(summary.handledRequestVersion>=targetVersion&&Number.isFinite(completedMs)&&completedMs>=applyStartedMs)return {marker,summary};
+    [marker,current]=await Promise.all([client.readDocument(markerPath),client.readDocument(currentPath)]);summary=markerSummary(marker);
+    const computedField=current?.fields?.computedAt,computedNumber=fieldNumber(computedField);
+    const computedAt=computedNumber??computedField?.timestampValue??null;
+    const computedMs=computedNumber??Date.parse(computedAt||'');
+    if(summary.handledRequestVersion>=targetVersion&&current&&Number.isFinite(computedMs)&&computedMs>finalCommitMs)return {marker,current,summary,computedAt};
     const lastErrorMs=Date.parse(summary.lastErrorAt||'');
-    if(summary.lastError&&Number.isFinite(lastErrorMs)&&lastErrorMs>=applyStartedMs){
+    if(summary.lastError&&Number.isFinite(lastErrorMs)&&lastErrorMs>=finalCommitMs){
       throw new Error(`Global standings rebuild failed: ${summary.lastError}`);
     }
     await sleep(pollMs);
@@ -184,25 +199,34 @@ async function run({argv=process.argv.slice(2),env=process.env,output=console,ve
     if(options.backupPath)output.log(`Backup written to ${writeBackup({destination:options.backupPath,projectId:options.projectId,seasonId:options.seasonId,phase:options.phase,affected,current,marker})}`);
     return {mode:'dry-run',summary};
   }
+  if(rebuildIsRunning(marker))throw new Error('A standings rebuild is running; wait a minute and retry.');
   if(affected.length!==options.expectedCount)throw new Error(`Refusing unfreeze: expected ${options.expectedCount} affected rows, found ${affected.length}.`);
   const backup=writeBackup({destination:options.backupPath,projectId:options.projectId,seasonId:options.seasonId,phase:options.phase,affected,current,marker});
   output.log(`Backup written to ${backup}`);
-  const applyStartedAt=new Date().toISOString();
+  let finalCommitTime=null;
   try{
     const rowWrites=affected.map(row=>buildRowDeleteWrite(row,options.phase));
-    for(let index=0;index<rowWrites.length;index+=400)await client.commit(rowWrites.slice(index,index+400));
+    const writeUpdateTimes={};
+    for(let index=0;index<rowWrites.length;index+=400){
+      const chunkRows=affected.slice(index,index+400),result=await client.commit(rowWrites.slice(index,index+400));
+      chunkRows.forEach((row,offset)=>{writeUpdateTimes[row.document.name]=result.writeResults?.[offset]?.updateTime||null;});
+    }
+    const postStripRows=await client.listDocuments(rowsPath);
+    const overwritten=rowsOverwrittenAfterStrip({affected,refreshed:postStripRows,writeUpdateTimes});
+    if(overwritten.length)throw new Error(`A standings rebuild overwrote ${overwritten.length} row${overwritten.length===1?'':'s'} after they were unfrozen. Re-run the dry run and apply again.`);
     const requestedAt=new Date().toISOString();
-    await client.commit(buildFinalWrites({current,marker,markerName:client.documentName(markerPath),requestedAt,reason:options.reason}));
+    const finalResult=await client.commit(buildFinalWrites({current,markerName:client.documentName(markerPath),requestedAt,reason:options.reason}));
+    finalCommitTime=finalResult.commitTime||requestedAt;
   }catch(error){
-    if(isPreconditionFailure(error))throw new Error('A Global standings rebuild ran mid-way. Re-run the dry run, review the new count, and apply again.');
+    if(isPreconditionFailure(error))throw new Error('A Global standings rebuild ran mid-way. Some rows may already be unfrozen. Re-running the dry run and apply is safe.');
     throw error;
   }
   const targetVersion=markerSummary(marker).requestVersion+1;
-  const rebuild=await waitForRebuild({client,markerPath,targetVersion,applyStartedAt,timeoutMs:verifyTimeoutMs,pollMs});
+  const rebuild=await waitForRebuild({client,markerPath,currentPath,targetVersion,finalCommitTime,timeoutMs:verifyTimeoutMs,pollMs});
   const refreshed=selectAffectedRows(await client.listDocuments(rowsPath),options.phase);
   const priorByName=new Map(affected.map(row=>[row.document.name,row.score]));
   const changedValues=refreshed.filter(row=>priorByName.has(row.document.name)&&priorByName.get(row.document.name)!==row.score).length;
-  const verification={targetRequestVersion:targetVersion,handledRequestVersion:rebuild.summary.handledRequestVersion,rowsWithPhaseScore:refreshed.length,changedValues,lastCompletedAt:rebuild.summary.lastCompletedAt,lastError:rebuild.summary.lastError};
+  const verification={targetRequestVersion:targetVersion,handledRequestVersion:rebuild.summary.handledRequestVersion,rowsWithPhaseScore:refreshed.length,changedValues,computedAt:rebuild.computedAt,lastCompletedAt:rebuild.summary.lastCompletedAt,lastError:rebuild.summary.lastError};
   output.log(JSON.stringify({applied:affected.length,verification},null,2));
   return {mode:'apply',summary,verification,backup};
 }
@@ -211,5 +235,6 @@ if(require.main===module)run().catch(error=>{console.error(error.message);proces
 
 module.exports={
   PHASES,parseArgs,validateOptions,selectAffectedRows,markerSummary,summarizePlan,
-  validateGlobalPoolDocument,buildRowDeleteWrite,buildFinalWrites,isPreconditionFailure,run,
+  rebuildIsRunning,validateGlobalPoolDocument,buildRowDeleteWrite,buildFinalWrites,
+  rowsOverwrittenAfterStrip,isPreconditionFailure,waitForRebuild,run,
 };

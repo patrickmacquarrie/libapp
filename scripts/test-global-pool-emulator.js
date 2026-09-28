@@ -196,6 +196,7 @@ async function main(){
   const correctedRow=(await db.doc(`pools/${poolId}/standingsRows/${second.uid}`).get()).data();
   assert.equal(correctedRow.phaseScores.pods,0,'Unfreezing must let the corrected Episode 1 engagement replace the frozen Pods score.');
   assert.equal(unfreezeResult.verification.changedValues,1,'The unfreeze report must identify the corrected row.');
+  assert(Number.isFinite(unfreezeResult.verification.computedAt),'Verification must observe the rebuilt standings/current document.');
 
   await call('leavePool',second,{poolId});
   assert(!(await db.doc(`pools/${poolId}`).get()).data().members.includes(second.uid));

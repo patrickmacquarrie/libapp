@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict');
 const {
-  parseArgs,validateOptions,selectAffectedRows,buildRowDeleteWrite,buildFinalWrites,validateGlobalPoolDocument,
+  parseArgs,validateOptions,selectAffectedRows,rebuildIsRunning,buildRowDeleteWrite,buildFinalWrites,
+  rowsOverwrittenAfterStrip,validateGlobalPoolDocument,
 }=require('./unfreeze-global-phase');
 
 const document=(uid,score,poolSize=3)=>({
@@ -30,14 +31,25 @@ assert.equal(rowWrite.currentDocument.updateTime,selected[0].document.updateTime
 const current={name:'projects/demo-libapp/databases/(default)/documents/pools/global__season/standings/current',updateTime:'2026-09-27T20:01:00.000Z',fields:{}};
 const marker={name:'projects/demo-libapp/databases/(default)/documents/pools/global__season/standings/rebuild',updateTime:'2026-09-27T20:02:00.000Z',fields:{requestVersion:{integerValue:'7'}}};
 const finalWrites=buildFinalWrites({
-  current,marker,markerName:marker.name,requestedAt:'2026-09-27T20:03:00.000Z',reason:'correct-pods',
+  current,markerName:marker.name,requestedAt:'2026-09-27T20:03:00.000Z',reason:'correct-pods',
 });
 assert.equal(finalWrites[0].delete,current.name);
 assert.equal(finalWrites[0].currentDocument.updateTime,current.updateTime);
 assert.deepEqual(finalWrites[1].updateMask.fieldPaths,['requestedAt','reason']);
 assert.deepEqual(finalWrites[1].updateTransforms,[{fieldPath:'requestVersion',increment:{integerValue:'1'}}]);
-assert.equal(finalWrites[1].currentDocument.updateTime,marker.updateTime,'The marker bump must fail if a rebuild changes it concurrently.');
-assert.deepEqual(buildFinalWrites({current:null,marker:null,markerName:marker.name,requestedAt:'2026-09-27T20:03:00.000Z',reason:'first'}).at(-1).currentDocument,{exists:false});
+assert.equal(finalWrites[1].currentDocument,undefined,'The atomic marker increment must not carry a document precondition.');
+assert.equal(buildFinalWrites({current:null,markerName:marker.name,requestedAt:'2026-09-27T20:03:00.000Z',reason:'first'}).at(-1).currentDocument,undefined);
+
+const now=Date.parse('2026-09-27T20:06:00.000Z');
+const markerAt=(lastRunAt,lastCompletedAt)=>({fields:{lastRunAt:{timestampValue:lastRunAt},...(lastCompletedAt?{lastCompletedAt:{timestampValue:lastCompletedAt}}:{})}});
+assert.equal(rebuildIsRunning(markerAt('2026-09-27T20:01:00.000Z','2026-09-27T20:00:00.000Z'),now),true,'A recent unfinished rebuild must block apply.');
+assert.equal(rebuildIsRunning(markerAt('2026-09-27T19:59:59.000Z','2026-09-27T19:00:00.000Z'),now),false,'A stale run must not block recovery.');
+assert.equal(rebuildIsRunning(markerAt('2026-09-27T20:01:00.000Z','2026-09-27T20:02:00.000Z'),now),false,'A completed rebuild must not block apply.');
+
+const strippedRows=selected.map(row=>({...row.document,updateTime:`write-${row.uid}`}));
+const writeUpdateTimes=Object.fromEntries(selected.map(row=>[row.document.name,`write-${row.uid}`]));
+assert.deepEqual(rowsOverwrittenAfterStrip({affected:selected,refreshed:strippedRows,writeUpdateTimes}),[]);
+assert.deepEqual(rowsOverwrittenAfterStrip({affected:selected,refreshed:[{...strippedRows[0],updateTime:'rebuild-write'},strippedRows[1]],writeUpdateTimes}),[selected[0].document.name],'A post-strip rebuild must be detected before the marker commit.');
 
 const validPool={fields:{global:{booleanValue:true},globalSeasonId:{stringValue:'season'}}};
 assert.doesNotThrow(()=>validateGlobalPoolDocument(validPool,'season'));
