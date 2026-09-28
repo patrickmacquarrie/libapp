@@ -1730,8 +1730,9 @@ const syncMirroredTargetProgress=async({poolId,uid,sourceState,spans,availableTh
   if(globalTarget)await advanceGlobalWatch(poolId,confirmedWatch);
   return syncPublicProgress(poolId,uid,sourceState,spans,availableThrough);
 };
-const syncMirroredPhaseCompletion=async({poolId,uid,phase,picks,globalTarget,lockGlobalPicks,completeGlobalPhase,completeFriendPhase,syncPublicCompletion,confirmedWatch})=>{
+const syncMirroredPhaseCompletion=async({poolId,uid,phase,picks,globalTarget,lockGlobalPicks,completeGlobalPhase,completeFriendPhase,syncPublicCompletion,confirmedWatch,advanceGlobalWatch,globalConfirmedWatch})=>{
   if(globalTarget){
+    if(Number.isFinite(globalConfirmedWatch)&&globalConfirmedWatch>0)await advanceGlobalWatch(poolId,Math.trunc(globalConfirmedWatch));
     const lockResult=await lockGlobalPicks(poolId,{[phase]:picks});
     const accepted=lockResult?.data?.accepted;
     if(!accepted||Number(accepted[phase])!==picks.length)throw new Error('The linked Global Pool did not accept every prediction before closing the checkpoint.');
@@ -5685,6 +5686,7 @@ function App() {
                   globalTarget:mirrorSourcePoolId.startsWith('global__'),lockGlobalPicks:window._fb.lockGlobalPicks,
                   completeGlobalPhase:window._fb.completeGlobalPhase,completeFriendPhase:window._fb.completePhase,
                   syncPublicCompletion:window._fb.syncMirroredCompletion,confirmedWatch:poolCfg.PH_SPAN[completedPhase].endEp,
+                  globalConfirmedWatch:Number(mine.w)||0,advanceGlobalWatch:window._fb.advanceGlobalWatch,
                 });
                 if(completionResult?.credited?.[completedPhase])targetPicks[completedPhase]=completionResult.credited[completedPhase];
               }
@@ -5715,6 +5717,7 @@ function App() {
                   globalTarget:enteredPool.global===true,lockGlobalPicks:window._fb.lockGlobalPicks,
                   completeGlobalPhase:window._fb.completeGlobalPhase,completeFriendPhase:window._fb.completePhase,
                   syncPublicCompletion:window._fb.syncMirroredCompletion,confirmedWatch:poolCfg.PH_SPAN[completedPhase].endEp,
+                  globalConfirmedWatch:Number(sourcePlayer.w)||0,advanceGlobalWatch:window._fb.advanceGlobalWatch,
                 });
                 if(completionResult?.credited?.[completedPhase])sourcePicks[completedPhase]=completionResult.credited[completedPhase];
                 mine={...mine,picks:sourcePicks,completed:{...(mine.completed||{}),[completedPhase]:true},...(mine.phase===completedPhase?{screen:'close'}:{})};
@@ -5732,6 +5735,10 @@ function App() {
             players[user.uid]=mine;
             minePhase=mine.phase||minePhase;
           }
+        }
+        if(enteredPool.global===true&&Math.trunc(Number(mine.w)||0)>0){
+          try{await window._fb.advanceGlobalWatch(pool.id,Math.trunc(Number(mine.w)||0));}
+          catch(error){reportTtwError('pool_open_failed',error,{operation:'resync_global_watch',poolId:pool.id,seasonId:seasonForPool(pool).id});}
         }
         const savedRetroNotices=readSeenRetroNotices(pool.id,user.uid);
         const wasProvisionalCompletion = poolCfg.SEASON_STATUS==='live' &&
@@ -5852,6 +5859,7 @@ function App() {
               globalTarget:enteredPool.global===true,lockGlobalPicks:window._fb.lockGlobalPicks,
               completeGlobalPhase:window._fb.completeGlobalPhase,completeFriendPhase:window._fb.completePhase,
               syncPublicCompletion:window._fb.syncMirroredCompletion,confirmedWatch:poolCfg.PH_SPAN[completedPhase].endEp,
+              globalConfirmedWatch:Number(sourcePlayer?.w)||0,advanceGlobalWatch:window._fb.advanceGlobalWatch,
             });
             if(completionResult?.credited?.[completedPhase])initialPicks[completedPhase]=completionResult.credited[completedPhase];
             completed0[completedPhase]=true;
