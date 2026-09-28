@@ -252,6 +252,11 @@ assert(html.includes('className="ph-no-capture" id="support-message"'),'Feedback
 assert(html.includes('className="settings-modal-close" aria-label="Close settings"'),'Settings must have an accessible close button at the top.');
 assert(html.includes('viewport-fit=cover'),'The viewport must fill Safari screens including safe-area devices.');
 assert(html.includes('html{width:100%;min-width:0')&&html.includes('.app{width:100%;max-width:760px'),'Safari must receive explicit full-width layout roots.');
+assert(html.includes('New episodes unlock here once their results are logged. Lock in now and check back after the next drop.'),'Live lock confirmation must explain the results-backed episode gate.');
+assert(html.includes("You're caught up through Episode {w}. Your predictions are locked. New episodes unlock here once their results are logged, usually a few hours after Netflix drops them."),'The live caught-up screen must explain when the next batch unlocks.');
+assert(html.includes('No checkpoint scores yet. Each phase is scored once its results are confirmed.'),'Empty Global standings must explain the results-ready gate.');
+assert(!html.includes('No checkpoint scores yet. The leaderboard begins when the first player completes a phase.'),'The old Global empty-board lede must be removed.');
+assert(html.includes('No new episodes are available yet. You can return when they are.')&&html.includes('You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.'),'Non-live seasons must retain their existing gate copy.');
 assert(html.includes('if(dirty&&!seasonChanged)return;')&&html.includes('[seasonId,myRatingDoc?.updatedAt,dirty]'),'A live Heat Check refresh must not replace an unsaved private draft, while a season change must still hydrate the new season.');
 assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings()"),'Friend Heat Check activity must refresh community results without reloading the private draft.');
 assert(html.includes('await onSave(eng.CAST.filter')&&html.includes('setDirty(false);'),'Heat Check drafts must become clean only after a successful save.');
