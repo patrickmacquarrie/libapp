@@ -80,6 +80,10 @@ assert(!scoreboardSource.includes('grandTotals[id]+=(retro.totals[id]||0)'),'Glo
 assert(scoreboardSource.includes('const countedRetro=countedRetroEntries('),'Scoreboard must select retro adjustments through the shared helper.');
 assert(scoreboardSource.includes('countedRetro.forEach(entry=>{grandTotals['),'Grand totals must use the helper-selected retro entries.');
 assert(scoreboardSource.includes('countedRetro.forEach(entry=>{\n      const revealIndex='),'Checkpoint totals must use the same helper-selected retro entries.');
+assert(scoreboardSource.includes("const serverOverallRank=globalPool&&globalView==='overall'&&Number(globalOwnRank)>0?Number(globalOwnRank):null")&&scoreboardSource.includes('rank={displayedRaceRank}'),'The overall PersonalRaceCard must use the server-provided Global rank when present.');
+assert(scoreboardSource.includes("outsideTop={outsideBoundedPhase}")&&html.includes('Outside the top 500'),'A bounded per-phase Global view must label an out-of-range viewer instead of inventing a rank.');
+assert(scoreboardSource.includes("<b>Scored.</b> Each player's {RULES.phases[ph].label} score locks in once it appears. Players who finish later are added as they complete.")&&!scoreboardSource.includes("globalPool?<div className=\"notice\"><b>{st.allDone?'Final phase':'Live phase'}"),'Global phase cards must use frozen-score wording without a player count.');
+assert(html.includes("(options.globalPool?'GLOBAL RANK':'YOUR POOL RANK')"),'Global share cards must label the viewer rank as GLOBAL RANK.');
 
 const globalJoinWatchStart=html.indexOf('const globalJoinWatchSelection=');
 const globalJoinWatchEnd=html.indexOf('\nfunction GlobalPoolJoinModal',globalJoinWatchStart);
@@ -1161,7 +1165,29 @@ async function assertPersonalGlobalStandingRow(){
   const view=context.__globalStandingsView({rows:topRows,computedAt:123},'viewer',ownPlayer,ownRow);
   assert.equal(view.players.viewer,ownPlayer,'A viewer outside the top 500 must keep their real player state.');
   assert.equal(view.phaseScores.pods.viewer,12,'A viewer outside the top 500 must receive their trusted personal score row.');
+  assert.equal(view.ownRank,777,'A viewer outside the bounded rows must receive the trusted server rank.');
   assert(view.status.pods.completedMembers.includes('viewer'));
+  const inRows=context.__globalStandingsView({rows:[ownRow,...topRows],computedAt:123},'viewer',ownPlayer,ownRow);
+  assert.equal(inRows.ownRank,null,'A viewer already inside the bounded rows must use the locally calculated rank.');
 }
+
+const finalScreenStart=html.indexOf("{screen==='final'");
+const finalScreenEnd=html.indexOf("{['intro','watch','close'].includes(screen)",finalScreenStart);
+const finalScreenSource=html.slice(finalScreenStart,finalScreenEnd);
+assert(finalScreenStart>=0&&finalScreenEnd>finalScreenStart&&!finalScreenSource.includes('Global checkpoint'),'The final screen must not mention Global checkpoints.');
+assert(finalScreenSource.includes('Your Global rank can still move as other players finish.')&&finalScreenSource.includes('Final standings and Season Wrapped appear once everyone has finished and the pool owner closes the pool.'),'Global and private final-screen guidance must differ.');
+const phaseCompleteStart=html.indexOf("{screen==='close'&&closeInfo");
+const phaseCompleteEnd=html.indexOf("{screen==='final'",phaseCompleteStart);
+const phaseCompleteSource=html.slice(phaseCompleteStart,phaseCompleteEnd);
+assert(phaseCompleteSource.includes("activePool.global===true")&&phaseCompleteSource.includes("score appears in Standings once results are confirmed, and it won't change after that.")&&phaseCompleteSource.includes('score is in Standings and can move as more players in this pool finish.'),'Global and private phase-complete notices must describe their different score behavior.');
+[
+  'Scores lock in.',
+  'Open.</b> No scores yet for this phase.',
+  'Results for this phase are being confirmed. Scores appear once they\'re final.',
+  "Scored.</b> Each player's",
+  'Your picks are locked.',
+  'View standings',
+].forEach(copy=>assert(html.includes(copy),`Missing new standings copy: ${copy}`));
+['Trusted standings.','Your position is included.','View standings &amp; Wrapped'].forEach(copy=>assert(!html.includes(copy),`Old Global standings copy must be removed: ${copy}`));
 
 Promise.all([assertMirrorEntryRegression(),assertBoundedStandingsListener(),assertSeasonCatalogLoader(),assertPersonalGlobalStandingRow()]).then(()=>console.log('Live-operations audit assertions passed.')).catch(error=>{console.error(error);process.exitCode=1;});
