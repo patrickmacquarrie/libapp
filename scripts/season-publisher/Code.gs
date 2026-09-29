@@ -1284,6 +1284,8 @@ function validateSeasonAdminPayload_(payload) {
 
   const couples = [];
   const coupleIds = new Set();
+  const invalidEngagementIds = [];
+  const reunionEnd = Number(settings.REUNION_END_EP);
   payload.couples.forEach(function(raw, index) {
     const id = cleanAdminString_(raw.id, 100);
     const him = cleanAdminString_(raw.him, 80);
@@ -1303,9 +1305,12 @@ function validateSeasonAdminPayload_(payload) {
     const who = cleanAdminString_(raw.whoSaysNo, 10);
     if (who && !['him', 'her'].includes(who)) throw new Error(id + ' must use him or her for who ended it.');
     if (['saysNo', 'calledOff'].includes(wedding) && !who) throw new Error(id + ' needs the person who ended it.');
+    const engagedEpText = cleanAdminString_(raw.engagedEp, 20);
+    const engagedEp = engagedEpText === '' ? null : Number.parseInt(engagedEpText, 10);
+    if (engagedEpText !== '' && (!Number.isFinite(engagedEp) || engagedEp < 1 || engagedEp > reunionEnd)) invalidEngagementIds.push(id);
     couples.push({
       id: id, him: him, her: her,
-      engagedEp: cleanAdminEpisode_(raw.engagedEp, id + ' engagement episode', true),
+      engagedEp: engagedEpText === '' ? '' : String(engagedEp),
       wedding: wedding, whoSaysNo: who,
       breakupEp: cleanAdminEpisode_(raw.breakupEp, id + ' breakup episode', true),
       settledEp: cleanAdminEpisode_(raw.settledEp, id + ' settled episode', true),
@@ -1316,6 +1321,38 @@ function validateSeasonAdminPayload_(payload) {
       reunionStatusEligible: cleanAdminBoolean_(raw.reunionStatusEligible, true)
     });
   });
+  if (invalidEngagementIds.length) {
+    throw new Error(
+      'Season data invalid: ' + invalidEngagementIds.length + ' of ' + couples.length + ' couples have engaged_ep invalid or ' +
+      'outside 1..' + reunionEnd + ' (' + invalidEngagementIds.join(', ') + '). ' +
+      'Correct the engaged_ep column in the season sheet before setting available:true.'
+    );
+  }
+
+  if (settings.WEDDINGS_RESULTS_READY === 'TRUE') {
+    const weddingsStart = Number(settings.WEDDINGS_START_EP);
+    const missingWeddingOutcomes = couples.filter(function(couple) {
+      const engagedEp = Number(couple.engagedEp);
+      const weddingEligibleFromEp = Number.isFinite(engagedEp) && couple.engagedEp !== ''
+        ? engagedEp
+        : (couple.wedding && couple.wedding !== 'notShown' ? weddingsStart : null);
+      const settledEp = Number(couple.settledEp);
+      const breakupEp = Number(couple.breakupEp);
+      return couple.wedding !== 'notShown' &&
+        Number.isFinite(weddingEligibleFromEp) &&
+        weddingEligibleFromEp <= weddingsStart &&
+        !(couple.settledEp !== '' && Number.isFinite(settledEp) && settledEp <= weddingsStart) &&
+        !(couple.breakupEp !== '' && Number.isFinite(breakupEp) && breakupEp <= weddingsStart) &&
+        !couple.wedding;
+    });
+    if (missingWeddingOutcomes.length) {
+      throw new Error(
+        'Season data incomplete: WEDDINGS_RESULTS_READY is true, but ' + missingWeddingOutcomes.length + ' ' +
+        'Weddings-eligible couple' + (missingWeddingOutcomes.length === 1 ? ' is' : 's are') + ' missing a wedding outcome ' +
+        '(' + missingWeddingOutcomes.map(function(couple) { return couple.id; }).join(', ') + '). Fill the wedding column before marking Weddings results ready.'
+      );
+    }
+  }
 
   const retreatStart = Number(settings.RETREAT_START_EP);
   const retreatEnd = Number(settings.RETREAT_END_EP);
@@ -1357,19 +1394,80 @@ function validateSeasonAdminPayload_(payload) {
     reunionResults.push({market: market, target: target, value: ['still', 'back'].includes(market) ? value.toUpperCase() : value, notes: notes});
   });
 
+  const retroMarkets = ['pods', 'sex', 'flirt', 'breakup', 'still', 'void'];
+  const voidMarkets = ['pods', 'weddings', 'sex', 'flirt', 'breakup'];
+  const phaseOrder = ['pods', 'dating', 'weddings', 'reunion'];
+  const phaseLabels = {pods: 'Pods', dating: 'Retreats', weddings: 'Weddings', reunion: 'Reunion'};
+  const phaseStarts = {
+    pods: Number(settings.PODS_START_EP), dating: Number(settings.DATING_START_EP),
+    weddings: Number(settings.WEDDINGS_START_EP), reunion: Number(settings.REUNION_START_EP)
+  };
+  const phaseEnds = {
+    pods: Number(settings.PODS_END_EP), dating: Number(settings.DATING_END_EP),
+    weddings: Number(settings.WEDDINGS_END_EP), reunion: Number(settings.REUNION_END_EP)
+  };
+  const retroPersonKey = function(value) { return String(value || '').trim().toLowerCase().replace(/\s+/g, ' '); };
+  const normalizedCastNames = new Set(cast.map(function(person) { return retroPersonKey(person.name); }));
+  const revealingPhaseForEpisode = function(episode) {
+    return phaseOrder.slice().reverse().find(function(phase) {
+      return episode > phaseStarts[phase] && episode <= phaseEnds[phase];
+    });
+  };
   const retroEvents = payload.retroEvents.map(function(raw, index) {
+    const rowNumber = index + 2;
     const market = cleanAdminString_(raw.market, 20).toLowerCase();
     const target = cleanAdminString_(raw.target, 180);
     const note = cleanAdminString_(raw.note, 300);
     if (!market && !target && !note) return null;
-    if (!['pods', 'sex', 'flirt', 'breakup', 'still', 'void'].includes(market)) throw new Error('Correction row ' + (index + 1) + ' has an unsupported market.');
-    if (!target || !note) throw new Error('Every correction needs a target and an explanatory note.');
+    const voidMarket = cleanAdminString_(raw.voidMarket, 20).toLowerCase();
+    const appliesPhase = cleanAdminString_(raw.appliesPhase, 20).toLowerCase();
+    const revealedEpText = cleanAdminString_(raw.revealedEp, 20);
+    const revealedEp = Number.parseInt(revealedEpText, 10);
+    if (!retroMarkets.includes(market)) {
+      throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' has unsupported market "' + (raw.market || 'missing') + '". Use pods, sex, flirt, breakup, still, or void.');
+    }
+    if (!phaseOrder.includes(appliesPhase)) {
+      throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' has invalid applies_phase "' + (raw.appliesPhase || 'missing') + '". Use pods, dating, weddings, or reunion.');
+    }
+    if (['sex', 'flirt', 'breakup'].includes(market) && appliesPhase !== 'dating') {
+      throw new Error('Season data invalid: Retro Events ' + market + ' rows must use dating in applies_phase (row ' + rowNumber + ').');
+    }
+    if (market === 'pods' && appliesPhase !== 'pods') {
+      throw new Error('Season data invalid: Retro Events pods rows must use pods in applies_phase (row ' + rowNumber + ').');
+    }
+    if (market === 'void' && !voidMarkets.includes(voidMarket)) {
+      throw new Error('Season data invalid: Retro Events void row ' + rowNumber + ' requires void_market pods, weddings, sex, flirt, or breakup.');
+    }
+    const personTarget = market === 'flirt' || (market === 'void' && voidMarket === 'flirt');
+    if (!target || (personTarget ? !normalizedCastNames.has(retroPersonKey(target)) : !coupleIds.has(target))) {
+      throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' target "' + (target || 'missing') + '" is not valid. Use an exact Cast name for flirt, or an exact Couples id for couple markets.');
+    }
+    const scoringEnd = appliesPhase === 'dating' ? Number(settings.RETREAT_END_EP) : phaseEnds[appliesPhase];
+    if (!Number.isFinite(revealedEp) || revealedEp <= scoringEnd) {
+      throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' revealed_ep must be later than the ' + phaseLabels[appliesPhase] + ' scoring end (Episode ' + scoringEnd + ').');
+    }
+    if (!revealingPhaseForEpisode(revealedEp)) {
+      throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' revealed_ep ' + (raw.revealedEp || 'missing') + ' falls outside every configured phase.');
+    }
+    if (!note) {
+      throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' is missing its required note.');
+    }
+    if (['sex', 'flirt', 'breakup'].includes(market)) {
+      const duplicate = datingResults.some(function(result) {
+        return result.market === market && (market === 'flirt'
+          ? retroPersonKey(result.person) === retroPersonKey(target)
+          : result.coupleId === target);
+      });
+      if (duplicate) {
+        throw new Error('Season data invalid: Retro Events row ' + rowNumber + ' duplicates the existing Dating Results ' + market + ' result for ' + target + '. Keep the result in only one tab.');
+      }
+    }
     return {
       market: market,
       target: target,
-      voidMarket: cleanAdminString_(raw.voidMarket, 20).toLowerCase(),
-      appliesPhase: cleanAdminString_(raw.appliesPhase, 20).toLowerCase(),
-      revealedEp: cleanAdminEpisode_(raw.revealedEp, 'Correction reveal episode', false),
+      voidMarket: voidMarket,
+      appliesPhase: appliesPhase,
+      revealedEp: String(revealedEp),
       note: note,
       confirmed: cleanAdminBoolean_(raw.confirmed, false)
     };

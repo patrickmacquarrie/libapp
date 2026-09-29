@@ -5,6 +5,7 @@ const vm=require('node:vm');
 const crypto=require('node:crypto');
 
 const source=fs.readFileSync(path.join(__dirname,'season-publisher','Code.gs'),'utf8');
+const appSource=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const scriptProperties=new Map();
 let parsedScheduleDate=null;
 let parsedScheduleInput=null;
@@ -103,6 +104,121 @@ assert.throws(
   ()=>context.__publisher.buildSeasonSnapshot_(config),
   /PODS_END_EP must be between 1 and 100/
 );
+
+const validationSettings={
+  CONFIG_VERSION:'1',SEASON_STATUS:'live',CAST_COMPLETE:'TRUE',ALLOW_INCOMPLETE_CAST:'FALSE',AVAILABLE_THROUGH_EP:'13',BOUNDARIES_LIVE:'TRUE',
+  PODS_START_EP:'1',PODS_END_EP:'6',DATING_START_EP:'5',DATING_END_EP:'9',RETREAT_START_EP:'5',RETREAT_END_EP:'9',
+  WEDDINGS_START_EP:'9',WEDDINGS_END_EP:'12',REUNION_START_EP:'12',REUNION_END_EP:'13',
+  PODS_BOUNDARY_FINAL:'TRUE',DATING_BOUNDARY_FINAL:'TRUE',WEDDINGS_BOUNDARY_FINAL:'TRUE',REUNION_BOUNDARY_FINAL:'TRUE',
+  PODS_RESULTS_READY:'TRUE',DATING_RESULTS_READY:'TRUE',WEDDINGS_RESULTS_READY:'TRUE',REUNION_RESULTS_READY:'TRUE'
+};
+const validValidationPayload={
+  seasonId,
+  settings:validationSettings,
+  cast:[{gender:'M',name:'Alex'},{gender:'F',name:'Sam'}],
+  couples:[{id:'alex-sam',him:'Alex',her:'Sam',engagedEp:'2',wedding:'married',whoSaysNo:'',breakupEp:'',settledEp:'',togetherNow:'TRUE',lockEp:'12',podsEligible:'TRUE',datingEligible:'TRUE',reunionStatusEligible:'TRUE'}],
+  datingResults:[],
+  reunionResults:[],
+  retroEvents:[{market:'pods',target:'alex-sam',voidMarket:'',appliesPhase:'pods',revealedEp:'7',note:'Late engagement correction',confirmed:'TRUE'}]
+};
+const clone=value=>JSON.parse(JSON.stringify(value));
+const validationFixtures=[
+  {
+    name:'engaged_ep range',
+    mutate:payload=>{payload.couples[0].engagedEp='14';},
+    message:'Season data invalid: 1 of 1 couples have engaged_ep invalid or outside 1..13 (alex-sam). Correct the engaged_ep column in the season sheet before setting available:true.'
+  },
+  {
+    name:'missing wedding outcome',
+    mutate:payload=>{payload.couples[0].wedding='';},
+    message:'Season data incomplete: WEDDINGS_RESULTS_READY is true, but 1 Weddings-eligible couple is missing a wedding outcome (alex-sam). Fill the wedding column before marking Weddings results ready.'
+  },
+  {
+    name:'unsupported retro market',
+    mutate:payload=>{payload.retroEvents[0].market='criticize';},
+    message:'Season data invalid: Retro Events row 2 has unsupported market "criticize". Use pods, sex, flirt, breakup, still, or void.'
+  },
+  {
+    name:'invalid retro applies_phase',
+    mutate:payload=>{payload.retroEvents[0].appliesPhase='aftershow';},
+    message:'Season data invalid: Retro Events row 2 has invalid applies_phase "aftershow". Use pods, dating, weddings, or reunion.'
+  },
+  {
+    name:'dating retro phase',
+    mutate:payload=>{Object.assign(payload.retroEvents[0],{market:'sex',appliesPhase:'weddings',revealedEp:'13'});},
+    message:'Season data invalid: Retro Events sex rows must use dating in applies_phase (row 2).'
+  },
+  {
+    name:'pods retro phase',
+    mutate:payload=>{payload.retroEvents[0].appliesPhase='dating';payload.retroEvents[0].revealedEp='10';},
+    message:'Season data invalid: Retro Events pods rows must use pods in applies_phase (row 2).'
+  },
+  {
+    name:'void retro market',
+    mutate:payload=>{Object.assign(payload.retroEvents[0],{market:'void',voidMarket:'still',appliesPhase:'weddings',revealedEp:'13'});},
+    message:'Season data invalid: Retro Events void row 2 requires void_market pods, weddings, sex, flirt, or breakup.'
+  },
+  {
+    name:'retro target',
+    mutate:payload=>{Object.assign(payload.retroEvents[0],{market:'flirt',target:'Missing Person',appliesPhase:'dating',revealedEp:'10'});},
+    message:'Season data invalid: Retro Events row 2 target "Missing Person" is not valid. Use an exact Cast name for flirt, or an exact Couples id for couple markets.'
+  },
+  {
+    name:'retro scoring end',
+    mutate:payload=>{payload.retroEvents[0].revealedEp='6';},
+    message:'Season data invalid: Retro Events row 2 revealed_ep must be later than the Pods scoring end (Episode 6).'
+  },
+  {
+    name:'retro reveal phase',
+    mutate:payload=>{payload.retroEvents[0].revealedEp='14';},
+    message:'Season data invalid: Retro Events row 2 revealed_ep 14 falls outside every configured phase.'
+  },
+  {
+    name:'retro note',
+    mutate:payload=>{payload.retroEvents[0].note='';},
+    message:'Season data invalid: Retro Events row 2 is missing its required note.'
+  },
+  {
+    name:'duplicate retro dating result',
+    mutate:payload=>{
+      payload.datingResults=[{market:'sex',coupleId:'alex-sam',episode:'5',person:'',confirmed:'TRUE'}];
+      Object.assign(payload.retroEvents[0],{market:'sex',appliesPhase:'dating',revealedEp:'10'});
+    },
+    message:'Season data invalid: Retro Events row 2 duplicates the existing Dating Results sex result for alex-sam. Keep the result in only one tab.'
+  }
+];
+const validationTableSpecs={
+  Cast:{headers:['Gender','Name'],keys:['gender','name'],payloadKey:'cast'},
+  Couples:{headers:['ID','Him','Her','Engaged Ep','Wedding','Who Says No','Breakup Ep','Settled Ep','Together Now','lock_ep','Pods Eligible','Dating Eligible','Reunion Status Eligible'],keys:['id','him','her','engagedEp','wedding','whoSaysNo','breakupEp','settledEp','togetherNow','lockEp','podsEligible','datingEligible','reunionStatusEligible'],payloadKey:'couples'},
+  'Dating Results':{headers:['Market','Couple ID','Episode','Person','Confirmed'],keys:['market','coupleId','episode','person','confirmed'],payloadKey:'datingResults'},
+  'Reunion Results':{headers:['Market','Couple/Person ID or Name','Value','Notes'],keys:['market','target','value','notes'],payloadKey:'reunionResults'},
+  'Retro Events':{headers:['Market','Target','Void Market','Applies Phase','Revealed Ep','Note','Confirmed'],keys:['market','target','voidMarket','appliesPhase','revealedEp','note','confirmed'],payloadKey:'retroEvents'}
+};
+function payloadSheetRows(payload){
+  const rows={Settings:[['key','value','Notes'],...Object.entries(payload.settings).map(([key,value])=>[key,value,''])]};
+  Object.entries(validationTableSpecs).forEach(([tab,spec])=>{
+    rows[tab]=[spec.headers,...payload[spec.payloadKey].map(record=>spec.keys.map(key=>record[key]??''))];
+  });
+  return rows;
+}
+function snapshotFromPayload(payload){
+  const rows=payloadSheetRows(payload);
+  return Object.fromEntries(Object.entries(rows).map(([tab,table])=>{
+    const [headers,...body]=table;
+    return [tab,body.map(row=>Object.fromEntries(headers.map((header,index)=>[header,row[index]??''])))];
+  }));
+}
+function usePublisherPreviewPayload(payload){
+  const rows=payloadSheetRows(payload);
+  context.SpreadsheetApp={openById:()=>({getSheetByName:name=>rows[name]?{getDataRange:()=>({getDisplayValues:()=>rows[name]})}:null})};
+  return context.__publisher.buildSeasonSnapshot_(config);
+}
+assert.doesNotThrow(()=>usePublisherPreviewPayload(validValidationPayload),'A valid fixture must still pass publisher preview validation.');
+validationFixtures.forEach(fixture=>{
+  const payload=clone(validValidationPayload);
+  fixture.mutate(payload);
+  assert.throws(()=>usePublisherPreviewPayload(payload),error=>error.message===fixture.message,`${fixture.name} must fail publisher preview with the app wording.`);
+});
 
 const releaseOne={
   fields:{status:{stringValue:'live'}},
@@ -287,4 +403,45 @@ const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'season-publisher'
   'https://www.googleapis.com/auth/userinfo.email'
 ].forEach(scope=>assert.ok(manifest.oauthScopes.includes(scope),`Missing Apps Script scope: ${scope}`));
 
-console.log('Season publisher rollover, validation, atomic-release, and seven scheduled-publish regressions passed.');
+async function assertPublisherAppValidationParity(){
+  const configStart=appSource.indexOf('const normalizedTabKey =');
+  const configEnd=appSource.indexOf('/*  ENGINE -',configStart);
+  assert.ok(configStart>=0&&configEnd>configStart,'The app config loader must remain extractable for publisher parity tests.');
+  let activeSnapshot=snapshotFromPayload(validValidationPayload);
+  const appContext={
+    console:{log:()=>{},warn:()=>{},error:()=>{},info:()=>{}},
+    window:{_fb:{getSeasonSnapshot:async()=>activeSnapshot},__TTW_DIAGNOSTICS__:{}},
+    DEFAULT_SEASON_ID:seasonId,
+    ADMIN_SEASON_SHEET_FALLBACK:false,
+    DEFAULT_WED_MULT:{married:1,saysNo:1.5,calledOff:1.75},
+    DEFAULT_DATING_MULT:{sex:1,flirt:2,breakup:3},
+    DEFAULT_REU_MULT:{still:1,split:2,marriedSplit:2,back:2,newCouple:5,lifeUpdate:5,absent:2},
+    LIFE_UPD:{newPartner:'New partner',newBaby:'New baby'},
+    PH_ORDER:['pods','dating','weddings','reunion'],
+    seasonById:()=>({id:seasonId,label:'Publisher parity fixture',available:true,sheetId:'fixture-sheet',status:'live',historical:false}),
+    localCastPhotoUrl:()=>'',
+    normalizeLifeUpdate:value=>value,
+    reportTtwError:()=>{},
+    fetch:async()=>{throw new Error('Published snapshot parity tests must not fetch a Sheet.');}
+  };
+  vm.createContext(appContext);
+  vm.runInContext(`${appSource.slice(configStart,configEnd)}\nthis.__loadConfigUncached=loadConfigUncached;`,appContext);
+  await assert.doesNotReject(()=>appContext.__loadConfigUncached(seasonId),'A valid fixture must load in the app and publisher.');
+  for(const fixture of validationFixtures){
+    const payload=clone(validValidationPayload);
+    fixture.mutate(payload);
+    activeSnapshot=snapshotFromPayload(payload);
+    await assert.rejects(
+      ()=>appContext.__loadConfigUncached(seasonId),
+      error=>error.message===fixture.message,
+      `${fixture.name} must fail the app loader with the same message as publisher preview.`
+    );
+  }
+}
+
+assertPublisherAppValidationParity().then(()=>{
+  console.log('Season publisher rollover, validation parity, atomic-release, and seven scheduled-publish regressions passed.');
+}).catch(error=>{
+  console.error(error);
+  process.exitCode=1;
+});
