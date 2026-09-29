@@ -1677,7 +1677,7 @@ const mirrorPair=value=>mirrorText(value).split('|').sort().join('|');
 const mirroredPickIdentity=(phase,pick)=>{
   if(!pick||typeof pick!=='object')return '';
   if(phase==='pods')return 'pods|'+mirrorPair(pick.c);
-  if(phase==='dating')return ['dating',mirrorText(pick.m),mirrorPair(pick.c),mirrorText(pick.person)].join('|');
+  if(phase==='dating')return ['dating',mirrorText(pick.m),mirrorPair(pick.c),mirrorText(pick.p||pick.person)].join('|');
   if(phase==='weddings')return 'weddings|'+mirrorPair(pick.c);
   return ['reunion',mirrorText(pick.m),mirrorPair(pick.c),mirrorPair(pick.pair),mirrorText(pick.person),mirrorText(pick.update),mirrorText(pick.outcome||pick.o)].join('|');
 };
