@@ -864,7 +864,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise,window:{},PH_ORDER:['pods','dating','weddings','reunion']};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__staleMirrorSourceError=staleMirrorSourceError;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
@@ -948,6 +948,14 @@ async function assertMirrorEntryRegression(){
   assert.equal(safeFriendPicks[0].w,2,'Mirroring into a private pool must preserve the matching private pick window.');
   assert.equal('lockedAt' in safeFriendPicks[0],false);
   assert.equal('releasedThroughAtLock' in safeFriendPicks[0],false);
+  assert.notEqual(context.__mirroredPickIdentity('dating',{m:'flirt',p:'Alex'}),context.__mirroredPickIdentity('dating',{m:'flirt',p:'Jordan'}),'Flirt picks for different people need different linked-pick identities.');
+  const safeFlirts=context.__friendSafeMirroredPicks('dating',[
+    {m:'flirt',p:'Alex',s:10,w:99},{m:'flirt',p:'Jordan',s:15,w:99},
+  ],[{m:'flirt',p:'Alex',s:5,w:5}],7);
+  assert.equal(safeFlirts[0].w,5,'An existing flirt pick must keep its private-pool window.');
+  assert.equal(safeFlirts[1].w,7,'A new flirt pick must use the target private-pool window.');
+  assert.equal(context.__mirroredPickIdentity('dating',{m:'sex',c:'Alex|Casey'}),'dating|sex|alex|casey|','The sex-pick identity must not change.');
+  assert.equal(context.__mirroredPickIdentity('dating',{m:'breakup',c:'Jordan|Taylor'}),'dating|breakup|jordan|taylor|','The breakup-pick identity must not change.');
   const forward=context.__mergeMirroredCheckpointState(
     {phase:'pods',screen:'board',w:3,watchThrough:3,completed:{}},
     {phase:'dating',screen:'watch',w:8,watchThrough:8,completed:{pods:true}},spans,11,
