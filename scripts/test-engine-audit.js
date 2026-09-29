@@ -277,10 +277,10 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 }
 
 {
-  assert(source.includes('Link my Global Pool game'),'Private-pool creation must offer a linked Global game.');
+  assert(source.includes('Link to my Global Pool picks'),'Private-pool creation must offer linked Global picks.');
   assert(source.includes("let activeDuplicateFrom=duplicateFromPoolId||''"),'A private pool must be allowed to use the Global Pool as its pick source.');
   assert(source.includes('const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId)'),'Pick synchronization must support either pool type as the target.');
-  assert(source.includes('Synced with ${linkedPoolNames.length===1'),'Linked pools must visibly identify their connection below the pool title.');
+  assert(source.includes('Linked with ${linkedPoolNames.length===1'),'Linked pools must visibly identify their connection below the pool title.');
   assert(source.includes('matchingGlobalPool?.members?.includes(user.uid)'),'The mirror option must be limited to matching Global Pool members.');
 }
 

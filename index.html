@@ -2983,7 +2983,7 @@ const globalOwnerOverrides = standings => Object.fromEntries(PH_ORDER.map(phase=
   ownerCounts:standings?.ownerCounts?.[phase]||{},
   activeCount:Number(standings?.activeCounts?.[phase])||1,
 }]));
-const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Retroactive scoring change — confirmed points are included in the live standings after you complete this reveal phase.';
+const retroRevealSub = event => (event.confirmed?'':'Awaiting confirmation — ')+'Scoring update: this counts in your standings once you finish this phase.';
 const retroNoticeKey = event => event.id+':'+(event.confirmed?'credited':'pending');
 const normalizeSeenRetroNotices = value => [...new Set((Array.isArray(value)?value:[]).filter(item=>typeof item==='string'&&item))];
 const retroNoticeStorageKey = (poolId,uid) => 'prediction-pool-retro-notices:'+uid+':'+poolId;
@@ -3113,7 +3113,7 @@ function ResultsBreakdown({entries=[],events=[],eng,meId,memberLabels}) {
       {pending.map((entry,index)=><Receipt key={'pending-'+index} e={entry} eng={eng} meId={meId} memberLabels={memberLabels}/>)}
     </section>}
     {otherEvents.length>0&&<details className="other-outcomes">
-      <summary>Other outcomes from this watch-through ({otherEvents.length})</summary>
+      <summary>Other outcomes in these episodes ({otherEvents.length})</summary>
       <div className="other-outcomes-list">{otherEvents.map((event,index)=><div className="outcome-compact" key={index}><strong>{event.title}</strong>{event.retro&&<span className="warnchip">retro</span>}{event.placeholder&&<span className="warnchip">placeholder</span>}{event.sub&&<div>{event.sub}</div>}</div>)}</div>
     </details>}
   </React.Fragment>;
@@ -3268,7 +3268,7 @@ function RevealSummary({reveal,heading,eng,meId,memberLabels,extraEntries=[],sha
   if(!reveal&&entries.length===0) return null;
   return <div className="card">
     <h2 style={{marginBottom:10}}>{heading}</h2>
-    {events.length===0&&entries.length===0&&<div className="evt"><h3>Nothing resolved in this watch-through</h3><div className="sub">The board carries forward.</div></div>}
+    {events.length===0&&entries.length===0&&<div className="evt"><h3>No results in these episodes</h3><div className="sub">Your open predictions are still in play.</div></div>}
     <ResultsBreakdown entries={entries} events={events} eng={eng} meId={meId} memberLabels={memberLabels}/>
     {shareData&&<ShareMoment {...shareData}/>}
   </div>;
@@ -4161,7 +4161,7 @@ function SeasonWrapped({phases,ranked,rankById,phaseTotals,RULES,playerName,meId
     {id:'hits',theme:'theme-pink',kicker:'You called it',title:String(myHits.length),copy:'predictions hit',number:true,sub:`${soloHits.length} solo call${soloHits.length===1?'':'s'} nobody else made`,shareHighlight:`I hit ${myHits.length} predictions.`,shareDetails:[`${soloHits.length} solo calls`]},
     {id:'best',theme:'theme-gold',kicker:'Your biggest hit',title:bestHit?.label||'You survived every reveal.',copy:bestHit?.points?`${bestHit.points} points · ${predictionTimingLabel(bestHit)}`:'Season complete',shareHighlight:bestHit?.label||'I survived every reveal.',shareDetails:[bestHit?.points?`${bestHit.points} points won`:'']},
     {id:'unique',theme:'theme-purple',kicker:'Against the grain',title:uniqueHit?.label||'You kept trusting the vibes.',copy:uniqueHit?.owners===1?'Only you called it.':uniqueHit?.owners?`${uniqueHit.owners} players called it.`:'Your boldest call is waiting for next season.',shareHighlight:uniqueHit?.label||'I kept trusting the vibes.',shareDetails:[uniqueHit?.owners===1?'Only I called it':'']},
-    {id:'drama',theme:'theme-pink',kicker:'The dramatic turn',title:leadMoments.at(-1)||'The opening leader held the room.',copy:`${leadMoments.length} lead change${leadMoments.length===1?'':'s'} across the season.`,shareHighlight:leadMoments.at(-1)||'The lead held from the opening checkpoint.',shareDetails:[`${leadMoments.length} lead changes`]},
+    {id:'drama',theme:'theme-pink',kicker:'The dramatic turn',title:leadMoments.at(-1)||'The opening leader held the room.',copy:`${leadMoments.length} lead change${leadMoments.length===1?'':'s'} across the season.`,shareHighlight:leadMoments.at(-1)||'The lead held from the first phase.',shareDetails:[`${leadMoments.length} lead changes`]},
     {id:'chart',theme:'theme-purple',kicker:'How the room moved',title:'Every point told a story.',chart:true,shareHighlight:'Every point told a story.',shareDetails:[`Winner: ${playerName(ranked[0])}`]},
     {id:'awards',theme:'theme-gold',kicker:'Your superlatives',title:awards.length?'The wall has spoken.':'Season complete.',awards:awards.length?awards:[{label:'Finished the experiment'}],copy:'Keep these for the group chat.',shareHighlight:awards[0]?.label||'I finished the experiment.',shareDetails:awards.slice(1,4).map(award=>award.label)},
   ];
@@ -4200,7 +4200,7 @@ function StandingsPodium({ranked,rankById,scoreFor,playerName,scoredThrough,live
         </div>;
       })}
     </div>
-    {(finalized||showLiveShiftNote)&&<p className="podium-bottom-note">{finalized?'Final standings are locked.':'Positions can shift as more players complete this checkpoint.'}</p>}
+    {(finalized||showLiveShiftNote)&&<p className="podium-bottom-note">{finalized?'Final standings are locked.':'Positions can shift as more players finish this phase.'}</p>}
     {shareable&&<div className="podium-share-actions"><button type="button" className="btn-secondary podium-share-button" disabled={sharing} onClick={share}>{sharing?'Making podium…':'↗ Share podium'}</button>{shareFeedback&&<p className="podium-share-feedback" role="status">{shareFeedback}</p>}</div>}
   </section>;
 }
@@ -4219,10 +4219,10 @@ function PersonalRaceCard({rank,total,playerCount,score,nextName,nextGap,leader,
   </section>;
 }
 function CheckpointLeaderCards({cards,activePhase,onSelect}) {
-  return <div className="checkpoint-leaders" aria-label="Checkpoint leaders">{cards.map(card=><button type="button" key={card.phase} className={'checkpoint-leader'+(activePhase===card.phase?' active':'')} disabled={!card.ready} onClick={()=>card.ready&&onSelect(card.phase)}>
+  return <div className="checkpoint-leaders" aria-label="Phase leaders">{cards.map(card=><button type="button" key={card.phase} className={'checkpoint-leader'+(activePhase===card.phase?' active':'')} disabled={!card.ready} onClick={()=>card.ready&&onSelect(card.phase)}>
     <span className="checkpoint-leader-phase">{card.label}</span>
     <span className="checkpoint-leader-name">{card.ready?card.names:'Locked'}</span>
-    <span className="checkpoint-leader-score">{card.ready?card.score+' pts · View checkpoint':'Not scored yet'}</span>
+    <span className="checkpoint-leader-score">{card.ready?card.score+' pts · View phase':'Not scored yet'}</span>
   </button>)}</div>;
 }
 function AgainstTheGrainSpotlight({spotlight,globalPool}) {
@@ -4697,15 +4697,15 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
     {!globalPool&&<SeasonProgressTracker eng={eng} playersById={playersById} memberLabels={memberLabels} meId={meId}/>}
     <div className="card">
       <h2>{globalPool?'Live global standings':seasonFinalized?'Final standings':latestScoredPhase?'Live standings through '+RULES.phases[latestScoredPhase].label:'Standings'}</h2>
-      {demoMode&&<div className="notice"><b>Demo preview · 126 sample players.</b> This data exists only in your browser and is never saved to the real global pool.</div>}
+      {demoMode&&<div className="notice"><b>Demo preview · 126 sample players.</b> This data exists only in your browser and is never saved to the real Global Pool.</div>}
       {globalPool&&!demoMode&&!seasonFinalized&&<div className="notice"><b>Scores lock in.</b> Each phase is scored once its results are confirmed. Your score won't change after it appears, but your rank can move as more players finish.</div>}
-      {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No checkpoint scores yet. Each phase is scored once its results are confirmed.':memberIds.some(id=>(phaseStatus.pods.completedBy||[]).includes(id))?'Complete Pods to unlock the live standings without seeing spoilers.':'No checkpoint scores yet. The leaderboard begins after you complete your first phase.'}</p>}
+      {scoredPhases.length===0&&awaitingResults.length===0&&<p className="lede">{globalPool?'No phase scores yet. Each phase is scored once its results are confirmed.':memberIds.some(id=>(phaseStatus.pods.completedBy||[]).includes(id))?'Complete Pods to unlock the live standings without seeing spoilers.':'No phase scores yet. The leaderboard begins after you finish your first phase.'}</p>}
       {scoredPhases.length===0&&awaitingResults.length>0&&<p className="lede">No scores have been finalized yet.</p>}
       {datingProvisional&&<div className="notice"><b>Retreats scores are provisional.</b> Sleep-together, flirt, and breakup predictions settle when the retreat ends. Against-the-Grain bonuses keep adjusting as more players finish.</div>}
       {globalPool&&reunionScoresPartial&&<div className="notice">Reunion scores are live for players who have finished. They remain provisional while the pool is open or another member is still watching.</div>}
-      {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores will appear after the season sheet is marked ready.</div>}
+      {awaitingResults.length>0&&<div className="notice">{awaitingResults.map(ph=>RULES.phases[ph].label).join(', ')} results are being confirmed. Scores appear here once they're final.</div>}
       {scoredPhases.length>0&&<StandingsPodium ranked={raceRanked} rankById={raceRankById} scoreFor={raceScore} playerName={playerName} scoredThrough={scoredThrough} liveStandings={!seasonFinalized} throughLabel={latestScoredPhase?RULES.phases[latestScoredPhase].label:''} finalized={seasonFinalized} showLiveShiftNote={globalPool} poolName={poolName} seasonLabel={seasonLabel}/>}
-      {!globalPool&&!membershipClosed&&scoredPhases.length>0&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete. Positions can shift as more players complete each checkpoint.</div>}
+      {!globalPool&&!membershipClosed&&scoredPhases.length>0&&<div className="notice"><b>This pool is open to new players.</b> Friends can start from Episode 1 at any time. The pool owner can close membership when the group is complete. Positions can shift as more players finish each phase.</div>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&<PersonalRaceCard rank={displayedRaceRank} total={globalPool?globalPlayerCount:raceRanked.length} playerCount={globalPool?globalPlayerCount:raceRanked.length} score={raceScore(meId)} nextName={nextRaceId?playerName(nextRaceId):''} nextGap={nextRaceGap} leader={displayedRaceRank===1} globalPool={globalPool} liveStandings={!seasonFinalized} outsideTop={outsideBoundedPhase}/>}
       {scoredPhases.length>0&&raceRanked.includes(meId)&&!demoMode&&<ReceiptsShelf receipts={receipts} rank={globalPool&&Number(globalOwnRank)>0?Number(globalOwnRank):raceRankById[meId]} total={globalPool?globalPlayerCount:raceRanked.length} score={raceScore(meId)} playerName={memberLabels[meId]||'You'} poolName={poolName} seasonLabel={seasonLabel} globalPool={globalPool}/>}
       {seasonFinalized&&raceRanked.includes(meId)&&<SeasonWrapped phases={scoredPhases} ranked={raceRanked} rankById={raceRankById} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} meId={meId} entries={scoredPhases.flatMap(phase=>phaseEntries[phase]||[])} awards={playerAwards[meId]||[]} bestHit={bestHitsById[meId]} scoreFor={raceScore} scoredThrough={scoredThrough} poolName={poolName} seasonLabel={seasonLabel}/>}
@@ -4713,7 +4713,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
       <AgainstTheGrainSpotlight spotlight={atgSpotlight} globalPool={globalPool}/>
       {scoredPhases.length>0&&!globalPool&&<ScoreProgressChart phases={scoredPhases} ranked={ranked} phaseTotals={phaseTotals} RULES={RULES} playerName={playerName} hasRetro={hasRetro&&!retroSpoilerHidden}/>}
       {scoredPhases.length>0&&(globalPool?<React.Fragment>
-        <div className="checkpoint-tabs" role="group" aria-label="Global leaderboard checkpoint">
+        <div className="checkpoint-tabs" role="group" aria-label="Global leaderboard phase">
           <button className={globalView==='overall'?'active':''} aria-pressed={globalView==='overall'} onClick={()=>setGlobalView('overall')}>Overall</button>
           {scoredPhases.map(ph=><button key={ph} className={globalView===ph?'active':''} aria-pressed={globalView===ph} onClick={()=>setGlobalView(ph)}>After {RULES.phases[ph].label}</button>)}
         </div>
@@ -4786,7 +4786,7 @@ function Scoreboard({eng, playersById, statusDocs={}, memberLabels, meId, myPhas
                   : breakdownHidden
                   ? <div className="notice">Finish watching this phase to see your prediction breakdown.</div>
                   : !st.completedBy.includes(meId)
-                    ? <p className="subtle">Your personal breakdown will appear after you complete this phase.</p>
+                    ? <p className="subtle">Your personal breakdown will appear after you finish this phase.</p>
                     : <React.Fragment>
                   <button className="btn-small" onClick={()=>setOpenPhase(openPhase===ph?null:ph)}>
                     {openPhase===ph ? 'Hide prediction breakdown' : 'Show prediction breakdown'}
@@ -5040,7 +5040,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const notificationOptions=[
     {key:'newEpisodes',label:'New episodes drop',description:'Know when a season you are playing has fresh episodes.'},
     {key:'newSeasons',label:'A new season drops',description:'Get a heads-up when a new Love Is Blind season opens for play.'},
-    {key:'friendPhaseLocks',label:'A friend completes a phase',description:'See when someone in one of your pools completes their latest checkpoint.'},
+    {key:'friendPhaseLocks',label:'A friend completes a phase',description:'See when someone in one of your pools finishes their latest phase.'},
     {key:'friendPoolCompletions',label:'A friend completes their pool',description:'Celebrate when a friend makes it through every phase.'},
   ];
   const finishDelete=async()=>{
@@ -5175,20 +5175,20 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onWatchCha
   const watchSelection=globalJoinWatchSelection(join);
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!joining)onClose();}}>
     <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-      <h2 id={titleId}>Join the global pool</h2>
-      <p>Play {formatSeasonLabel(join.season)} with everyone who joins this public pool. Its against-the-grain bonus and leaderboard are calculated independently from your private pools.</p>
-      <label className="small" htmlFor={selectId}>Copy picks from one of your pools</label>
+      <h2 id={titleId}>Join the Global Pool</h2>
+      <p>Play {formatSeasonLabel(join.season)} against everyone on Through the Wall. Global scores and rankings are separate from your private pools.</p>
+      <label className="small" htmlFor={selectId}>Link a private pool (optional)</label>
       <select id={selectId} value={join.sourcePoolId} onChange={e=>onSourceChange(e.target.value)} disabled={joining}>
-        <option value="">No thanks — I’ll make separate global picks</option>
+        <option value="">Don't link. I'll make separate Global picks</option>
         {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
       </select>
-      {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your picks, confirmed watch progress, and completed checkpoints stay aligned with the Global Pool without ever moving backward. Global scoring uses the confirmed watch position synchronized from that pool.</p>}
+      {sourcePools.length===0?<p className="subtle">You don't have a private pool for this season yet, so your Global picks start fresh.</p>:<p className="subtle">Linked pools share your picks and progress, so you only predict once. Picks you've already made count here from where you are now, so they don't earn the early-pick bonus.</p>}
       {watchSelection.ask&&<div className="field" style={{marginTop:16}}>
         <label className="small" htmlFor={watchId}>How many of the {watchSelection.availableThroughEp} available episode{watchSelection.availableThroughEp===1?'':'s'} have you already watched?</label>
         <div className="stakebox"><input id={watchId} type="range" min="0" max={watchSelection.availableThroughEp} step="1" value={watchSelection.initialWatchedThrough} disabled={joining} onChange={event=>onWatchChange(Number(event.target.value))}/><span className="stakeval">{watchSelection.initialWatchedThrough}</span></div>
         <p className="subtle">We'll start you right after that episode. Predictions only count for what happens next, and you can't lower this later.</p>
       </div>}
-      <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
+      <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join the Global Pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
     </div>
   </div>;
 }
@@ -5789,8 +5789,8 @@ function App() {
           try{
             await window._fb.reopenPhase(pool.id,minePhase,user.uid);
           }catch(reopenError){
-            console.error('The provisional checkpoint could not be reopened.',reopenError);
-            throw new Error('We could not reopen your provisional checkpoint. Your saved predictions were not changed. Please refresh and try again.');
+            console.error('The phase could not be reopened.',reopenError);
+            throw new Error("We couldn't reopen this phase. Your saved predictions weren't changed. Refresh and try again.");
           }
           await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks,phase:minePhase,screen:'watch',w:mine.w,watchThrough:mine.watchThrough,completed:reopenedCompleted});
           mine={...mine,screen:'watch',completed:reopenedCompleted};
@@ -5833,7 +5833,7 @@ function App() {
             .filter(event=>!savedRetroNotices.includes(retroNoticeKey(event)))
             .map(event=>({title:event.note,sub:retroRevealSub(event,enteredPool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
           const r={events:[...replayResults.flatMap(result=>result.events),...retroEvents],entries:replayResults.flatMap(result=>result.entries)};
-          const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Live points appear after you complete this checkpoint.'}:e)};
+          const pendified = {...r, entries: r.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points appear once you finish this phase.'}:e)};
           setReveal({ep:mine.w,rangeLabel:mine.screen==='close'&&replayPhase==='dating'?'Retreats recap':undefined,...pendified});
           if (mine.screen==='close') {
             const closing = engine.resolvePhaseClose(replayPhase, {[user.uid]:normalizedReplayPicks[replayPhase]});
@@ -5992,7 +5992,7 @@ function App() {
               lockKeys.forEach(key=>pendingMirroredGlobalLocks.current.add(key));
               console.info('Mirrored Global prediction lock skipped.',e);
               reportTtwError('mirror_sync_failed',e,{operation:'lock_mirrored_global_picks',poolId:pending.poolId,targetPoolId:link.poolId,phase:pending.data.phase});
-              setErr('Your progress saved here, but the linked Global predictions did not lock. Stay on this screen and retry before watching the next episode.');
+              setErr("Your picks saved here but didn't lock in the Global Pool. Tap Retry now at the top before you watch the next episode.");
               return;
             }
           }
@@ -6206,7 +6206,7 @@ function App() {
       if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
       await enterPool(globalPool,sourcePoolId,{initialWatchedThrough});
-    } catch(e) { console.error(e);reportTtwError('global_join_failed',e,{operation:'join_global_pool',seasonId:season.id});setErr(playerSeasonError(e,'Could not join the global pool. Please try again.')); }
+    } catch(e) { console.error(e);reportTtwError('global_join_failed',e,{operation:'join_global_pool',seasonId:season.id});setErr(playerSeasonError(e,'Could not join the Global Pool. Please try again.')); }
     finally { setJoiningGlobal(false); }
   };
   const doAccept = async (inv) => {
@@ -6315,7 +6315,7 @@ function App() {
   };
   const doLeavePool = async pool => {
     if(!pool||pool.ownerUid===user.uid||destructiveActionPending)return;
-    if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:'Your predictions, progress, and shared Heat Check ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
+    if(!await requestConfirmation({title:'Leave '+pool.name+'?',body:pool.global===true?"Your Global picks, progress and scores will be deleted. If you rejoin, you'll start from scratch.":'Your predictions, progress, and shared Heat Check ratings will be permanently removed from this pool.',confirmLabel:'Leave pool',cancelLabel:'Stay'}))return;
     setDestructiveActionPending(true);setErr('');
     try{
       await flushSave();
@@ -6547,7 +6547,7 @@ function App() {
       let confirmedStatus;
       if(globalPool){
         const completionResult=await window._fb.completeGlobalPhase(poolId,phaseId);
-        if(completionResult?.data?.standingsStale)setGlobalStandingsNotice('Your checkpoint is safely completed. The leaderboard update is delayed and will retry automatically.');
+        if(completionResult?.data?.standingsStale)setGlobalStandingsNotice('This phase is complete. The leaderboard will catch up shortly.');
         confirmedStatus={completedMembers:[uid],updatedAt:Date.now()};
       }else confirmedStatus=await window._fb.completePhase(poolId,phaseId,uid);
       let firstCheckpoint=false;
@@ -6584,7 +6584,7 @@ function App() {
           console.error('Linked phase completion did not register.',linkedError);
           setLinkedSyncError('The linked pools need another sync.');
           reportTtwError('mirror_sync_failed',linkedError,{operation:'sync_mirrored_completion',poolId,targetPoolId:link.poolId,phase:phaseId});
-          setErr('This checkpoint completed here, but the linked pool did not close. Open the linked pool to retry the repair before making more predictions.');
+          setErr("This phase is finished here, but your linked pool didn't update. Tap Retry now at the top before making more predictions.");
         }
       }
       return true;
@@ -6599,7 +6599,7 @@ function App() {
     const requestedTarget=Number.isFinite(targetOverride)?targetOverride:watchThrough;
     const target=clampWatchTarget(phase,w,requestedTarget,PH_SPAN,AVAILABLE_THROUGH_EP);
     if(gating||target<=w) return false;
-    setGatingLabel('Saving your watch-through…');setGating(true);
+    setGatingLabel('Saving your progress…');setGating(true);
     try {
       const start=w+1,endEp=PH_SPAN[phase].endEp;
       const canClose=target>=endEp&&BOUNDARIES_FINAL[phase]!==false;
@@ -6614,7 +6614,7 @@ function App() {
       const retroEvents=revealedRetroEvents.map(event=>({title:event.note,sub:retroRevealSub(event,activePool.global===true),retro:true,placeholder:!event.confirmed,retroEventId:event.id}));
       const nextSeenRetroNotices=normalizeSeenRetroNotices([...seenRetroNotices,...revealedRetroEvents.map(retroNoticeKey)]);
       const combined={events:[...rangeResults.flatMap(r=>r.events),...retroEvents],entries:rangeResults.flatMap(r=>r.entries)};
-      const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Live points appear after you complete this checkpoint.'}:e)};
+      const pendified={...combined,entries:combined.entries.map(e=>e.ok?{...e,pending:true,points:0,note:'Points appear once you finish this phase.'}:e)};
       const atProvisionalBoundary=target>=endEp&&!canClose;
       const hasOpenBoard=predictionPhasesAt(phase,target,PH_SPAN,PH_STARTW).some(phaseId=>predictionWindowOpenAt(phaseId,target));
       const nextScreen=canClose?'close':(atProvisionalBoundary?'watch':(hasOpenBoard?'board':'watch'));
@@ -6631,7 +6631,7 @@ function App() {
       setScreen(nextScreen);setCompleted(nc);setSeenRetroNotices(nextSeenRetroNotices);setCloseInfo(canClose?{closing}:null);
       if(canClose){const registered=await registerPhaseCompletion(activePool.id,phase,user.uid);if(!registered)return false;await refreshPool();}
       return true;
-    } catch(e) { setErr('Your watch-through could not be saved. Please try again.');return false; }
+    } catch(e) { setErr("Your progress didn't save. Try again.");return false; }
     finally { setGating(false);setGatingLabel(''); }
   };
   const finalizeCaughtUpPhase = async () => {
@@ -6938,7 +6938,7 @@ function App() {
     <div className="card login-card" id="sign-in">
       <div className="signin-divider">Join the fun</div>
       <h2>{pendingFriendInvitation?'Sign in to accept your invitation':'Ready to start your season?'}</h2>
-      <p className="lede">{pendingFriendInvitation?'We saved this invitation in your browser and will take you to the pool after sign-in.':'Sign in to create a private pool or join a friend. Your confirmed predictions will be saved to your account as the season unfolds.'}</p>
+      <p className="lede">{pendingFriendInvitation?'We saved this invitation in your browser and will take you to the pool after sign-in.':"Sign in to play in the Global Pool, start a private pool, or join a friend's."}</p>
       {pendingFriendInvitation&&<div className="notice" role="status"><b>Invitation link saved.</b> You won’t need to reopen it after signing in.</div>}
       {!embeddedBrowser&&<button className="btn-google" disabled={signingIn} onClick={handleSignIn}>
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -7023,12 +7023,12 @@ function App() {
       </div>)}
     </div>}
     {globalPoolSeason&&<section className="card global-pool-card">
-      <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global pool</h2><p className="lede">One universal season pool with its own predictions, scoring, and leaderboard.</p></div></div>
+      <div className="global-pool-head"><div className="global-pool-icon" aria-hidden="true">◎</div><div><h2>Global Pool</h2><p className="lede">Play against everyone, with its own leaderboard.</p></div></div>
       <button type="button" className="pool-row" onClick={()=>openGlobalPool(globalPoolSeason)}>
-        <span className="pool-row-copy"><span className="pname">{formatSeasonLabel(globalPoolSeason)}</span><span className="pmeta">{joinedGlobalPool?'You’re in the global pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(globalPoolSeason)||'Live season'}</span></span>
+        <span className="pool-row-copy"><span className="pname">{formatSeasonLabel(globalPoolSeason)}</span><span className="pmeta">{joinedGlobalPool?'You’re in the Global Pool':globalPool?'Open to everyone':'Be the first to join'} · {seasonPoolStatusLabel(globalPoolSeason)||'Live season'}</span></span>
         <span className="pool-row-action">{joinedGlobalPool?'Open':'Join'} →</span>
       </button>
-      <p className="subtle" style={{margin:'4px 0 0'}}>Joining is optional. Global-pool picks are scored only against global players; when you create a private pool for the same season, you can choose to mirror them there.</p>
+      <p className="subtle" style={{margin:'4px 0 0'}}>Optional. Global picks are scored separately from your private pools. Link a private pool so you only predict once.</p>
     </section>}
     <div className="card">
       <h2>Your pools</h2>
@@ -7055,7 +7055,7 @@ function App() {
         </div>
         {canMirrorSelectedGlobal&&<label className="chemistry-toggle">
           <input type="checkbox" checked={mirrorGlobalPicks} onChange={event=>setMirrorGlobalPicks(event.target.checked)}/>
-          <span><strong>Link my Global Pool game</strong><span>Keep your picks, confirmed watch progress, and completed checkpoints aligned between Global and this private pool. Progress only moves forward, and a completed checkpoint stays closed everywhere.</span></span>
+          <span><strong>Link to my Global Pool picks</strong><span>Your picks and progress stay in sync, so you only predict once. Scores stay separate.</span></span>
         </label>}
         <div className="row">
           <div className="field"><label className="small">Invite by email</label>
@@ -7103,7 +7103,7 @@ function App() {
     return pools.find(candidate=>candidate.id===link.poolId)?.name||'linked private pool';
   });
   const linkedPoolNote=linkedPoolNames.length
-    ? `Synced with ${linkedPoolNames.length===1?linkedPoolNames[0]:linkedPoolNames.join(', ')}`
+    ? `Linked with ${linkedPoolNames.length===1?linkedPoolNames[0]:linkedPoolNames.join(', ')}`
     : '';
   const retryLinkedPoolSync=async()=>{
     if(!activePool||enteringPool)return;
@@ -7151,7 +7151,7 @@ function App() {
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
       <h1>{activePool.name}</h1>
       {linkedPoolNote&&<div className="pool-sync-note"><span aria-hidden="true">↔</span>{linkedPoolNote}</div>}
-      {linkedPoolNote&&linkedSyncError&&<div className="pool-sync-note out-of-sync" role="alert"><span aria-hidden="true">!</span>Linked pool out of sync. <button type="button" disabled={enteringPool} onClick={()=>retryLinkedPoolSync().catch(()=>{})}>{enteringPool?'Retrying…':'Retry now'}</button></div>}
+      {linkedPoolNote&&linkedSyncError&&<div className="pool-sync-note out-of-sync" role="alert"><span aria-hidden="true">!</span>Your linked pool didn't update. <button type="button" disabled={enteringPool} onClick={()=>retryLinkedPoolSync().catch(()=>{})}>{enteringPool?'Retrying…':'Retry now'}</button></div>}
       {saveBadge}
       <div className="user-bar">
         <button className="backlink" onClick={()=>{setErr('');setPoolTab(globalDemoData?'standings':'play');if(!globalDemoData&&screen==='board'&&!completed[phase]) setScreen('intro');}}>{globalDemoData?'Standings home':'Pool Home'}</button>
@@ -7197,7 +7197,7 @@ function App() {
           <button className="btn-secondary" disabled={updatingPoolMembership} onClick={()=>doSetPoolMembershipClosed(activePool.membershipClosed!==true)}>
             {updatingPoolMembership?'Updating...':activePool.membershipClosed===true?'Reopen pool to new players':'Close pool to new players'}
           </button>
-          <p className="subtle" style={{marginTop:7}}>{activePool.membershipClosed===true?'Reopening makes existing pending invitations usable again.':'Closing membership is optional. It is required only if you want the completed leaderboard to become final.'}</p>
+          <p className="subtle" style={{marginTop:7}}>{activePool.membershipClosed===true?'Reopening makes existing pending invitations usable again.':"Close the pool once everyone has joined. Final standings and Season Wrapped only appear after it's closed."}</p>
         </div>}
         {poolInviteFeedback&&<p className="ph-no-capture" role={poolInviteError?'alert':'status'} style={{color:poolInviteError?'#b71f49':'var(--muted)',fontWeight:600}}>{poolInviteFeedback}</p>}
       </div>}
@@ -7211,7 +7211,7 @@ function App() {
       <h2>{activePool.global===true?'You’re registered for the Global Pool':'Your pool is ready'}</h2>
       <p className="lede">{seasonPoolStatusLabel(seasonForPool(activePool))||'This season has not started yet.'}</p>
       {activePool.global===true&&seasonForPool(activePool).id==='love-is-blind-us-11'
-        ? <React.Fragment><div className="notice"><b>Episode 1 drops October 14.</b> Watch it first, then come back—predictions begin after Episode 1 and will be available here later that day.</div><p className="subtle">Predictions will open on October 14. Thanks for your patience while we keep the game accurate and spoiler-safe. Everyone should watch episode 1 before coming back to make predictions.</p></React.Fragment>
+        ? <div className="notice"><b>Episode 1 drops October 14 at 12 a.m. PT / 3 a.m. ET.</b> Watch it, then come back to make your first picks.</div>
         : <div className="notice"><b>Season has not started.</b> {activePool.global===true?'The Global Pool is open to everyone. Share the app with friends and they can join from their own account.':'Use the Standings tab to invite your friends now.'} Predictions will open shortly after the first episodes drop.</div>}
       {activePool.global===true&&<React.Fragment><button className="btn-secondary" disabled={sharingPool} onClick={shareGlobalPool}>{sharingPool?'Getting the link…':'Invite your Friends to Join'}</button>{globalShareFeedback&&<p className="subtle" role={/could not|try copying/i.test(globalShareFeedback)?'alert':'status'} style={{marginTop:8}}>{globalShareFeedback}</p>}</React.Fragment>}
       <button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Checking for updates…':'Check for season updates'}</button>
@@ -7219,7 +7219,7 @@ function App() {
     </div>}
     {poolTab==='play' && cfg.PLAYABLE && <div className="ph-no-capture" id="pool-panel-play" role="tabpanel" aria-labelledby="pool-tab-play">
       <Stepper phase={phase} RULES={RULES}/>
-      {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>For live seasons, phase boundaries may be adjusted as episodes are confirmed.</p>}
+      {cfg.BOUNDARIES_LIVE&&<p className="subtle" style={{textAlign:'center',margin:'-2px 0 14px'}}>While the season airs, we may adjust which episodes belong to each phase.</p>}
       {screen==='intro'&&<div className="card"><h2>{navigationPhaseLabel(phase,RULES)}</h2><p className="lede">{phaseIntro.tagline}</p><button className="btn-primary" disabled={gating} onClick={()=>phase==='pods'&&w<PH_STARTW.pods?startPods():setScreen('board')}>{phase==='pods'&&w<PH_STARTW.pods?"I've watched Episode "+PH_STARTW.pods+' - Start predicting':phase==='pods'?'Return to prediction board':'Open the prediction board'}</button></div>}
       {screen==='board'&&<React.Fragment>
         <PhaseHero phase={phase} w={w} RULES={RULES}/>
@@ -7251,9 +7251,9 @@ function App() {
           <button className="btn-primary" disabled={gating} onClick={()=>finishWatch(readyWatchEnd)}>I've finished {watchRangeLabel(phase,w+1,readyWatchEnd)} →</button>
         </React.Fragment>:<React.Fragment>
           {w>=PH_SPAN[phase].endEp&&BOUNDARIES_FINAL[phase]!==false
-            ? <React.Fragment><p className="lede">The {navigationPhaseLabel(phase,RULES)} boundary is confirmed at Episode {PH_SPAN[phase].endEp}.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
+            ? <React.Fragment><p className="lede">{navigationPhaseLabel(phase,RULES)} ends at Episode {PH_SPAN[phase].endEp}.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><button className="btn-primary" disabled={gating} onClick={finalizeCaughtUpPhase}>Complete {navigationPhaseLabel(phase,RULES)} →</button></React.Fragment>
             : BOUNDARIES_FINAL[phase]===false&&w>=PH_SPAN[phase].endEp
-              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while the {navigationPhaseLabel(phase,RULES)} boundary is finalized.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><div className="notice"><b>This phase is still provisional.</b> The season manager will confirm the boundary as episodes are released. Refresh this page after that update.</div><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>
+              ? <React.Fragment><p className="lede">You are caught up through Episode {w}. Your predictions are saved while we confirm where {navigationPhaseLabel(phase,RULES)} ends.</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><div className="notice"><b>Not final yet.</b> Check back after the next episodes are added.</div><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>
               : <React.Fragment><p className="lede">{cfg?.SEASON_STATUS==='live'?<>You're caught up through Episode {w}. Your predictions are locked. New episodes unlock here once their results are logged, usually a few hours after Netflix drops them.</>:<>You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.</>}</p>{lockedPickCards}<PersistentRetroReveals events={persistentRetroEvents} globalPool={activePool.global===true} picks={picks} eng={eng}/><button className="btn-secondary" disabled={refreshingPool} onClick={()=>refreshPool(true)}>{refreshingPool?'Refreshing…':'Refresh season data'}</button></React.Fragment>}
         </React.Fragment>}
       </div>}
