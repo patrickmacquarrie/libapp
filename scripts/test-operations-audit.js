@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const html=read('index.html');
+const welcomeHtml=read('welcome/index.html');
 const analyticsSource=read('analytics.js');
 const functionsSource=read('functions/index.js');
 const scoringEngineSource=read('functions/shared/scoring-engine.js');
@@ -258,8 +259,9 @@ assert(html.includes('viewport-fit=cover'),'The viewport must fill Safari screen
 assert(html.includes('html{width:100%;min-width:0')&&html.includes('.app{width:100%;max-width:760px'),'Safari must receive explicit full-width layout roots.');
 assert(html.includes('New episodes unlock here once their results are logged. Lock in now and check back after the next drop.'),'Live lock confirmation must explain the results-backed episode gate.');
 assert(html.includes("You're caught up through Episode {w}. Your predictions are locked. New episodes unlock here once their results are logged, usually a few hours after Netflix drops them."),'The live caught-up screen must explain when the next batch unlocks.');
-assert(html.includes('No checkpoint scores yet. Each phase is scored once its results are confirmed.'),'Empty Global standings must explain the results-ready gate.');
-assert(!html.includes('No checkpoint scores yet. The leaderboard begins when the first player completes a phase.'),'The old Global empty-board lede must be removed.');
+assert(html.includes('No phase scores yet. Each phase is scored once its results are confirmed.'),'Empty Global standings must explain the results-ready gate using phase wording.');
+assert(html.includes('No phase scores yet. The leaderboard begins after you finish your first phase.'),'Empty private standings must explain when the leaderboard begins using phase wording.');
+assert(!html.includes('No checkpoint scores yet.'),'The old empty-standings checkpoint wording must be removed.');
 assert(html.includes('No new episodes are available yet. You can return when they are.')&&html.includes('You are caught up through Episode {w}. Your predictions remain locked. Come back when the next episodes are out.'),'Non-live seasons must retain their existing gate copy.');
 assert(html.includes('if(dirty&&!seasonChanged)return;')&&html.includes('[seasonId,myRatingDoc?.updatedAt,dirty]'),'A live Heat Check refresh must not replace an unsaved private draft, while a season change must still hydrate the new season.');
 assert(html.includes("poolTab==='chemistry'?refreshChemistryCommunity():refreshStandings()"),'Friend Heat Check activity must refresh community results without reloading the private draft.');
@@ -317,11 +319,52 @@ assert(html.slice(createPoolStart,joinGlobalStart).includes('requestEpisodeEmail
 assert(html.slice(joinGlobalStart,acceptInviteStart).includes('requestEpisodeEmailPrompt();'),'A successful Global Pool join must request the one-time email card.');
 assert(html.slice(acceptInviteStart,declineInviteStart).includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'});\n      requestEpisodeEmailPrompt();"),'Accepting an email invitation must request the one-time email card after the successful join.');
 assert(html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'});\n              requestEpisodeEmailPrompt();"),'Joining through a pool link must request the one-time email card after the successful join.');
-assert(html.includes('Predictions will open on October 14.')&&html.includes('Everyone should watch episode 1 before coming back to make predictions.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
+assert(html.includes('Episode 1 drops October 14 at 12 a.m. PT / 3 a.m. ET.')&&html.includes('Watch it, then come back to make your first picks.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
 const prelaunchPanelStart=html.indexOf("poolTab==='play' && !cfg.PLAYABLE");
 const prelaunchPanelEnd=html.indexOf("poolTab==='play' && cfg.PLAYABLE",prelaunchPanelStart);
 const prelaunchPanel=html.slice(prelaunchPanelStart,prelaunchPanelEnd);
 assert(prelaunchPanel.indexOf('Invite your Friends to Join')<prelaunchPanel.indexOf('Check for season updates')&&prelaunchPanel.indexOf('Check for season updates')<prelaunchPanel.indexOf('Test the app with past seasons'),'The past-season test path must follow the invite and season-update actions.');
+[
+  'Join the Global Pool',
+  'Play {formatSeasonLabel(join.season)} against everyone on Through the Wall. Global scores and rankings are separate from your private pools.',
+  'Link a private pool (optional)',
+  "Don't link. I'll make separate Global picks",
+  "You don't have a private pool for this season yet, so your Global picks start fresh.",
+  "Linked pools share your picks and progress, so you only predict once. Picks you've already made count here from where you are now, so they don't earn the early-pick bonus.",
+  'Could not join the Global Pool. Please try again.',
+  'Play against everyone, with its own leaderboard.',
+  'You’re in the Global Pool',
+  'Optional. Global picks are scored separately from your private pools. Link a private pool so you only predict once.',
+  'Link to my Global Pool picks',
+  'Your picks and progress stay in sync, so you only predict once. Scores stay separate.',
+  'While the season airs, we may adjust which episodes belong to each phase.',
+  'No results in these episodes',
+  'Your open predictions are still in play.',
+  'Other outcomes in these episodes (',
+  "results are being confirmed. Scores appear here once they're final.",
+  'Points appear once you finish this phase.',
+  'Scoring update: this counts in your standings once you finish this phase.',
+  'The lead held from the first phase.',
+  'Phase leaders',
+  'View phase',
+  'Global leaderboard phase',
+  'Saving your progress…',
+  "Your progress didn't save. Try again.",
+  'Linked with ${linkedPoolNames.length===1?linkedPoolNames[0]:linkedPoolNames.join(\', \')}',
+  "Your linked pool didn't update.",
+  "Close the pool once everyone has joined. Final standings and Season Wrapped only appear after it's closed.",
+  "Sign in to play in the Global Pool, start a private pool, or join a friend's."
+].forEach(copy=>assert(html.includes(copy),`Player wording must include: ${copy}`));
+[
+  'watch-through',
+  'season sheet is marked ready',
+  'The season manager will confirm',
+  'mirror them there',
+  'Nothing resolved in this watch-through'
+].forEach(copy=>assert(!html.includes(copy),`Retired player wording must be removed: ${copy}`));
+assert(!html.replace('The global pool is unavailable until its Firestore rules are published.','').includes('global pool'),'Player-facing Global Pool references must be capitalized.');
+assert(welcomeHtml.includes('before each phase locks'),'The welcome page must describe phases, not checkpoints.');
+assert(welcomeHtml.includes('<a class="app-link" href="../">Flying solo? Sign in and join the Global Pool to play against everyone.</a>'),'The welcome hero must link solo players to the Global Pool.');
 assert(html.includes('One season. Four prediction windows.'),'The signed-out route must explain the season checkpoint structure.');
 assert(!html.includes('<PublicTaste/>'),'The signed-out route must not render the interactive prediction demo.');
 const enterPoolSource=html.slice(html.indexOf('const enterPool = async'),html.indexOf('\n  const analyticsRoute=',html.indexOf('const enterPool = async')));
