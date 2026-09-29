@@ -1799,6 +1799,8 @@ const clampWatchTarget=(phase,currentWatch,requestedWatch,spans,availableThrough
   // Only pending or future progress is constrained when availability moves back.
   return Math.max(current,Math.min(requested,ceiling));
 };
+const globalLandingWatch=({phase,currentWatch,ledgerWatch,spans,availableThrough})=>
+  clampWatchTarget(phase,currentWatch,ledgerWatch,spans,availableThrough);
 /* EPISODE GATE HELPERS END */
 const noteAvailableEpisode=(seasonId,availableThrough)=>{
   const episode=Math.max(0,Number(availableThrough)||0);
@@ -5171,9 +5173,9 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onWatchCha
       </select>
       {sourcePools.length===0?<p className="subtle">You have no other pool for this season yet, so your global predictions will start separately.</p>:<p className="subtle">If you choose a pool, your picks, confirmed watch progress, and completed checkpoints stay aligned with the Global Pool without ever moving backward. Global scoring uses the confirmed watch position synchronized from that pool.</p>}
       {watchSelection.ask&&<div className="field" style={{marginTop:16}}>
-        <label className="small" htmlFor={watchId}>{watchSelection.availableThroughEp} episode{watchSelection.availableThroughEp===1?' is':'s are'} available — how many have you watched?</label>
+        <label className="small" htmlFor={watchId}>How many of the {watchSelection.availableThroughEp} available episode{watchSelection.availableThroughEp===1?'':'s'} have you already watched?</label>
         <div className="stakebox"><input id={watchId} type="range" min="0" max={watchSelection.availableThroughEp} step="1" value={watchSelection.initialWatchedThrough} disabled={joining} onChange={event=>onWatchChange(Number(event.target.value))}/><span className="stakeval">{watchSelection.initialWatchedThrough}</span></div>
-        <p className="subtle">This starts your prediction clock in the right place. You can move forward later, but confirmed progress never moves backward.</p>
+        <p className="subtle">We'll start you right after that episode. Predictions only count for what happens next, and you can't lower this later.</p>
       </div>}
       <div className="modal-actions"><button className="btn-primary" disabled={joining} onClick={onJoin}>{joining?'Joining...':'Join global pool'}</button><button className="btn-secondary" disabled={joining} onClick={onClose}>Cancel</button></div>
     </div>
@@ -5338,6 +5340,7 @@ function App() {
   const saveChain = useRef(Promise.resolve());
   const pickMirrorLinks = useRef([]);
   const mirrorSeasonConfig=useRef({spans:{},availableThrough:0});
+  const globalLedgerWatch=useRef({poolId:'',value:0});
   const pendingMirroredGlobalLocks = useRef(new Set());
   const pendingJoinedPool = useRef(null);
   const identifiedAnalyticsUid = useRef('');
@@ -5565,10 +5568,13 @@ function App() {
     setShowHowItWorks(false);
   };
   /* ── Enter a pool ── */
-  const enterPool = async (pool, duplicateFromPoolId='') => {
+  const enterPool = async (pool, duplicateFromPoolId='', options={}) => {
     let entryStep='starting the pool';
     let entryMirrorFailed=false;
     try {
+      const initialGlobalWatch=Math.max(0,Math.trunc(Number(options.initialWatchedThrough)||0));
+      if(globalLedgerWatch.current.poolId!==pool.id)globalLedgerWatch.current={poolId:pool.id,value:0};
+      if(pool.global===true&&!duplicateFromPoolId&&initialGlobalWatch>0)globalLedgerWatch.current={poolId:pool.id,value:initialGlobalWatch};
       setErr(''); setLobbyLoading(true); setEnteringPool(true); setPoolTab(pool.global===true&&GLOBAL_POOL_DEMO_MODE?'standings':'play');
       setPricingPrompt(null);setPricingResponse('');setPriceVariant(null);
       setChemistryMine(null);setChemistryCommunity(null);setChemistryGlobalCommunity(null);setChemistryFeedback('');
@@ -5742,8 +5748,19 @@ function App() {
             minePhase=mine.phase||minePhase;
           }
         }
-        if(enteredPool.global===true&&Math.trunc(Number(mine.w)||0)>0){
-          try{await window._fb.advanceGlobalWatch(pool.id,Math.trunc(Number(mine.w)||0));}
+        if(enteredPool.global===true){
+          try{
+            const result=await window._fb.advanceGlobalWatch(pool.id,Math.max(0,Math.trunc(Number(mine.w)||0)));
+            const storedWatch=Math.max(0,Math.trunc(Number(result?.data?.watchedThrough)||0));
+            globalLedgerWatch.current={poolId:pool.id,value:storedWatch};
+            if(mine.screen==='intro'&&storedWatch>Math.max(0,Math.trunc(Number(mine.w)||0))){
+              const raisedW=globalLandingWatch({phase:minePhase,currentWatch:Number(mine.w)||0,ledgerWatch:storedWatch,spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP});
+              const raisedWatchThrough=globalLandingWatch({phase:minePhase,currentWatch:Number(mine.watchThrough)||Number(mine.w)||0,ledgerWatch:storedWatch,spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP});
+              await window._fb.savePlayer(pool.id,user.uid,{username:mine.username||profile.username,picks:mine.picks||freshPicks(),predictionPhases:[],phase:minePhase,screen:'intro',w:raisedW,watchThrough:raisedWatchThrough,completed:mine.completed||{},...(mine.duplicateFromPoolId?{duplicateFromPoolId:mine.duplicateFromPoolId}:{})});
+              mine={...mine,w:raisedW,watchThrough:raisedWatchThrough};
+              players[user.uid]=mine;
+            }
+          }
           catch(error){reportTtwError('pool_open_failed',error,{operation:'resync_global_watch',poolId:pool.id,seasonId:seasonForPool(pool).id});}
         }
         const savedRetroNotices=readSeenRetroNotices(pool.id,user.uid);
@@ -5843,6 +5860,9 @@ function App() {
           if(sourcePlayer){
             w0=clampWatchTarget(landingPhase,startingW,Number(sourcePlayer.w)||startingW,poolCfg.PH_SPAN,poolCfg.AVAILABLE_THROUGH_EP);
           }
+        }
+        if(enteredPool.global===true&&!activeDuplicateFrom&&initialGlobalWatch>startingW){
+          w0=globalLandingWatch({phase:landingPhase,currentWatch:startingW,ledgerWatch:initialGlobalWatch,spans:poolCfg.PH_SPAN,availableThrough:poolCfg.AVAILABLE_THROUGH_EP});
         }
         setPicks(initialPicks); setPhase(landingPhase); setScreen(landingScreen); setW(w0); setWatchThrough(w0);
         setDuplicateFromPoolId(activeDuplicateFrom);
@@ -6172,7 +6192,7 @@ function App() {
       setGlobalPools(current=>({...current,[season.id]:globalPool}));
       if(sourcePoolId) pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==globalPool.id),{poolId:globalPool.id,sourcePoolId}];
       setGlobalJoin(null);
-      await enterPool(globalPool,sourcePoolId);
+      await enterPool(globalPool,sourcePoolId,{initialWatchedThrough});
     } catch(e) { console.error(e);reportTtwError('global_join_failed',e,{operation:'join_global_pool',seasonId:season.id});setErr(playerSeasonError(e,'Could not join the global pool. Please try again.')); }
     finally { setJoiningGlobal(false); }
   };
@@ -6588,7 +6608,10 @@ function App() {
       const nc=canClose?{...completed,[phase]:true}:completed;
       const closing=canClose?eng.resolvePhaseClose(phase,{[user.uid]:picks[phase]}):[];
       await savePlayer({picks,phase,predictionPhases:resolvingPhases,screen:nextScreen,w:target,watchThrough:target,completed:nc},true);
-      if(activePool.global===true)await window._fb.advanceGlobalWatch(activePool.id,target);
+      if(activePool.global===true){
+        const result=await window._fb.advanceGlobalWatch(activePool.id,target);
+        globalLedgerWatch.current={poolId:activePool.id,value:Math.max(0,Math.trunc(Number(result?.data?.watchedThrough)||target))};
+      }
       setW(target);setWatchThrough(target);setReveal({ep:target,rangeLabel:canClose&&phase==='dating'?'Retreats recap':watchRangeLabel(phase,start,target),...pendified});
       writeSeenRetroNotices(activePool.id,user.uid,nextSeenRetroNotices);
       setSessionRetroNotices(current=>normalizeSeenRetroNotices([...current,...revealedRetroEvents.map(retroNoticeKey)]));
@@ -6619,7 +6642,9 @@ function App() {
       if (!next) { await savePlayer({picks, phase, screen:'final', w, watchThrough, completed},true);setScreen('final');return; }
       // Overlap may mean the next board already opened during this checkpoint.
       // Never rewind the watch position when advancing the primary phase.
-      const nextW=Math.max(w,PH_STARTW[next]);
+      const nextW=activePool.global===true
+        ? globalLandingWatch({phase:next,currentWatch:Math.max(w,PH_STARTW[next]),ledgerWatch:globalLedgerWatch.current.value,spans:PH_SPAN,availableThrough:AVAILABLE_THROUGH_EP})
+        : Math.max(w,PH_STARTW[next]);
       await savePlayer({picks,phase:next,predictionPhases:[next],screen:'intro',w:nextW,watchThrough:nextW,completed},true);
       setPhase(next); setW(nextW); setWatchThrough(nextW); setReveal(null); setCloseInfo(null); setPhaseCompletionError(''); setScreen('intro');
     } catch(e) {setErr(NEXT_PH[phase]?'The next phase could not be saved.':'The final screen could not be saved.');}
