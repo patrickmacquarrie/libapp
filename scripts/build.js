@@ -143,7 +143,7 @@ async function optimizeImages() {
   fs.mkdirSync(outputImages,{recursive:true});
   copyTreeExcept(sourceImages,outputImages,(input,entry)=>{
     const relative=path.relative(sourceImages,input);
-    return relative==='cast'||relative.startsWith(`cast${path.sep}`)||relative==='through-the-wall-social-card.png';
+    return relative==='cast'||relative.startsWith(`cast${path.sep}`)||relative==='through-the-wall-social-card.jpg';
   });
 
   const sourceCast=path.join(sourceImages,'cast');
@@ -169,10 +169,10 @@ async function optimizeImages() {
   visit(sourceCast);
   await Promise.all(jobs);
 
-  const socialSource=path.join(sourceImages,'through-the-wall-social-card.png');
+  const socialSource=path.join(sourceImages,'through-the-wall-social-card.jpg');
   if(fs.existsSync(socialSource)) {
-    const socialOutput=path.join(outputImages,'through-the-wall-social-card.png');
-    await sharp(socialSource).png({palette:true,colours:128,dither:.6,compressionLevel:9,effort:10}).toFile(socialOutput);
+    const socialOutput=path.join(outputImages,'through-the-wall-social-card.jpg');
+    fs.copyFileSync(socialSource,socialOutput);
     const size=fs.statSync(socialOutput).size;
     if(size>SOCIAL_LIMIT) throw new Error(`Social card is ${(size/1024).toFixed(1)}KB; limit is 200KB.`);
   }
@@ -234,7 +234,7 @@ function seasonPage(season,data,availableSeasons) {
 <meta name="description" content="Meet the ${esc(season.label)} cast and create a free fantasy prediction pool with friends.">
 <link rel="canonical" href="${canonical}"><meta property="og:title" content="${esc(season.label)} fantasy predictions">
 <meta property="og:description" content="Make your Love Is Blind calls, compare picks, and climb the standings with friends.">
-<meta property="og:image" content="https://throughthewall.ca/images/through-the-wall-social-card.png">
+<meta property="og:image" content="https://throughthewall.ca/images/through-the-wall-social-card.jpg">
 <meta property="og:url" content="${canonical}"><meta property="og:type" content="website">
 <link rel="icon" type="image/png" href="/images/through-the-wall-app-icon.png"><link rel="apple-touch-icon" href="/images/through-the-wall-app-icon.png">
 <script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script>
