@@ -1,0 +1,16 @@
+{
+  "name": "ttw-us11-prelaunch-ad",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "PLAYWRIGHT_BROWSERS_PATH=.browsers node render.mjs",
+    "setup": "PLAYWRIGHT_BROWSERS_PATH=.browsers playwright-core install chromium"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
+    "playwright-core": "^1.56.1",
+    "sharp": "^0.34.4",
+    "skia-canvas": "^3.0.8"
+  }
+}

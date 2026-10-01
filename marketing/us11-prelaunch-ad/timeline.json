@@ -1,0 +1,50 @@
+{
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "cuts": {
+    "15": {
+      "duration": 15,
+      "beats": [
+        {"scene":"opening","start":0,"end":2},
+        {"scene":"question","start":2,"end":4},
+        {"scene":"burst","start":4,"end":5},
+        {"scene":"demo","start":5,"end":10},
+        {"scene":"pools","start":10,"end":13},
+        {"scene":"receipt","start":13,"end":13.9},
+        {"scene":"end","start":13.9,"end":15}
+      ],
+      "captions": [
+        {"start":0,"end":1.2,"text":"LOVE IS BLIND: BOSTON"},
+        {"start":1.2,"end":2,"text":"LOVE IS BLIND: BOSTON\nOCT 14"},
+        {"start":2,"end":3,"text":"Think you can"},
+        {"start":3,"end":4,"text":"pick the couples?"},
+        {"start":4,"end":5,"text":"Prove it."},
+        {"start":5,"end":6.4,"text":"Make your picks"},
+        {"start":6.4,"end":8,"text":"Free prediction game"},
+        {"start":8,"end":10,"text":"Engagements. Weddings. Breakups."},
+        {"start":10,"end":11.3,"text":"Play solo"},
+        {"start":11.3,"end":13,"text":"Bring your group chat"},
+        {"start":13,"end":13.9,"text":"throughthewall.ca"},
+        {"start":13.9,"end":15,"text":"throughthewall.ca\nJoin free before Oct 14"}
+      ]
+    },
+    "6": {
+      "duration": 6,
+      "beats": [
+        {"scene":"opening","start":0,"end":2},
+        {"scene":"question","start":2,"end":3.3},
+        {"scene":"receipt","start":3.3,"end":4.3},
+        {"scene":"end","start":4.3,"end":6}
+      ],
+      "captions": [
+        {"start":0,"end":1.2,"text":"LOVE IS BLIND: BOSTON"},
+        {"start":1.2,"end":2,"text":"LOVE IS BLIND: BOSTON\nOCT 14"},
+        {"start":2,"end":2.65,"text":"Think you can"},
+        {"start":2.65,"end":3.3,"text":"pick the couples?"},
+        {"start":3.3,"end":4.3,"text":"Prove it."},
+        {"start":4.3,"end":6,"text":"throughthewall.ca\nJoin free before Oct 14"}
+      ]
+    }
+  }
+}
