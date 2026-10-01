@@ -21,8 +21,7 @@ const server=http.createServer((req,res)=>{
   if(!['ad.html','timeline.json','icon.svg'].includes(filename)){res.writeHead(404);res.end();return}
   res.writeHead(200,{'Content-Type':mime[path.extname(filename)]});fs.createReadStream(path.join(here,filename)).pipe(res);
 });
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const port=server.address().port;
+let port;
 function run(cmd,args){return new Promise((resolve,reject)=>{const p=spawn(cmd,args,{stdio:['ignore','pipe','pipe']});let stdout='',stderr='';p.stdout.on('data',d=>stdout+=d);p.stderr.on('data',d=>stderr+=d);p.on('error',reject);p.on('close',code=>code===0?resolve(stdout):reject(new Error(`${cmd} exited ${code}: ${stderr.slice(-3000)}`)))});}
 function srtTime(seconds){const ms=Math.round(seconds*1000);return `${String(Math.floor(ms/3600000)).padStart(2,'0')}:${String(Math.floor(ms/60000)%60).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')},${String(ms%1000).padStart(3,'0')}`}
 function writeSrt(cut){const cues=timeline.cuts[cut].captions.map((c,i)=>`${i+1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text}\n`).join('\n');fs.writeFileSync(path.join(out,`captions-${cut}s.srt`),cues)}
@@ -42,5 +41,7 @@ try{
  const executable=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
  if(process.env.TTW_RENDERER!=='canvas')try{browser=await chromium.launch({headless:true,executablePath:executable||undefined,args:['--no-sandbox']})}
  catch(error){console.warn('Chromium unavailable here; using deterministic graphics renderer.');}
+ if(browser)try{await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});port=server.address().port}
+ catch(error){console.warn('Preview server unavailable here; using deterministic graphics renderer.');await browser.close();browser=null}
  for(const cut of ['15','6']){let file;if(browser){try{file=await renderCut(browser,cut)}catch(error){console.warn(`Browser render failed for ${cut}s; using deterministic graphics renderer: ${error.message}`);await browser.close();browser=null;file=await renderCanvasCut(cut)}}else file=await renderCanvasCut(cut);await muxVoiceover(file,cut);const data=await probe(file);const video=data.streams.find(s=>s.codec_type==='video');if(video.width!==1080||video.height!==1920||video.pix_fmt!=='yuv420p'||Number(video.nb_read_frames)!==timeline.cuts[cut].duration*30||Math.abs(Number(data.format.duration)-timeline.cuts[cut].duration)>.002)throw new Error(`Probe failed for ${cut}s: ${JSON.stringify(data)}`);console.log(`${path.basename(file)}: ${data.format.duration}s, ${video.nb_read_frames} frames, ${video.width}x${video.height}, ${video.pix_fmt}`)}
-}finally{await browser?.close();server.close()}
+}finally{await browser?.close();if(server.listening)server.close()}

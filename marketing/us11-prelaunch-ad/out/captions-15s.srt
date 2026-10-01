@@ -40,10 +40,6 @@ Play solo
 Bring your group chat
 
 11
-00:00:13,000 --> 00:00:13,900
-throughthewall.ca
-
-12
-00:00:13,900 --> 00:00:15,000
+00:00:13,000 --> 00:00:15,000
 throughthewall.ca
 Join free before Oct 14

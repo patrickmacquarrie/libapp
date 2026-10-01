@@ -20,4 +20,4 @@ If `vo-15s.m4a` or `vo-6s.m4a` is present here, the same command also writes a v
 
 **6 seconds:** “Love Is Blind Boston drops October 14th. Think you can pick the couples? Prove it. throughthewall.ca”
 
-The on-screen captions use short phrases from the approved message to stay readable on mute. The “Example” badge stays visible throughout the prediction demo. Names and scores in the mock UI are fictional.
+The on-screen captions use short phrases from the approved message to stay readable on mute. The “Example” badge stays visible throughout the prediction demo. The demo uses Zack and Bliss from a previous season. Scores and other names in the mock UI are illustrative.
