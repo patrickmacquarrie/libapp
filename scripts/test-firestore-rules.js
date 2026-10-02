@@ -418,6 +418,11 @@ async function main(){
 
   const playerPath=`pools/${invitePool}/players/${second.uid}`;
   await expectStatus(await writeDocument(playerPath,playerFields('pods','intro'),second.token),200,'player writes bounded public state');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),syncPoolIds:arrayValue([stringValue(invitePool),stringValue('another-pool')])},second.token),200,'player may store a bounded sync group');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),syncPoolIds:arrayValue([stringValue('another-pool'),stringValue('third-pool')])},second.token),403,'sync groups must include their own pool');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),syncPoolIds:arrayValue([stringValue(invitePool),stringValue('another-pool'),boolValue(true)])},second.token),403,'sync group entries must be pool IDs');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),syncPoolIds:arrayValue([stringValue(invitePool),...Array.from({length:19},(_,index)=>stringValue(`pool-${index}`))])},second.token),200,'a full 20-pool sync group remains valid');
+  await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),syncPoolIds:arrayValue(Array.from({length:21},(_,index)=>stringValue(`pool-${index}`)))},second.token),403,'sync groups cannot grow without bound');
   await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),arbitrary:stringValue('not allowed')},second.token),403,'player cannot add arbitrary public fields');
   await expectStatus(await writeDocument(playerPath,{...playerFields('pods','intro'),username:stringValue('x'.repeat(41))},second.token),403,'player username size is bounded');
   await expectStatus(

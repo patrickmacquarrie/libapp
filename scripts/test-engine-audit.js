@@ -277,11 +277,11 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 }
 
 {
-  assert(source.includes('Link to my Global Pool picks'),'Private-pool creation must offer linked Global picks.');
-  assert(source.includes("let activeDuplicateFrom=duplicateFromPoolId||''"),'A private pool must be allowed to use the Global Pool as its pick source.');
+  assert(source.includes('Sync picks with an existing pool?'),'Private-pool creation must offer same-season pool syncing.');
+  assert(source.includes('let activeDuplicateFrom=duplicateFromPoolId||existingGroupPeer'),'A private pool must be allowed to use the Global Pool or another linked pool as its pick source.');
   assert(source.includes('const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId)'),'Pick synchronization must support either pool type as the target.');
   assert(source.includes('Linked with ${linkedPoolNames.length===1'),'Linked pools must visibly identify their connection below the pool title.');
-  assert(source.includes('matchingGlobalPool?.members?.includes(user.uid)'),'The mirror option must be limited to matching Global Pool members.');
+  assert(source.includes('Object.values(globalPools).filter(pool=>pool?.members?.includes(user.uid))'),'The sync option must be limited to joined Global Pools.');
 }
 
 console.log('Engine audit assertions passed.');
