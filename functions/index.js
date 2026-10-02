@@ -1063,6 +1063,13 @@ async function completeGlobalPhase(request){
   return {ok:true,completedAt,standingsRevision:0,standingsStale:!standingsQueued};
 }
 
+function linkedPrivatePoolIds(player,globalPoolId){
+  const ids=Array.isArray(player?.syncPoolIds)&&player.syncPoolIds.length
+    ? player.syncPoolIds
+    : [player?.duplicateFromPoolId];
+  return [...new Set(ids.filter(id=>typeof id==='string'&&id&&id!==globalPoolId))];
+}
+
 async function resetHistoricalGlobalSimulation(request){
   const uid=requireUser(request);
   if(!isGlobalPoolAdmin(request))throw new HttpsError('permission-denied','Only the app administrator can reset a historical Global simulation.');
@@ -1081,9 +1088,9 @@ async function resetHistoricalGlobalSimulation(request){
   const [trustedSnapshot,playersSnapshot,phasePicksSnapshot]=await Promise.all([
     poolRef.collection('trustedPlayers').get(),poolRef.collection('players').get(),poolRef.collection('phasePicks').get(),
   ]);
-  const linkedPlayers=playersSnapshot.docs.map(document=>({
-    uid:document.id,sourcePoolId:String(document.data().duplicateFromPoolId||''),
-  })).filter(link=>link.sourcePoolId);
+  const linkedPlayers=playersSnapshot.docs.flatMap(document=>
+    linkedPrivatePoolIds(document.data(),poolId).map(sourcePoolId=>({uid:document.id,sourcePoolId}))
+  );
   const sourcePoolIds=[...new Set(linkedPlayers.map(link=>link.sourcePoolId))];
   const [sourcePoolSnapshots,sourcePlayerSnapshots]=await Promise.all([
     Promise.all(sourcePoolIds.map(sourcePoolId=>db.doc(`pools/${sourcePoolId}`).get())),
@@ -1109,8 +1116,8 @@ async function resetHistoricalGlobalSimulation(request){
   },{merge:true}));
   playersSnapshot.docs.forEach(document=>batch.set(document.ref,{
     phase:'pods',screen:'intro',w:0,watchThrough:0,completed:{},
-    // Preserve duplicateFromPoolId. Historical testers must keep their
-    // established friend-pool links after the confirmed-watch ledger resets;
+    // Preserve the player's sync group. Historical testers must keep their
+    // established private-pool links after the confirmed-watch ledger resets;
     // leaving and rejoining must not change player-relative scoring rules.
     lastPredictionAt:FieldValue.delete(),
   },{merge:true}));
@@ -1135,9 +1142,7 @@ async function resetHistoricalGlobalSimulation(request){
     },{merge:true}));
   });
   await batch.commit();
-  const linksPreserved=playersSnapshot.docs.filter(document=>
-    typeof document.data().duplicateFromPoolId==='string'&&document.data().duplicateFromPoolId
-  ).length;
+  const linksPreserved=playersSnapshot.docs.filter(document=>linkedPrivatePoolIds(document.data(),poolId).length>0).length;
   return {
     ok:true,resetAt,membersReset:trustedSnapshot.size,linksPreserved,
     linkedPlayersReset:resettableLinks.length,linkedPlayersSkipped:linkedPlayers.length-resettableLinks.length,
@@ -1163,9 +1168,9 @@ async function relaxHistoricalJoinFloor(request){
   const publicPlayers=new Map(playersSnapshot.docs.map(document=>[
     document.id,{ref:document.ref,data:document.data()},
   ]));
-  const requestedLinks=playersSnapshot.docs.map(document=>({
-    uid:document.id,sourcePoolId:String(document.data().duplicateFromPoolId||''),
-  })).filter(link=>link.sourcePoolId);
+  const requestedLinks=playersSnapshot.docs.flatMap(document=>
+    linkedPrivatePoolIds(document.data(),poolId).map(sourcePoolId=>({uid:document.id,sourcePoolId}))
+  );
   const sourcePoolIds=[...new Set(requestedLinks.map(link=>link.sourcePoolId))];
   const [sourcePoolSnapshots,sourcePlayerSnapshots]=await Promise.all([
     Promise.all(sourcePoolIds.map(sourcePoolId=>db.doc(`pools/${sourcePoolId}`).get())),
@@ -1180,16 +1185,18 @@ async function relaxHistoricalJoinFloor(request){
     if(
       sourcePoolSnapshot?.exists&&sourcePlayerSnapshot?.exists&&sourcePool?.global!==true&&
       sourceSeasonId===seasonId&&Array.isArray(sourcePool.members)&&sourcePool.members.includes(link.uid)
-    )confirmedLinkedPlayers.set(link.uid,{sourcePoolId:link.sourcePoolId,data:sourcePlayerSnapshot.data()});
+    )confirmedLinkedPlayers.set(link.uid,[...(confirmedLinkedPlayers.get(link.uid)||[]),{sourcePoolId:link.sourcePoolId,data:sourcePlayerSnapshot.data()}]);
   });
   const restampedByMember=new Map();
   let picksRestamped=0;
   trustedSnapshot.docs.forEach(document=>{
     const trusted=document.data(),publicPlayer=publicPlayers.get(document.id);
-    const linkedPlayer=confirmedLinkedPlayers.get(document.id);
+    const linkedPlayers=confirmedLinkedPlayers.get(document.id)||[];
     // Linked friend state is the canonical source because the old public
     // Global mirror could also have promoted its `w` from `watchThrough`.
-    const confirmedSource=linkedPlayer?.data||publicPlayer?.data||{};
+    const confirmedSource=linkedPlayers.length
+      ? linkedPlayers.reduce((latest,linked)=>Number(linked.data.w||0)>Number(latest.w||0)?linked.data:latest,linkedPlayers[0].data)
+      : publicPlayer?.data||{};
     const confirmedWatch=advanceGlobalWatchValue(0,confirmedSource.w,cfg.AVAILABLE_THROUGH_EP);
     const repairedLedger={...trusted,joinedAtEp:0,watchedThrough:confirmedWatch};
     const repairedWindow=resolveGlobalWatchWindow(repairedLedger),repairedPicks={...(trusted.picks||{})};
@@ -1203,16 +1210,15 @@ async function relaxHistoricalJoinFloor(request){
     });
     restampedByMember.set(document.id,{
       trustedRef:document.ref,picks:repairedPicks,confirmedWatch,repairedWindow,
-      publicPlayer,linkedPlayer,
+      publicPlayer,linkedPlayers,
     });
   });
   const linkedPickRequests=[];
-  restampedByMember.forEach(({linkedPlayer,repairedWindow},memberUid)=>{
-    if(!linkedPlayer)return;
-    PHASES.filter(phase=>phase!=='reunion').forEach(phase=>linkedPickRequests.push({
+  restampedByMember.forEach(({linkedPlayers,repairedWindow},memberUid)=>{
+    linkedPlayers.forEach(linkedPlayer=>PHASES.filter(phase=>phase!=='reunion').forEach(phase=>linkedPickRequests.push({
       memberUid,phase,repairedWindow,
       ref:db.doc(`pools/${linkedPlayer.sourcePoolId}/phasePicks/${phase}__${memberUid}`),
-    }));
+    })));
   });
   const linkedPickSnapshots=linkedPickRequests.length
     ? await db.getAll(...linkedPickRequests.map(request=>request.ref))

@@ -345,8 +345,8 @@ assert(prelaunchPanel.indexOf('Invite your Friends to Join')<prelaunchPanel.inde
   'Play against everyone, with its own leaderboard.',
   'You’re in the Global Pool',
   'Optional. Global picks are scored separately from your private pools. Link a private pool so you only predict once.',
-  'Link to my Global Pool picks',
-  'Your picks and progress stay in sync, so you only predict once. Scores stay separate.',
+  'Sync picks with an existing pool?',
+  'Your answers and watch progress will follow you across linked pools. Each pool scores separately.',
   'While the season airs, we may adjust which episodes belong to each phase.',
   'No results in these episodes',
   'Your open predictions are still in play.',
@@ -686,7 +686,7 @@ const openGlobalPoolSource=html.slice(openGlobalPoolStart,joinGlobalPoolStart);
 const joinGlobalPoolSource=html.slice(joinGlobalPoolStart,acceptInvitationStart);
 assert(!openGlobalPoolSource.includes("trackTtwEvent('global_pool_joined'"),'Reopening an existing Global Pool membership must not emit a new join.');
 assert(joinGlobalPoolSource.indexOf("trackTtwEvent('global_pool_joined',{seasonId:season.id,initialWatchedThrough,mirrored:!!sourcePoolId})")>joinGlobalPoolSource.indexOf('await window._fb.joinGlobalPool(season,initialWatchedThrough)'),'A successful new Global Pool join must emit its season, starting watch position, and mirror state after the join completes.');
-assert(joinGlobalPoolSource.includes('await enterPool(globalPool,sourcePoolId,{initialWatchedThrough})'),'A direct Global join must pass the selected watch position into pool entry.');
+assert(joinGlobalPoolSource.includes('await enterPool(globalPool,sourcePoolId,{initialWatchedThrough,linkGroup:!!sourcePoolId})'),'A Global join must pass the selected watch position and link choice into pool entry.');
 assert(html.includes('className="modal ph-no-capture"'),'Settings must be excluded from session replay so account, pool, email, and support details never leave the browser.');
 assert(html.includes('className="pool-row ph-no-capture"'),'User-created pool names must be excluded from session replay.');
 assert(html.includes('className="invite-row ph-no-capture"'),'Invitation details must be excluded from session replay.');
@@ -965,6 +965,13 @@ async function assertMirrorEntryRegression(){
     JSON.stringify([{poolId:'friend'}]),
     'Saving the target pool must synchronize back to its source.',
   );
+  const groupLinks=[
+    {poolId:'friend-a',syncPoolIds:['friend-a','friend-b','global']},
+    {poolId:'friend-b',syncPoolIds:['friend-a','friend-b','global']},
+    {poolId:'global',syncPoolIds:['friend-a','friend-b','global']},
+  ];
+  assert.equal(JSON.stringify(context.__linkedMirrorPeers(groupLinks,'friend-a').map(peer=>peer.poolId).sort()),JSON.stringify(['friend-b','global']),'A save in one private pool must reach every linked pool.');
+  assert.equal(JSON.stringify(context.__linkedMirrorPeers(groupLinks,'friend-b').map(peer=>peer.poolId).sort()),JSON.stringify(['friend-a','global']),'A save in another private pool must reach the same group.');
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],
@@ -1070,7 +1077,7 @@ async function assertMirrorEntryRegression(){
     ['public','friend','viewer','pods',6],
   ],'A linked friend checkpoint must register completion before closing its public player state.');
   const entryCompletionCalls=[...enterPoolSource.matchAll(/await syncMirroredPhaseCompletion\(\{([\s\S]*?)\n\s*\}\);/g)].map(match=>match[1]);
-  assert.equal(entryCompletionCalls.length,3,'Pool entry must keep exactly three mirrored-completion paths.');
+  assert.equal(entryCompletionCalls.length,4,'Pool entry must reconcile both directions, first entry, and newly joined group peers.');
   entryCompletionCalls.forEach(source=>{
     assert(source.includes('globalConfirmedWatch:'),'Every pool-entry mirrored completion must pass confirmed Global progress.');
     assert(source.includes('advanceGlobalWatch:window._fb.advanceGlobalWatch'),'Every pool-entry mirrored completion must inject the trusted-ledger writer.');
@@ -1078,7 +1085,8 @@ async function assertMirrorEntryRegression(){
   });
   assert(entryCompletionCalls[0].includes('globalConfirmedWatch:Number(mine.w)||0'),'Target-led repair must use the entered player confirmed watch.');
   assert(entryCompletionCalls[1].includes('globalConfirmedWatch:Number(sourcePlayer.w)||0'),'Source-led repair must use the source player confirmed watch.');
-  assert(entryCompletionCalls[2].includes('globalConfirmedWatch:Number(sourcePlayer?.w)||0'),'First entry must tolerate a missing source player.');
+  assert(entryCompletionCalls[2].includes('globalConfirmedWatch:Number(mine.w)||0'),'Group repair must use confirmed watch progress.');
+  assert(entryCompletionCalls[3].includes('globalConfirmedWatch:Number(sourcePlayer?.w)||0'),'First entry must tolerate a missing source player.');
   const selfHealStart=enterPoolSource.indexOf("if(enteredPool.global===true){");
   const savedNoticesStart=enterPoolSource.indexOf('const savedRetroNotices=',selfHealStart);
   const selfHealSource=enterPoolSource.slice(selfHealStart,savedNoticesStart);
@@ -1091,8 +1099,13 @@ async function assertMirrorEntryRegression(){
   assert(openNextPhaseSource.includes("activePool.global===true")&&openNextPhaseSource.includes('ledgerWatch:globalLedgerWatch.current.value'),'Only a Global pool may use the stored ledger position when opening its next phase.');
   assert(html.includes("linkMirrorPeers: async (poolId,peerPoolId,uid)"),'A linked pair must be written to both player documents.');
   assert(html.includes("clearMirrorSource: async (poolId,uid,peerPoolId='')"),'A stale mirror source must be removable symmetrically without deleting copied game state.');
-  assert(html.includes("const linkedPeer=linkedMirrorPeers(pickMirrorLinks.current,enteredPool.id)[0]"),'Entry reconciliation must resolve a peer no matter which linked pool is opened.');
-  assert(html.includes('Your copied Global picks and progress were kept'),'A repaired Global Pool must explain that its copied state was preserved.');
+  assert(html.includes('for(const mirrorSourcePoolId of mirrorSourcePoolIds)'),'Entry reconciliation must inspect every peer in a linked group.');
+  assert(html.includes('linkMirrorGroup: async (poolId,peerPoolId,uid)'),'New links must merge existing same-season sync groups.');
+  assert(html.includes('unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId)'),'A player must be able to unlink one pool without deleting its picks.');
+  const settingsSource=html.slice(html.indexOf('function SettingsModal('),html.indexOf('function ConfirmModal('));
+  assert(settingsSource.includes('id="sync-pools-title"')&&settingsSource.includes('onSyncWithPool')&&settingsSource.includes('onUnlinkPool'),'Sync and unlink controls must live inside pool settings.');
+  assert(html.includes('function PoolSyncChoiceModal(')&&html.includes('offerSyncOnJoin(joinedPool)'),'A same-season invitation must offer a sync choice after joining.');
+  assert(html.includes('Your picks and progress here were kept; any other linked pools remain connected.'),'Removing an unavailable sync peer must explain that local state is preserved.');
   assert(html.includes('pending.data.screen===\'watch\''),'A source prediction window must trusted-lock its linked Global copy before progress advances.');
   const linkedSaveStart=html.indexOf('const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId)');
   const linkedTrustedLock=html.indexOf('const lockResult=await window._fb.lockGlobalPicks(link.poolId,submitted);',linkedSaveStart);
@@ -1118,7 +1131,7 @@ async function assertMirrorEntryRegression(){
   const historicalRepairStart=functionsSource.indexOf('async function relaxHistoricalJoinFloor(request)');
   const historicalRepairSource=functionsSource.slice(historicalRepairStart,historicalResetEnd);
   assert(historicalRepairStart>=0,'The historical scoring repair implementation must remain auditable.');
-  assert(historicalRepairSource.includes('const confirmedSource=linkedPlayer?.data||publicPlayer?.data||{};'),'A linked friend player must be the canonical confirmed-watch source for repair.');
+  assert(historicalRepairSource.includes('linkedPlayers.reduce((latest,linked)=>Number(linked.data.w||0)>Number(latest.w||0)?linked.data:latest,linkedPlayers[0].data)'),'The furthest confirmed watch across linked private pools must be canonical for repair.');
   assert(historicalRepairSource.includes('watchedThrough:confirmedWatch'),'The admin repair must replace a contaminated trusted watch ledger with confirmed progress.');
   assert(historicalRepairSource.includes("batch.set(publicPlayer.ref,{w:confirmedWatch},{merge:true})"),'The admin repair must also correct a contaminated public Global w.');
   assert(historicalRepairSource.includes('linkedPicksRestamped'),'The admin repair must report credited pick repairs in linked private pools.');

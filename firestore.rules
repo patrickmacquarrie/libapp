@@ -364,7 +364,8 @@ service cloud.firestore {
               'watchThrough',
               'completed',
               'lastPredictionAt',
-              'duplicateFromPoolId'
+              'duplicateFromPoolId',
+              'syncPoolIds'
             ]) &&
             data.username is string &&
             data.username.size() >= 1 &&
@@ -393,6 +394,14 @@ service cloud.firestore {
                 data.duplicateFromPoolId is string &&
                 data.duplicateFromPoolId.size() >= 1 &&
                 data.duplicateFromPoolId.size() <= 128
+              )
+            ) &&
+            (
+              !data.keys().hasAny(['syncPoolIds']) ||
+              (
+                data.syncPoolIds is list &&
+                data.syncPoolIds.size() >= 2 &&
+                data.syncPoolIds.size() <= 20
               )
             );
         }
