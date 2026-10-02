@@ -61,6 +61,8 @@ body{
 .app{width:100%;max-width:760px;margin:0 auto;padding:18px max(18px,env(safe-area-inset-right)) max(96px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
 .hdr{text-align:center;padding:10px 0 0;position:relative}
 .brand-logo{display:block;width:min(100%,500px);height:auto;margin:0 auto -2px}
+.header-status{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:7px}
+.beta-badge{display:inline-block;padding:4px 10px;border:1px solid color-mix(in srgb,var(--purple) 34%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--purple) 9%,var(--card));color:var(--purple);font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}
 .eyebrow{letter-spacing:.35em;font-size:11px;font-weight:600;color:var(--rose);text-transform:uppercase}
 .hdr h1{font-family:'Playfair Display',Georgia,serif;font-size:34px;line-height:1.1;margin:8px 0 6px;color:var(--wine)}
 .pool-sync-note{display:flex;align-items:center;justify-content:center;gap:6px;margin:-1px 0 5px;color:var(--muted);font-size:11px;font-weight:700;line-height:1.35}
@@ -2270,6 +2272,7 @@ const seasonOrder = (a,b) => String(a.country||'').localeCompare(String(b.countr
   || (Number(a.seasonNumber)||0)-(Number(b.seasonNumber)||0)
   || String(a.label||'').localeCompare(String(b.label||''),'en',{sensitivity:'base'});
 const SEASON_BANK_SORTED = [...SEASON_BANK].sort(seasonOrder);
+const poolCreationSeasons = () => SEASON_BANK_SORTED.filter(season=>season.available&&season.id!=='love-is-blind-br-1');
 // Historical seasons will be added here as their outcome sheets are completed.
 const HISTORICAL_SEASON_ROADMAP = SEASON_BANK.filter(season=>season.historical);
 const availableHistoricalSeasonCount = () => HISTORICAL_SEASON_ROADMAP.filter(season=>season.available).length;
@@ -3067,7 +3070,7 @@ function BrandHeader({season=null,children,showSignIn=false}) {
         <text x="132" y="88" textLength="475" lengthAdjust="spacingAndGlyphs" fill="var(--muted)" fontFamily="Inter, Arial, sans-serif" fontSize="22" letterSpacing="1.2">A SOCIAL PREDICTION POOL FOR FRIENDS</text>
       </g>
     </svg>
-    {season&&<span className="seasonpill">{season}</span>}
+    <div className="header-status"><span className="beta-badge">Public beta</span>{season&&<span className="seasonpill">{season}</span>}</div>
     {children}
   </div>;
 }
@@ -7048,7 +7051,7 @@ function App() {
         <div className="row">
           <div className="field"><label className="small" htmlFor="new-pool-season">Season</label>
             <select id="new-pool-season" value={selectedSeasonId} onChange={e=>{setSelectedSeasonId(e.target.value);setMirrorGlobalPicks(false);}}>
-              {SEASON_BANK_SORTED.map(season=><option value={season.id} disabled={!season.available} key={season.id}>{formatSeasonOption(season)}{season.available?'':' — Coming soon'}</option>)}
+              {poolCreationSeasons().map(season=><option value={season.id} key={season.id}>{formatSeasonOption(season)}</option>)}
             </select>
             <div className="subtle" style={{marginTop:6}}>{seasonById(selectedSeasonId)?.status==='upcoming'?'You can create the pool and invite friends now. Predictions open after the cast is announced and the season begins.':'The season is permanent once the pool is created.'}</div>
           </div>
