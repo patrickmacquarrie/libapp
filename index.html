@@ -2283,7 +2283,7 @@ const GLOBAL_POOL_DEMO_MODE = new URLSearchParams(window.location.search).get('g
 // reads, or writes occur in this mode.
 const CAST_CHEMISTRY_DEMO_MODE = new URLSearchParams(window.location.search).has('chemistryPreview');
 const seasonLibrarySummary = () => {
-  const seasons=SEASON_BANK.filter(season=>season.available);
+  const seasons=poolCreationSeasons();
   const countryCount=new Set(seasons.map(season=>season.country)).size;
   return `Love Is Blind · ${seasons.length} season${seasons.length===1?'':'s'} available across ${countryCount} ${countryCount===1?'country':'countries'}`;
 };
