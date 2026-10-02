@@ -149,6 +149,11 @@ vm.runInContext(`${html.slice(castPhotoHelpersStart,castPhotoHelpersEnd)}\nthis.
 assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','Alex'),'/images/cast/love-is-blind-us-8/Alex.webp','A cast name without a source extension must resolve to its deployed WebP portrait.');
 assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','https://example.com/cast/Sara.png?size=large'),'/images/cast/love-is-blind-us-8/Sara.webp','Published photo paths must resolve to the local optimized portrait.');
 assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8',''),'','A missing cast name and photo must not create a broken URL.');
+assert.deepEqual(
+  fs.readFileSync(path.join(root,'images','cast','love-is-blind-us-11','Jay.webp')),
+  fs.readFileSync(path.join(root,'images','cast','love-is-blind-us-11','Jonathan.webp')),
+  'Jay and Jonathan must remain byte-identical aliases for Jonathan "Jay" Robinson.'
+);
 assert(html.includes('getPublicAppConfig'),'The app must read the public live/default season configuration.');
 assert(html.includes('const globalPoolSeason=seasonById(defaultSeasonId)'),'The active Global Pool must follow the configured default season.');
 assert(html.includes("const poolCreationSeasons = () => SEASON_BANK_SORTED.filter(season=>season.available&&season.id!=='love-is-blind-br-1');"),'The private-pool season selector must show only available seasons and exclude Brazil Season 1.');

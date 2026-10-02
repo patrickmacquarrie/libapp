@@ -24,7 +24,7 @@ These illustrations use the same short display-name filenames as earlier seasons
 | Amenawon "Iman" Johnson | `Iman.webp` |
 | Wilnie Louis | `Wilnie.webp` |
 | Michaella Giorgio | `Michaella.webp` |
-| Jonathan Robinson | `Jonathan.webp` |
+| Jonathan "Jay" Robinson | `Jay.webp` (Netflix display name) / `Jonathan.webp` (compatibility alias) |
 | Rachel Aukema | `Rachel.webp` |
 | Morrey Eglin | `Morrey.webp` |
 | Brittany Bianco | `Brittany.webp` |
@@ -36,3 +36,5 @@ These illustrations use the same short display-name filenames as earlier seasons
 | Liz Rounds | `Liz.webp` |
 
 The portraits were illustrated from the supplied Season 11 references, with changed outfits and head angles. Names and order were checked against the [TV Insider cast gallery](https://www.tvinsider.com/swooon/gallery/love-is-blind-season-11-cast-ages-jobs-social-media-photos/).
+
+`Jay.webp` and `Jonathan.webp` are intentionally byte-identical so either published cast name resolves to the same portrait.
