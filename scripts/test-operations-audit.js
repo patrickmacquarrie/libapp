@@ -921,7 +921,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise,window:{},PH_ORDER:['pods','dating','weddings','reunion']};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__requireMirrorSourceNotBehind=requireMirrorSourceNotBehind;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
@@ -986,6 +986,16 @@ async function assertMirrorEntryRegression(){
   assert.equal(context.__chooseMirrorPickSource({enteredPoolId:'a',mine:equalA,status:{},sources:equalSources,selectedSourceId:'c',uid:'viewer'}),equalC,'The pool selected in Settings must win equal-progress unlocked-pick conflicts.');
   assert.equal(context.__chooseMirrorPickSource({enteredPoolId:'a',mine:equalA,status:{},sources:equalSources,selectedSourceId:'',uid:'viewer'}),equalA,'Without a selection, equal-progress conflicts must have a stable winner.');
   assert.equal(context.__chooseMirrorPickSource({enteredPoolId:'b',mine:equalB,status:{},sources:[{id:'a',source:{player:equalA,status:{}},rank:context.__mirrorProgressRank(equalA,{},'viewer')}],selectedSourceId:'',uid:'viewer'}),equalA,'Opening another pool in the same group must choose the same tie-break winner.');
+  equalB.lastPredictionAt=200;
+  equalA.lastPredictionAt=100;
+  assert.equal(context.__chooseMirrorPickSource({enteredPoolId:'a',mine:equalA,status:{},sources:equalSources,selectedSourceId:'',uid:'viewer'}),equalB,'When progress ties, the most recently edited pool must win over an alphabetically earlier stale pool.');
+  const datingAhead={phase:'dating',screen:'board',w:7,watchThrough:7,completed:{pods:true},picks:{pods:[{c:'locked-a'}],dating:[{c:'dating-a'}]}};
+  const podsBehind={phase:'pods',screen:'board',w:3,watchThrough:3,completed:{},picks:{pods:[{c:'pods-c'}],dating:[]}};
+  const beforeBehindSync=JSON.stringify({datingAhead,podsBehind});
+  assert.throws(()=>context.__requireMirrorSourceNotBehind({target:{player:datingAhead,status:{}},source:{player:podsBehind,status:{}},uid:'viewer'}),/further ahead/,'Choosing a Pods pool from a Dating pool must be blocked before any picks or progress are copied.');
+  assert.equal(JSON.stringify({datingAhead,podsBehind}),beforeBehindSync,'A blocked behind-pool sync must leave both pools’ picks unchanged.');
+  assert.doesNotThrow(()=>context.__requireMirrorSourceNotBehind({target:{player:podsBehind,status:{}},source:{player:datingAhead,status:{}},uid:'viewer'}),'Opening the behind pool and choosing the ahead pool must remain possible.');
+  assert(context.__mirrorProgressRank({...podsBehind,watchThrough:8},{},'viewer')>context.__mirrorProgressRank(podsBehind,{},'viewer'),'Pick-source and progress reconciliation must both account for watch intent.');
   const linkStart=html.indexOf('linkMirrorGroup: async (poolId,peerPoolId,uid) =>');
   const linkEnd=html.indexOf('  unlinkMirrorGroup:',linkStart);
   const linkExpression=html.slice(linkStart,linkEnd).trim().replace(/^linkMirrorGroup:\s*/,'').replace(/,\s*$/,'');
@@ -1155,9 +1165,33 @@ async function assertMirrorEntryRegression(){
   assert(leavePoolSource.indexOf('unlinkMirrorGroup(pool.id,user.uid)')<leavePoolSource.indexOf('leavePool(pool.id)'),'Leaving a pool must remove its sync links before membership is revoked.');
   const settingsSyncStart=html.indexOf('const syncCurrentPoolWith=async sourcePoolId=>');
   const settingsSyncSource=html.slice(settingsSyncStart,html.indexOf('const unlinkCurrentPool=async',settingsSyncStart));
+  assert(settingsSyncSource.indexOf('requireMirrorSourceNotBehind(')<settingsSyncSource.indexOf('linkMirrorGroup(activePool.id,sourcePoolId,user.uid)'),'A behind source must be rejected before Settings links or overwrites either pool.');
+  const behindSyncCalls=[];
+  const settingsSyncContext={
+    activePool:{id:'a',season:{id:'season'}},user:{uid:'viewer'},
+    seasonForPool:()=>({id:'season'}),syncSourcesFor:()=>[{id:'c'}],
+    flushSave:async()=>behindSyncCalls.push('flush'),
+    loadMirrorSourceState:context.__loadMirrorSourceState,
+    requireMirrorSourceNotBehind:context.__requireMirrorSourceNotBehind,
+    window:{_fb:{
+      loadMyPlayer:async id=>id==='a'?datingAhead:podsBehind,
+      getPhaseStatus:async()=>null,
+      getPool:async id=>({id,members:['viewer']}),
+      linkMirrorGroup:async()=>{behindSyncCalls.push('link');return ['a','c'];},
+    }},
+    enterPool:async()=>behindSyncCalls.push('enter'),setShowSettings:()=>behindSyncCalls.push('close'),
+    loadLobby:async()=>behindSyncCalls.push('lobby'),
+  };
+  vm.createContext(settingsSyncContext);
+  vm.runInContext(`${settingsSyncSource}\nthis.__syncCurrentPoolWith=syncCurrentPoolWith;`,settingsSyncContext);
+  await assert.rejects(()=>settingsSyncContext.__syncCurrentPoolWith('c'),/further ahead/,'Settings must block the Dating-to-Pods sync before linking.');
+  assert.deepEqual(behindSyncCalls,['flush'],'A blocked behind-pool sync must not link, reopen, or write either pool.');
+  assert.equal(JSON.stringify({datingAhead,podsBehind}),beforeBehindSync,'Both pools must retain their original picks after the blocked Settings sync.');
   assert(settingsSyncSource.indexOf('const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid);')<settingsSyncSource.indexOf('setShowSettings(false)'),'Settings must surface link validation failures before closing.');
   assert(settingsSyncSource.includes('keepCurrentPoolOnFailure:true')&&html.includes("if(options.keepCurrentPoolOnFailure){setLinkedSyncError('The linked pools need another sync.');throw e;}"),'A reconciliation failure from Settings must leave the current pool and its error panel visible.');
   assert(html.includes('const canonicalPlayer=chooseMirrorPickSource({')&&html.includes('sourcePicks[ph]=canonicalPicks[ph]'),'A selected sync source must determine unlocked picks before reconciliation.');
+  assert(html.includes('if(!targetLeads)await syncMirroredPicksOnEntry({'),'A pool just locked by reconciliation must not receive a second pick write.');
+  assert(html.includes('if(!linkedPlayer)return;'),'A linked pool without a first-open player profile must be skipped during routine saves.');
   const settingsSource=html.slice(html.indexOf('function SettingsModal('),html.indexOf('function ConfirmModal('));
   assert(settingsSource.includes('id="sync-pools-title"')&&settingsSource.includes('onSyncWithPool')&&settingsSource.includes('onUnlinkPool'),'Sync and unlink controls must live inside pool settings.');
   assert(html.includes('function PoolSyncChoiceModal(')&&html.includes('offerSyncOnJoin(joinedPool)'),'A same-season invitation must offer a sync choice after joining.');

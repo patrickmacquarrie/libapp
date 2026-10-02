@@ -1875,14 +1875,24 @@ const linkedMirrorPeers=(links,poolId)=>{
 const mirrorProgressRank=(player,phaseStatus={},uid='')=>{
   const phaseRank=Math.max(0,PH_ORDER.indexOf(player?.phase||'pods'));
   const completedRank=PH_ORDER.filter(ph=>player?.completed?.[ph]===true||(phaseStatus[ph]?.completedMembers||[]).includes(uid)).length;
-  return phaseRank*100000+completedRank*10000+(Number(player?.w)||0)*100+(mirrorScreenRank[player?.screen]||0);
+  const watch=Math.max(Number(player?.w)||0,Number(player?.watchThrough)||0);
+  return phaseRank*1e9+completedRank*1e7+watch*1000+(mirrorScreenRank[player?.screen]||0);
+};
+const requireMirrorSourceNotBehind=({target,source,uid})=>{
+  if(mirrorProgressRank(source?.player,source?.status,uid)<mirrorProgressRank(target?.player,target?.status,uid)){
+    throw new Error('This pool is further ahead. Open the other pool and sync from its Settings, choosing this pool as the source. No picks were changed.');
+  }
 };
 const chooseMirrorPickSource=({enteredPoolId,mine,status,sources,selectedSourceId,uid})=>{
   const selected=selectedSourceId&&sources.find(item=>item.id===selectedSourceId&&item.source?.player);
   if(selected)return selected.source.player;
   const candidates=[{id:enteredPoolId,player:mine,rank:mirrorProgressRank(mine,status,uid)},
     ...sources.filter(item=>item.source?.player).map(item=>({id:item.id,player:item.source.player,rank:item.rank}))];
-  candidates.sort((left,right)=>right.rank-left.rank||left.id.localeCompare(right.id));
+  // lastPredictionAt records direct player edits; mirrored phasePicks.updatedAt
+  // also changes during fanout, so it is not a reliable user-edit tie-breaker.
+  candidates.sort((left,right)=>right.rank-left.rank||
+    (Number(right.player?.lastPredictionAt)||0)-(Number(left.player?.lastPredictionAt)||0)||
+    left.id.localeCompare(right.id));
   return candidates[0].player;
 };
 const staleMirrorSourceError=error=>
@@ -5209,7 +5219,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         <p>{linkedPoolNames.length?`Your picks and watch progress are synced with ${linkedPoolNames.join(', ')}.`:'This pool has its own picks and watch progress.'} Scores stay separate in each pool.</p>
         {syncSources.length>0&&<div className="field"><label className="small" htmlFor="settings-sync-pool">Connect another pool for this season</label>
           <select id="settings-sync-pool" value={syncSourceId} disabled={syncSaving} onChange={event=>{setSyncSourceId(event.target.value);setConfirmSyncSourceId('');}}><option value="">Choose a pool</option>{syncSources.map(pool=><option key={pool.id} value={pool.id}>{pool.global===true?'Global Pool':pool.name}</option>)}</select>
-          {confirmSyncSourceId===syncSourceId&&syncSourceId&&<p role="status">Unlocked picks from <b>{syncSources.find(pool=>pool.id===syncSourceId)?.global===true?'Global Pool':syncSources.find(pool=>pool.id===syncSourceId)?.name}</b> will replace different unlocked picks in the connected pools. Picks already locked in a pool keep their original timing. Scores remain separate.</p>}
+          {confirmSyncSourceId===syncSourceId&&syncSourceId&&<p role="status">Unlocked picks from <b>{syncSources.find(pool=>pool.id===syncSourceId)?.global===true?'Global Pool':syncSources.find(pool=>pool.id===syncSourceId)?.name}</b> will be kept when syncing. If that pool is behind, sync will stop without changing picks. Picks already locked keep their original timing; scores remain separate.</p>}
           <button className="btn-secondary" disabled={!syncSourceId||syncSaving} onClick={finishSync}>{syncSaving?'Syncing…':confirmSyncSourceId===syncSourceId?'Confirm sync':'Review sync'}</button>
           {confirmSyncSourceId&&<button className="btn-secondary" disabled={syncSaving} onClick={()=>setConfirmSyncSourceId('')}>Cancel</button>}
         </div>}
@@ -5880,16 +5890,7 @@ function App() {
             PH_ORDER.filter(ph=>!sourceCompletedPhases.includes(ph)).forEach(ph=>{sourcePicks[ph]=canonicalPicks[ph];});
             const targetWatch=Math.max(Number(mine.w)||0,Number(mine.watchThrough)||0);
             const sourceWatch=Math.max(Number(sourcePlayer.w)||0,Number(sourcePlayer.watchThrough)||0);
-            const targetPhaseIndex=Math.max(0,PH_ORDER.indexOf(minePhase));
-            const sourcePhaseIndex=Math.max(0,PH_ORDER.indexOf(sourcePlayer.phase||'pods'));
-            const targetLeads=targetPhaseIndex>sourcePhaseIndex||
-              (targetPhaseIndex===sourcePhaseIndex&&(
-                targetCompletedPhases.length>sourceCompletedPhases.length||
-                (targetCompletedPhases.length===sourceCompletedPhases.length&&(
-                  targetWatch>sourceWatch||
-                  (targetWatch===sourceWatch&&(mirrorScreenRank[mine.screen]||0)>(mirrorScreenRank[sourcePlayer.screen]||0))
-                ))
-              ));
+            const targetLeads=mirrorProgressRank(mine,status,user.uid)>mirrorProgressRank(sourcePlayer,sourceStatus,user.uid);
             if(targetLeads){
               // If the linked target was played directly, repair the source on
               // entry instead of overwriting the newer target with stale data.
@@ -5959,7 +5960,7 @@ function App() {
                 mine={...mine,...mirroredState};
               }
             }
-            await syncMirroredPicksOnEntry({
+            if(!targetLeads)await syncMirroredPicksOnEntry({
               phases:PH_ORDER.filter(ph=>!sourceCompletedPhases.includes(ph)),
               savePhasePicks:ph=>saveMirroredPhasePicks({
                 poolId:mirrorSourcePoolId,phase:ph,uid:user.uid,picks:canonicalPicks[ph],friendTarget:!mirrorSourcePoolId.startsWith('global__'),
@@ -6219,6 +6220,16 @@ function App() {
       if(linkedTargets.length&&syncedPhases.length) {
         await Promise.all(linkedTargets.map(async link=>{
           const globalTarget=link.poolId.startsWith('global__');
+          let linkedPlayer;
+          try{linkedPlayer=await window._fb.getPlayer(link.poolId,pending.uid);}
+          catch(e){
+            mirrorFailed=true;setLinkedSyncError('The linked pools need another sync.');
+            reportTtwError('mirror_sync_failed',e,{operation:'check_mirrored_player',poolId:pending.poolId,targetPoolId:link.poolId});
+            return;
+          }
+          // Membership can precede a first player profile. That pool will
+          // pull the group's state when its owner opens it for the first time.
+          if(!linkedPlayer)return;
           await Promise.all(syncedPhases.map(async phase=>{
             try { await saveMirroredPhasePicks({
               poolId:link.poolId,phase,uid:pending.uid,picks:pending.data.picks?.[phase]||[],friendTarget:!globalTarget,
@@ -6356,6 +6367,11 @@ function App() {
   const syncCurrentPoolWith=async sourcePoolId=>{
     if(!activePool||!syncSourcesFor(seasonForPool(activePool).id,activePool.id).some(pool=>pool.id===sourcePoolId))throw new Error('Choose another pool from this season.');
     await flushSave();
+    const [targetState,sourceState]=await Promise.all([activePool.id,sourcePoolId].map(poolId=>loadMirrorSourceState({
+      poolId,uid:user.uid,loadMyPlayer:window._fb.loadMyPlayer,
+      getPhaseStatus:window._fb.getPhaseStatus,getPool:window._fb.getPool,
+    })));
+    requireMirrorSourceNotBehind({target:targetState,source:sourceState,uid:user.uid});
     const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid);
     try{await enterPool(activePool,sourcePoolId,{prelinkedGroupIds:ids,keepCurrentPoolOnFailure:true});}
     catch(error){throw new Error('The pools are connected, but picks and progress need another sync. Close Settings and tap Retry now.');}
