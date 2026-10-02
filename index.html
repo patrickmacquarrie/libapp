@@ -1638,7 +1638,7 @@ window._fb = {
     refs.forEach(reference=>batch.set(reference,{duplicateFromPoolId:deleteField()},{merge:true}));
     await batch.commit();
   },
-  linkMirrorGroup: async (poolId,peerPoolId,uid) => {
+  linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false) => {
     if(!poolId||!peerPoolId||poolId===peerPoolId)throw new Error('Choose another pool to sync.');
     const pending=[poolId,peerPoolId],visited=new Set(),members=[];
     let seasonId='';
@@ -1674,6 +1674,7 @@ window._fb = {
     }
     const ids=members.map(member=>member.id).sort();
     if(!ids.includes(poolId)||!ids.includes(peerPoolId))throw new Error('Both pools must be available to sync.');
+    if(previewOnly)return ids;
     const batch=writeBatch(db);
     members.filter(member=>member.exists).forEach(member=>batch.set(member.playerRef,{
       syncPoolIds:ids,duplicateFromPoolId:deleteField(),
@@ -1880,7 +1881,7 @@ const mirrorProgressRank=(player,phaseStatus={},uid='')=>{
 };
 const requireMirrorSourceNotBehind=({target,source,uid})=>{
   if(mirrorProgressRank(source?.player,source?.status,uid)<mirrorProgressRank(target?.player,target?.status,uid)){
-    throw new Error('This pool is further ahead. Open the other pool and sync from its Settings, choosing this pool as the source. No picks were changed.');
+    throw new Error('Another pool in this sync group is further ahead. Open that pool and sync from its Settings, choosing it as the source. No picks were changed.');
   }
 };
 const chooseMirrorPickSource=({enteredPoolId,mine,status,sources,selectedSourceId,uid})=>{
@@ -6367,11 +6368,16 @@ function App() {
   const syncCurrentPoolWith=async sourcePoolId=>{
     if(!activePool||!syncSourcesFor(seasonForPool(activePool).id,activePool.id).some(pool=>pool.id===sourcePoolId))throw new Error('Choose another pool from this season.');
     await flushSave();
-    const [targetState,sourceState]=await Promise.all([activePool.id,sourcePoolId].map(poolId=>loadMirrorSourceState({
+    const groupIds=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid,true);
+    const groupStates=await Promise.all(groupIds.map(async poolId=>({poolId,state:await loadMirrorSourceState({
       poolId,uid:user.uid,loadMyPlayer:window._fb.loadMyPlayer,
       getPhaseStatus:window._fb.getPhaseStatus,getPool:window._fb.getPool,
-    })));
-    requireMirrorSourceNotBehind({target:targetState,source:sourceState,uid:user.uid});
+    })})));
+    const sourceState=groupStates.find(item=>item.poolId===sourcePoolId)?.state;
+    if(!sourceState?.player)throw new Error('Open that pool once first, then return here to sync. No picks were changed.');
+    groupStates.filter(item=>item.poolId!==sourcePoolId).forEach(item=>
+      requireMirrorSourceNotBehind({target:item.state,source:sourceState,uid:user.uid})
+    );
     const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid);
     try{await enterPool(activePool,sourcePoolId,{prelinkedGroupIds:ids,keepCurrentPoolOnFailure:true});}
     catch(error){throw new Error('The pools are connected, but picks and progress need another sync. Close Settings and tap Retry now.');}
