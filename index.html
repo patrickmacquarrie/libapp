@@ -657,6 +657,12 @@ input[type=range]{width:100%;accent-color:var(--rose)}
 .chemistry-toggle input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--rose);flex:0 0 auto}
 .chemistry-toggle strong{display:block;color:var(--wine);font-size:13px}
 .chemistry-toggle span{display:block;margin-top:3px;color:var(--muted);font-size:11.5px;line-height:1.45}
+.pods-heat-check-prompt{position:relative;overflow:hidden;display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:14px;margin:15px 0;padding:17px;border:1px solid color-mix(in srgb,var(--purple) 36%,var(--line));border-radius:17px;background:radial-gradient(circle at 96% 8%,color-mix(in srgb,var(--rose) 17%,transparent),transparent 36%),linear-gradient(135deg,color-mix(in srgb,var(--purple) 8%,var(--surface)),color-mix(in srgb,var(--rose) 7%,var(--surface)))}
+.pods-heat-check-prompt::after{content:'\2726';position:absolute;right:13px;top:5px;color:var(--gold);font-size:22px;opacity:.72;pointer-events:none}
+.pods-heat-check-icon{display:grid;place-items:center;width:52px;height:52px;border-radius:17px;background:linear-gradient(135deg,var(--rose),var(--purple));box-shadow:0 8px 20px color-mix(in srgb,var(--purple) 22%,transparent);font-size:24px}
+.pods-heat-check-copy{min-width:0}.pods-heat-check-kicker{display:block;margin-bottom:3px;color:var(--purple);font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.pods-heat-check-copy h3{margin:0 24px 4px 0;color:var(--wine);font:700 21px/1.12 'Playfair Display',Georgia,serif}.pods-heat-check-copy p{margin:0;color:var(--muted);font-size:11.5px;line-height:1.5}
+.pods-heat-check-prompt .btn-secondary{position:relative;z-index:1;width:auto;min-width:154px;margin:0;padding:11px 14px;background:var(--surface)}
+@media(max-width:600px){.pods-heat-check-prompt{grid-template-columns:44px minmax(0,1fr);gap:11px}.pods-heat-check-icon{width:44px;height:44px;border-radius:14px;font-size:21px}.pods-heat-check-copy h3{font-size:19px}.pods-heat-check-prompt .btn-secondary{grid-column:1/-1;width:100%;margin-top:1px}}
 .notification-options{display:grid;gap:9px;margin:12px 0 6px}
 .notification-options .chemistry-toggle{margin:0;padding:12px 14px}
 .notification-destination{margin:9px 0 18px;color:var(--muted);font-size:11.5px;line-height:1.45}
@@ -7270,6 +7276,11 @@ function App() {
             : RESULTS_READY[phase]||phase==='dating'
               ? `Your ${navigationPhaseLabel(phase,RULES)} score is in Standings and can move as more players in this pool finish.`
               : `Your ${navigationPhaseLabel(phase,RULES)} score appears in Standings once results are confirmed.`}</div>
+          {phase==='pods'&&!phaseCompletionError&&!retryingPhaseCompletion&&!globalDemoData&&eng.CAST.length>0&&<aside className="pods-heat-check-prompt" aria-labelledby="pods-heat-check-title">
+            <div className="pods-heat-check-icon" aria-hidden="true">🔥</div>
+            <div className="pods-heat-check-copy"><span className="pods-heat-check-kicker">Pods are complete</span><h3 id="pods-heat-check-title">Put the cast through a Heat Check</h3><p>Rate their hotness, humour, smarts, and vibes—then compare your takes with {activePool.global===true?'the global crowd':'your pool and the global crowd'}.</p></div>
+            <button type="button" className="btn-secondary" onClick={()=>switchPoolTab('chemistry')}>Open Heat Check →</button>
+          </aside>}
           {phaseCompletionError&&<ErrorCard title="Completion not registered" message={phaseCompletionError}><button className="btn-secondary" disabled={retryingPhaseCompletion} onClick={()=>registerPhaseCompletion(activePool.id,phase,user.uid)}>{retryingPhaseCompletion?'Retrying…':'Retry phase completion'}</button></ErrorCard>}
           <button className="btn-primary" disabled={!!phaseCompletionError||retryingPhaseCompletion} onClick={openNextPhase}>{NEXT_PH[phase]?'Continue to '+navigationPhaseLabel(NEXT_PH[phase],RULES)+' →':'Finish the season →'}</button>
         </div>
