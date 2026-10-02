@@ -151,6 +151,9 @@ assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8','https://
 assert.equal(castPhotoContext.__localCastPhotoUrl('love-is-blind-us-8',''),'','A missing cast name and photo must not create a broken URL.');
 assert(html.includes('getPublicAppConfig'),'The app must read the public live/default season configuration.');
 assert(html.includes('const globalPoolSeason=seasonById(defaultSeasonId)'),'The active Global Pool must follow the configured default season.');
+assert(html.includes("const poolCreationSeasons = () => SEASON_BANK_SORTED.filter(season=>season.available&&season.id!=='love-is-blind-br-1');"),'The private-pool season selector must show only available seasons and exclude Brazil Season 1.');
+assert(html.includes('{poolCreationSeasons().map(season=><option'),'The private-pool season selector must recalculate its filtered season list after published seasons load.');
+assert(html.includes('<span className="beta-badge">Public beta</span>'),'Every app header must identify the product as a public beta.');
 assert(!html.includes('Past Global Pools')&&!html.includes('pastGlobalPools'),'Previous Global Pools must not be listed in the player lobby.');
 assert(firestoreRules.includes('match /appConfig/public'),'Firestore rules must expose only the public runtime routing document.');
 
