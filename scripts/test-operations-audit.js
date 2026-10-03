@@ -921,6 +921,31 @@ assert(runbook.includes('clientErrors/{userId}/categories/{category}'),'The laun
 assert(runbook.includes('Do not use `jsonPayload.message="Client operation failed"`'),'The runbook must explain that the former Cloud Logging query cannot find browser-written diagnostics.');
 
 async function assertMirrorEntryRegression(){
+  const linkedIdsStart=functionsSource.indexOf('async function linkedPrivatePoolIds(');
+  const linkedIdsEnd=functionsSource.indexOf('async function resetHistoricalGlobalSimulation(',linkedIdsStart);
+  assert(linkedIdsStart>=0&&linkedIdsEnd>linkedIdsStart,'Historical reset must expose its linked-pool lookup for testing.');
+  const historicalContext={syncGroupDocumentsFor:async()=>[
+    {data:()=>({poolIds:['friend-a','friend-b','global__season']})},
+    {data:()=>({poolIds:['friend-c','friend-d']})},
+  ]};
+  vm.createContext(historicalContext);
+  vm.runInContext(`${functionsSource.slice(linkedIdsStart,linkedIdsEnd)}\nthis.linkedPrivatePoolIds=linkedPrivatePoolIds;`,historicalContext);
+  assert.equal(JSON.stringify(await historicalContext.linkedPrivatePoolIds('viewer','season',{
+    syncPoolIds:['global__season','stale-friend'],
+  },'global__season')),JSON.stringify(['friend-a','friend-b']),
+  'Historical operations must use the canonical Global group, not a stale player mirror or a separate private group.');
+  historicalContext.syncGroupDocumentsFor=async()=>[
+    {data:()=>({poolIds:['friend-c','friend-d']})},
+  ];
+  assert.equal(JSON.stringify(await historicalContext.linkedPrivatePoolIds('viewer','season',{
+    syncPoolIds:['global__season','friend-c'],
+  },'global__season')),JSON.stringify([]),
+  'A canonical private-only group must override a stale Global mirror during historical maintenance.');
+  historicalContext.syncGroupDocumentsFor=async()=>[];
+  assert.equal(JSON.stringify(await historicalContext.linkedPrivatePoolIds('viewer','season',{
+    duplicateFromPoolId:'legacy-friend',
+  },'global__season')),JSON.stringify(['legacy-friend']),
+  'Historical operations must retain the legacy mirror fallback during migration.');
   const helperStart=html.indexOf('/* MIRROR ENTRY HELPERS START */');
   const helperEnd=html.indexOf('/* MIRROR ENTRY HELPERS END */');
   const gateStart=html.indexOf('/* EPISODE GATE HELPERS START */');
@@ -928,7 +953,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise,window:{},PH_ORDER:['pods','dating','weddings','reunion']};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__mirrorReverseReferences=mirrorReverseReferences;this.__syncPoolOptions=syncPoolOptions;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__mirrorReverseReferences=mirrorReverseReferences;this.__canonicalMirrorLinks=canonicalMirrorLinks;this.__legacySyncComponents=legacySyncComponents;this.__syncPoolOptions=syncPoolOptions;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
@@ -988,6 +1013,68 @@ async function assertMirrorEntryRegression(){
   assert.equal(context.__linkedMirrorPeers([{poolId:'friend-a',syncPoolIds:['friend-a',{bad:'id'}]}],'friend-a').length,0,'Malformed sync IDs must not be used as Firestore paths.');
   assert.equal(JSON.stringify(context.__mirrorReverseReferences([{poolId:'b',syncPoolIds:['a','b']},{poolId:'d',syncPoolIds:['a','d']}],'a')),JSON.stringify({groupPeerIds:['b','d'],legacyPeerIds:[]}), 'Stale group references must be classified for pruning.');
   assert.equal(JSON.stringify(context.__mirrorReverseReferences([{poolId:'b',sourcePoolId:'a'}],'a')),JSON.stringify({groupPeerIds:[],legacyPeerIds:['b']}), 'A one-sided legacy link must be classified for upgrade, not pruning.');
+  assert.equal(JSON.stringify(context.__mirrorReverseReferences(context.__canonicalMirrorLinks(['a','b']),'a')),JSON.stringify({groupPeerIds:[],legacyPeerIds:[]}), 'A canonical group must never be pruned as a stale player-list reference.');
+  const migratedComponents=context.__legacySyncComponents(
+    [{poolId:'a',syncPoolIds:['a','b']},{poolId:'c',sourcePoolId:'d'}],
+    [{id:'a'},{id:'b'},{id:'c'},{id:'d'}],[],
+  );
+  assert.equal(JSON.stringify(migratedComponents),JSON.stringify([['a','b'],['c','d']]),'Migration must preserve two independent legacy groups in the same season.');
+  const migrationStart=html.indexOf('writeMigratedSyncGroups: async (uid,seasonId,components,pools) =>');
+  const migrationEnd=html.indexOf('  resetPoolJoinCode:',migrationStart);
+  assert(migrationStart>=0&&migrationEnd>migrationStart,'The legacy group migration write must remain independently testable.');
+  const migratedWrites=[];
+  const migrationContext={Set,Promise,Date,db:{},
+    syncGroupDocId:(uid,seasonId,ids)=>`${uid}__${seasonId}__${[...ids].sort()[0]}`,
+    doc:(_db,...parts)=>({path:parts.join('/')}),
+    deleteField:()=>'<deleted>',
+    writeBatch:()=>({set:(ref,data)=>migratedWrites.push({path:ref.path,data}),commit:async()=>{}}),
+  };
+  vm.createContext(migrationContext);
+  vm.runInContext(`this.migrate=${html.slice(migrationStart,migrationEnd).trim().replace(/^writeMigratedSyncGroups:\s*/,'').replace(/,\s*$/,'')};`,migrationContext);
+  await migrationContext.migrate('viewer','season',migratedComponents,[
+    {id:'a',_myPlayer:{syncPoolIds:['a','b']}},{id:'b',_myPlayer:{}},
+    {id:'c',_myPlayer:{duplicateFromPoolId:'d'}},{id:'d',_myPlayer:null},
+  ]);
+  assert.equal(JSON.stringify(migratedWrites.filter(write=>write.path.startsWith('syncGroups/')).map(write=>write.path)),
+    JSON.stringify(['syncGroups/viewer__season__a','syncGroups/viewer__season__c']),
+    'Legacy lists and pairs must become separate canonical documents.');
+  assert.equal(JSON.stringify(migratedWrites.filter(write=>write.path.startsWith('pools/')).map(write=>write.path)),
+    JSON.stringify(['pools/a/players/viewer','pools/b/players/viewer','pools/c/players/viewer']),
+    'Migration must refresh existing player mirrors without creating an unopened pool’s player record.');
+  const lobbyLinksStart=html.indexOf('      const legacyLinks=availablePools.map(pool=>{');
+  const lobbyLinksEnd=html.indexOf('      const publicGlobalPools=',lobbyLinksStart);
+  assert(lobbyLinksStart>=0&&lobbyLinksEnd>lobbyLinksStart,'The lobby group-read fallback must remain independently testable.');
+  const lobbyReports=[],lobbyMirrors={current:null};
+  const lobbyPools=[
+    {id:'a',season:{id:'season'},_myPlayer:{syncPoolIds:['a','b']}},
+    {id:'b',season:{id:'season'},_myPlayer:{duplicateFromPoolId:'a'}},
+  ];
+  const readFailure=new Error('Group records are temporarily unavailable.');
+  let displayedPools=null;
+  const lobbyContext={Set,Array,Promise,window:{_fb:{
+    loadSyncGroups:async()=>{throw readFailure;},
+    writeMigratedSyncGroups:async()=>{throw new Error('Migration must not run after a group-read failure.');},
+  }},availablePools:lobbyPools,user:{uid:'viewer'},pickMirrorLinks:lobbyMirrors,is:[],
+    reportTtwError:(...args)=>lobbyReports.push(args),
+    legacySyncComponents:()=>{throw new Error('Migration discovery must be skipped.');},
+    canonicalMirrorLinks:()=>{throw new Error('Canonical links must not be used after a failed read.');},
+    setPools:pools=>{displayedPools=pools;},setInvites:()=>{},
+  };
+  vm.createContext(lobbyContext);
+  vm.runInContext(`this.runLobbyLinks=async()=>{${html.slice(lobbyLinksStart,lobbyLinksEnd)}};`,lobbyContext);
+  await lobbyContext.runLobbyLinks();
+  assert.equal(JSON.stringify(lobbyMirrors.current),JSON.stringify([
+    {poolId:'a',syncPoolIds:['a','b']},{poolId:'b',sourcePoolId:'a'},
+  ]),'A failed group read must leave player-record links intact in the lobby.');
+  assert.equal(displayedPools,lobbyPools,'A failed group read must not prevent the lobby from showing its pools.');
+  assert.equal(lobbyReports.length,1);
+  assert.equal(lobbyReports[0][0],'mirror_sync_failed');
+  assert.equal(lobbyReports[0][1],readFailure);
+  assert.equal(lobbyReports[0][2].operation,'load_sync_groups');
+  assert.equal(JSON.stringify(context.__legacySyncComponents(
+    [{poolId:'a',syncPoolIds:['a','b']},{poolId:'c',sourcePoolId:'a'}],
+    [{id:'a'},{id:'b'},{id:'c'}],['a','b'],
+  )),JSON.stringify([]),'A stale mirror edge must not reattach a pool already covered by a canonical group.');
   const namedOptions=context.__syncPoolOptions(
     [{id:'a',name:'Pool A',_myPlayer:{}},{id:'b',name:'Pool B',_myPlayer:{}},{id:'x',name:'Pool X',_myPlayer:{}}],
     [{poolId:'a',syncPoolIds:['a','b']},{poolId:'b',syncPoolIds:['a','b']}],
@@ -1026,9 +1113,12 @@ async function assertMirrorEntryRegression(){
     ['a',{username:'Viewer',syncPoolIds:['a','b',...staleIds]}],
     ['b',{username:'Viewer',syncPoolIds:['a','b']}],
   ]);
+  const linkGroups=new Map();
   const linkContext={
     Set,Map,Promise,Array,db:{},
     doc:(_db,...parts)=>({path:parts.join('/')}),
+    collection:(_db,name)=>({name}),where:()=>({}),query:reference=>reference,
+    getDocs:async()=>({docs:[...linkGroups.entries()].map(([id,data])=>({id,ref:{path:`syncGroups/${id}`},data:()=>data}))}),
     deleteField:()=>'<deleted>',
     getDoc:async ref=>{
       linkedReads.push(ref.path);
@@ -1037,7 +1127,7 @@ async function assertMirrorEntryRegression(){
       const data=parts.length===2?linkPools.get(id):linkPlayers.get(id);
       return {ref,exists:()=>!!data,data:()=>data};
     },
-    writeBatch:()=>({set:(ref,data)=>linkedWrites.push({path:ref.path,data}),commit:async()=>{}}),
+    writeBatch:()=>({set:(ref,data)=>linkedWrites.push({path:ref.path,data}),delete:()=>{},commit:async()=>{}}),
   };
   vm.createContext(linkContext);
   vm.runInContext(`${knownSource}\nthis.__linkMirrorGroup=${linkExpression};`,linkContext);
@@ -1046,7 +1136,7 @@ async function assertMirrorEntryRegression(){
   const mergedIds=await linkContext.__linkMirrorGroup('a','c','viewer');
   assert.equal(JSON.stringify(mergedIds),JSON.stringify(['a','b','c']),'Deleted group IDs must not count toward the 20-pool cap or block a valid merge.');
   assert(!linkedReads.some(path=>path.startsWith('pools/left-')&&path.includes('/players/')),'Unavailable pools must be checked before their protected player documents.');
-  assert.equal(JSON.stringify(linkedWrites.map(write=>write.path).sort()),JSON.stringify(['pools/a/players/viewer','pools/b/players/viewer']),'A never-opened pool must not receive a placeholder player document.');
+  assert.equal(JSON.stringify(linkedWrites.map(write=>write.path).sort()),JSON.stringify(['pools/a/players/viewer','pools/b/players/viewer','syncGroups/viewer__season__a']),'A never-opened pool must not receive a placeholder player document, but the canonical group must be saved.');
   await assert.rejects(()=>linkContext.__linkMirrorGroup('a','left-0','viewer'),error=>error.code==='permission-denied','The pool explicitly selected for linking must still be available.');
   const extraIds=Array.from({length:18},(_,index)=>`extra-${index}`);
   extraIds.forEach(id=>{linkPools.set(id,{season:{id:'season'},members:['viewer']});linkPlayers.set(id,{username:'Viewer'});});
@@ -1057,8 +1147,11 @@ async function assertMirrorEntryRegression(){
   const unlinkExpression=html.slice(unlinkStart,unlinkEnd).trim().replace(/^unlinkMirrorGroup:\s*/,'').replace(/,\s*$/,'');
   const groupPools=new Map(['a','b','c','global__season'].map(id=>[id,{season:{id:'season'},members:['viewer']} ]));
   const groupPlayers=new Map(['a','b','global__season'].map(id=>[id,{username:'Viewer'}]));
+  const groupDocs=new Map();
   const groupContext={Set,Map,Promise,Array,console,db:{},
     doc:(_db,...parts)=>({path:parts.join('/'),parent:{parent:{id:parts[1]}}}),
+    collection:(_db,name)=>({name}),where:()=>({}),query:reference=>reference,
+    getDocs:async()=>({docs:[...groupDocs.entries()].map(([id,data])=>({id,ref:{path:`syncGroups/${id}`},data:()=>data}))}),
     deleteField:()=>'<deleted>',
     getDoc:async ref=>{
       const parts=ref.path.split('/'),data=parts.length===2?groupPools.get(parts[1]):groupPlayers.get(parts[1]);
@@ -1066,7 +1159,12 @@ async function assertMirrorEntryRegression(){
     },
     writeBatch:()=>{
       const writes=[];
-      return {set:(ref,data)=>writes.push([ref,data]),commit:async()=>writes.forEach(([ref,data])=>{
+      return {set:(ref,data)=>writes.push(['set',ref,data]),delete:ref=>writes.push(['delete',ref]),commit:async()=>writes.forEach(([operation,ref,data])=>{
+        if(ref.path.startsWith('syncGroups/')){
+          const id=ref.path.split('/')[1];
+          if(operation==='delete')groupDocs.delete(id);else groupDocs.set(id,data);
+          return;
+        }
         const id=ref.path.split('/')[1],next={...groupPlayers.get(id),...data};
         Object.keys(next).filter(key=>next[key]==='<deleted>').forEach(key=>delete next[key]);
         groupPlayers.set(id,next);
@@ -1088,6 +1186,7 @@ async function assertMirrorEntryRegression(){
   groupPools.get('c').members=[];groupPlayers.delete('c');
   assert.equal(JSON.stringify(await groupContext.link('a','global__season','viewer',true)),JSON.stringify(['a','global__season']),'After leave, the remaining group must open without a stale member link.');
   groupPools.set('d',{season:{id:'season'},members:['viewer']});
+  groupDocs.clear();
   groupPlayers.clear();
   groupPlayers.set('b',{username:'Viewer',syncPoolIds:['a','b']});
   groupPlayers.set('d',{username:'Viewer',syncPoolIds:['a','d']});
@@ -1102,6 +1201,7 @@ async function assertMirrorEntryRegression(){
   assert.equal(groupPlayers.get('a').syncPoolIds,undefined,'Stopped A must keep no sync list.');
   assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['b','d']),'B must remain synced with D after A stops.');
   assert.equal(JSON.stringify(groupPlayers.get('d').syncPoolIds),JSON.stringify(['b','d']),'D must remain synced with B after A stops.');
+  groupDocs.clear();
   groupPlayers.delete('a');
   groupPlayers.get('b').syncPoolIds=['a','b','d'];
   groupPlayers.get('d').syncPoolIds=['a','b','d'];
@@ -1109,6 +1209,7 @@ async function assertMirrorEntryRegression(){
   assert.equal(groupPlayers.has('a'),false,'Unlinking an unopened pool must not create a placeholder player.');
   assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['b','d']),'B must no longer refer to an unopened pool after it is left.');
   assert.equal(JSON.stringify(groupPlayers.get('d').syncPoolIds),JSON.stringify(['b','d']),'D must no longer refer to an unopened pool after it is left.');
+  groupDocs.clear();
   groupPlayers.clear();
   groupPlayers.set('a',{username:'Viewer'});
   groupPlayers.set('b',{username:'Viewer',duplicateFromPoolId:'a'});
@@ -1116,6 +1217,22 @@ async function assertMirrorEntryRegression(){
   assert.equal(JSON.stringify(groupPlayers.get('a').syncPoolIds),JSON.stringify(['a','b']),'The entered pool must gain the upgraded sync group.');
   assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['a','b']),'The legacy peer must gain the upgraded sync group.');
   assert.equal(groupPlayers.get('b').duplicateFromPoolId,undefined,'The upgraded legacy peer must drop its old source pointer.');
+  groupDocs.clear();
+  groupPlayers.clear();
+  groupPools.get('c').members=['viewer'];
+  ['a','b','c','d'].forEach(id=>groupPlayers.set(id,{username:'Viewer'}));
+  groupDocs.set('viewer__season__a',{uid:'viewer',seasonId:'season',poolIds:['a','b']});
+  groupDocs.set('viewer__season__c',{uid:'viewer',seasonId:'season',poolIds:['c','d']});
+  assert.equal(JSON.stringify(await groupContext.link('a','c','viewer')),JSON.stringify(['a','b','c','d']),
+    'Choosing a pool in another established group must merge both complete groups.');
+  assert.equal(groupDocs.size,1,'A merge must replace the two independent canonical records with one.');
+  assert.equal(JSON.stringify(groupDocs.get('viewer__season__a').poolIds),JSON.stringify(['a','b','c','d']));
+  assert.equal(JSON.stringify(groupPlayers.get('d').syncPoolIds),JSON.stringify(['a','b','c','d']),
+    'The merged group must update the selected pool’s former peers.');
+  assert.equal(JSON.stringify(await groupContext.unlink('b','viewer')),JSON.stringify(['a','c','d']),
+    'Unlinking after a merge must keep all other pools linked.');
+  assert.equal(groupDocs.size,1);
+  assert.equal(JSON.stringify(groupDocs.get('viewer__season__a').poolIds),JSON.stringify(['a','c','d']));
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],
@@ -1242,7 +1359,8 @@ async function assertMirrorEntryRegression(){
   const openNextPhaseSource=html.slice(openNextPhaseStart,refreshPoolStart);
   assert(openNextPhaseSource.includes("activePool.global===true")&&openNextPhaseSource.includes('ledgerWatch:globalLedgerWatch.current.value'),'Only a Global pool may use the stored ledger position when opening its next phase.');
   assert(!html.includes('linkMirrorPeers: async')&&!enterPoolSource.includes('window._fb.linkMirrorPeers('),'Opening a pool must never recreate a legacy pair after unlinking.');
-  assert(enterPoolSource.includes('const {groupPeerIds,legacyPeerIds}=mirrorReverseReferences(pickMirrorLinks.current,enteredPool.id)')&&enterPoolSource.includes('const groupLinks=pickMirrorLinks.current.filter(link=>Array.isArray(link.syncPoolIds))')&&enterPoolSource.includes('unlinkMirrorGroup(enteredPool.id,user.uid,enteredPool.id,groupLinks)'),'An unlinked player must prune only stale group-list reverse references before entry reconciliation.');
+  assert(enterPoolSource.includes('const currentGroup=pickMirrorLinks.current.find(link=>link.canonical&&link.poolId===enteredPool.id)')&&enterPoolSource.includes('writePlayerSyncMirror(enteredPool.id,user.uid,currentGroup.syncPoolIds)'),'A canonical group must repair an out-of-date player mirror when entered.');
+  assert(enterPoolSource.includes('const {groupPeerIds,legacyPeerIds}=mirrorReverseReferences(pickMirrorLinks.current,enteredPool.id)')&&enterPoolSource.includes('const groupLinks=pickMirrorLinks.current.filter(link=>!link.canonical&&Array.isArray(link.syncPoolIds))')&&enterPoolSource.includes('unlinkMirrorGroup(enteredPool.id,user.uid,enteredPool.id,groupLinks)'),'An unlinked player must prune only stale legacy player-list reverse references before entry reconciliation.');
   assert(enterPoolSource.includes('if(legacyPeerIds.length){')&&enterPoolSource.includes('linkMirrorGroup(enteredPool.id,legacyPeerIds[0],user.uid,false,pickMirrorLinks.current)'),'An unlinked player must upgrade one-sided legacy links instead of pruning them.');
   assert(html.includes("clearMirrorSource: async (poolId,uid,peerPoolId='')"),'A stale mirror source must be removable symmetrically without deleting copied game state.');
   assert(html.includes('for(const {id:mirrorSourcePoolId,source:loadedSource,error:sourceLoadError} of mirrorSources)'),'Entry reconciliation must inspect every peer in a linked group.');

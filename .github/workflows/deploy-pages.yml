@@ -47,6 +47,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run check
       - run: npm run test:global-emulator
+      - run: npm run test:sync-groups-emulator
       - id: live-rules-auth
         if: github.event_name == 'workflow_dispatch' && inputs.backend_deployed == true
         uses: google-github-actions/auth@v3

@@ -616,6 +616,48 @@ async function removeMemberData(poolRef,uid){
   await batch.commit();
 }
 
+function syncGroupDocumentId(uid,seasonId,poolIds){
+  return `${uid}__${seasonId}__${[...poolIds].sort()[0]}`;
+}
+
+function syncGroupSeasonId(pool){
+  return String(pool?.season?.id||pool?.seasonId||pool?.globalSeasonId||'');
+}
+
+async function syncGroupDocumentsFor(uid,seasonId){
+  const snapshot=await db.collection('syncGroups').where('uid','==',uid).get();
+  return snapshot.docs.filter(document=>document.data().seasonId===seasonId);
+}
+
+async function removePoolFromSyncGroups(uid,seasonId,poolId){
+  if(!seasonId)return;
+  const groups=(await syncGroupDocumentsFor(uid,seasonId)).filter(document=>
+    Array.isArray(document.data().poolIds)&&document.data().poolIds.includes(poolId)
+  );
+  for(const group of groups){
+    const oldIds=[...new Set(group.data().poolIds.filter(id=>typeof id==='string'&&id))];
+    const remaining=oldIds.filter(id=>id!==poolId).sort();
+    const playerRefs=oldIds.map(id=>db.doc(`pools/${id}/players/${uid}`));
+    const playerSnapshots=await db.getAll(...playerRefs);
+    const batch=db.batch();
+    if(remaining.length>=2){
+      const nextRef=db.doc(`syncGroups/${syncGroupDocumentId(uid,seasonId,remaining)}`);
+      const nextData={uid,seasonId,poolIds:remaining,updatedAt:Date.now()};
+      if(nextRef.path!==group.ref.path)batch.delete(group.ref);
+      batch.set(nextRef,nextData);
+    }else batch.delete(group.ref);
+    playerSnapshots.forEach((snapshot,index)=>{
+      if(!snapshot.exists)return;
+      const id=oldIds[index];
+      batch.set(snapshot.ref,{
+        syncPoolIds:id!==poolId&&remaining.length>=2?remaining:FieldValue.delete(),
+        duplicateFromPoolId:FieldValue.delete(),
+      },{merge:true});
+    });
+    await batch.commit();
+  }
+}
+
 exports.leavePool=onCall(CALLABLE_LIMITS,async request=>{
   const uid=requireUser(request);
   const poolId=String(request.data?.poolId||'');
@@ -624,12 +666,15 @@ exports.leavePool=onCall(CALLABLE_LIMITS,async request=>{
   const snapshot=await poolRef.get();
   if(!snapshot.exists)throw new HttpsError('not-found','This pool no longer exists.');
   const pool=snapshot.data();
+  const seasonId=syncGroupSeasonId(pool);
   if(pool.global===true){
+    if(Array.isArray(pool.members)&&pool.members.includes(uid))await removePoolFromSyncGroups(uid,seasonId,poolId);
     await poolRef.collection('members').doc(uid).delete().catch(()=>{});
     if(Array.isArray(pool.members)&&pool.members.includes(uid))await poolRef.update({members:FieldValue.arrayRemove(uid)});
   }else{
     if(pool.ownerUid===uid)throw new HttpsError('failed-precondition','Delete the pool or transfer ownership before leaving it.');
     if(!Array.isArray(pool.members)||!pool.members.includes(uid))throw new HttpsError('permission-denied','You are not a member of this pool.');
+    await removePoolFromSyncGroups(uid,seasonId,poolId);
     await poolRef.update({members:FieldValue.arrayRemove(uid)});
   }
   await removeMemberData(poolRef,uid);
@@ -647,6 +692,9 @@ exports.deletePool=onCall(CALLABLE_LIMITS,async request=>{
   const pool=snapshot.data();
   if(pool.global===true)throw new HttpsError('failed-precondition','The Global Pool cannot be deleted here.');
   if(pool.ownerUid!==uid)throw new HttpsError('permission-denied','Only the pool owner can delete this pool.');
+  for(const memberUid of [...new Set(Array.isArray(pool.members)?pool.members:[])]){
+    await removePoolFromSyncGroups(memberUid,syncGroupSeasonId(pool),poolId);
+  }
   const invitations=await db.collection('invites').where('poolId','==',poolId).get();
   for(let offset=0;offset<invitations.docs.length;offset+=400){
     const batch=db.batch();
@@ -1063,7 +1111,11 @@ async function completeGlobalPhase(request){
   return {ok:true,completedAt,standingsRevision:0,standingsStale:!standingsQueued};
 }
 
-function linkedPrivatePoolIds(player,globalPoolId){
+async function linkedPrivatePoolIds(uid,seasonId,player,globalPoolId){
+  const groups=await syncGroupDocumentsFor(uid,seasonId);
+  const group=groups.find(document=>Array.isArray(document.data().poolIds)&&document.data().poolIds.includes(globalPoolId));
+  if(group)return group.data().poolIds.filter(id=>id!==globalPoolId);
+  if(groups.length)return [];
   const ids=Array.isArray(player?.syncPoolIds)&&player.syncPoolIds.length
     ? player.syncPoolIds
     : [player?.duplicateFromPoolId];
@@ -1088,9 +1140,10 @@ async function resetHistoricalGlobalSimulation(request){
   const [trustedSnapshot,playersSnapshot,phasePicksSnapshot]=await Promise.all([
     poolRef.collection('trustedPlayers').get(),poolRef.collection('players').get(),poolRef.collection('phasePicks').get(),
   ]);
-  const linkedPlayers=playersSnapshot.docs.flatMap(document=>
-    linkedPrivatePoolIds(document.data(),poolId).map(sourcePoolId=>({uid:document.id,sourcePoolId}))
-  );
+  const linkedPlayers=(await Promise.all(playersSnapshot.docs.map(async document=>
+    (await linkedPrivatePoolIds(document.id,seasonId,document.data(),poolId))
+      .map(sourcePoolId=>({uid:document.id,sourcePoolId}))
+  ))).flat();
   const sourcePoolIds=[...new Set(linkedPlayers.map(link=>link.sourcePoolId))];
   const [sourcePoolSnapshots,sourcePlayerSnapshots]=await Promise.all([
     Promise.all(sourcePoolIds.map(sourcePoolId=>db.doc(`pools/${sourcePoolId}`).get())),
@@ -1142,7 +1195,7 @@ async function resetHistoricalGlobalSimulation(request){
     },{merge:true}));
   });
   await batch.commit();
-  const linksPreserved=playersSnapshot.docs.filter(document=>linkedPrivatePoolIds(document.data(),poolId).length>0).length;
+  const linksPreserved=new Set(linkedPlayers.map(link=>link.uid)).size;
   return {
     ok:true,resetAt,membersReset:trustedSnapshot.size,linksPreserved,
     linkedPlayersReset:resettableLinks.length,linkedPlayersSkipped:linkedPlayers.length-resettableLinks.length,
@@ -1168,9 +1221,10 @@ async function relaxHistoricalJoinFloor(request){
   const publicPlayers=new Map(playersSnapshot.docs.map(document=>[
     document.id,{ref:document.ref,data:document.data()},
   ]));
-  const requestedLinks=playersSnapshot.docs.flatMap(document=>
-    linkedPrivatePoolIds(document.data(),poolId).map(sourcePoolId=>({uid:document.id,sourcePoolId}))
-  );
+  const requestedLinks=(await Promise.all(playersSnapshot.docs.map(async document=>
+    (await linkedPrivatePoolIds(document.id,seasonId,document.data(),poolId))
+      .map(sourcePoolId=>({uid:document.id,sourcePoolId}))
+  ))).flat();
   const sourcePoolIds=[...new Set(requestedLinks.map(link=>link.sourcePoolId))];
   const [sourcePoolSnapshots,sourcePlayerSnapshots]=await Promise.all([
     Promise.all(sourcePoolIds.map(sourcePoolId=>db.doc(`pools/${sourcePoolId}`).get())),
@@ -1277,12 +1331,25 @@ exports.deleteMyAccount=onCall(CALLABLE_LIMITS,async request=>{
   const email=String(authUser.email||'').trim().toLowerCase();
   const pools=await db.collection('pools').where('members','array-contains',uid).get();
   for(const poolDoc of pools.docs){
-    if(poolDoc.data().ownerUid===uid&&poolDoc.data().global!==true)await db.recursiveDelete(poolDoc.ref);
+    const pool=poolDoc.data(),seasonId=syncGroupSeasonId(pool);
+    if(pool.ownerUid===uid&&pool.global!==true){
+      for(const memberUid of [...new Set(Array.isArray(pool.members)?pool.members:[])]){
+        if(memberUid!==uid)await removePoolFromSyncGroups(memberUid,seasonId,poolDoc.id);
+      }
+      await db.recursiveDelete(poolDoc.ref);
+    }
     else{
+      await removePoolFromSyncGroups(uid,seasonId,poolDoc.id);
       await poolDoc.ref.update({members:FieldValue.arrayRemove(uid)});
       await removeMemberData(poolDoc.ref,uid);
-      if(poolDoc.data().global===true)await requestGlobalStandingsRebuild(poolDoc.id,'account-deleted');
+      if(pool.global===true)await requestGlobalStandingsRebuild(poolDoc.id,'account-deleted');
     }
+  }
+  const ownGroups=await db.collection('syncGroups').where('uid','==',uid).get();
+  for(let offset=0;offset<ownGroups.docs.length;offset+=400){
+    const batch=db.batch();
+    ownGroups.docs.slice(offset,offset+400).forEach(group=>batch.delete(group.ref));
+    await batch.commit();
   }
   await db.recursiveDelete(db.doc(`castRatingProfiles/${uid}`));
   const inviteQueries=[db.collection('invites').where('fromUid','==',uid)];

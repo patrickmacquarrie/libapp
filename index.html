@@ -1130,6 +1130,11 @@ const mirrorKnownNeighbors=(links,id)=>{
   });
   return [...neighbors];
 };
+const syncGroupDocId=(uid,seasonId,poolIds)=>`${uid}__${seasonId}__${[...poolIds].sort()[0]}`;
+const readSyncGroupDocuments=async uid=>{
+  const snapshot=await getDocs(query(collection(db,'syncGroups'),where('uid','==',uid)));
+  return snapshot.docs.map(document=>({id:document.id,ref:document.ref,...document.data()}));
+};
 window._fb = {
   signIn:  () => signInWithProvider(new GoogleAuthProvider()),
   completeAuthRedirect: async () => {
@@ -1232,6 +1237,22 @@ window._fb = {
     const joinCode=newPoolJoinCode();
     await updateDoc(doc(db,'pools',poolId),{joinCode});
     return joinCode;
+  },
+  loadSyncGroups: uid => readSyncGroupDocuments(uid),
+  writePlayerSyncMirror: (poolId,uid,ids) => setDoc(doc(db,'pools',poolId,'players',uid),{
+    syncPoolIds:ids,duplicateFromPoolId:deleteField(),
+  },{merge:true}),
+  writeMigratedSyncGroups: async (uid,seasonId,components,pools) => {
+    for(const component of components){
+      const ids=[...new Set(component)].sort();
+      if(ids.length<2||ids.length>20)throw new Error('A sync group can contain 2 to 20 pools.');
+      const batch=writeBatch(db);
+      batch.set(doc(db,'syncGroups',syncGroupDocId(uid,seasonId,ids)),{uid,seasonId,poolIds:ids,updatedAt:Date.now()});
+      pools.filter(pool=>ids.includes(pool.id)&&pool._myPlayer).forEach(pool=>
+        batch.set(doc(db,'pools',pool.id,'players',uid),{syncPoolIds:ids,duplicateFromPoolId:deleteField()},{merge:true})
+      );
+      await batch.commit();
+    }
   },
   resetPoolJoinCode: async (poolId,uid) => runTransaction(db,async tx=>{
     const poolRef=doc(db,'pools',poolId),poolSnap=await tx.get(poolRef);
@@ -1655,8 +1676,16 @@ window._fb = {
   },
   linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false,knownLinks=[]) => {
     if(!poolId||!peerPoolId||poolId===peerPoolId)throw new Error('Choose another pool to sync.');
+    const endpointSnapshots=await Promise.all([poolId,peerPoolId].map(id=>getDoc(doc(db,'pools',id))));
+    if(endpointSnapshots.some(snapshot=>!snapshot.exists()||!snapshot.data().members?.includes(uid)))throw new Error('Open both pools before syncing them.');
+    const seasonId=String(endpointSnapshots[0].data().season?.id||endpointSnapshots[0].data().seasonId||endpointSnapshots[0].data().globalSeasonId||'');
+    const peerSeasonId=String(endpointSnapshots[1].data().season?.id||endpointSnapshots[1].data().seasonId||endpointSnapshots[1].data().globalSeasonId||'');
+    if(!seasonId||seasonId!==peerSeasonId)throw new Error('Only pools for the same season can sync.');
+    const groups=(await readSyncGroupDocuments(uid)).filter(group=>group.seasonId===seasonId&&Array.isArray(group.poolIds));
+    const canonicalByPool=new Map();
+    groups.forEach(group=>group.poolIds.forEach(id=>canonicalByPool.set(id,group)));
+    const legacyLinks=knownLinks.filter(link=>!link.canonical&&!canonicalByPool.has(link.poolId));
     const pending=[poolId,peerPoolId],visited=new Set(),members=[];
-    let seasonId='';
     while(pending.length){
       const id=pending.shift();
       if(visited.has(id))continue;
@@ -1671,27 +1700,33 @@ window._fb = {
       }
       const pool=poolSnapshot.data();
       const currentSeason=String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'');
-      if(!currentSeason||seasonId&&currentSeason!==seasonId){
+      if(currentSeason!==seasonId){
         if(required)throw new Error('Only pools for the same season can sync.');
         continue;
       }
       let playerSnapshot;
       try{playerSnapshot=await getDoc(doc(db,'pools',id,'players',uid));}
       catch(error){if(required)throw error;continue;}
-      seasonId=currentSeason;
       if(members.length>=20)throw new Error('A sync group can contain up to 20 pools.');
       members.push({id,playerRef:playerSnapshot.ref,exists:playerSnapshot.exists()});
       const player=playerSnapshot.exists()?playerSnapshot.data():{};
-      const linked=Array.isArray(player.syncPoolIds)&&player.syncPoolIds.length
+      const canonical=canonicalByPool.get(id);
+      const linked=canonical?canonical.poolIds:Array.isArray(player.syncPoolIds)&&player.syncPoolIds.length
         ? player.syncPoolIds
         : player.duplicateFromPoolId?[player.duplicateFromPoolId]:[];
-      [...linked,...mirrorKnownNeighbors(knownLinks,id)]
+      const known=canonical?[]:mirrorKnownNeighbors(legacyLinks,id);
+      [...linked,...known]
+        .filter(peer=>canonical||!canonicalByPool.has(peer)||peer===poolId||peer===peerPoolId)
         .filter(peer=>typeof peer==='string'&&peer&&peer!==id).forEach(peer=>pending.push(peer));
     }
     const ids=members.map(member=>member.id).sort();
     if(!ids.includes(poolId)||!ids.includes(peerPoolId))throw new Error('Both pools must be available to sync.');
     if(previewOnly)return ids;
     const batch=writeBatch(db);
+    const groupRef=doc(db,'syncGroups',syncGroupDocId(uid,seasonId,ids));
+    groups.filter(group=>group.poolIds.some(id=>ids.includes(id))&&group.ref.path!==groupRef.path)
+      .forEach(group=>batch.delete(group.ref));
+    batch.set(groupRef,{uid,seasonId,poolIds:ids,updatedAt:Date.now()});
     members.filter(member=>member.exists).forEach(member=>batch.set(member.playerRef,{
       syncPoolIds:ids,duplicateFromPoolId:deleteField(),
     },{merge:true}));
@@ -1699,7 +1734,15 @@ window._fb = {
     return ids;
   },
   unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId,knownLinks=[]) => {
-    const pending=[poolId],visited=new Set(),members=[];
+    const sourceSnapshot=await getDoc(doc(db,'pools',poolId));
+    if(!sourceSnapshot.exists()||!sourceSnapshot.data().members?.includes(uid))throw new Error('Open this pool before changing its sync group.');
+    const source=sourceSnapshot.data();
+    const seasonId=String(source.season?.id||source.seasonId||source.globalSeasonId||'');
+    const groups=(await readSyncGroupDocuments(uid)).filter(group=>group.seasonId===seasonId&&Array.isArray(group.poolIds));
+    const canonical=groups.find(group=>group.poolIds.includes(poolId)&&group.poolIds.includes(removedPoolId));
+    const canonicalIds=new Set(groups.flatMap(group=>group.poolIds));
+    const legacyLinks=knownLinks.filter(link=>!link.canonical&&!canonicalIds.has(link.poolId));
+    const pending=canonical?[...canonical.poolIds]:[poolId],visited=new Set(),members=[],memberIds=[];
     while(pending.length){
       const id=pending.shift();
       if(visited.has(id))continue;
@@ -1707,17 +1750,27 @@ window._fb = {
       try{
         const [poolSnapshot,peerSnapshot]=await Promise.all([getDoc(doc(db,'pools',id)),getDoc(doc(db,'pools',id,'players',uid))]);
         if(!poolSnapshot.exists()||!poolSnapshot.data().members?.includes(uid))continue;
+        const pool=poolSnapshot.data();
+        if(String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')!==seasonId)continue;
+        memberIds.push(id);
         if(peerSnapshot.exists()){
           members.push({id,ref:peerSnapshot.ref});
-          const player=peerSnapshot.data();
-          const linked=Array.isArray(player.syncPoolIds)?player.syncPoolIds:
-            player.duplicateFromPoolId?[player.duplicateFromPoolId]:[];
-          [...linked,...mirrorKnownNeighbors(knownLinks,id)]
-            .filter(peer=>typeof peer==='string'&&peer&&peer!==id).forEach(peer=>pending.push(peer));
-        }else mirrorKnownNeighbors(knownLinks,id).forEach(peer=>pending.push(peer));
+          if(!canonical){
+            const player=peerSnapshot.data();
+            const linked=Array.isArray(player.syncPoolIds)?player.syncPoolIds:
+              player.duplicateFromPoolId?[player.duplicateFromPoolId]:[];
+            [...linked,...mirrorKnownNeighbors(legacyLinks,id)]
+              .filter(peer=>!canonicalIds.has(peer)&&typeof peer==='string'&&peer&&peer!==id)
+              .forEach(peer=>pending.push(peer));
+          }
+        }else if(!canonical)mirrorKnownNeighbors(legacyLinks,id)
+          .filter(peer=>!canonicalIds.has(peer)).forEach(peer=>pending.push(peer));
       }catch(error){console.info('An unavailable linked pool could not be updated.',error);}
     }
-    const batch=writeBatch(db),ids=members.filter(member=>member.id!==removedPoolId).map(member=>member.id).sort();
+    const batch=writeBatch(db),ids=memberIds.filter(id=>id!==removedPoolId).sort();
+    const groupRef=ids.length>=2?doc(db,'syncGroups',syncGroupDocId(uid,seasonId,ids)):null;
+    if(canonical&&(!groupRef||canonical.ref.path!==groupRef.path))batch.delete(canonical.ref);
+    if(groupRef)batch.set(groupRef,{uid,seasonId,poolIds:ids,updatedAt:Date.now()});
     members.filter(member=>member.id===removedPoolId).forEach(member=>
       batch.set(member.ref,{syncPoolIds:deleteField(),duplicateFromPoolId:deleteField()},{merge:true})
     );
@@ -1896,8 +1949,29 @@ const linkedMirrorPeers=(links,poolId)=>{
   }
   return peers;
 };
+const canonicalMirrorLinks=ids=>ids.length<2?[]:ids.map(poolId=>({poolId,syncPoolIds:ids,canonical:true}));
+const replaceCanonicalMirrorLinks=(links,oldIds,newIds)=>[
+  ...links.filter(link=>!oldIds.includes(link.poolId)),...canonicalMirrorLinks(newIds),
+];
+const legacySyncComponents=(links,pools,coveredIds=[])=>{
+  const available=new Set(pools.map(pool=>pool.id).filter(Boolean));
+  coveredIds.forEach(id=>available.delete(id));
+  const usableLinks=links.filter(link=>available.has(link.poolId)).map(link=>
+    Array.isArray(link.syncPoolIds)
+      ? {...link,syncPoolIds:link.syncPoolIds.filter(id=>available.has(id))}
+      : {...link,sourcePoolId:available.has(link.sourcePoolId)?link.sourcePoolId:''}
+  );
+  const seen=new Set(),components=[];
+  for(const id of available){
+    if(seen.has(id))continue;
+    const component=[id,...linkedMirrorPeers(usableLinks,id).map(peer=>peer.poolId)].sort();
+    component.forEach(peer=>seen.add(peer));
+    if(component.length>=2)components.push(component);
+  }
+  return components;
+};
 const mirrorReverseReferences=(links,poolId)=>({
-  groupPeerIds:[...new Set((links||[]).filter(link=>typeof link?.poolId==='string'&&link.poolId&&link.poolId!==poolId&&Array.isArray(link.syncPoolIds)&&link.syncPoolIds.includes(poolId)).map(link=>link.poolId))],
+  groupPeerIds:[...new Set((links||[]).filter(link=>!link?.canonical&&typeof link?.poolId==='string'&&link.poolId&&link.poolId!==poolId&&Array.isArray(link.syncPoolIds)&&link.syncPoolIds.includes(poolId)).map(link=>link.poolId))],
   legacyPeerIds:[...new Set((links||[]).filter(link=>typeof link?.poolId==='string'&&link.poolId&&link.poolId!==poolId&&link.sourcePoolId===poolId).map(link=>link.poolId))],
 });
 const syncPoolOptions=(candidatePools,links,excludeId='')=>{
@@ -5766,13 +5840,40 @@ function App() {
           history.replaceState({},'',currentUrl.toString());
         }
       }
-      const links=availablePools.map(pool=>{
+      const legacyLinks=availablePools.map(pool=>{
         const player=pool._myPlayer;
         return Array.isArray(player?.syncPoolIds)&&player.syncPoolIds.length
           ? {poolId:pool.id,syncPoolIds:player.syncPoolIds}
           : player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
       }).filter(Boolean);
-      pickMirrorLinks.current=links;
+      let groups=null;
+      try{groups=await window._fb.loadSyncGroups(user.uid);}
+      catch(error){reportTtwError('mirror_sync_failed',error,{operation:'load_sync_groups'});}
+      if(groups){
+        const seasonIds=[...new Set(availablePools.map(pool=>String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')).filter(Boolean))];
+        for(const seasonId of seasonIds){
+          const seasonPools=availablePools.filter(pool=>String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')===seasonId);
+          const coveredIds=groups.filter(group=>group.seasonId===seasonId).flatMap(group=>group.poolIds||[]);
+          const components=legacySyncComponents(legacyLinks,seasonPools,coveredIds);
+          if(!components.length)continue;
+          try{
+            await window._fb.writeMigratedSyncGroups(user.uid,seasonId,components,seasonPools);
+            components.forEach(poolIds=>groups.push({uid:user.uid,seasonId,poolIds}));
+          }catch(error){
+            reportTtwError('mirror_sync_failed',error,{operation:'migrate_sync_groups',seasonId});
+            console.info('Legacy pool links could not be migrated yet.',error);
+          }
+        }
+      }
+      if(groups){
+        const coveredIds=new Set(groups.flatMap(group=>group.poolIds||[]));
+        const fallbackLinks=legacyLinks.filter(link=>!coveredIds.has(link.poolId)).map(link=>
+          Array.isArray(link.syncPoolIds)
+            ? {...link,syncPoolIds:link.syncPoolIds.filter(id=>!coveredIds.has(id))}
+            : {...link,sourcePoolId:coveredIds.has(link.sourcePoolId)?'':link.sourcePoolId}
+        );
+        pickMirrorLinks.current=[...groups.flatMap(group=>canonicalMirrorLinks(group.poolIds)),...fallbackLinks];
+      }else pickMirrorLinks.current=legacyLinks;
       setPools(availablePools); setInvites(is.filter(invite=>!availablePools.some(pool=>pool.id===invite.poolId)));
       const publicGlobalPools=globalPoolSeason?[await (async()=>{
         try {
@@ -5862,31 +5963,33 @@ function App() {
       // Load my state
       let mine = players[user.uid];
       if (mine) {
+        const currentGroup=pickMirrorLinks.current.find(link=>link.canonical&&link.poolId===enteredPool.id);
+        if(currentGroup){
+          if(JSON.stringify(mine.syncPoolIds||[])!==JSON.stringify(currentGroup.syncPoolIds)||mine.duplicateFromPoolId){
+            await window._fb.writePlayerSyncMirror(enteredPool.id,user.uid,currentGroup.syncPoolIds);
+          }
+          mine={...mine,syncPoolIds:currentGroup.syncPoolIds};delete mine.duplicateFromPoolId;
+          players[user.uid]=mine;
+        }
         let linkedGroupIds=options.prelinkedGroupIds||null;
         if(!linkedGroupIds&&options.linkGroup&&duplicateFromPoolId){
           linkedGroupIds=await window._fb.linkMirrorGroup(enteredPool.id,duplicateFromPoolId,user.uid,false,pickMirrorLinks.current);
         }
         if(linkedGroupIds){
-          pickMirrorLinks.current=[
-            ...pickMirrorLinks.current.filter(link=>!linkedGroupIds.includes(link.poolId)),
-            ...linkedGroupIds.map(id=>({poolId:id,syncPoolIds:linkedGroupIds})),
-          ];
+          pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,linkedGroupIds,linkedGroupIds);
           mine={...mine,syncPoolIds:linkedGroupIds};delete mine.duplicateFromPoolId;
           players[user.uid]=mine;
         }
         if(!mine.syncPoolIds?.length&&!mine.duplicateFromPoolId&&!duplicateFromPoolId&&!options.linkGroup){
           const {groupPeerIds,legacyPeerIds}=mirrorReverseReferences(pickMirrorLinks.current,enteredPool.id);
           if(groupPeerIds.length){
-            const groupLinks=pickMirrorLinks.current.filter(link=>Array.isArray(link.syncPoolIds));
+            const groupLinks=pickMirrorLinks.current.filter(link=>!link.canonical&&Array.isArray(link.syncPoolIds));
             const remainingIds=await window._fb.unlinkMirrorGroup(enteredPool.id,user.uid,enteredPool.id,groupLinks);
-            pickMirrorLinks.current=[
-              ...pickMirrorLinks.current.filter(link=>![enteredPool.id,...groupPeerIds].includes(link.poolId)),
-              ...remainingIds.map(id=>({poolId:id,syncPoolIds:remainingIds})),
-            ];
+            pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,[enteredPool.id,...groupPeerIds],remainingIds);
           }
           if(legacyPeerIds.length){
             const ids=await window._fb.linkMirrorGroup(enteredPool.id,legacyPeerIds[0],user.uid,false,pickMirrorLinks.current);
-            pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
+            pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,ids,ids);
             mine={...mine,syncPoolIds:ids};
             players[user.uid]=mine;
           }
@@ -5936,23 +6039,27 @@ function App() {
             if(sourceLoadError)throw sourceLoadError;
             if(mine.duplicateFromPoolId===mirrorSourcePoolId&&!mine.syncPoolIds?.length){
               const ids=await window._fb.linkMirrorGroup(enteredPool.id,mirrorSourcePoolId,user.uid,false,pickMirrorLinks.current);
-              pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
+              pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,ids,ids);
               mine={...mine,syncPoolIds:ids};delete mine.duplicateFromPoolId;
               players[user.uid]=mine;
             }
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
-            if(mine.syncPoolIds?.length)await window._fb.unlinkMirrorGroup(enteredPool.id,user.uid,mirrorSourcePoolId,pickMirrorLinks.current);
-            else await window._fb.clearMirrorSource(enteredPool.id,user.uid,mirrorSourcePoolId);
-            pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>
-              link.poolId!==mirrorSourcePoolId&&(
-                ![link.poolId,link.sourcePoolId].includes(enteredPool.id)||![link.poolId,link.sourcePoolId].includes(mirrorSourcePoolId)
-              )
-            ).map(link=>Array.isArray(link.syncPoolIds)?{...link,syncPoolIds:link.syncPoolIds.filter(id=>id!==mirrorSourcePoolId)}:link);
+            let remainingIds=[];
+            if(mine.syncPoolIds?.length){
+              remainingIds=await window._fb.unlinkMirrorGroup(enteredPool.id,user.uid,mirrorSourcePoolId,pickMirrorLinks.current);
+              pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,mine.syncPoolIds,remainingIds);
+            }else{
+              await window._fb.clearMirrorSource(enteredPool.id,user.uid,mirrorSourcePoolId);
+              pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>
+                link.poolId!==mirrorSourcePoolId&&link.sourcePoolId!==mirrorSourcePoolId
+              );
+            }
             setDuplicateFromPoolId('');
             const unlinkedMine={...mine};
             delete unlinkedMine.duplicateFromPoolId;
-            if(Array.isArray(unlinkedMine.syncPoolIds))unlinkedMine.syncPoolIds=unlinkedMine.syncPoolIds.filter(id=>id!==mirrorSourcePoolId);
+            if(remainingIds.length>=2)unlinkedMine.syncPoolIds=remainingIds;
+            else delete unlinkedMine.syncPoolIds;
             mine=unlinkedMine;
             players[user.uid]=mine;
             setErr('A linked pool is no longer available. Your picks and progress here were kept; any other linked pools remain connected.');
@@ -6213,7 +6320,7 @@ function App() {
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(activeDuplicateFrom?{duplicateFromPoolId:activeDuplicateFrom}:{})});
         if(activeDuplicateFrom) {
           const ids=await window._fb.linkMirrorGroup(pool.id,activeDuplicateFrom,user.uid,false,pickMirrorLinks.current);
-          pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
+          pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,ids,ids);
           setDuplicateFromPoolId('');
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
             saveMirroredPhasePicks({
@@ -6471,12 +6578,9 @@ function App() {
   const unlinkCurrentPool=async()=>{
     if(!activePool)return;
     await flushSave();
+    const oldIds=[activePool.id,...linkedMirrorPeers(pickMirrorLinks.current,activePool.id).map(peer=>peer.poolId)];
     const ids=await window._fb.unlinkMirrorGroup(activePool.id,user.uid,activePool.id,pickMirrorLinks.current);
-    pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>link.poolId!==activePool.id).map(link=>
-      Array.isArray(link.syncPoolIds)&&link.syncPoolIds.includes(activePool.id)
-        ? {...link,syncPoolIds:ids}
-        : link.sourcePoolId===activePool.id?null:link
-    ).filter(Boolean);
+    pickMirrorLinks.current=replaceCanonicalMirrorLinks(pickMirrorLinks.current,oldIds,ids);
     setDuplicateFromPoolId('');setLinkedSyncError('');
     await loadLobby();
   };
