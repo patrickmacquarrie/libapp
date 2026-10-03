@@ -1309,6 +1309,8 @@ async function assertMirrorEntryRegression(){
     'This pool now has its own picks. Your other pools stay synced.',
   ].forEach(copy=>assert(settingsSource.includes(copy),`Settings sync copy must include: ${copy}`));
   assert(settingsSource.includes('Synced with ${syncPoolNameList(linkedPoolNames)}.')&&settingsSource.includes("syncPreview?.sourceId===syncSourceId?'Sync':'Review sync'"),'Settings must name the full group and confirm the preview with a plain Sync button.');
+  assert(settingsSource.includes('{!syncOptionsOpen&&<button')&&settingsSource.includes('onClick={()=>setSyncOptionsOpen(true)}>Sync another pool</button>'),'Opening sync choices must hide the launcher so it cannot be mistaken for the confirmation button.');
+  assert(settingsSource.includes("onClick={()=>{setSyncOptionsOpen(false);setSyncSourceId('');setSyncPreview(null);}}>Cancel</button>"),'The expanded sync chooser must provide a separate way to close it.');
   assert(!settingsSource.includes('further ahead')&&!settingsSource.includes('Unlocked picks from'),'Settings must not present a directional pick choice.');
   assert(html.includes('sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)'),'Join modals must show each existing sync group as one labelled choice.');
   assert(html.includes('const newPoolSyncSources=syncPoolOptions(')&&html.includes('syncSources={syncPoolOptions('),'Creation and Settings must deduplicate sync group choices.');
