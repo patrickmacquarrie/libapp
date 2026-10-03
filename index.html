@@ -5267,12 +5267,12 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
         <p>{linkedPoolNames.length?`Synced with ${syncPoolNameList(linkedPoolNames)}.`:'Not synced with any other pool.'}</p>
         {linkedPoolNames.length>0&&<button className="btn-secondary" disabled={syncSaving} onClick={finishUnlink}>Stop syncing this pool</button>}
         {syncSources.length>0&&<React.Fragment>
-          <button className="btn-secondary" disabled={syncSaving} onClick={()=>{setSyncOptionsOpen(open=>!open);setSyncPreview(null);}}>Sync another pool</button>
+          {!syncOptionsOpen&&<button className="btn-secondary" disabled={syncSaving} onClick={()=>setSyncOptionsOpen(true)}>Sync another pool</button>}
           {syncOptionsOpen&&<div className="field"><label className="small" htmlFor="settings-sync-pool">Sync this pool with…</label>
             <select id="settings-sync-pool" value={syncSourceId} disabled={syncSaving} onChange={event=>{setSyncSourceId(event.target.value);setSyncPreview(null);}}><option value="">Choose a pool</option>{syncSources.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)}</select>
             {syncPreview?.sourceId===syncSourceId&&<p role="status">Your picks from {syncPreview.winnerName} will be used in all synced pools. Locked picks stay as they are.</p>}
             <button className="btn-secondary" disabled={!syncSourceId||syncSaving} onClick={finishSync}>{syncSaving?'Syncing…':syncPreview?.sourceId===syncSourceId?'Sync':'Review sync'}</button>
-            {syncPreview&&<button className="btn-secondary" disabled={syncSaving} onClick={()=>setSyncPreview(null)}>Cancel</button>}
+            <button className="btn-secondary" disabled={syncSaving} onClick={()=>{setSyncOptionsOpen(false);setSyncSourceId('');setSyncPreview(null);}}>Cancel</button>
           </div>}
         </React.Fragment>}
         {syncFeedback&&<p role="alert" className="subtle">{syncFeedback}</p>}
