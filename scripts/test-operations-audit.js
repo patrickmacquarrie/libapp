@@ -1041,6 +1041,36 @@ async function assertMirrorEntryRegression(){
   assert.equal(JSON.stringify(migratedWrites.filter(write=>write.path.startsWith('pools/')).map(write=>write.path)),
     JSON.stringify(['pools/a/players/viewer','pools/b/players/viewer','pools/c/players/viewer']),
     'Migration must refresh existing player mirrors without creating an unopened pool’s player record.');
+  const lobbyLinksStart=html.indexOf('      const legacyLinks=availablePools.map(pool=>{');
+  const lobbyLinksEnd=html.indexOf('      const publicGlobalPools=',lobbyLinksStart);
+  assert(lobbyLinksStart>=0&&lobbyLinksEnd>lobbyLinksStart,'The lobby group-read fallback must remain independently testable.');
+  const lobbyReports=[],lobbyMirrors={current:null};
+  const lobbyPools=[
+    {id:'a',season:{id:'season'},_myPlayer:{syncPoolIds:['a','b']}},
+    {id:'b',season:{id:'season'},_myPlayer:{duplicateFromPoolId:'a'}},
+  ];
+  const readFailure=new Error('Group records are temporarily unavailable.');
+  let displayedPools=null;
+  const lobbyContext={Set,Array,Promise,window:{_fb:{
+    loadSyncGroups:async()=>{throw readFailure;},
+    writeMigratedSyncGroups:async()=>{throw new Error('Migration must not run after a group-read failure.');},
+  }},availablePools:lobbyPools,user:{uid:'viewer'},pickMirrorLinks:lobbyMirrors,is:[],
+    reportTtwError:(...args)=>lobbyReports.push(args),
+    legacySyncComponents:()=>{throw new Error('Migration discovery must be skipped.');},
+    canonicalMirrorLinks:()=>{throw new Error('Canonical links must not be used after a failed read.');},
+    setPools:pools=>{displayedPools=pools;},setInvites:()=>{},
+  };
+  vm.createContext(lobbyContext);
+  vm.runInContext(`this.runLobbyLinks=async()=>{${html.slice(lobbyLinksStart,lobbyLinksEnd)}};`,lobbyContext);
+  await lobbyContext.runLobbyLinks();
+  assert.equal(JSON.stringify(lobbyMirrors.current),JSON.stringify([
+    {poolId:'a',syncPoolIds:['a','b']},{poolId:'b',sourcePoolId:'a'},
+  ]),'A failed group read must leave player-record links intact in the lobby.');
+  assert.equal(displayedPools,lobbyPools,'A failed group read must not prevent the lobby from showing its pools.');
+  assert.equal(lobbyReports.length,1);
+  assert.equal(lobbyReports[0][0],'mirror_sync_failed');
+  assert.equal(lobbyReports[0][1],readFailure);
+  assert.equal(lobbyReports[0][2].operation,'load_sync_groups');
   assert.equal(JSON.stringify(context.__legacySyncComponents(
     [{poolId:'a',syncPoolIds:['a','b']},{poolId:'c',sourcePoolId:'a'}],
     [{id:'a'},{id:'b'},{id:'c'}],['a','b'],

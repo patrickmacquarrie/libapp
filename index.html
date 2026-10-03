@@ -5846,28 +5846,34 @@ function App() {
           ? {poolId:pool.id,syncPoolIds:player.syncPoolIds}
           : player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
       }).filter(Boolean);
-      const groups=await window._fb.loadSyncGroups(user.uid);
-      const seasonIds=[...new Set(availablePools.map(pool=>String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')).filter(Boolean))];
-      for(const seasonId of seasonIds){
-        const seasonPools=availablePools.filter(pool=>String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')===seasonId);
-        const coveredIds=groups.filter(group=>group.seasonId===seasonId).flatMap(group=>group.poolIds||[]);
-        const components=legacySyncComponents(legacyLinks,seasonPools,coveredIds);
-        if(!components.length)continue;
-        try{
-          await window._fb.writeMigratedSyncGroups(user.uid,seasonId,components,seasonPools);
-          components.forEach(poolIds=>groups.push({uid:user.uid,seasonId,poolIds}));
-        }catch(error){
-          reportTtwError('mirror_sync_failed',error,{operation:'migrate_sync_groups',seasonId});
-          console.info('Legacy pool links could not be migrated yet.',error);
+      let groups=null;
+      try{groups=await window._fb.loadSyncGroups(user.uid);}
+      catch(error){reportTtwError('mirror_sync_failed',error,{operation:'load_sync_groups'});}
+      if(groups){
+        const seasonIds=[...new Set(availablePools.map(pool=>String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')).filter(Boolean))];
+        for(const seasonId of seasonIds){
+          const seasonPools=availablePools.filter(pool=>String(pool.season?.id||pool.seasonId||pool.globalSeasonId||'')===seasonId);
+          const coveredIds=groups.filter(group=>group.seasonId===seasonId).flatMap(group=>group.poolIds||[]);
+          const components=legacySyncComponents(legacyLinks,seasonPools,coveredIds);
+          if(!components.length)continue;
+          try{
+            await window._fb.writeMigratedSyncGroups(user.uid,seasonId,components,seasonPools);
+            components.forEach(poolIds=>groups.push({uid:user.uid,seasonId,poolIds}));
+          }catch(error){
+            reportTtwError('mirror_sync_failed',error,{operation:'migrate_sync_groups',seasonId});
+            console.info('Legacy pool links could not be migrated yet.',error);
+          }
         }
       }
-      const coveredIds=new Set(groups.flatMap(group=>group.poolIds||[]));
-      const fallbackLinks=legacyLinks.filter(link=>!coveredIds.has(link.poolId)).map(link=>
-        Array.isArray(link.syncPoolIds)
-          ? {...link,syncPoolIds:link.syncPoolIds.filter(id=>!coveredIds.has(id))}
-          : {...link,sourcePoolId:coveredIds.has(link.sourcePoolId)?'':link.sourcePoolId}
-      );
-      pickMirrorLinks.current=[...groups.flatMap(group=>canonicalMirrorLinks(group.poolIds)),...fallbackLinks];
+      if(groups){
+        const coveredIds=new Set(groups.flatMap(group=>group.poolIds||[]));
+        const fallbackLinks=legacyLinks.filter(link=>!coveredIds.has(link.poolId)).map(link=>
+          Array.isArray(link.syncPoolIds)
+            ? {...link,syncPoolIds:link.syncPoolIds.filter(id=>!coveredIds.has(id))}
+            : {...link,sourcePoolId:coveredIds.has(link.sourcePoolId)?'':link.sourcePoolId}
+        );
+        pickMirrorLinks.current=[...groups.flatMap(group=>canonicalMirrorLinks(group.poolIds)),...fallbackLinks];
+      }else pickMirrorLinks.current=legacyLinks;
       setPools(availablePools); setInvites(is.filter(invite=>!availablePools.some(pool=>pool.id===invite.poolId)));
       const publicGlobalPools=globalPoolSeason?[await (async()=>{
         try {
