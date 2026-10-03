@@ -278,6 +278,7 @@ const cfg=(couples,reunionMult={still:1,split:2,marriedSplit:2,back:2,newCouple:
 
 {
   assert(source.includes('Sync picks with an existing pool?'),'Private-pool creation must offer same-season pool syncing.');
+  assert(source.includes('await enterPool(createdPool,mirrorSourcePoolId,{linkGroup:!!mirrorSourcePoolId,successNotice:inviteWarning})'),'A new pool must be opened immediately so its first player record exists, with or without syncing.');
   assert(source.includes('let activeDuplicateFrom=duplicateFromPoolId||existingGroupPeer'),'A private pool must be allowed to use the Global Pool or another linked pool as its pick source.');
   assert(source.includes('const linkedTargets=linkedMirrorPeers(pickMirrorLinks.current,pending.poolId)'),'Pick synchronization must support either pool type as the target.');
   assert(source.includes('Linked with ${linkedPoolNames.length===1'),'Linked pools must visibly identify their connection below the pool title.');
