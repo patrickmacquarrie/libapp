@@ -114,6 +114,10 @@ function playerFields(phase,screen){
   };
 }
 
+function syncGroupFields(uid,seasonId,poolIds){
+  return {uid:stringValue(uid),seasonId:stringValue(seasonId),poolIds:arrayValue(poolIds.map(stringValue)),updatedAt:numberValue(Date.now())};
+}
+
 function phasePickFields(uid,phase,{lockedAt,picks=[],updatedAt=Date.now()}={}){
   const fields={uid:stringValue(uid),phase:stringValue(phase),picks:arrayValue(picks),updatedAt:numberValue(updatedAt)};
   if(Number.isFinite(lockedAt))fields.lockedAt=numberValue(lockedAt);
@@ -177,6 +181,27 @@ async function main(){
     403,
     'browser user cannot change the season catalog'
   );
+
+  const syncSeasonId='love-is-blind-se-1';
+  const groupCollection='syncGroups';
+  const groupPath=`${groupCollection}/${uid}__${syncSeasonId}__pool-a`;
+  await expectStatus(await writeDocument(groupPath,syncGroupFields(uid,syncSeasonId,['pool-a','pool-b']),token),200,'owner creates a two-pool sync group');
+  await expectStatus(await writeDocument(`${groupCollection}/${uid}__${syncSeasonId}__pool-c`,syncGroupFields(uid,syncSeasonId,['pool-c','pool-d']),token),200,'owner may keep a second independent group in the same season');
+  await expectStatus(await readDocument(groupPath,token),200,'owner reads own sync group');
+  await expectStatus(await runFieldQuery(groupCollection,[{fieldPath:'uid',value:uid}],token),200,'owner lists own sync groups');
+  await expectStatus(await readDocument(groupPath,second.token),403,'another user cannot read a sync group');
+  await expectStatus(await runFieldQuery(groupCollection,[{fieldPath:'uid',value:uid}],second.token),403,'another user cannot list sync groups');
+  await expectStatus(await writeDocument(groupPath,syncGroupFields(uid,syncSeasonId,['pool-a','pool-b']),second.token),403,'another user cannot change a sync group');
+  await expectStatus(await writeDocument(`${groupCollection}/wrong-id`,syncGroupFields(uid,syncSeasonId,['pool-a','pool-b']),token),403,'group ID must name owner, season, and first pool');
+  const thirdGroupPath=`${groupCollection}/${uid}__${syncSeasonId}__pool-e`;
+  await expectStatus(await writeDocument(thirdGroupPath,syncGroupFields(second.uid,syncSeasonId,['pool-e','pool-f']),token),403,'group owner field must match its ID');
+  await expectStatus(await writeDocument(thirdGroupPath,syncGroupFields(uid,'wrong-season',['pool-e','pool-f']),token),403,'group season field must match its ID');
+  await expectStatus(await writeDocument(thirdGroupPath,syncGroupFields(uid,syncSeasonId,['pool-e']),token),403,'a sync group needs at least two pools');
+  await expectStatus(await writeDocument(thirdGroupPath,syncGroupFields(uid,syncSeasonId,['pool-e','pool-e']),token),403,'duplicate pool IDs are not a group');
+  await expectStatus(await writeDocument(thirdGroupPath,syncGroupFields(uid,syncSeasonId,['pool-e',...Array.from({length:20},(_,index)=>`pool-${index}`)]),token),403,'a sync group cannot exceed 20 pools');
+  await expectStatus(await writeDocument(thirdGroupPath,syncGroupFields(uid,syncSeasonId,['pool-e',...Array.from({length:19},(_,index)=>`pool-${index}`)]),token),200,'a 20-pool sync group remains valid');
+  await expectStatus(await deleteDocument(groupPath,second.token),403,'another user cannot delete a sync group');
+  await expectStatus(await deleteDocument(groupPath,token),200,'owner can delete own sync group');
 
   await expectStatus(await writeDocument('pools/v3-valid',poolFields(uid,rulesSnapshot(3,'number')),token),200,'v3 snapshot with RACE_MULT');
   await expectStatus(await writeDocument('pools/v4-valid',poolFields(uid,rulesSnapshot(4,'number')),token),200,'v4 snapshot with RACE_MULT');

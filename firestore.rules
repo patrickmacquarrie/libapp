@@ -150,6 +150,50 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
+    // A player may have several independent linked groups in one season.
+    // The ID names the owner, season, and first pool in the connected group.
+    match /syncGroups/{groupId} {
+      function validGroupPoolIds(ids) {
+        return ids is list &&
+          ids.size() >= 2 && ids.size() <= 20 &&
+          ids.toSet().size() == ids.size() &&
+          ids[0] is string && ids[1] is string &&
+          (ids.size() <= 2 || ids[2] is string) &&
+          (ids.size() <= 3 || ids[3] is string) &&
+          (ids.size() <= 4 || ids[4] is string) &&
+          (ids.size() <= 5 || ids[5] is string) &&
+          (ids.size() <= 6 || ids[6] is string) &&
+          (ids.size() <= 7 || ids[7] is string) &&
+          (ids.size() <= 8 || ids[8] is string) &&
+          (ids.size() <= 9 || ids[9] is string) &&
+          (ids.size() <= 10 || ids[10] is string) &&
+          (ids.size() <= 11 || ids[11] is string) &&
+          (ids.size() <= 12 || ids[12] is string) &&
+          (ids.size() <= 13 || ids[13] is string) &&
+          (ids.size() <= 14 || ids[14] is string) &&
+          (ids.size() <= 15 || ids[15] is string) &&
+          (ids.size() <= 16 || ids[16] is string) &&
+          (ids.size() <= 17 || ids[17] is string) &&
+          (ids.size() <= 18 || ids[18] is string) &&
+          (ids.size() <= 19 || ids[19] is string);
+      }
+
+      function validGroupDocument() {
+        let data = request.resource.data;
+        return data.keys().hasAll(['uid', 'seasonId', 'poolIds', 'updatedAt']) &&
+          data.keys().hasOnly(['uid', 'seasonId', 'poolIds', 'updatedAt']) &&
+          data.uid is string && data.seasonId is string &&
+          validGroupPoolIds(data.poolIds) &&
+          groupId == data.uid + '__' + data.seasonId + '__' + data.poolIds[0] &&
+          data.updatedAt is number;
+      }
+
+      allow read: if signedIn() && request.auth.uid == resource.data.uid;
+      allow create, update: if signedIn() && request.auth.uid == request.resource.data.uid &&
+        validGroupDocument();
+      allow delete: if signedIn() && request.auth.uid == resource.data.uid;
+    }
+
     // ============================================================
     // Pools
     // ============================================================
