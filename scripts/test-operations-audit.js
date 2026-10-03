@@ -329,6 +329,11 @@ assert(html.slice(createPoolStart,joinGlobalStart).includes('requestEpisodeEmail
 assert(html.slice(joinGlobalStart,acceptInviteStart).includes('requestEpisodeEmailPrompt();'),'A successful Global Pool join must request the one-time email card.');
 assert(html.slice(acceptInviteStart,declineInviteStart).includes("trackTtwEvent('invite_accepted',{poolId:inv.poolId,channel:'email'});\n      requestEpisodeEmailPrompt();"),'Accepting an email invitation must request the one-time email card after the successful join.');
 assert(html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes("trackTtwEvent('invite_accepted',{poolId,channel:'link'});\n              requestEpisodeEmailPrompt();"),'Joining through a pool link must request the one-time email card after the successful join.');
+assert(html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes('await window._fb.acceptJoinedInvite(poolId,user.email)'),'A successful email-link join must accept its matching pending invitation.');
+assert(html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes("setInvites(is.filter(invite=>!availablePools.some(pool=>pool.id===invite.poolId)))"),'Lobby invitations must exclude pools the player already joined.');
+assert(html.includes("if(invitation.data().status==='pending')await updateDoc(inviteRef,{status:'accepted'});"),'Link acceptance must update only a pending invitation’s status.');
+assert(html.includes('if(!invitation.exists())return false;')&&html.includes("if(['not-found','firestore/not-found','permission-denied','firestore/permission-denied'].includes(error?.code))return false;"),'A missing or inaccessible share-link invitation must be a harmless no-op.');
+assert(html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes("if(!['not-found','firestore/not-found','permission-denied','firestore/permission-denied'].includes(inviteError?.code))")&&html.slice(loadLobbyStart,createPoolAfterLobbyStart).includes("reportTtwError('invite_accept_failed',inviteError,{operation:'accept_link_invite',poolId})"),'Lobby joins must report only unexpected invitation-acceptance errors.');
 assert(html.includes('Episode 1 drops October 14 at 12 a.m. PT / 3 a.m. ET.')&&html.includes('Watch it, then come back to make your first picks.')&&html.includes('Test the app with past seasons')&&html.includes('onClick={openPastSeasonLibrary}>Start a Past-Season Private Pool')&&html.includes('id="past-season-library"'),'US11 prelaunch copy must set expectations and link to the past-season private-pool library.');
 const prelaunchPanelStart=html.indexOf("poolTab==='play' && !cfg.PLAYABLE");
 const prelaunchPanelEnd=html.indexOf("poolTab==='play' && cfg.PLAYABLE",prelaunchPanelStart);
@@ -346,7 +351,7 @@ assert(prelaunchPanel.indexOf('Invite your Friends to Join')<prelaunchPanel.inde
   'You’re in the Global Pool',
   'Optional. Global picks are scored separately from your private pools. Link a private pool so you only predict once.',
   'Sync picks with an existing pool?',
-  'Your answers and watch progress will follow you across linked pools. Each pool scores separately.',
+  'Make your picks once and use them in both. Each pool keeps its own scores.',
   'While the season airs, we may adjust which episodes belong to each phase.',
   'No results in these episodes',
   'Your open predictions are still in play.',
@@ -883,6 +888,8 @@ assert(firebaseConfig.includes('"source": "/sw.js"'),'The service-worker kill sw
 assert(firebaseConfig.includes('"source": "/assets/**"')&&firebaseConfig.includes('public, max-age=31536000, immutable'),'Hashed static assets must retain long-lived caching.');
 
 assert(workflow.includes('actions/checkout@v6'));
+assert.equal((workflow.match(/runs-on: ubuntu-24\.04/g)||[]).length,2,'Both release jobs must stay pinned to Ubuntu 24.04.');
+assert(!workflow.includes('runs-on: ubuntu-latest'),'A floating runner must not change under the release gate.');
 assert(workflow.includes('actions/setup-node@v6'));
 assert(workflow.includes('actions/setup-java@v5'));
 assert(workflow.includes('actions/cache@v5')&&workflow.includes('path: ~/.cache/ms-playwright'),'The verify job must cache Playwright browser binaries.');
@@ -921,7 +928,7 @@ async function assertMirrorEntryRegression(){
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
   const context={Promise,window:{},PH_ORDER:['pods','dating','weddings','reunion']};
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__requireMirrorSourceNotBehind=requireMirrorSourceNotBehind;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__mirrorReverseReferences=mirrorReverseReferences;this.__syncPoolOptions=syncPoolOptions;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
@@ -979,6 +986,17 @@ async function assertMirrorEntryRegression(){
   assert.equal(JSON.stringify(context.__linkedMirrorPeers(groupLinks,'friend-a').map(peer=>peer.poolId).sort()),JSON.stringify(['friend-b','global']),'A save in one private pool must reach every linked pool.');
   assert.equal(JSON.stringify(context.__linkedMirrorPeers(groupLinks,'friend-b').map(peer=>peer.poolId).sort()),JSON.stringify(['friend-a','global']),'A save in another private pool must reach the same group.');
   assert.equal(context.__linkedMirrorPeers([{poolId:'friend-a',syncPoolIds:['friend-a',{bad:'id'}]}],'friend-a').length,0,'Malformed sync IDs must not be used as Firestore paths.');
+  assert.equal(JSON.stringify(context.__mirrorReverseReferences([{poolId:'b',syncPoolIds:['a','b']},{poolId:'d',syncPoolIds:['a','d']}],'a')),JSON.stringify({groupPeerIds:['b','d'],legacyPeerIds:[]}), 'Stale group references must be classified for pruning.');
+  assert.equal(JSON.stringify(context.__mirrorReverseReferences([{poolId:'b',sourcePoolId:'a'}],'a')),JSON.stringify({groupPeerIds:[],legacyPeerIds:['b']}), 'A one-sided legacy link must be classified for upgrade, not pruning.');
+  const namedOptions=context.__syncPoolOptions(
+    [{id:'a',name:'Pool A',_myPlayer:{}},{id:'b',name:'Pool B',_myPlayer:{}},{id:'x',name:'Pool X',_myPlayer:{}}],
+    [{poolId:'a',syncPoolIds:['a','b']},{poolId:'b',syncPoolIds:['a','b']}],
+  );
+  assert.equal(JSON.stringify(namedOptions.map(option=>option.label)),JSON.stringify(['Pool A + Pool B','Pool X']),'An existing two-pool group must appear as one sync choice.');
+  assert.equal(JSON.stringify(context.__syncPoolOptions(
+    [{id:'a',name:'Pool A'},{id:'b',name:'Pool B'},{id:'x',name:'Pool X'}],
+    [{poolId:'a',syncPoolIds:['a','b']},{poolId:'b',syncPoolIds:['a','b']}],'a',
+  ).map(option=>option.label)),JSON.stringify(['Pool X']),'Settings must not offer any pool already in the current group.');
   const equalPlayer=id=>({phase:'pods',screen:'board',w:2,completed:{},picks:{pods:[{c:id}]}});
   const equalA=equalPlayer('a'),equalB=equalPlayer('b'),equalC=equalPlayer('c');
   const equalSources=[{id:'b',source:{player:equalB,status:{}},rank:context.__mirrorProgressRank(equalB,{},'viewer')},
@@ -992,11 +1010,13 @@ async function assertMirrorEntryRegression(){
   const datingAhead={phase:'dating',screen:'board',w:7,watchThrough:7,completed:{pods:true},picks:{pods:[{c:'locked-a'}],dating:[{c:'dating-a'}]}};
   const podsBehind={phase:'pods',screen:'board',w:3,watchThrough:3,completed:{},picks:{pods:[{c:'pods-c'}],dating:[]}};
   const beforeBehindSync=JSON.stringify({datingAhead,podsBehind});
-  assert.throws(()=>context.__requireMirrorSourceNotBehind({target:{player:datingAhead,status:{}},source:{player:podsBehind,status:{}},uid:'viewer'}),/further ahead/,'Choosing a Pods pool from a Dating pool must be blocked before any picks or progress are copied.');
-  assert.equal(JSON.stringify({datingAhead,podsBehind}),beforeBehindSync,'A blocked behind-pool sync must leave both pools’ picks unchanged.');
-  assert.doesNotThrow(()=>context.__requireMirrorSourceNotBehind({target:{player:podsBehind,status:{}},source:{player:datingAhead,status:{}},uid:'viewer'}),'Opening the behind pool and choosing the ahead pool must remain possible.');
+  assert.equal(JSON.stringify({datingAhead,podsBehind}),beforeBehindSync,'Ranking a behind-pool sync must not alter either pool’s picks.');
   assert(context.__mirrorProgressRank({...podsBehind,watchThrough:8},{},'viewer')>context.__mirrorProgressRank(podsBehind,{},'viewer'),'Pick-source and progress reconciliation must both account for watch intent.');
-  const linkStart=html.indexOf('linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false) =>');
+  const knownStart=html.indexOf('const mirrorKnownNeighbors=');
+  const knownEnd=html.indexOf('window._fb = {',knownStart);
+  const knownSource=html.slice(knownStart,knownEnd);
+  assert(knownStart>=0&&knownEnd>knownStart,'The client must retain reverse links while traversing sync groups.');
+  const linkStart=html.indexOf('linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false,knownLinks=[]) =>');
   const linkEnd=html.indexOf('  unlinkMirrorGroup:',linkStart);
   const linkExpression=html.slice(linkStart,linkEnd).trim().replace(/^linkMirrorGroup:\s*/,'').replace(/,\s*$/,'');
   const linkedWrites=[],linkedReads=[];
@@ -1020,7 +1040,7 @@ async function assertMirrorEntryRegression(){
     writeBatch:()=>({set:(ref,data)=>linkedWrites.push({path:ref.path,data}),commit:async()=>{}}),
   };
   vm.createContext(linkContext);
-  vm.runInContext(`this.__linkMirrorGroup=${linkExpression};`,linkContext);
+  vm.runInContext(`${knownSource}\nthis.__linkMirrorGroup=${linkExpression};`,linkContext);
   assert.equal(JSON.stringify(await linkContext.__linkMirrorGroup('a','c','viewer',true)),JSON.stringify(['a','b','c']),'A Settings preview must discover all valid group members.');
   assert.equal(linkedWrites.length,0,'Previewing a sync group must not change player documents.');
   const mergedIds=await linkContext.__linkMirrorGroup('a','c','viewer');
@@ -1032,7 +1052,7 @@ async function assertMirrorEntryRegression(){
   extraIds.forEach(id=>{linkPools.set(id,{season:{id:'season'},members:['viewer']});linkPlayers.set(id,{username:'Viewer'});});
   linkPlayers.set('a',{username:'Viewer',syncPoolIds:['a','b',...extraIds]});
   await assert.rejects(()=>linkContext.__linkMirrorGroup('a','c','viewer'),/up to 20 pools/,'The cap must still reject more than 20 real member pools.');
-  const unlinkStart=html.indexOf('unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId) =>');
+  const unlinkStart=html.indexOf('unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId,knownLinks=[]) =>');
   const unlinkEnd=html.indexOf('\n};',unlinkStart);
   const unlinkExpression=html.slice(unlinkStart,unlinkEnd).trim().replace(/^unlinkMirrorGroup:\s*/,'').replace(/,\s*$/,'');
   const groupPools=new Map(['a','b','c','global__season'].map(id=>[id,{season:{id:'season'},members:['viewer']} ]));
@@ -1054,7 +1074,7 @@ async function assertMirrorEntryRegression(){
     },
   };
   vm.createContext(groupContext);
-  vm.runInContext(`this.link=${linkExpression};this.unlink=${unlinkExpression};`,groupContext);
+  vm.runInContext(`${knownSource}\nthis.link=${linkExpression};this.unlink=${unlinkExpression};`,groupContext);
   groupPlayers.get('a').syncPoolIds=['a','global__season'];
   groupPlayers.get('global__season').syncPoolIds=['a','global__season'];
   assert.equal(JSON.stringify(await groupContext.link('a','b','viewer')),JSON.stringify(['a','b','global__season']),'Joining a private pool must merge its link with an existing Global Pool pair.');
@@ -1067,6 +1087,35 @@ async function assertMirrorEntryRegression(){
   assert.equal(JSON.stringify(await groupContext.unlink('c','viewer')),JSON.stringify(['a','global__season']),'Leaving a linked pool must first remove it from the remaining group.');
   groupPools.get('c').members=[];groupPlayers.delete('c');
   assert.equal(JSON.stringify(await groupContext.link('a','global__season','viewer',true)),JSON.stringify(['a','global__season']),'After leave, the remaining group must open without a stale member link.');
+  groupPools.set('d',{season:{id:'season'},members:['viewer']});
+  groupPlayers.clear();
+  groupPlayers.set('b',{username:'Viewer',syncPoolIds:['a','b']});
+  groupPlayers.set('d',{username:'Viewer',syncPoolIds:['a','d']});
+  const reverseLinks=[{poolId:'b',syncPoolIds:['a','b']},{poolId:'d',syncPoolIds:['a','d']}];
+  assert.equal(JSON.stringify(await groupContext.link('b','d','viewer',false,reverseLinks)),JSON.stringify(['a','b','d']),'A never-opened A must not split two groups that both point to it.');
+  assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['a','b','d']),'B must learn the full A/B/D group.');
+  assert.equal(JSON.stringify(groupPlayers.get('d').syncPoolIds),JSON.stringify(['a','b','d']),'D must learn the full A/B/D group.');
+  groupPlayers.set('a',{username:'Viewer'});
+  await groupContext.link('a','b','viewer',false,reverseLinks);
+  assert.equal(JSON.stringify(groupPlayers.get('a').syncPoolIds),JSON.stringify(['a','b','d']),'First opening A must store the full group.');
+  assert.equal(JSON.stringify(await groupContext.unlink('a','viewer','a',reverseLinks)),JSON.stringify(['b','d']),'Stopping in A must detach A from every reverse-linked pool.');
+  assert.equal(groupPlayers.get('a').syncPoolIds,undefined,'Stopped A must keep no sync list.');
+  assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['b','d']),'B must remain synced with D after A stops.');
+  assert.equal(JSON.stringify(groupPlayers.get('d').syncPoolIds),JSON.stringify(['b','d']),'D must remain synced with B after A stops.');
+  groupPlayers.delete('a');
+  groupPlayers.get('b').syncPoolIds=['a','b','d'];
+  groupPlayers.get('d').syncPoolIds=['a','b','d'];
+  assert.equal(JSON.stringify(await groupContext.unlink('a','viewer','a',reverseLinks)),JSON.stringify(['b','d']),'Leaving an unopened pool must still remove its reverse links.');
+  assert.equal(groupPlayers.has('a'),false,'Unlinking an unopened pool must not create a placeholder player.');
+  assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['b','d']),'B must no longer refer to an unopened pool after it is left.');
+  assert.equal(JSON.stringify(groupPlayers.get('d').syncPoolIds),JSON.stringify(['b','d']),'D must no longer refer to an unopened pool after it is left.');
+  groupPlayers.clear();
+  groupPlayers.set('a',{username:'Viewer'});
+  groupPlayers.set('b',{username:'Viewer',duplicateFromPoolId:'a'});
+  assert.equal(JSON.stringify(await groupContext.link('a','b','viewer',false,[{poolId:'b',sourcePoolId:'a'}])),JSON.stringify(['a','b']),'Opening an entered pool with a one-sided legacy reverse link must upgrade the pair.');
+  assert.equal(JSON.stringify(groupPlayers.get('a').syncPoolIds),JSON.stringify(['a','b']),'The entered pool must gain the upgraded sync group.');
+  assert.equal(JSON.stringify(groupPlayers.get('b').syncPoolIds),JSON.stringify(['a','b']),'The legacy peer must gain the upgraded sync group.');
+  assert.equal(groupPlayers.get('b').duplicateFromPoolId,undefined,'The upgraded legacy peer must drop its old source pointer.');
   const attempted=[],skipped=[];
   await context.__syncMirroredPicksOnEntry({
     phases:['pods','reunion'],
@@ -1192,63 +1241,78 @@ async function assertMirrorEntryRegression(){
   const refreshPoolStart=html.indexOf('const refreshPool = async',openNextPhaseStart);
   const openNextPhaseSource=html.slice(openNextPhaseStart,refreshPoolStart);
   assert(openNextPhaseSource.includes("activePool.global===true")&&openNextPhaseSource.includes('ledgerWatch:globalLedgerWatch.current.value'),'Only a Global pool may use the stored ledger position when opening its next phase.');
-  assert(html.includes("linkMirrorPeers: async (poolId,peerPoolId,uid)"),'A linked pair must be written to both player documents.');
+  assert(!html.includes('linkMirrorPeers: async')&&!enterPoolSource.includes('window._fb.linkMirrorPeers('),'Opening a pool must never recreate a legacy pair after unlinking.');
+  assert(enterPoolSource.includes('const {groupPeerIds,legacyPeerIds}=mirrorReverseReferences(pickMirrorLinks.current,enteredPool.id)')&&enterPoolSource.includes('const groupLinks=pickMirrorLinks.current.filter(link=>Array.isArray(link.syncPoolIds))')&&enterPoolSource.includes('unlinkMirrorGroup(enteredPool.id,user.uid,enteredPool.id,groupLinks)'),'An unlinked player must prune only stale group-list reverse references before entry reconciliation.');
+  assert(enterPoolSource.includes('if(legacyPeerIds.length){')&&enterPoolSource.includes('linkMirrorGroup(enteredPool.id,legacyPeerIds[0],user.uid,false,pickMirrorLinks.current)'),'An unlinked player must upgrade one-sided legacy links instead of pruning them.');
   assert(html.includes("clearMirrorSource: async (poolId,uid,peerPoolId='')"),'A stale mirror source must be removable symmetrically without deleting copied game state.');
   assert(html.includes('for(const {id:mirrorSourcePoolId,source:loadedSource,error:sourceLoadError} of mirrorSources)'),'Entry reconciliation must inspect every peer in a linked group.');
-  assert(html.includes('linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false)'),'New links must merge existing same-season sync groups.');
-  assert(html.includes('unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId)'),'A player must be able to unlink one pool without deleting its picks.');
+  assert(html.includes('linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false,knownLinks=[])'),'New links must merge reverse references known to the lobby.');
+  assert(html.includes('unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId,knownLinks=[])'),'A player must be able to remove one pool from the full connected group.');
   const leavePoolStart=html.indexOf('const doLeavePool = async pool =>');
   const leavePoolSource=html.slice(leavePoolStart,html.indexOf('const doDeleteAccount = async',leavePoolStart));
-  assert(leavePoolSource.indexOf('unlinkMirrorGroup(pool.id,user.uid)')<leavePoolSource.indexOf('leavePool(pool.id)'),'Leaving a pool must remove its sync links before membership is revoked.');
-  const settingsSyncStart=html.indexOf('const syncCurrentPoolWith=async sourcePoolId=>');
+  assert(leavePoolSource.indexOf('unlinkMirrorGroup(pool.id,user.uid,pool.id,pickMirrorLinks.current)')<leavePoolSource.indexOf('leavePool(pool.id)'),'Leaving a pool must remove its sync links before membership is revoked.');
+  const settingsSyncStart=html.indexOf('const syncPoolDisplayName=poolId=>');
   const settingsSyncSource=html.slice(settingsSyncStart,html.indexOf('const unlinkCurrentPool=async',settingsSyncStart));
-  assert(settingsSyncSource.indexOf('requireMirrorSourceNotBehind(')<settingsSyncSource.indexOf('const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid);'),'Every behind group member must be checked before Settings links or overwrites either pool.');
+  assert(!settingsSyncSource.includes('requireMirrorSourceNotBehind')&&!html.includes('Another pool in this sync group is further ahead'),'Settings must not ask for a direction or block a behind source.');
+  assert(settingsSyncSource.includes("selectedSourceId:''")&&settingsSyncSource.includes("enterPool(activePool,'',{prelinkedGroupIds:ids"),'Settings must pick the furthest-along player across the merged group.');
   const behindSyncCalls=[];
   let previewGroupIds=['a','c'];
   const settingsPlayers=new Map([['a',datingAhead],['c',podsBehind]]);
   const settingsSyncContext={
     activePool:{id:'a',season:{id:'season'}},user:{uid:'viewer'},
+    pools:[{id:'a',name:'Pool A'},{id:'b',name:'Pool B'},{id:'c',name:'Pool C'}],
+    pickMirrorLinks:{current:[]},
     seasonForPool:()=>({id:'season'}),syncSourcesFor:()=>[{id:'c'}],
     flushSave:async()=>behindSyncCalls.push('flush'),
     loadMirrorSourceState:context.__loadMirrorSourceState,
-    requireMirrorSourceNotBehind:context.__requireMirrorSourceNotBehind,
+    chooseMirrorPickSource:context.__chooseMirrorPickSource,mirrorProgressRank:context.__mirrorProgressRank,
     window:{_fb:{
       loadMyPlayer:async id=>settingsPlayers.get(id)||null,
       getPhaseStatus:async()=>null,
       getPool:async id=>({id,members:['viewer']}),
       linkMirrorGroup:async(_poolId,_sourceId,_uid,previewOnly)=>{behindSyncCalls.push(previewOnly?'preview':'link');return previewGroupIds;},
     }},
-    enterPool:async()=>behindSyncCalls.push('enter'),setShowSettings:()=>behindSyncCalls.push('close'),
+    enterPool:async(_pool,selectedSource)=>behindSyncCalls.push(['enter',selectedSource]),setShowSettings:()=>behindSyncCalls.push('close'),
     loadLobby:async()=>behindSyncCalls.push('lobby'),
   };
   vm.createContext(settingsSyncContext);
-  vm.runInContext(`${settingsSyncSource}\nthis.__syncCurrentPoolWith=syncCurrentPoolWith;`,settingsSyncContext);
-  await assert.rejects(()=>settingsSyncContext.__syncCurrentPoolWith('c'),/further ahead/,'Settings must block the Dating-to-Pods sync before linking.');
-  assert.deepEqual(behindSyncCalls,['flush','preview'],'A blocked behind-pool sync must not link, reopen, or write either pool.');
-  assert.equal(JSON.stringify({datingAhead,podsBehind}),beforeBehindSync,'Both pools must retain their original picks after the blocked Settings sync.');
+  vm.runInContext(`${settingsSyncSource}\nthis.__previewSyncCurrentPoolWith=previewSyncCurrentPoolWith;this.__syncCurrentPoolWith=syncCurrentPoolWith;`,settingsSyncContext);
+  assert.equal((await settingsSyncContext.__previewSyncCurrentPoolWith('c')).winnerName,'Pool A','A behind pool must preview the ahead pool as the winner.');
+  assert.deepEqual(behindSyncCalls,['flush','preview'],'A Settings preview must make no link or pick writes.');
   behindSyncCalls.length=0;
   settingsPlayers.set('a',podsBehind);
   settingsPlayers.set('b',datingAhead);
   previewGroupIds=['a','b','c'];
-  await assert.rejects(()=>settingsSyncContext.__syncCurrentPoolWith('c'),/further ahead/,'A third pool further ahead than the selected source must block a group merge.');
-  assert.deepEqual(behindSyncCalls,['flush','preview'],'The third-pool guard must run before linking either existing group.');
+  assert.equal((await settingsSyncContext.__previewSyncCurrentPoolWith('c')).winnerName,'Pool B','A third pool further ahead than the selected group representative must win.');
+  assert.deepEqual(behindSyncCalls,['flush','preview'],'A full-group preview must remain read-only.');
   behindSyncCalls.length=0;
   settingsPlayers.set('c',null);
-  await assert.rejects(()=>settingsSyncContext.__syncCurrentPoolWith('c'),/Open that pool once first/,'An unopened selected pool must receive a clear first-open message.');
+  await assert.rejects(()=>settingsSyncContext.__previewSyncCurrentPoolWith('c'),/Open Pool C once first/,'An unopened selected pool must be named in the first-open message.');
   assert.deepEqual(behindSyncCalls,['flush','preview'],'An unopened selected pool must not be linked or opened implicitly.');
   behindSyncCalls.length=0;
   settingsPlayers.set('a',podsBehind);
   settingsPlayers.set('b',podsBehind);
   settingsPlayers.set('c',datingAhead);
   await settingsSyncContext.__syncCurrentPoolWith('c');
-  assert.deepEqual(behindSyncCalls,['flush','preview','link','enter','close','lobby'],'Choosing the ahead pool must connect and re-enter the complete same-season group.');
-  assert(settingsSyncSource.indexOf('const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid);')<settingsSyncSource.indexOf('setShowSettings(false)'),'Settings must surface link validation failures before closing.');
+  assert.deepEqual(behindSyncCalls,['flush','preview','link',['enter',''],'close','lobby'],'Settings must connect and re-enter without choosing a directional source.');
+  assert(settingsSyncSource.indexOf('const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid,false,pickMirrorLinks.current);')<settingsSyncSource.indexOf('setShowSettings(false)'),'Settings must surface link validation failures before closing.');
   assert(settingsSyncSource.includes('keepCurrentPoolOnFailure:true')&&html.includes("if(options.keepCurrentPoolOnFailure){setLinkedSyncError('The linked pools need another sync.');throw e;}"),'A reconciliation failure from Settings must leave the current pool and its error panel visible.');
-  assert(html.includes('const canonicalPlayer=chooseMirrorPickSource({')&&html.includes('sourcePicks[ph]=canonicalPicks[ph]'),'A selected sync source must determine unlocked picks before reconciliation.');
+  assert(html.includes('const canonicalPlayer=chooseMirrorPickSource({')&&html.includes('sourcePicks[ph]=canonicalPicks[ph]'),'The ranked canonical player must determine unlocked picks before reconciliation.');
   assert(html.includes('if(!targetLeads)await syncMirroredPicksOnEntry({'),'A pool just locked by reconciliation must not receive a second pick write.');
   assert(html.includes('if(!linkedPlayer)return;'),'A linked pool without a first-open player profile must be skipped during routine saves.');
   const settingsSource=html.slice(html.indexOf('function SettingsModal('),html.indexOf('function ConfirmModal('));
   assert(settingsSource.includes('id="sync-pools-title"')&&settingsSource.includes('onSyncWithPool')&&settingsSource.includes('onUnlinkPool'),'Sync and unlink controls must live inside pool settings.');
+  [
+    'Make your picks once and use them in every synced pool. Each pool keeps its own scores.',
+    'Not synced with any other pool.','Sync another pool','Sync this pool with…',
+    'Your picks from {syncPreview.winnerName} will be used in all synced pools. Locked picks stay as they are.',
+    'This pool now has its own picks. Your other pools stay synced.',
+  ].forEach(copy=>assert(settingsSource.includes(copy),`Settings sync copy must include: ${copy}`));
+  assert(settingsSource.includes('Synced with ${syncPoolNameList(linkedPoolNames)}.')&&settingsSource.includes("syncPreview?.sourceId===syncSourceId?'Sync':'Review sync'"),'Settings must name the full group and confirm the preview with a plain Sync button.');
+  assert(!settingsSource.includes('further ahead')&&!settingsSource.includes('Unlocked picks from'),'Settings must not present a directional pick choice.');
+  assert(html.includes('sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)'),'Join modals must show each existing sync group as one labelled choice.');
+  assert(html.includes('const newPoolSyncSources=syncPoolOptions(')&&html.includes('syncSources={syncPoolOptions('),'Creation and Settings must deduplicate sync group choices.');
+  assert(html.includes('className="pool-sync-note ph-no-capture"')&&html.includes('className="modal ph-no-capture"'),'Pool names in sync surfaces must remain excluded from session replay.');
   assert(html.includes('function PoolSyncChoiceModal(')&&html.includes('offerSyncOnJoin(joinedPool)'),'A same-season invitation must offer a sync choice after joining.');
   assert(html.includes('Your picks and progress here were kept; any other linked pools remain connected.'),'Removing an unavailable sync peer must explain that local state is preserved.');
   assert(html.includes('pending.data.screen===\'watch\''),'A source prediction window must trusted-lock its linked Global copy before progress advances.');

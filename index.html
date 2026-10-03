@@ -1121,6 +1121,15 @@ const loadPublishedSeasonCatalog=async({loadCatalog,listSeasons})=>{
   return catalog&&Array.isArray(catalog.seasons)?catalog.seasons:listSeasons();
 };
 /* SEASON CATALOG LOADER END */
+const mirrorKnownNeighbors=(links,id)=>{
+  const neighbors=new Set();
+  (Array.isArray(links)?links:[]).forEach(link=>{
+    const memberIds=[link?.poolId,...(Array.isArray(link?.syncPoolIds)?link.syncPoolIds:[]),link?.sourcePoolId]
+      .filter(value=>typeof value==='string'&&value);
+    if(memberIds.includes(id))memberIds.forEach(value=>{if(value!==id)neighbors.add(value);});
+  });
+  return [...neighbors];
+};
 window._fb = {
   signIn:  () => signInWithProvider(new GoogleAuthProvider()),
   completeAuthRedirect: async () => {
@@ -1242,6 +1251,18 @@ window._fb = {
     await updateDoc(doc(db,'pools',poolId),{members:arrayUnion(uid),lastJoinUid:uid,lastJoinProof:joinCode});
     const joined=await getDoc(doc(db,'pools',poolId));
     return joined.exists()?{id:joined.id,...joined.data()}:null;
+  },
+  acceptJoinedInvite: async (poolId,email) => {
+    const inviteRef=doc(db,'invites',`${poolId}__${String(email||'').toLowerCase()}`);
+    try{
+      const invitation=await getDoc(inviteRef);
+      if(!invitation.exists())return false;
+      if(invitation.data().status==='pending')await updateDoc(inviteRef,{status:'accepted'});
+      return true;
+    }catch(error){
+      if(['not-found','firestore/not-found','permission-denied','firestore/permission-denied'].includes(error?.code))return false;
+      throw error;
+    }
   },
   getPool: async (poolId) => {
     const s = await getDoc(doc(db,'pools',poolId));
@@ -1598,12 +1619,6 @@ window._fb = {
     const snapshot=await getDoc(doc(db,'pools',poolId,'phasePicks',phase+'__'+uid));
     return snapshot.exists()&&Array.isArray(snapshot.data().picks)?snapshot.data().picks:[];
   },
-  linkMirrorPeers: async (poolId,peerPoolId,uid) => {
-    const batch=writeBatch(db);
-    batch.set(doc(db,'pools',poolId,'players',uid),{duplicateFromPoolId:peerPoolId},{merge:true});
-    batch.set(doc(db,'pools',peerPoolId,'players',uid),{duplicateFromPoolId:poolId},{merge:true});
-    await batch.commit();
-  },
   syncMirroredProgress: (poolId,uid,sourceState,spans,availableThrough) => runTransaction(db,async transaction=>{
     const playerRef=doc(db,'pools',poolId,'players',uid);
     const playerSnapshot=await transaction.get(playerRef);
@@ -1638,7 +1653,7 @@ window._fb = {
     refs.forEach(reference=>batch.set(reference,{duplicateFromPoolId:deleteField()},{merge:true}));
     await batch.commit();
   },
-  linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false) => {
+  linkMirrorGroup: async (poolId,peerPoolId,uid,previewOnly=false,knownLinks=[]) => {
     if(!poolId||!peerPoolId||poolId===peerPoolId)throw new Error('Choose another pool to sync.');
     const pending=[poolId,peerPoolId],visited=new Set(),members=[];
     let seasonId='';
@@ -1670,7 +1685,8 @@ window._fb = {
       const linked=Array.isArray(player.syncPoolIds)&&player.syncPoolIds.length
         ? player.syncPoolIds
         : player.duplicateFromPoolId?[player.duplicateFromPoolId]:[];
-      linked.filter(peer=>typeof peer==='string'&&peer&&peer!==id).forEach(peer=>pending.push(peer));
+      [...linked,...mirrorKnownNeighbors(knownLinks,id)]
+        .filter(peer=>typeof peer==='string'&&peer&&peer!==id).forEach(peer=>pending.push(peer));
     }
     const ids=members.map(member=>member.id).sort();
     if(!ids.includes(poolId)||!ids.includes(peerPoolId))throw new Error('Both pools must be available to sync.');
@@ -1682,23 +1698,30 @@ window._fb = {
     await batch.commit();
     return ids;
   },
-  unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId) => {
-    const playerRef=doc(db,'pools',poolId,'players',uid);
-    const playerSnapshot=await getDoc(playerRef);
-    if(!playerSnapshot.exists())return [];
-    const player=playerSnapshot.data();
-    const peers=(Array.isArray(player.syncPoolIds)?player.syncPoolIds:
-      player.duplicateFromPoolId?[poolId,player.duplicateFromPoolId]:[poolId]).filter(id=>id&&id!==removedPoolId);
-    const remaining=[];
-    for(const id of [...new Set(peers)]){
+  unlinkMirrorGroup: async (poolId,uid,removedPoolId=poolId,knownLinks=[]) => {
+    const pending=[poolId],visited=new Set(),members=[];
+    while(pending.length){
+      const id=pending.shift();
+      if(visited.has(id))continue;
+      visited.add(id);
       try{
         const [poolSnapshot,peerSnapshot]=await Promise.all([getDoc(doc(db,'pools',id)),getDoc(doc(db,'pools',id,'players',uid))]);
-        if(poolSnapshot.exists()&&poolSnapshot.data().members?.includes(uid)&&peerSnapshot.exists())remaining.push(peerSnapshot.ref);
+        if(!poolSnapshot.exists()||!poolSnapshot.data().members?.includes(uid))continue;
+        if(peerSnapshot.exists()){
+          members.push({id,ref:peerSnapshot.ref});
+          const player=peerSnapshot.data();
+          const linked=Array.isArray(player.syncPoolIds)?player.syncPoolIds:
+            player.duplicateFromPoolId?[player.duplicateFromPoolId]:[];
+          [...linked,...mirrorKnownNeighbors(knownLinks,id)]
+            .filter(peer=>typeof peer==='string'&&peer&&peer!==id).forEach(peer=>pending.push(peer));
+        }else mirrorKnownNeighbors(knownLinks,id).forEach(peer=>pending.push(peer));
       }catch(error){console.info('An unavailable linked pool could not be updated.',error);}
     }
-    const batch=writeBatch(db),ids=remaining.map(ref=>ref.parent.parent.id).sort();
-    if(removedPoolId===poolId)batch.set(playerRef,{syncPoolIds:deleteField(),duplicateFromPoolId:deleteField()},{merge:true});
-    remaining.forEach(ref=>batch.set(ref,ids.length>1
+    const batch=writeBatch(db),ids=members.filter(member=>member.id!==removedPoolId).map(member=>member.id).sort();
+    members.filter(member=>member.id===removedPoolId).forEach(member=>
+      batch.set(member.ref,{syncPoolIds:deleteField(),duplicateFromPoolId:deleteField()},{merge:true})
+    );
+    members.filter(member=>member.id!==removedPoolId).forEach(member=>batch.set(member.ref,ids.length>1
       ? {syncPoolIds:ids,duplicateFromPoolId:deleteField()}
       : {syncPoolIds:deleteField(),duplicateFromPoolId:deleteField()},{merge:true}));
     await batch.commit();
@@ -1873,16 +1896,34 @@ const linkedMirrorPeers=(links,poolId)=>{
   }
   return peers;
 };
+const mirrorReverseReferences=(links,poolId)=>({
+  groupPeerIds:[...new Set((links||[]).filter(link=>typeof link?.poolId==='string'&&link.poolId&&link.poolId!==poolId&&Array.isArray(link.syncPoolIds)&&link.syncPoolIds.includes(poolId)).map(link=>link.poolId))],
+  legacyPeerIds:[...new Set((links||[]).filter(link=>typeof link?.poolId==='string'&&link.poolId&&link.poolId!==poolId&&link.sourcePoolId===poolId).map(link=>link.poolId))],
+});
+const syncPoolOptions=(candidatePools,links,excludeId='')=>{
+  const byId=new Map();
+  candidatePools.forEach(pool=>{if(pool?.id&&!byId.has(pool.id))byId.set(pool.id,pool);});
+  const excluded=new Set(excludeId?[excludeId,...linkedMirrorPeers(links,excludeId).map(peer=>peer.poolId)]:[]);
+  const seen=new Set(),options=[];
+  for(const pool of byId.values()){
+    if(seen.has(pool.id)||excluded.has(pool.id))continue;
+    const allGroupIds=[pool.id,...linkedMirrorPeers(links,pool.id).map(peer=>peer.poolId)];
+    if(allGroupIds.some(id=>excluded.has(id)))continue;
+    const groupIds=allGroupIds.filter(id=>byId.has(id));
+    groupIds.forEach(id=>seen.add(id));
+    const group=groupIds.map(id=>byId.get(id));
+    const representative=group.find(member=>member._myPlayer)||group[0];
+    options.push({id:representative.id,label:group.map(member=>member.global===true?'Global Pool':member.name).join(' + '),poolIds:groupIds});
+  }
+  return options;
+};
+const syncPoolNameList=names=>names.length<2?names.join(''):
+  names.length===2?names.join(' and '):`${names.slice(0,-1).join(', ')}, and ${names[names.length-1]}`;
 const mirrorProgressRank=(player,phaseStatus={},uid='')=>{
   const phaseRank=Math.max(0,PH_ORDER.indexOf(player?.phase||'pods'));
   const completedRank=PH_ORDER.filter(ph=>player?.completed?.[ph]===true||(phaseStatus[ph]?.completedMembers||[]).includes(uid)).length;
   const watch=Math.max(Number(player?.w)||0,Number(player?.watchThrough)||0);
   return phaseRank*1e9+completedRank*1e7+watch*1000+(mirrorScreenRank[player?.screen]||0);
-};
-const requireMirrorSourceNotBehind=({target,source,uid})=>{
-  if(mirrorProgressRank(source?.player,source?.status,uid)<mirrorProgressRank(target?.player,target?.status,uid)){
-    throw new Error('Another pool in this sync group is further ahead. Open that pool and sync from its Settings, choosing it as the source. No picks were changed.');
-  }
 };
 const chooseMirrorPickSource=({enteredPoolId,mine,status,sources,selectedSourceId,uid})=>{
   const selected=selectedSourceId&&sources.find(item=>item.id===selectedSourceId&&item.source?.player);
@@ -5133,7 +5174,7 @@ function PricingResearchCard({price,seasonLabel,response,onShown,onRespond}) {
         </div>}
   </section>;
 }
-function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onSendCaptainReminder,onChangeUsername,onSignOut,syncSources=[],linkedPoolNames=[],onSyncWithPool,onUnlinkPool,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
+function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,userEmail='',profileUsername='',notificationPreferences=DEFAULT_NOTIFICATION_PREFERENCES,onNotificationChange,notificationSaving=false,onSubmitFeedback,onDeletePool,onLeavePool,onDeleteAccount,onSetPoolMembershipClosed,onRenamePool,onResetPoolJoinCode,onResetHistoricalGlobalSimulation,onRelaxHistoricalJoinFloor,onSendCaptainReminder,onChangeUsername,onSignOut,syncSources=[],linkedPoolNames=[],onPreviewSync,onSyncWithPool,onUnlinkPool,signingOut=false,membershipUpdating=false,error='',onDismissError}) {
   const [confirmPool,setConfirmPool]=useState(null);
   const [typedName,setTypedName]=useState('');
   const [deleting,setDeleting]=useState(false);
@@ -5151,7 +5192,8 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [captainStatus,setCaptainStatus]=useState('');
   const [analyticsEnabled,setAnalyticsEnabled]=useState(()=>!window.ttwAnalytics?.isOptedOut?.());
   const [syncSourceId,setSyncSourceId]=useState('');
-  const [confirmSyncSourceId,setConfirmSyncSourceId]=useState('');
+  const [syncOptionsOpen,setSyncOptionsOpen]=useState(false);
+  const [syncPreview,setSyncPreview]=useState(null);
   const [syncSaving,setSyncSaving]=useState(false);
   const [syncFeedback,setSyncFeedback]=useState('');
   const modalRef=useModalLifecycle(onClose,!deleting);
@@ -5175,16 +5217,20 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const finishUsername=async()=>{if(savingProfile)return;const validation=linkNameValidationMessage(accountUsername);if(validation){setSettingsFeedback(validation);return;}setSavingProfile(true);setSettingsFeedback('');try{const saved=await onChangeUsername?.(accountUsername);setAccountUsername(saved||accountUsername);setSettingsFeedback('Username updated.');}catch(e){setSettingsFeedback(playerErrorMessage(e,'The username could not be changed.'));}finally{setSavingProfile(false);}};
   const finishSync=async()=>{
     if(!syncSourceId||syncSaving)return;
-    if(confirmSyncSourceId!==syncSourceId){setConfirmSyncSourceId(syncSourceId);return;}
     setSyncSaving(true);setSyncFeedback('');
-    try{await onSyncWithPool?.(syncSourceId);}
+    try{
+      if(syncPreview?.sourceId!==syncSourceId){
+        const preview=await onPreviewSync?.(syncSourceId);
+        setSyncPreview({sourceId:syncSourceId,...preview});
+      }else await onSyncWithPool?.(syncSourceId);
+    }
     catch(error){setSyncFeedback(playerErrorMessage(error,'These pools could not be synced. Please try again.'));}
     finally{setSyncSaving(false);}
   };
   const finishUnlink=async()=>{
     if(syncSaving)return;
     setSyncSaving(true);setSyncFeedback('');
-    try{await onUnlinkPool?.();setSyncFeedback('This pool now has its own picks and progress.');}
+    try{await onUnlinkPool?.();setSyncFeedback('This pool now has its own picks. Your other pools stay synced.');}
     catch(error){setSyncFeedback(playerErrorMessage(error,'This pool could not be unlinked. Please try again.'));}
     finally{setSyncSaving(false);}
   };
@@ -5217,14 +5263,18 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       </div>
       {activePool&&<section className="support-panel ph-no-capture" aria-labelledby="sync-pools-title">
         <h3 id="sync-pools-title">Sync pools</h3>
-        <p>{linkedPoolNames.length?`Your picks and watch progress are synced with ${linkedPoolNames.join(', ')}.`:'This pool has its own picks and watch progress.'} Scores stay separate in each pool.</p>
-        {syncSources.length>0&&<div className="field"><label className="small" htmlFor="settings-sync-pool">Connect another pool for this season</label>
-          <select id="settings-sync-pool" value={syncSourceId} disabled={syncSaving} onChange={event=>{setSyncSourceId(event.target.value);setConfirmSyncSourceId('');}}><option value="">Choose a pool</option>{syncSources.map(pool=><option key={pool.id} value={pool.id}>{pool.global===true?'Global Pool':pool.name}</option>)}</select>
-          {confirmSyncSourceId===syncSourceId&&syncSourceId&&<p role="status">Unlocked picks from <b>{syncSources.find(pool=>pool.id===syncSourceId)?.global===true?'Global Pool':syncSources.find(pool=>pool.id===syncSourceId)?.name}</b> will be kept when syncing. If that pool is behind, sync will stop without changing picks. Picks already locked keep their original timing; scores remain separate.</p>}
-          <button className="btn-secondary" disabled={!syncSourceId||syncSaving} onClick={finishSync}>{syncSaving?'Syncing…':confirmSyncSourceId===syncSourceId?'Confirm sync':'Review sync'}</button>
-          {confirmSyncSourceId&&<button className="btn-secondary" disabled={syncSaving} onClick={()=>setConfirmSyncSourceId('')}>Cancel</button>}
-        </div>}
+        <p>Make your picks once and use them in every synced pool. Each pool keeps its own scores.</p>
+        <p>{linkedPoolNames.length?`Synced with ${syncPoolNameList(linkedPoolNames)}.`:'Not synced with any other pool.'}</p>
         {linkedPoolNames.length>0&&<button className="btn-secondary" disabled={syncSaving} onClick={finishUnlink}>Stop syncing this pool</button>}
+        {syncSources.length>0&&<React.Fragment>
+          <button className="btn-secondary" disabled={syncSaving} onClick={()=>{setSyncOptionsOpen(open=>!open);setSyncPreview(null);}}>Sync another pool</button>
+          {syncOptionsOpen&&<div className="field"><label className="small" htmlFor="settings-sync-pool">Sync this pool with…</label>
+            <select id="settings-sync-pool" value={syncSourceId} disabled={syncSaving} onChange={event=>{setSyncSourceId(event.target.value);setSyncPreview(null);}}><option value="">Choose a pool</option>{syncSources.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)}</select>
+            {syncPreview?.sourceId===syncSourceId&&<p role="status">Your picks from {syncPreview.winnerName} will be used in all synced pools. Locked picks stay as they are.</p>}
+            <button className="btn-secondary" disabled={!syncSourceId||syncSaving} onClick={finishSync}>{syncSaving?'Syncing…':syncPreview?.sourceId===syncSourceId?'Sync':'Review sync'}</button>
+            {syncPreview&&<button className="btn-secondary" disabled={syncSaving} onClick={()=>setSyncPreview(null)}>Cancel</button>}
+          </div>}
+        </React.Fragment>}
         {syncFeedback&&<p role="alert" className="subtle">{syncFeedback}</p>}
       </section>}
       {ownedPools.length>0&&<div className="danger-zone">
@@ -5321,13 +5371,13 @@ function GlobalPoolJoinModal({join,sourcePools,joining,onSourceChange,onWatchCha
   const titleId=useId(),selectId=useId(),watchId=useId(),modalRef=useModalLifecycle(onClose,!joining);
   const watchSelection=globalJoinWatchSelection(join);
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!joining)onClose();}}>
-    <div className="modal" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div className="modal ph-no-capture" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <h2 id={titleId}>Join the Global Pool</h2>
       <p>Play {formatSeasonLabel(join.season)} against everyone on Through the Wall. Global scores and rankings are separate from your private pools.</p>
       <label className="small" htmlFor={selectId}>Link a private pool (optional)</label>
       <select id={selectId} value={join.sourcePoolId} onChange={e=>onSourceChange(e.target.value)} disabled={joining}>
         <option value="">Don't link. I'll make separate Global picks</option>
-        {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.name}</option>)}
+        {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)}
       </select>
       {sourcePools.length===0?<p className="subtle">You don't have a private pool for this season yet, so your Global picks start fresh.</p>:<p className="subtle">Linked pools share your picks and progress, so you only predict once. Picks you've already made count here from where you are now, so they don't earn the early-pick bonus.</p>}
       {watchSelection.ask&&<div className="field" style={{marginTop:16}}>
@@ -5358,13 +5408,13 @@ function PoolSyncChoiceModal({choice,sourcePools,onSourceChange,onContinue,onClo
   return <div className="modal-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}>
     <div className="modal ph-no-capture" ref={modalRef} tabIndex="-1" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <h2 id={titleId}>Sync your pools?</h2>
-      <p>You’ve joined <b>{choice.pool.name}</b>. You already play this season in another pool. If you sync, your picks and watch progress follow you between them. Each pool keeps its own scores.</p>
+      <p>Use your picks from another pool? You can change this later in Settings.</p>
       <label className="small" htmlFor={selectId}>Use picks from</label>
       <select id={selectId} value={choice.sourcePoolId} onChange={event=>onSourceChange(event.target.value)}>
         <option value="">Keep this pool separate</option>
-        {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.global===true?'Global Pool':pool.name}</option>)}
+        {sourcePools.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)}
       </select>
-      <p className="subtle">Unlocked picks from the selected pool will be used across connected pools. Already locked predictions keep their original timing and points.</p>
+      <p className="subtle">Make your picks once and use them in every synced pool. Each pool keeps its own scores.</p>
       <div className="modal-actions"><button className="btn-secondary" onClick={onClose}>Later</button><button className="btn-primary" onClick={onContinue}>{choice.sourcePoolId?'Sync and open pool':'Open pool separately'}</button></div>
     </div>
   </div>;
@@ -5694,6 +5744,11 @@ function App() {
             const joined=await window._fb.joinPoolByCode(poolId,joinCode,user.uid);
             if(joined){
               invitationPool=joined;availablePools=[...availablePools,joined];
+              try{await window._fb.acceptJoinedInvite(poolId,user.email);}
+              catch(inviteError){
+                if(!['not-found','firestore/not-found','permission-denied','firestore/permission-denied'].includes(inviteError?.code))
+                  reportTtwError('invite_accept_failed',inviteError,{operation:'accept_link_invite',poolId});
+              }
               trackTtwEvent('invite_accepted',{poolId,channel:'link'});
               requestEpisodeEmailPrompt();
             }
@@ -5718,7 +5773,7 @@ function App() {
           : player?.duplicateFromPoolId?{poolId:pool.id,sourcePoolId:player.duplicateFromPoolId}:null;
       }).filter(Boolean);
       pickMirrorLinks.current=links;
-      setPools(availablePools); setInvites(is);
+      setPools(availablePools); setInvites(is.filter(invite=>!availablePools.some(pool=>pool.id===invite.poolId)));
       const publicGlobalPools=globalPoolSeason?[await (async()=>{
         try {
           let pool=await window._fb.getGlobalPool(globalPoolSeason.id);
@@ -5809,7 +5864,7 @@ function App() {
       if (mine) {
         let linkedGroupIds=options.prelinkedGroupIds||null;
         if(!linkedGroupIds&&options.linkGroup&&duplicateFromPoolId){
-          linkedGroupIds=await window._fb.linkMirrorGroup(enteredPool.id,duplicateFromPoolId,user.uid);
+          linkedGroupIds=await window._fb.linkMirrorGroup(enteredPool.id,duplicateFromPoolId,user.uid,false,pickMirrorLinks.current);
         }
         if(linkedGroupIds){
           pickMirrorLinks.current=[
@@ -5818,6 +5873,23 @@ function App() {
           ];
           mine={...mine,syncPoolIds:linkedGroupIds};delete mine.duplicateFromPoolId;
           players[user.uid]=mine;
+        }
+        if(!mine.syncPoolIds?.length&&!mine.duplicateFromPoolId&&!duplicateFromPoolId&&!options.linkGroup){
+          const {groupPeerIds,legacyPeerIds}=mirrorReverseReferences(pickMirrorLinks.current,enteredPool.id);
+          if(groupPeerIds.length){
+            const groupLinks=pickMirrorLinks.current.filter(link=>Array.isArray(link.syncPoolIds));
+            const remainingIds=await window._fb.unlinkMirrorGroup(enteredPool.id,user.uid,enteredPool.id,groupLinks);
+            pickMirrorLinks.current=[
+              ...pickMirrorLinks.current.filter(link=>![enteredPool.id,...groupPeerIds].includes(link.poolId)),
+              ...remainingIds.map(id=>({poolId:id,syncPoolIds:remainingIds})),
+            ];
+          }
+          if(legacyPeerIds.length){
+            const ids=await window._fb.linkMirrorGroup(enteredPool.id,legacyPeerIds[0],user.uid,false,pickMirrorLinks.current);
+            pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
+            mine={...mine,syncPoolIds:ids};
+            players[user.uid]=mine;
+          }
         }
         let minePhase=mine.phase||'pods';
         const mirrorSourcePoolIds=[...new Set([
@@ -5862,10 +5934,15 @@ function App() {
           let sourceStatus=loadedSource?.status||{};
           try{
             if(sourceLoadError)throw sourceLoadError;
-            if(sourcePlayer&&!mine.syncPoolIds?.length&&!options.linkGroup)await window._fb.linkMirrorPeers(enteredPool.id,mirrorSourcePoolId,user.uid);
+            if(mine.duplicateFromPoolId===mirrorSourcePoolId&&!mine.syncPoolIds?.length){
+              const ids=await window._fb.linkMirrorGroup(enteredPool.id,mirrorSourcePoolId,user.uid,false,pickMirrorLinks.current);
+              pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
+              mine={...mine,syncPoolIds:ids};delete mine.duplicateFromPoolId;
+              players[user.uid]=mine;
+            }
           }catch(sourceError){
             if(!staleMirrorSourceError(sourceError))throw sourceError;
-            if(mine.syncPoolIds?.length)await window._fb.unlinkMirrorGroup(enteredPool.id,user.uid,mirrorSourcePoolId);
+            if(mine.syncPoolIds?.length)await window._fb.unlinkMirrorGroup(enteredPool.id,user.uid,mirrorSourcePoolId,pickMirrorLinks.current);
             else await window._fb.clearMirrorSource(enteredPool.id,user.uid,mirrorSourcePoolId);
             pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>
               link.poolId!==mirrorSourcePoolId&&(
@@ -6135,14 +6212,9 @@ function App() {
         entryStep='creating your player profile';
         await window._fb.savePlayer(pool.id,user.uid,{username:profile.username,picks:initialPicks,phase:landingPhase,screen:landingScreen,w:w0,watchThrough:w0,completed:completed0,...(activeDuplicateFrom?{duplicateFromPoolId:activeDuplicateFrom}:{})});
         if(activeDuplicateFrom) {
-          if(options.linkGroup||existingGroupPeer){
-            const ids=await window._fb.linkMirrorGroup(pool.id,activeDuplicateFrom,user.uid);
-            pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
-            setDuplicateFromPoolId('');
-          }else{
-            await window._fb.linkMirrorPeers(pool.id,activeDuplicateFrom,user.uid);
-            pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>link.poolId!==pool.id),{poolId:pool.id,sourcePoolId:activeDuplicateFrom}];
-          }
+          const ids=await window._fb.linkMirrorGroup(pool.id,activeDuplicateFrom,user.uid,false,pickMirrorLinks.current);
+          pickMirrorLinks.current=[...pickMirrorLinks.current.filter(link=>!ids.includes(link.poolId)),...ids.map(id=>({poolId:id,syncPoolIds:ids}))];
+          setDuplicateFromPoolId('');
           await Promise.all(PH_ORDER.filter(ph=>!(status[ph]?.completedMembers||[]).includes(user.uid)).map(ph=>
             saveMirroredPhasePicks({
               poolId:pool.id,phase:ph,uid:user.uid,picks:initialPicks[ph],friendTarget:enteredPool.global!==true,
@@ -6175,6 +6247,7 @@ function App() {
       // Do not leave the lobby until the engine, players, and saved state are ready.
       if(!entryMirrorFailed)setLinkedSyncError('');
       setActivePool(enteredPool);
+      if(options.successNotice)setErr(options.successNotice);
     } catch(e) {
       console.error(e);
       reportTtwError('pool_open_failed',e,{operation:'enter_pool',entryStep,poolId:pool.id,seasonId:seasonForPool(pool).id});
@@ -6365,21 +6438,32 @@ function App() {
       return true;
     } finally {setLeavingPool(false);}
   };
-  const syncCurrentPoolWith=async sourcePoolId=>{
+  const syncPoolDisplayName=poolId=>poolId.startsWith('global__')?'Global Pool':
+    pools.find(pool=>pool.id===poolId)?.name||'another pool';
+  const previewSyncCurrentPoolWith=async sourcePoolId=>{
     if(!activePool||!syncSourcesFor(seasonForPool(activePool).id,activePool.id).some(pool=>pool.id===sourcePoolId))throw new Error('Choose another pool from this season.');
     await flushSave();
-    const groupIds=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid,true);
+    const groupIds=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid,true,pickMirrorLinks.current);
     const groupStates=await Promise.all(groupIds.map(async poolId=>({poolId,state:await loadMirrorSourceState({
       poolId,uid:user.uid,loadMyPlayer:window._fb.loadMyPlayer,
       getPhaseStatus:window._fb.getPhaseStatus,getPool:window._fb.getPool,
     })})));
     const sourceState=groupStates.find(item=>item.poolId===sourcePoolId)?.state;
-    if(!sourceState?.player)throw new Error('Open that pool once first, then return here to sync. No picks were changed.');
-    groupStates.filter(item=>item.poolId!==sourcePoolId).forEach(item=>
-      requireMirrorSourceNotBehind({target:item.state,source:sourceState,uid:user.uid})
-    );
-    const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid);
-    try{await enterPool(activePool,sourcePoolId,{prelinkedGroupIds:ids,keepCurrentPoolOnFailure:true});}
+    if(!sourceState?.player)throw new Error(`Open ${syncPoolDisplayName(sourcePoolId)} once first, then come back here to sync. No picks were changed.`);
+    const entered=groupStates.find(item=>item.poolId===activePool.id);
+    const winningPlayer=chooseMirrorPickSource({
+      enteredPoolId:activePool.id,mine:entered?.state.player,status:entered?.state.status||{},
+      sources:groupStates.filter(item=>item.poolId!==activePool.id).map(item=>({
+        id:item.poolId,source:item.state,rank:mirrorProgressRank(item.state.player,item.state.status,user.uid),
+      })),selectedSourceId:'',uid:user.uid,
+    });
+    const winner=groupStates.find(item=>item.state.player===winningPlayer);
+    return {winnerName:syncPoolDisplayName(winner?.poolId||activePool.id)};
+  };
+  const syncCurrentPoolWith=async sourcePoolId=>{
+    await previewSyncCurrentPoolWith(sourcePoolId);
+    const ids=await window._fb.linkMirrorGroup(activePool.id,sourcePoolId,user.uid,false,pickMirrorLinks.current);
+    try{await enterPool(activePool,'',{prelinkedGroupIds:ids,keepCurrentPoolOnFailure:true});}
     catch(error){throw new Error('The pools are connected, but picks and progress need another sync. Close Settings and tap Retry now.');}
     setShowSettings(false);
     await loadLobby();
@@ -6387,7 +6471,7 @@ function App() {
   const unlinkCurrentPool=async()=>{
     if(!activePool)return;
     await flushSave();
-    const ids=await window._fb.unlinkMirrorGroup(activePool.id,user.uid);
+    const ids=await window._fb.unlinkMirrorGroup(activePool.id,user.uid,activePool.id,pickMirrorLinks.current);
     pickMirrorLinks.current=pickMirrorLinks.current.filter(link=>link.poolId!==activePool.id).map(link=>
       Array.isArray(link.syncPoolIds)&&link.syncPoolIds.includes(activePool.id)
         ? {...link,syncPoolIds:ids}
@@ -6451,8 +6535,10 @@ function App() {
   };
   const syncSourcesFor=(seasonId,excludeId='')=>{
     const available=[...pools,...Object.values(globalPools).filter(pool=>pool?.members?.includes(user.uid))];
-    return [...new Map(available.filter(pool=>pool?.id&&pool.id!==excludeId&&seasonForPool(pool).id===seasonId)
-      .map(pool=>[pool.id,pool])).values()];
+    const byId=new Map();
+    available.filter(pool=>pool?.id&&pool.id!==excludeId&&seasonForPool(pool).id===seasonId)
+      .forEach(pool=>{if(!byId.has(pool.id))byId.set(pool.id,pool);});
+    return [...byId.values()];
   };
   const doCreatePool = async () => {
     const name = newPoolName.trim();
@@ -6469,20 +6555,19 @@ function App() {
       const poolId = await window._fb.createPool(name, user.uid, initialRules, season);
       trackTtwEvent('pool_created',{seasonId:season.id,invitationCount:inviteList.length,mirrorsGlobalPicks:!!mirrorSourcePoolId});
       requestEpisodeEmailPrompt();
+      let inviteWarning='';
       try {
         await Promise.all(inviteList.map(em => window._fb.sendInvite(poolId, name, season.label, user.uid, profile.username, em)));
         if(inviteList.length)trackTtwEvent('invite_sent',{poolId,channel:'email',count:inviteList.length});
       } catch(inviteError) {
         console.error('The pool was created, but one or more invitations failed.',inviteError);
         reportTtwError('invite_send_failed',inviteError,{operation:'send_creation_invites',poolId,seasonId:season.id});
-        setErr("Your pool is ready, but an invitation didn't send. Invite friends from the Standings tab or share the pool link.");
+        inviteWarning="Your pool is ready, but an invitation didn't send. Invite friends from the Standings tab or share the pool link.";
       }
       setCreating(false); setNewPoolName(''); setSelectedSeasonId(defaultSeasonId); setNewPoolSyncSourceId(''); setInviteList([]);
-      if(mirrorSourcePoolId) {
-        const createdPool=await window._fb.getPool(poolId);
-        if(!createdPool)throw new Error('Your pool was created, but it could not be opened. Refresh to find it in your pool list.');
-        await enterPool(createdPool,mirrorSourcePoolId,{linkGroup:true});
-      } else await loadLobby();
+      const createdPool=await window._fb.getPool(poolId);
+      if(!createdPool)throw new Error('Your pool was created, but it could not be opened. Refresh to find it in your pool list.');
+      await enterPool(createdPool,mirrorSourcePoolId,{linkGroup:!!mirrorSourcePoolId,successNotice:inviteWarning});
     } catch(e) { console.error(e);reportTtwError('pool_create_failed',e,{operation:'create_pool',seasonId:season?.id});setErr(playerSeasonError(e,'The pool could not be created. Please try again.')); }
     finally{setCreatingPool(false);}
   };
@@ -6632,7 +6717,7 @@ function App() {
     setDestructiveActionPending(true);setErr('');
     try{
       await flushSave();
-      await window._fb.unlinkMirrorGroup(pool.id,user.uid);
+      await window._fb.unlinkMirrorGroup(pool.id,user.uid,pool.id,pickMirrorLinks.current);
       await window._fb.leavePool(pool.id);
       setShowSettings(false);setActivePool(null);setPoolPlayers(null);setPoolUsers(null);setPoolStatus({});resetRuntimeConfig();
       await loadLobby();
@@ -7297,7 +7382,7 @@ function App() {
     setHistoricalLibraryOpen(true);
     setTimeout(()=>document.getElementById('past-season-library')?.scrollIntoView({behavior:'smooth',block:'start'}),0);
   };
-  const globalSourcePools=globalJoin?pools.filter(pool=>pool.global!==true&&seasonForPool(pool).id===globalJoin.season.id):[];
+  const globalSourcePools=globalJoin?syncPoolOptions(pools.filter(pool=>pool.global!==true&&seasonForPool(pool).id===globalJoin.season.id),pickMirrorLinks.current):[];
   const friendPools=pools.filter(pool=>pool.global!==true);
   const recentPoolOrder=(a,b)=>(Number(b._myLastPredictionAt)||0)-(Number(a._myLastPredictionAt)||0)||alphaByName(a.name,b.name);
   const activeFriendPools=friendPools.filter(pool=>pool._myPast!==true).sort(recentPoolOrder);
@@ -7308,7 +7393,7 @@ function App() {
   </button>;
   const globalPool=globalPoolSeason?globalPools[globalPoolSeason.id]:null;
   const joinedGlobalPool=!!globalPool?.members?.includes(user.uid);
-  const newPoolSyncSources=syncSourcesFor(selectedSeasonId);
+  const newPoolSyncSources=syncPoolOptions(syncSourcesFor(selectedSeasonId),pickMirrorLinks.current);
   if (!activePool&&enteringPool) return <div className="app">
     <BrandHeader season={seasonLibrarySummary()}>{userBar}</BrandHeader>
     <div className="loading"><span className="spinner">♥</span>Opening your pool...</div>
@@ -7370,9 +7455,9 @@ function App() {
           <label className="small" htmlFor="new-pool-sync">Sync picks with an existing pool?</label>
           <select id="new-pool-sync" value={newPoolSyncSourceId} onChange={event=>setNewPoolSyncSourceId(event.target.value)}>
             <option value="">No, keep this pool separate</option>
-            {newPoolSyncSources.map(pool=><option key={pool.id} value={pool.id}>{pool.global===true?'Global Pool':pool.name}</option>)}
+            {newPoolSyncSources.map(pool=><option key={pool.id} value={pool.id}>{pool.label}</option>)}
           </select>
-          <p className="subtle">Your answers and watch progress will follow you across linked pools. Each pool scores separately.</p>
+          <p className="subtle">Make your picks once and use them in both. Each pool keeps its own scores.</p>
         </div>}
         <div className="row">
           <div className="field"><label className="small">Invite by email</label>
@@ -7399,7 +7484,7 @@ function App() {
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks}/>}
     {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={null} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onSendCaptainReminder={doSendCaptainReminder} onChangeUsername={changeUsername} onSignOut={handleSignOut} signingOut={signingOut} membershipUpdating={destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {globalJoin&&<GlobalPoolJoinModal join={globalJoin} sourcePools={globalSourcePools} joining={joiningGlobal} onSourceChange={sourcePoolId=>setGlobalJoin(current=>({...current,sourcePoolId}))} onWatchChange={initialWatchedThrough=>setGlobalJoin(current=>({...current,initialWatchedThrough}))} onJoin={doJoinGlobalPool} onClose={()=>setGlobalJoin(null)}/>}
-    {pendingSyncJoin&&<PoolSyncChoiceModal choice={pendingSyncJoin} sourcePools={syncSourcesFor(seasonForPool(pendingSyncJoin.pool).id,pendingSyncJoin.pool.id)} onSourceChange={sourcePoolId=>setPendingSyncJoin(current=>({...current,sourcePoolId}))} onContinue={()=>finishJoinedPoolSync(pendingSyncJoin.sourcePoolId)} onClose={()=>finishJoinedPoolSync('')}/>}
+    {pendingSyncJoin&&<PoolSyncChoiceModal choice={pendingSyncJoin} sourcePools={syncPoolOptions(syncSourcesFor(seasonForPool(pendingSyncJoin.pool).id,pendingSyncJoin.pool.id),pickMirrorLinks.current,pendingSyncJoin.pool.id)} onSourceChange={sourcePoolId=>setPendingSyncJoin(current=>({...current,sourcePoolId}))} onContinue={()=>finishJoinedPoolSync(pendingSyncJoin.sourcePoolId)} onClose={()=>finishJoinedPoolSync('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
   /* ── IN POOL ── */
@@ -7467,8 +7552,8 @@ function App() {
     <AppLoadingState label={loadingMessage}/>
     <BrandHeader season={seasonLabelForPool(activePool)}>
       <button className="btn-settings" aria-label="Settings" title="Settings" onClick={()=>setShowSettings(true)}>⚙</button>
-      <h1>{activePool.name}</h1>
-      {linkedPoolNote&&<div className="pool-sync-note"><span aria-hidden="true">↔</span>{linkedPoolNote}</div>}
+      <h1 className="ph-no-capture">{activePool.name}</h1>
+      {linkedPoolNote&&<div className="pool-sync-note ph-no-capture"><span aria-hidden="true">↔</span>{linkedPoolNote}</div>}
       {linkedPoolNote&&linkedSyncError&&<div className="pool-sync-note out-of-sync" role="alert"><span aria-hidden="true">!</span>Your linked pool didn't update. <button type="button" disabled={enteringPool} onClick={()=>retryLinkedPoolSync().catch(()=>{})}>{enteringPool?'Retrying…':'Retry now'}</button></div>}
       {saveBadge}
       <div className="user-bar">
@@ -7604,7 +7689,7 @@ function App() {
       {['intro','watch','close'].includes(screen)&&<ContestantReferenceBoard eng={eng} w={w} phase={phase}/>}
     </div>}
     {showHowItWorks&&<HowItWorksModal onClose={closeHowItWorks} rules={eng.RULES} poolSize={activePool.members.length}/>}
-    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onSendCaptainReminder={doSendCaptainReminder} onChangeUsername={changeUsername} onSignOut={handleSignOut} syncSources={syncSourcesFor(seasonForPool(activePool).id,activePool.id).filter(pool=>!linkedMirrorPeers(pickMirrorLinks.current,activePool.id).some(peer=>peer.poolId===pool.id))} linkedPoolNames={linkedPoolNames} onSyncWithPool={syncCurrentPoolWith} onUnlinkPool={unlinkCurrentPool} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
+    {showSettings&&<SettingsModal theme={theme} onThemeChange={changeTheme} onClose={()=>setShowSettings(false)} pools={pools} activePool={activePool} userId={user.uid} userEmail={user.email||''} profileUsername={profile.username} notificationPreferences={notificationPreferences} onNotificationChange={saveNotificationPreference} notificationSaving={notificationSaving} onSubmitFeedback={window._fb.submitFeedback} onDeletePool={doDeletePool} onLeavePool={doLeavePool} onDeleteAccount={doDeleteAccount} onSetPoolMembershipClosed={doSetPoolMembershipClosed} onRenamePool={doRenamePool} onResetPoolJoinCode={doResetPoolJoinCode} onResetHistoricalGlobalSimulation={doResetHistoricalGlobalSimulation} onRelaxHistoricalJoinFloor={doRelaxHistoricalJoinFloor} onSendCaptainReminder={doSendCaptainReminder} onChangeUsername={changeUsername} onSignOut={handleSignOut} syncSources={syncPoolOptions(syncSourcesFor(seasonForPool(activePool).id,activePool.id),pickMirrorLinks.current,activePool.id)} linkedPoolNames={linkedPoolNames} onPreviewSync={previewSyncCurrentPoolWith} onSyncWithPool={syncCurrentPoolWith} onUnlinkPool={unlinkCurrentPool} signingOut={signingOut} membershipUpdating={updatingPoolMembership||destructiveActionPending} error={err} onDismissError={()=>setErr('')}/>}
     {confirmDialog&&<ConfirmModal {...confirmDialog} onConfirm={()=>settleConfirmation(true)} onCancel={()=>settleConfirmation(false)}/>}
   </div>;
 }
