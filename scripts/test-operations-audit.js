@@ -951,9 +951,14 @@ async function assertMirrorEntryRegression(){
   const gateStart=html.indexOf('/* EPISODE GATE HELPERS START */');
   const gateEnd=html.indexOf('/* EPISODE GATE HELPERS END */');
   assert(helperStart>=0&&helperEnd>helperStart,'Mirrored-entry helpers must remain independently testable.');
-  const context={Promise,window:{},PH_ORDER:['pods','dating','weddings','reunion']};
+  const context={Promise,window:{},PH_ORDER:['pods','dating','weddings','reunion'],
+    predictionPhasesAt:(phase,w,spans,starts)=>{
+      const next={pods:'dating',dating:'weddings',weddings:'reunion'}[phase];
+      return next&&w>=starts[next]&&w<spans[phase].endEp?[phase,next]:[phase];
+    },
+  };
   vm.createContext(context);
-  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__mirrorReverseReferences=mirrorReverseReferences;this.__canonicalMirrorLinks=canonicalMirrorLinks;this.__legacySyncComponents=legacySyncComponents;this.__syncPoolOptions=syncPoolOptions;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;`,context);
+  vm.runInContext(`${html.slice(helperStart,helperEnd)}\n${html.slice(gateStart,gateEnd)}\nthis.__syncMirroredPicksOnEntry=syncMirroredPicksOnEntry;this.__syncMirroredTargetProgress=syncMirroredTargetProgress;this.__syncMirroredPhaseCompletion=syncMirroredPhaseCompletion;this.__loadMirrorSourceState=loadMirrorSourceState;this.__linkedMirrorPeers=linkedMirrorPeers;this.__mirrorReverseReferences=mirrorReverseReferences;this.__canonicalMirrorLinks=canonicalMirrorLinks;this.__legacySyncComponents=legacySyncComponents;this.__syncPoolOptions=syncPoolOptions;this.__chooseMirrorPickSource=chooseMirrorPickSource;this.__mirrorProgressRank=mirrorProgressRank;this.__staleMirrorSourceError=staleMirrorSourceError;this.__mirroredPickIdentity=mirroredPickIdentity;this.__friendSafeMirroredPicks=friendSafeMirroredPicks;this.__saveMirroredPhasePicks=saveMirroredPhasePicks;this.__lockMirroredGlobalEntryPicks=lockMirroredGlobalEntryPicks;this.__mergeMirroredCheckpointState=mergeMirroredCheckpointState;this.__replaceCanonicalMirrorLinks=replaceCanonicalMirrorLinks;`,context);
   assert.equal(context.__staleMirrorSourceError({code:'permission-denied'}),false);
   assert.equal(context.__staleMirrorSourceError({message:'Missing or insufficient permissions.'}),false);
   assert.equal(context.__staleMirrorSourceError({code:'not-found'}),true);
@@ -1254,6 +1259,45 @@ async function assertMirrorEntryRegression(){
     ['public','global__season','viewer',sourceState,spans,13],
   ],'A friend-linked Global Pool must advance the trusted ledger to confirmed w, never the larger watchThrough intent, before reflecting public progress.');
   assert.deepEqual(progressResult,sourceState);
+  const trustedPlayer={watchedThrough:0,picks:{}};
+  const linkCalls=[];
+  const podsPick={c:'Alex|Casey',s:20,w:1};
+  const lockAtCurrentLedger=async(_poolId,submitted)=>{
+    linkCalls.push('lock');
+    trustedPlayer.picks.pods=submitted.pods.map(pick=>({...pick,w:trustedPlayer.watchedThrough}));
+    return {data:{credited:{pods:trustedPlayer.picks.pods}}};
+  };
+  await context.__lockMirroredGlobalEntryPicks({
+    poolId:'global__season',sourcePlayer:sourceState,picks:{pods:[podsPick]},
+    spans,starts:{pods:0,dating:5,weddings:7,reunion:9},lockGlobalPicks:lockAtCurrentLedger,
+  });
+  await context.__syncMirroredTargetProgress({
+    poolId:'global__season',uid:'viewer',sourceState,spans,availableThrough:13,globalTarget:true,
+    advanceGlobalWatch:async(_poolId,w)=>{linkCalls.push('advance');trustedPlayer.watchedThrough=w;return {data:{watchedThrough:w}};},
+    syncPublicProgress:async()=>{linkCalls.push('public');return sourceState;},
+  });
+  assert.deepEqual(linkCalls,['lock','advance','public'],'Link-time Global picks must lock before trusted watch progress moves.');
+  assert.equal(trustedPlayer.picks.pods[0].w,0,'The trusted Pods pick must be stamped at the ledger position at link time.');
+  assert.equal(trustedPlayer.watchedThrough,1,'Linking must still advance the Global ledger after locking.');
+  linkCalls.length=0;
+  await context.__lockMirroredGlobalEntryPicks({
+    poolId:'global__season',sourcePlayer:{...sourceState,screen:'board'},picks:{pods:[podsPick]},
+    spans,starts:{pods:0,dating:5,weddings:7,reunion:9},lockGlobalPicks:lockAtCurrentLedger,
+  });
+  assert.deepEqual(linkCalls,[],'An unlocked source board must not lock Global predictions.');
+  await context.__lockMirroredGlobalEntryPicks({
+    poolId:'global__season',sourcePlayer:sourceState,picks:{pods:[podsPick]},targetCompletedPhases:['pods'],
+    spans,starts:{pods:0,dating:5,weddings:7,reunion:9},lockGlobalPicks:lockAtCurrentLedger,
+  });
+  assert.deepEqual(linkCalls,[],'An already completed phase must not be relocked during link reconciliation.');
+  trustedPlayer.watchedThrough=0;
+  await context.__lockMirroredGlobalEntryPicks({
+    poolId:'global__season',sourcePlayer:{...sourceState,screen:'close',completed:{pods:true}},
+    picks:{pods:[podsPick]},sourceCompletedPhases:['pods'],
+    spans,starts:{pods:0,dating:5,weddings:7,reunion:9},lockGlobalPicks:lockAtCurrentLedger,
+  });
+  assert.deepEqual(linkCalls,['lock'],'A source-completed Pods phase must lock before Global phase completion advances the ledger.');
+  assert.equal(trustedPlayer.picks.pods[0].w,0);
   const friendProgressCalls=[];
   await context.__syncMirroredTargetProgress({
     poolId:'friend',uid:'viewer',sourceState:{...sourceState,w:4,watchThrough:4},spans,availableThrough:11,globalTarget:false,
@@ -1278,7 +1322,17 @@ async function assertMirrorEntryRegression(){
     {m:'flirt',p:'Alex',s:10,w:99},{m:'flirt',p:'Jordan',s:15,w:99},
   ],[{m:'flirt',p:'Alex',s:5,w:5}],7);
   assert.equal(safeFlirts[0].w,5,'An existing flirt pick must keep its private-pool window.');
-  assert.equal(safeFlirts[1].w,7,'A new flirt pick must use the target private-pool window.');
+  assert.equal(safeFlirts[1].w,99,'A new flirt pick must keep the source window when the private pool has no matching copy.');
+  const privatePicks=new Map();
+  for(const poolId of ['private-a','private-b']){
+    await context.__saveMirroredPhasePicks({
+      poolId,phase:'pods',uid:'viewer',picks:[podsPick],friendTarget:true,
+      loadPhasePicks:async()=>[],getPlayer:async()=>({w:0}),
+      savePhasePicks:async(id,phase,uid,picks)=>privatePicks.set(id,{phase,uid,picks}),
+    });
+  }
+  assert.equal(privatePicks.get('private-a').picks[0].w,1,'The first private copy must retain the Global pick’s Episode 1 window.');
+  assert.equal(privatePicks.get('private-b').picks[0].w,1,'The second private copy must retain the Global pick’s Episode 1 window.');
   assert.equal(context.__mirroredPickIdentity('dating',{m:'sex',c:'Alex|Casey'}),'dating|sex|alex|casey|','The sex-pick identity must not change.');
   assert.equal(context.__mirroredPickIdentity('dating',{m:'breakup',c:'Jordan|Taylor'}),'dating|breakup|jordan|taylor|','The breakup-pick identity must not change.');
   const forward=context.__mergeMirroredCheckpointState(
@@ -1360,6 +1414,36 @@ async function assertMirrorEntryRegression(){
   assert(openNextPhaseSource.includes("activePool.global===true")&&openNextPhaseSource.includes('ledgerWatch:globalLedgerWatch.current.value'),'Only a Global pool may use the stored ledger position when opening its next phase.');
   assert(!html.includes('linkMirrorPeers: async')&&!enterPoolSource.includes('window._fb.linkMirrorPeers('),'Opening a pool must never recreate a legacy pair after unlinking.');
   assert(enterPoolSource.includes('const currentGroup=pickMirrorLinks.current.find(link=>link.canonical&&link.poolId===enteredPool.id)')&&enterPoolSource.includes('writePlayerSyncMirror(enteredPool.id,user.uid,currentGroup.syncPoolIds)'),'A canonical group must repair an out-of-date player mirror when entered.');
+  const prelinkedStart=enterPoolSource.indexOf('if(Array.isArray(options.prelinkedGroupIds)&&options.prelinkedGroupIds.length>=2)');
+  const currentGroupStart=enterPoolSource.indexOf('const currentGroup=pickMirrorLinks.current.find(',prelinkedStart);
+  const prelinkedEnd=enterPoolSource.indexOf('let linkedGroupIds=options.prelinkedGroupIds||null;',currentGroupStart);
+  assert(prelinkedStart>=0&&prelinkedStart<currentGroupStart&&currentGroupStart<prelinkedEnd,
+    'A newly linked group must be installed before checking whether its starting player mirror needs repair.');
+  const mirrorWrites=[];
+  const prelinkedContext={options:{prelinkedGroupIds:['private-a','private-b']},pickMirrorLinks:{current:[]},
+    enteredPool:{id:'private-a'},players:{},user:{uid:'viewer'},
+    replaceCanonicalMirrorLinks:context.__replaceCanonicalMirrorLinks,
+    window:{_fb:{writePlayerSyncMirror:async(...args)=>mirrorWrites.push(args)}},
+  };
+  vm.createContext(prelinkedContext);
+  vm.runInContext(`this.repair=async()=>{let mine={syncPoolIds:['private-a']};${enterPoolSource.slice(prelinkedStart,prelinkedEnd)}return mine;};`,prelinkedContext);
+  const repairedPlayer=await prelinkedContext.repair();
+  assert.deepEqual(mirrorWrites,[['private-a','viewer',['private-a','private-b']]],
+    'A Settings link must write the newly added pool into the starting pool’s syncPoolIds.');
+  assert.equal(JSON.stringify(repairedPlayer.syncPoolIds),JSON.stringify(['private-a','private-b']));
+  const assertGlobalLockOrder=(startToken,endToken,label)=>{
+    const routeStart=enterPoolSource.indexOf(startToken);
+    const routeEnd=enterPoolSource.indexOf(endToken,routeStart);
+    const route=enterPoolSource.slice(routeStart,routeEnd);
+    assert(routeStart>=0&&routeEnd>routeStart&&route.includes('await lockMirroredGlobalEntryPicks({')&&
+      route.indexOf('await lockMirroredGlobalEntryPicks({')<route.indexOf('await syncMirroredPhaseCompletion({')&&
+      route.indexOf('await lockMirroredGlobalEntryPicks({')<route.indexOf('await syncMirroredTargetProgress({'),
+    `${label} must lock Global predictions before moving its trusted watch ledger.`);
+  };
+  assertGlobalLockOrder('if(targetLeads){','}else{','Linking Global from private Settings');
+  assertGlobalLockOrder('if(enteredPool.global===true){\n                const lockResult=await lockMirroredGlobalEntryPicks({','if(!targetLeads)await syncMirroredPicksOnEntry({','Linking from Global Settings');
+  assertGlobalLockOrder('if(peerId.startsWith(\'global__\'))await lockMirroredGlobalEntryPicks({','if(enteredPool.global===true){','The merged-group Global peer');
+  assertGlobalLockOrder('if(activeDuplicateFrom) {\n          const ids=await window._fb.linkMirrorGroup','if(Object.keys(completed0).length){','The Global join modal');
   assert(enterPoolSource.includes('const {groupPeerIds,legacyPeerIds}=mirrorReverseReferences(pickMirrorLinks.current,enteredPool.id)')&&enterPoolSource.includes('const groupLinks=pickMirrorLinks.current.filter(link=>!link.canonical&&Array.isArray(link.syncPoolIds))')&&enterPoolSource.includes('unlinkMirrorGroup(enteredPool.id,user.uid,enteredPool.id,groupLinks)'),'An unlinked player must prune only stale legacy player-list reverse references before entry reconciliation.');
   assert(enterPoolSource.includes('if(legacyPeerIds.length){')&&enterPoolSource.includes('linkMirrorGroup(enteredPool.id,legacyPeerIds[0],user.uid,false,pickMirrorLinks.current)'),'An unlinked player must upgrade one-sided legacy links instead of pruning them.');
   assert(html.includes("clearMirrorSource: async (poolId,uid,peerPoolId='')"),'A stale mirror source must be removable symmetrically without deleting copied game state.');
