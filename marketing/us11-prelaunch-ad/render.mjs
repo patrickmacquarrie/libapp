@@ -15,10 +15,10 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const out=path.join(here,'out');
 const timeline=JSON.parse(fs.readFileSync(path.join(here,'timeline.json'),'utf8'));
 fs.mkdirSync(out,{recursive:true});
-const mime={'.html':'text/html','.json':'application/json','.svg':'image/svg+xml'};
+const mime={'.html':'text/html','.json':'application/json','.svg':'image/svg+xml','.png':'image/png'};
 const server=http.createServer((req,res)=>{
   const filename=decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\//,'');
-  if(!['ad.html','timeline.json','icon.svg'].includes(filename)){res.writeHead(404);res.end();return}
+  if(!['ad.html','timeline.json','icon.svg','profile-silhouettes.png'].includes(filename)){res.writeHead(404);res.end();return}
   res.writeHead(200,{'Content-Type':mime[path.extname(filename)]});fs.createReadStream(path.join(here,filename)).pipe(res);
 });
 let port;
