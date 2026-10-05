@@ -25,6 +25,7 @@
   let capturingStopped=!configured;
   let metaChoice=readStorage(META_MEASUREMENT_KEY)||'';
   let metaPixelLoaded=false;
+  const metaChoiceShownPlacements=new Set();
   if(optedOut)writeStorage('plausible_ignore','true');
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
@@ -73,40 +74,36 @@
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=true;n.version='2.0';n.queue=[];
       t=b.createElement(e);t.async=true;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
     }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    window.fbq.disablePushState=true;
+    window.fbq('set','autoConfig',false,META_PIXEL_ID);
     window.fbq('init',META_PIXEL_ID);
     window.fbq('track','PageView');
     metaPixelLoaded=true;
     return true;
   };
-  const metaOptIn=()=>{
+  const metaChoiceNeeded=()=>metaAvailable&&!metaChoice&&!capturingStopped&&safeMetaPage();
+  const metaChoiceShown=placement=>{
+    if(!['signin','welcome'].includes(placement)||!metaChoiceNeeded()||metaChoiceShownPlacements.has(placement))return;
+    metaChoiceShownPlacements.add(placement);
+    track('meta_choice_shown',{placement});
+  };
+  const metaChoiceMade=(choice,placement)=>{
+    if(['signin','welcome','settings'].includes(placement))track('meta_choice_made',{choice,placement});
+  };
+  const metaOptIn=(placement='')=>{
     metaChoice='allowed';writeStorage(META_MEASUREMENT_KEY,metaChoice);
     if(metaPixelLoaded){
       if(!capturingStopped&&safeMetaPage()){window.fbq('consent','grant');window.fbq('track','PageView');}
     }else loadMetaPixel();
+    metaChoiceMade('allow',placement);
   };
-  const metaOptOut=()=>{
+  const metaOptOut=(placement='')=>{
     metaChoice='declined';writeStorage(META_MEASUREMENT_KEY,metaChoice);
     if(metaPixelLoaded)window.fbq('consent','revoke');
+    metaChoiceMade('decline',placement);
   };
   const isMetaOptedIn=()=>metaChoice==='allowed';
-  const showMetaChoice=()=>{
-    if(!metaAvailable||metaChoice||optedOut||!['/','/welcome/'].includes(window.location.pathname)||!document.body)return;
-    const banner=document.createElement('aside');
-    banner.setAttribute('role','region');
-    banner.setAttribute('aria-label','Meta ads measurement choice');
-    banner.style.cssText='position:fixed;z-index:10000;left:12px;right:12px;bottom:12px;max-width:680px;margin:auto;padding:16px 18px;border:1px solid #efd6df;border-radius:16px;background:#fffaf7;color:#351323;box-shadow:0 12px 40px #35132333;font:14px/1.45 system-ui,sans-serif';
-    banner.innerHTML='<strong>Help us measure our Meta ads?</strong><p style="margin:5px 0 12px">With your permission, Meta can receive page views and signup or pool activity to measure and improve our ads. <a href="/privacy.html">Privacy details</a></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-meta-choice="allow">Allow ads measurement</button><button type="button" data-meta-choice="decline">No thanks</button></div>';
-    banner.querySelectorAll('button').forEach(button=>{
-      button.style.cssText='border:1px solid #7b2ee5;border-radius:999px;padding:8px 12px;background:#fff;color:#431127;font:700 13px system-ui,sans-serif;cursor:pointer';
-      button.addEventListener('click',()=>{if(button.dataset.metaChoice==='allow')metaOptIn();else metaOptOut();banner.remove();});
-    });
-    document.body.appendChild(banner);
-  };
-  if(metaAvailable){
-    loadMetaPixel();
-    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showMetaChoice,{once:true});
-    else showMetaChoice();
-  }
+  if(metaAvailable&&metaChoice==='allowed'&&!capturingStopped&&safeMetaPage())loadMetaPixel();
 
   window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments);};
   if(!window.__TTW_PLAUSIBLE_BRIDGE__){
@@ -269,6 +266,8 @@
     metaOptIn,
     metaOptOut,
     isMetaOptedIn,
+    metaChoiceNeeded,
+    metaChoiceShown,
     capturePageview,
     onPriceVariant,
   });

@@ -29,6 +29,12 @@ The shared `analytics.js` entry point saves the first tagged visit. The welcome 
 
 To see spend alongside conversions, connect the Meta Ads account under PostHog **Data pipelines → New source → Meta Ads** and sync `campaigns` plus `campaign_stats`. In **Marketing Analytics**, `meta` is already a default Meta source and campaign-name matching is the default. The configured goals are `account_created` (completed signup/customer) and `global_pool_joined` (pool joined). PostHog's campaign cost matching depends on the `utm_campaign` value matching the Meta campaign name exactly. The Meta pixel is separate: it sends `CompleteRegistration` for signups, `PoolJoined` for joins, and `PoolCreated` for pool creation. Choose the relevant event as the Meta ad set's conversion event after it first appears in Events Manager.
 
+## Using the Meta pixel
+
+Use PostHog's `paid_meta` numbers as the source of truth for budget decisions. Meta sees only visitors who choose **Allow**, and it never receives joins that arrive through invite links, so its counts will run low. In PostHog, calculate the allow rate as `meta_choice_made` events with `choice=allow` divided by `meta_choice_shown` events, using the same date range and placement.
+
+Start the campaign optimizing for **link clicks**, which does not depend on the pixel. Once `CompleteRegistration` appears in Events Manager, compare Meta's weekly signup count with PostHog's. Switch the ad set to optimize for signups only if Meta receives a healthy weekly volume (about 50 optimization events per ad set per week is Meta's rule of thumb); otherwise keep link-click optimization and use the pixel for reporting. Before premiere weekend, do not change the optimization event within 48 hours of the October 14 episode drop.
+
 ## Known limits during the season
 
 - `MAIL_PROJECT_DAILY_LIMIT` is 1,500 emails per UTC day, shared by invitations and nudges. Over the cap, nudges are skipped with a `console.warn` beginning `Daily mail ceiling skipped`, while invitations return `Email invitations are paused for today.` The day resets at 00:00 UTC: 6 p.m. in Edmonton during MDT and 5 p.m. after November 1. Check Logs Explorer for that warning after each episode drop. Raising the cap is a Functions change, so plan it for after launch week if needed.
