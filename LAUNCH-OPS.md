@@ -16,14 +16,18 @@ Acquisition uses first touch: `analytics.js` stores the first acquisition parame
 
 | Placement | URL |
 |---|---|
-| Meta ads (all) | `https://throughthewall.ca/?acquisition_source=paid_meta&utm_campaign=us11_prelaunch` |
+| Meta ads (all) | `https://throughthewall.ca/?acquisition_source=paid_meta&utm_source=meta&utm_medium=paid_social&utm_campaign=us11_prelaunch&utm_content=creative_name` |
 | Instagram bio | `https://throughthewall.ca/?acquisition_source=organic_instagram_bio` |
 | Instagram stories | `https://throughthewall.ca/?acquisition_source=organic_instagram_story` |
 | Organic Facebook posts | `https://throughthewall.ca/?acquisition_source=organic_facebook` |
 | TikTok bio (if used) | `https://throughthewall.ca/?acquisition_source=organic_tiktok` |
 | Reddit / forums (if used) | `https://throughthewall.ca/?acquisition_source=organic_reddit` |
 
-Use `utm_content` to tell ad creatives apart. Without it, organic Meta clicks carrying only `fbclid` are counted as `paid_meta`.
+In Meta Ads Manager, set the website URL to `https://throughthewall.ca/` (or `https://throughthewall.ca/welcome/` for the explainer page). Put the parameters after `?` from the Meta row above in the ad's **URL parameters** field, without the leading `?`. Replace `creative_name` with a distinct label for each ad. Keep `utm_campaign` equal to the campaign name in Meta Ads Manager; if you use a different value, add a campaign mapping in PostHog Marketing Analytics. In PostHog, map `utm_source=meta` to the Meta Ads source. Do not also append these parameters to the website URL, which would create duplicate keys.
+
+The shared `analytics.js` entry point saves the first tagged visit. The welcome page carries the same parameters into the app without replacing that first touch. Check a fresh private browser when testing: an existing `through-the-wall-acquisition` value represents an earlier visit. Organic Meta clicks carrying only `fbclid` can be counted as `paid_meta`, so keep explicit `acquisition_source` tags on organic posts and bio links.
+
+To see spend alongside conversions, connect the Meta Ads account under PostHog **Data pipelines → New source → Meta Ads** and sync `campaigns` plus `campaign_stats`. In **Marketing Analytics**, `meta` is already a default Meta source and campaign-name matching is the default. The configured goals are `account_created` (completed signup/customer) and `global_pool_joined` (pool joined). PostHog's campaign cost matching depends on the `utm_campaign` value matching the Meta campaign name exactly. The Meta pixel is separate: it sends `CompleteRegistration` for signups, `PoolJoined` for joins, and `PoolCreated` for pool creation. Choose the relevant event as the Meta ad set's conversion event after it first appears in Events Manager.
 
 ## Known limits during the season
 

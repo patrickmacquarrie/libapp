@@ -4,10 +4,12 @@
 
   const PROJECT_TOKEN='__POSTHOG_PROJECT_TOKEN__';
   const API_HOST='__POSTHOG_HOST__';
+  const META_PIXEL_ID='__META_PIXEL_ID__';
   const APP_BUILD='__APP_BUILD_TIMESTAMP__';
   const ACQUISITION_STORAGE_KEY='through-the-wall-acquisition';
   const ANALYTICS_OPT_OUT_KEY='through-the-wall-analytics-opt-out';
   const ANALYTICS_OPT_IN_PENDING_KEY='through-the-wall-analytics-opt-in-pending';
+  const META_MEASUREMENT_KEY='through-the-wall-meta-measurement';
   const ACQUISITION_KEYS=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','cohort','acquisition_source'];
   const PRICE_VARIANTS=Object.freeze({a:'4.99',c:'12.99'});
   const PRIVACY_PROPERTIES=Object.freeze({$geoip_disable:true});
@@ -18,8 +20,11 @@
   const optedOut=readStorage(ANALYTICS_OPT_OUT_KEY)==='1';
   const productionHost=['throughthewall.ca','www.throughthewall.ca'].includes(window.location.hostname);
   const posthogAvailable=/^phc_[A-Za-z0-9_-]{8,}$/.test(PROJECT_TOKEN)&&/^https:\/\/(us|eu)\.i\.posthog\.com$/.test(API_HOST)&&productionHost;
+  const metaAvailable=/^[0-9]{8,25}$/.test(META_PIXEL_ID)&&productionHost;
   const configured=posthogAvailable&&!optedOut;
   let capturingStopped=!configured;
+  let metaChoice=readStorage(META_MEASUREMENT_KEY)||'';
+  let metaPixelLoaded=false;
   if(optedOut)writeStorage('plausible_ignore','true');
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
@@ -54,6 +59,54 @@
     return document.referrer?'organic_referral':'organic_direct';
   };
   const cohort=acquisitionSource();
+
+  const safeMetaPage=()=>{
+    const params=new URLSearchParams(window.location.search);
+    const allowedKeys=new Set([...ACQUISITION_KEYS,'start']);
+    return Array.from(params.keys()).every(key=>allowedKeys.has(key))&&!(window.location.hash||'');
+  };
+  const loadMetaPixel=()=>{
+    if(!metaAvailable||capturingStopped||metaChoice!=='allowed'||!safeMetaPage())return false;
+    if(metaPixelLoaded)return true;
+    // The pixel is loaded only after a separate advertising-measurement choice.
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=true;n.version='2.0';n.queue=[];
+      t=b.createElement(e);t.async=true;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
+    }(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    window.fbq('init',META_PIXEL_ID);
+    window.fbq('track','PageView');
+    metaPixelLoaded=true;
+    return true;
+  };
+  const metaOptIn=()=>{
+    metaChoice='allowed';writeStorage(META_MEASUREMENT_KEY,metaChoice);
+    if(metaPixelLoaded){
+      if(!capturingStopped&&safeMetaPage()){window.fbq('consent','grant');window.fbq('track','PageView');}
+    }else loadMetaPixel();
+  };
+  const metaOptOut=()=>{
+    metaChoice='declined';writeStorage(META_MEASUREMENT_KEY,metaChoice);
+    if(metaPixelLoaded)window.fbq('consent','revoke');
+  };
+  const isMetaOptedIn=()=>metaChoice==='allowed';
+  const showMetaChoice=()=>{
+    if(!metaAvailable||metaChoice||optedOut||!['/','/welcome/'].includes(window.location.pathname)||!document.body)return;
+    const banner=document.createElement('aside');
+    banner.setAttribute('role','region');
+    banner.setAttribute('aria-label','Meta ads measurement choice');
+    banner.style.cssText='position:fixed;z-index:10000;left:12px;right:12px;bottom:12px;max-width:680px;margin:auto;padding:16px 18px;border:1px solid #efd6df;border-radius:16px;background:#fffaf7;color:#351323;box-shadow:0 12px 40px #35132333;font:14px/1.45 system-ui,sans-serif';
+    banner.innerHTML='<strong>Help us measure our Meta ads?</strong><p style="margin:5px 0 12px">With your permission, Meta can receive page views and signup or pool activity to measure and improve our ads. <a href="/privacy.html">Privacy details</a></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" data-meta-choice="allow">Allow ads measurement</button><button type="button" data-meta-choice="decline">No thanks</button></div>';
+    banner.querySelectorAll('button').forEach(button=>{
+      button.style.cssText='border:1px solid #7b2ee5;border-radius:999px;padding:8px 12px;background:#fff;color:#431127;font:700 13px system-ui,sans-serif;cursor:pointer';
+      button.addEventListener('click',()=>{if(button.dataset.metaChoice==='allow')metaOptIn();else metaOptOut();banner.remove();});
+    });
+    document.body.appendChild(banner);
+  };
+  if(metaAvailable){
+    loadMetaPixel();
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showMetaChoice,{once:true});
+    else showMetaChoice();
+  }
 
   window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments);};
   if(!window.__TTW_PLAUSIBLE_BRIDGE__){
@@ -147,6 +200,11 @@
     window.dataLayer.push(payload);
     window.dispatchEvent(new CustomEvent('ttw:conversion',{detail:payload}));
     window.posthog?.capture(event,payload);
+    if(loadMetaPixel()){
+      if(event==='account_created')window.fbq('track','CompleteRegistration');
+      if(event==='pool_created')window.fbq('trackCustom','PoolCreated');
+      if(event==='global_pool_joined')window.fbq('trackCustom','PoolJoined');
+    }
     return payload;
   };
   const identify=(firebaseUid,{seasonId=''}={})=>{
@@ -161,14 +219,20 @@
     capturingStopped=true;
     if(configured)window.posthog?.opt_out_capturing();
     window.posthog?.stopSessionRecording?.();
+    metaOptOut();
   };
   const optOut=()=>{
     writeStorage(ANALYTICS_OPT_OUT_KEY,'1');removeStorage(ANALYTICS_OPT_IN_PENDING_KEY);writeStorage('plausible_ignore','true');
     capturingStopped=true;window.posthog?.opt_out_capturing?.();window.posthog?.stopSessionRecording?.();
+    if(metaPixelLoaded)window.fbq('consent','revoke');
   };
   const optIn=()=>{
     removeStorage(ANALYTICS_OPT_OUT_KEY);removeStorage('plausible_ignore');
-    if(configured){capturingStopped=false;window.posthog?.opt_in_capturing?.();}
+    if(configured){
+      capturingStopped=false;window.posthog?.opt_in_capturing?.();
+      if(metaPixelLoaded&&metaChoice==='allowed'&&safeMetaPage()){window.fbq('consent','grant');window.fbq('track','PageView');}
+      else loadMetaPixel();
+    }
     else if(posthogAvailable)writeStorage(ANALYTICS_OPT_IN_PENDING_KEY,'1');
   };
   const isOptedOut=()=>readStorage(ANALYTICS_OPT_OUT_KEY)==='1';
@@ -202,6 +266,9 @@
     optOut,
     optIn,
     isOptedOut,
+    metaOptIn,
+    metaOptOut,
+    isMetaOptedIn,
     capturePageview,
     onPriceVariant,
   });

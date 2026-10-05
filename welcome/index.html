@@ -91,10 +91,9 @@
   </main>
   <footer class="wrap footer"><div class="unofficial">Through the Wall is an unofficial fan-made prediction game and is not affiliated with, endorsed by, or sponsored by Netflix or Love Is Blind.</div><div class="footer-links"><a href="../privacy.html">Privacy</a><a href="../terms.html">Terms</a><a class="app-link" href="../">Open app</a></div></footer>
   <script>
-    const campaignKeys=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid'];
+    const campaignKeys=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','gclid','fbclid','acquisition_source'];
     const params=new URLSearchParams(location.search);
     const campaign=Object.fromEntries(campaignKeys.map(key=>[key,params.get(key)]).filter(([,value])=>value));
-    if(Object.keys(campaign).length){try{localStorage.setItem('through-the-wall-acquisition',JSON.stringify({...campaign,capturedAt:Date.now()}));}catch(error){}}
     const withCampaign=(path,startCreate=false)=>{const url=new URL(path,location.href);if(startCreate)url.searchParams.set('start','create');Object.entries(campaign).forEach(([key,value])=>url.searchParams.set(key,value));return url.toString();};
     document.querySelectorAll('.create-link').forEach(link=>link.href=withCampaign('../',true));
     document.querySelectorAll('.app-link').forEach(link=>link.href=withCampaign('../'));

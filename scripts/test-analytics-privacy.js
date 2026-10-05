@@ -5,13 +5,14 @@ const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'..','analytics.js'),'utf8')
   .replaceAll('__POSTHOG_PROJECT_TOKEN__','phc_privacy_test_token')
   .replaceAll('__POSTHOG_HOST__','https://eu.i.posthog.com')
+  .replaceAll('__META_PIXEL_ID__','1419228339585181')
   .replaceAll('__APP_BUILD_TIMESTAMP__','privacy-test-build');
 
-function load({hostname='throughthewall.ca',optedOut=false,storage:existingStorage}={}){
+function load({hostname='throughthewall.ca',search='',optedOut=false,storage:existingStorage}={}){
   const storage=existingStorage||new Map(optedOut?[['through-the-wall-analytics-opt-out','1']]:[]),listeners=new Map();
   class CustomEvent{constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const window={
-    location:{hostname,origin:`https://${hostname}`,pathname:'/',search:''},
+    location:{hostname,origin:`https://${hostname}`,pathname:'/',search,hash:''},
     addEventListener:(type,listener)=>listeners.set(type,listener),
     dispatchEvent:event=>{listeners.get(event.type)?.(event);return true;},
   };
@@ -37,10 +38,35 @@ assert.equal(local.window.ttwAnalytics.enabled,false);
 const production=load();
 assert.equal(production.window.ttwAnalytics.enabled,true);
 assert.equal(production.window.posthog._i.length,1);
+assert.equal(production.window.fbq,undefined,'Meta must not load before a separate advertising choice.');
+production.window.ttwAnalytics.metaOptIn();
+assert(production.window.fbq.queue.some(call=>call[0]==='track'&&call[1]==='PageView'));
+production.window.ttwAnalytics.track('account_created');
+production.window.ttwAnalytics.track('pool_created');
+production.window.ttwAnalytics.track('global_pool_joined');
+assert(production.window.fbq.queue.some(call=>call[0]==='track'&&call[1]==='CompleteRegistration'));
+assert(production.window.fbq.queue.some(call=>call[0]==='trackCustom'&&call[1]==='PoolCreated'));
+assert(production.window.fbq.queue.some(call=>call[0]==='trackCustom'&&call[1]==='PoolJoined'));
+production.window.ttwAnalytics.optOut();
+const metaCallsWhenStopped=production.window.fbq.queue.length;
+production.window.ttwAnalytics.metaOptIn();
+assert.equal(production.window.fbq.queue.length,metaCallsWhenStopped,'Advertising opt-in must not resume a stopped analytics session.');
+production.window.ttwAnalytics.optIn();
+assert(production.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='grant'));
+production.window.ttwAnalytics.metaOptOut();
+assert(production.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='revoke'));
 production.window.ttwAnalytics.optOut();
 assert.equal(production.storage.get('through-the-wall-analytics-opt-out'),'1');
 production.window.ttwAnalytics.optIn();
 assert.equal(production.storage.has('through-the-wall-analytics-opt-out'),false);
+
+const sensitivePage=load({search:'?join=pool.private-token'});
+sensitivePage.window.ttwAnalytics.metaOptIn();
+sensitivePage.window.ttwAnalytics.track('account_created');
+assert.equal(sensitivePage.window.fbq,undefined,'Meta must not load on a URL containing invitation details.');
+const unknownParameterPage=load({search:'?private_token=secret'});
+unknownParameterPage.window.ttwAnalytics.metaOptIn();
+assert.equal(unknownParameterPage.window.fbq,undefined,'Meta must not load when a URL includes an unrecognized parameter.');
 
 const reloadStorage=new Map();
 const beforeOptOut=load({storage:reloadStorage});

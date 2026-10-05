@@ -5288,6 +5288,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
   const [supportStatus,setSupportStatus]=useState({kind:'',message:''});
   const [captainStatus,setCaptainStatus]=useState('');
   const [analyticsEnabled,setAnalyticsEnabled]=useState(()=>!window.ttwAnalytics?.isOptedOut?.());
+  const [metaMeasurementEnabled,setMetaMeasurementEnabled]=useState(()=>window.ttwAnalytics?.isMetaOptedIn?.()||false);
   const [syncSourceId,setSyncSourceId]=useState('');
   const [syncOptionsOpen,setSyncOptionsOpen]=useState(false);
   const [syncPreview,setSyncPreview]=useState(null);
@@ -5402,6 +5403,7 @@ function SettingsModal({theme,onThemeChange,onClose,pools,activePool,userId,user
       <p className="notification-destination ph-no-capture" role="status">{notificationSaving?'Saving your choices…':<React.Fragment>{userEmail?`Sent to ${userEmail}. `:''}Change these anytime.</React.Fragment>}</p>
       <h3>Analytics</h3>
       <label className="chemistry-toggle"><input type="checkbox" checked={analyticsEnabled} onChange={event=>{const enabled=event.target.checked;if(enabled)window.ttwAnalytics?.optIn?.();else window.ttwAnalytics?.optOut?.();setAnalyticsEnabled(enabled);}}/><span><strong>Share usage analytics and masked session replays to help improve Through the Wall.</strong><span>This applies to this browser. Turning it off stops product analytics and session replay here. <a href="privacy.html">Privacy</a></span></span></label>
+      <label className="chemistry-toggle"><input type="checkbox" checked={metaMeasurementEnabled} disabled={!analyticsEnabled} onChange={event=>{const enabled=event.target.checked;if(enabled)window.ttwAnalytics?.metaOptIn?.();else window.ttwAnalytics?.metaOptOut?.();setMetaMeasurementEnabled(enabled);}}/><span><strong>Allow Meta ads measurement.</strong><span>With your permission, Meta receives page views and completed signup or pool activity to measure and improve our ads. This applies to this browser and can be turned off anytime. <a href="privacy.html">Privacy</a></span></span></label>
       <form className="support-panel" onSubmit={submitSupport} aria-labelledby="support-title">
         <div className="premium-fakedoor-kicker">Feedback &amp; support</div>
         <h3 id="support-title">Tell us what happened—or what would make this better.</h3>

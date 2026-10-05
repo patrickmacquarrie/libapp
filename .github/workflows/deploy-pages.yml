@@ -87,7 +87,9 @@ jobs:
         env:
           POSTHOG_KEY: ${{ vars.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          META_PIXEL_ID: ${{ vars.META_PIXEL_ID }}
           REQUIRE_POSTHOG_CONFIG: true
+          REQUIRE_META_CONFIG: true
       - name: Test exact release build
         run: npm run test:smoke
       - id: backend_changes
