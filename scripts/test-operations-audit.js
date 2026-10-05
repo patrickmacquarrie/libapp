@@ -879,6 +879,9 @@ assert(productionCsp.includes("script-src 'self' 'unsafe-inline' https://www.gst
 assert(productionCsp.includes("frame-src 'self' https://accounts.google.com"),'The production CSP must allow same-origin Firebase Auth handlers.');
 assert(productionCsp.includes('https://eu-assets.i.posthog.com'),'The production CSP must allow the disclosed PostHog EU asset host.');
 assert(productionCsp.includes('https://eu.i.posthog.com'),'The production CSP must allow the disclosed PostHog EU ingestion host.');
+const cspDirective=name=>productionCsp.split(';').map(part=>part.trim()).find(part=>part.startsWith(`${name} `))||'';
+assert(cspDirective('script-src').includes('https://connect.facebook.net'),'The production CSP must allow the consent-gated Meta Pixel script.');
+assert(cspDirective('connect-src').includes('https://connect.facebook.net')&&cspDirective('connect-src').includes('https://www.facebook.com'),'The production CSP must allow Meta Pixel requests after consent.');
 assert(productionCsp.includes("worker-src 'self' blob:"),'The production CSP must allow PostHog replay workers.');
 assert(!productionCsp.includes('https://appleid.apple.com'),'The production CSP must not allow the disabled Apple provider.');
 assert(firebaseConfig.includes('// Apple sign-in: restore https://appleid.apple.com to frame-src before re-enabling the provider.'),'The Hosting config must preserve the Apple CSP re-enable warning beside frame-src.');

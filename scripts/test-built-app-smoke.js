@@ -122,6 +122,7 @@ async function main() {
   const analytics=fs.readFileSync(analyticsPath,'utf8');
   assert(!analytics.includes('__APP_BUILD_TIMESTAMP__'),'The analytics build timestamp placeholder was not replaced.');
   assert(!analytics.includes('__POSTHOG_HOST__'),'The PostHog host placeholder was not replaced.');
+  assert(!analytics.includes('__META_PIXEL_ID__'),'The Meta pixel placeholder was not replaced.');
   assert(analytics.includes("const API_HOST='https://eu.i.posthog.com'"),'The built analytics entry point must use the disclosed EU region.');
   const serviceWorkerPath=path.join(dist,'sw.js');
   assert(fs.existsSync(serviceWorkerPath),'The build did not include the root service-worker kill switch.');

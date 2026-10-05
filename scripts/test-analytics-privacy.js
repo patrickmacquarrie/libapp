@@ -5,25 +5,27 @@ const vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'..','analytics.js'),'utf8')
   .replaceAll('__POSTHOG_PROJECT_TOKEN__','phc_privacy_test_token')
   .replaceAll('__POSTHOG_HOST__','https://eu.i.posthog.com')
+  .replaceAll('__META_PIXEL_ID__','1419228339585181')
   .replaceAll('__APP_BUILD_TIMESTAMP__','privacy-test-build');
 
-function load({hostname='throughthewall.ca',optedOut=false,storage:existingStorage}={}){
-  const storage=existingStorage||new Map(optedOut?[['through-the-wall-analytics-opt-out','1']]:[]),listeners=new Map();
+function load({hostname='throughthewall.ca',search='',optedOut=false,storage:existingStorage}={}){
+  const storage=existingStorage||new Map(optedOut?[['through-the-wall-analytics-opt-out','1']]:[]),listeners=new Map(),createdElements=[];
   class CustomEvent{constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const window={
-    location:{hostname,origin:`https://${hostname}`,pathname:'/',search:''},
+    location:{hostname,origin:`https://${hostname}`,pathname:'/',search,hash:''},
     addEventListener:(type,listener)=>listeners.set(type,listener),
     dispatchEvent:event=>{listeners.get(event.type)?.(event);return true;},
   };
-  const document={referrer:'',createElement:()=>({}),getElementsByTagName:()=>[{parentNode:{insertBefore:()=>{}}}]};
+  const document={referrer:'',createElement:tag=>{const element={tagName:tag,style:{}};createdElements.push(element);return element;},getElementsByTagName:()=>[{parentNode:{insertBefore:()=>{}}}]};
   const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,String(value)),removeItem:key=>storage.delete(key)};
   vm.runInNewContext(source,{window,document,localStorage,URL,URLSearchParams,Date,Object,String,CustomEvent});
-  return {window,storage};
+  return {window,storage,createdElements};
 }
 
 const optedOut=load({optedOut:true});
 assert.equal(optedOut.window.posthog,undefined);
 assert.equal(optedOut.window.ttwAnalytics.enabled,false);
+assert.equal(optedOut.window.ttwAnalytics.metaChoiceNeeded(),false);
 optedOut.window.ttwAnalytics.track('should_not_capture');
 assert.equal(optedOut.window.dataLayer,undefined);
 let variant='unset';optedOut.window.ttwAnalytics.onPriceVariant(value=>{variant=value;});
@@ -33,14 +35,72 @@ assert.equal(optedOut.storage.get('plausible_ignore'),'true');
 const local=load({hostname:'127.0.0.1'});
 assert.equal(local.window.posthog,undefined);
 assert.equal(local.window.ttwAnalytics.enabled,false);
+assert.equal(local.window.ttwAnalytics.metaChoiceNeeded(),false);
 
 const production=load();
 assert.equal(production.window.ttwAnalytics.enabled,true);
 assert.equal(production.window.posthog._i.length,1);
+assert.equal(production.window.fbq,undefined,'Meta must not load before a separate advertising choice.');
+assert.equal(production.window.ttwAnalytics.metaChoiceNeeded(),true);
+production.window.ttwAnalytics.metaChoiceShown('signin');
+production.window.ttwAnalytics.metaChoiceShown('signin');
+const shown=production.window.posthog.filter(call=>call[0]==='capture'&&call[1]==='meta_choice_shown');
+assert.equal(shown.length,1,'An inline choice must be counted at most once per page load.');
+assert.equal(shown[0][2].placement,'signin');
+production.window.ttwAnalytics.metaOptIn('signin');
+assert.equal(production.window.ttwAnalytics.metaChoiceNeeded(),false);
+assert.equal(production.window.fbq.disablePushState,true,'The pixel must not emit automatic history PageViews.');
+const autoConfigIndex=production.window.fbq.queue.findIndex(call=>call[0]==='set'&&call[1]==='autoConfig');
+const initIndex=production.window.fbq.queue.findIndex(call=>call[0]==='init');
+assert(autoConfigIndex>=0&&autoConfigIndex<initIndex,'Automatic data collection must be disabled before pixel initialization.');
+assert.deepEqual(Array.from(production.window.fbq.queue[autoConfigIndex]),['set','autoConfig',false,'1419228339585181']);
+const made=production.window.posthog.filter(call=>call[0]==='capture'&&call[1]==='meta_choice_made');
+assert.equal(made.length,1);
+assert.equal(made[0][2].choice,'allow');
+assert.equal(made[0][2].placement,'signin');
+assert(production.createdElements.every(element=>element.style.position!=='fixed'),'Analytics must not create a fixed consent overlay.');
+assert(production.window.fbq.queue.some(call=>call[0]==='track'&&call[1]==='PageView'));
+production.window.ttwAnalytics.track('account_created');
+production.window.ttwAnalytics.track('pool_created');
+production.window.ttwAnalytics.track('global_pool_joined');
+assert(production.window.fbq.queue.some(call=>call[0]==='track'&&call[1]==='CompleteRegistration'));
+assert(production.window.fbq.queue.some(call=>call[0]==='trackCustom'&&call[1]==='PoolCreated'));
+assert(production.window.fbq.queue.some(call=>call[0]==='trackCustom'&&call[1]==='PoolJoined'));
+production.window.ttwAnalytics.optOut();
+const metaCallsWhenStopped=production.window.fbq.queue.length;
+production.window.ttwAnalytics.metaOptIn();
+assert.equal(production.window.fbq.queue.length,metaCallsWhenStopped,'Advertising opt-in must not resume a stopped analytics session.');
+production.window.ttwAnalytics.optIn();
+assert(production.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='grant'));
+production.window.ttwAnalytics.metaOptOut();
+assert.equal(production.window.ttwAnalytics.metaChoiceNeeded(),false);
+assert(production.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='revoke'));
 production.window.ttwAnalytics.optOut();
 assert.equal(production.storage.get('through-the-wall-analytics-opt-out'),'1');
 production.window.ttwAnalytics.optIn();
 assert.equal(production.storage.has('through-the-wall-analytics-opt-out'),false);
+
+const sensitivePage=load({search:'?join=pool.private-token'});
+assert.equal(sensitivePage.window.ttwAnalytics.metaChoiceNeeded(),false);
+sensitivePage.window.ttwAnalytics.metaOptIn();
+sensitivePage.window.ttwAnalytics.track('account_created');
+assert.equal(sensitivePage.window.fbq,undefined,'Meta must not load on a URL containing invitation details.');
+const unknownParameterPage=load({search:'?private_token=secret'});
+assert.equal(unknownParameterPage.window.ttwAnalytics.metaChoiceNeeded(),false);
+unknownParameterPage.window.ttwAnalytics.metaOptIn();
+assert.equal(unknownParameterPage.window.fbq,undefined,'Meta must not load when a URL includes an unrecognized parameter.');
+
+const welcomeDecline=load();
+welcomeDecline.window.ttwAnalytics.metaChoiceShown('welcome');
+welcomeDecline.window.ttwAnalytics.metaOptOut('welcome');
+assert.equal(welcomeDecline.window.ttwAnalytics.metaChoiceNeeded(),false);
+assert.equal(welcomeDecline.window.fbq,undefined,'Declining must leave the Meta pixel unloaded.');
+assert(welcomeDecline.window.posthog.some(call=>call[0]==='capture'&&call[1]==='meta_choice_shown'&&call[2].placement==='welcome'));
+assert(welcomeDecline.window.posthog.some(call=>call[0]==='capture'&&call[1]==='meta_choice_made'&&call[2].choice==='decline'&&call[2].placement==='welcome'));
+welcomeDecline.window.ttwAnalytics.metaOptIn('settings');
+assert(welcomeDecline.window.posthog.some(call=>call[0]==='capture'&&call[1]==='meta_choice_made'&&call[2].choice==='allow'&&call[2].placement==='settings'));
+welcomeDecline.window.ttwAnalytics.metaOptOut('settings');
+assert(welcomeDecline.window.posthog.some(call=>call[0]==='capture'&&call[1]==='meta_choice_made'&&call[2].choice==='decline'&&call[2].placement==='settings'));
 
 const reloadStorage=new Map();
 const beforeOptOut=load({storage:reloadStorage});

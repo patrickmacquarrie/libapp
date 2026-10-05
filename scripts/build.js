@@ -256,8 +256,11 @@ async function build() {
   const buildTimestamp=new Date().toISOString();
   const posthogToken=String(process.env.POSTHOG_KEY||'').trim();
   const posthogHost=String(process.env.POSTHOG_HOST||'https://eu.i.posthog.com').trim().replace(/\/$/,'');
+  const metaPixelId=String(process.env.META_PIXEL_ID||'').trim();
   if(process.env.REQUIRE_POSTHOG_CONFIG==='true'&&!posthogToken)throw new Error('POSTHOG_KEY is required for a production deployment.');
+  if(process.env.REQUIRE_META_CONFIG==='true'&&!metaPixelId)throw new Error('META_PIXEL_ID is required for a production deployment.');
   if(posthogToken&&!/^phc_[A-Za-z0-9_-]+$/.test(posthogToken))throw new Error('POSTHOG_KEY is not a valid public PostHog project token.');
+  if(metaPixelId&&!/^[0-9]{8,25}$/.test(metaPixelId))throw new Error('META_PIXEL_ID must contain only the public numeric Meta pixel ID.');
   if(posthogHost!=='https://eu.i.posthog.com')throw new Error('POSTHOG_HOST must match the disclosed EU PostHog Cloud region.');
   if(!source.includes('/* __SCORING_ENGINE_SOURCE__ */')) throw new Error('The shared scoring-engine insertion marker is missing.');
   const buildSource=source
@@ -266,6 +269,7 @@ async function build() {
   const builtAnalytics=analyticsSource
     .replaceAll('__POSTHOG_PROJECT_TOKEN__',posthogToken)
     .replaceAll('__POSTHOG_HOST__',posthogHost)
+    .replaceAll('__META_PIXEL_ID__',metaPixelId)
     .replaceAll('__APP_BUILD_TIMESTAMP__',buildTimestamp);
   const seasons=seasonBankFrom(source);
   const available=seasons.filter(season=>season.available);
