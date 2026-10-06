@@ -8,17 +8,19 @@ const source=fs.readFileSync(path.join(__dirname,'..','analytics.js'),'utf8')
   .replaceAll('__META_PIXEL_ID__','1419228339585181')
   .replaceAll('__APP_BUILD_TIMESTAMP__','privacy-test-build');
 
-function load({hostname='throughthewall.ca',search='',optedOut=false,storage:existingStorage}={}){
+function load({hostname='throughthewall.ca',search='',hash='',optedOut=false,storage:existingStorage,timeZone='Europe/Paris',languages=['en-CA'],gpc=false}={}){
   const storage=existingStorage||new Map(optedOut?[['through-the-wall-analytics-opt-out','1']]:[]),listeners=new Map(),createdElements=[];
   class CustomEvent{constructor(type,options={}){this.type=type;this.detail=options.detail;}}
   const window={
-    location:{hostname,origin:`https://${hostname}`,pathname:'/',search,hash:''},
+    location:{hostname,origin:`https://${hostname}`,pathname:'/',search,hash},
     addEventListener:(type,listener)=>listeners.set(type,listener),
     dispatchEvent:event=>{listeners.get(event.type)?.(event);return true;},
   };
   const document={referrer:'',createElement:tag=>{const element={tagName:tag,style:{}};createdElements.push(element);return element;},getElementsByTagName:()=>[{parentNode:{insertBefore:()=>{}}}]};
   const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,String(value)),removeItem:key=>storage.delete(key)};
-  vm.runInNewContext(source,{window,document,localStorage,URL,URLSearchParams,Date,Object,String,CustomEvent});
+  const navigator={languages,globalPrivacyControl:gpc};
+  const Intl={DateTimeFormat:()=>({resolvedOptions:()=>{if(timeZone==='throw')throw new Error('Timezone unavailable');return {timeZone};}})};
+  vm.runInNewContext(source,{window,document,localStorage,navigator,Intl,URL,URLSearchParams,Date,Object,String,CustomEvent});
   return {window,storage,createdElements};
 }
 
@@ -37,11 +39,47 @@ assert.equal(local.window.posthog,undefined);
 assert.equal(local.window.ttwAnalytics.enabled,false);
 assert.equal(local.window.ttwAnalytics.metaChoiceNeeded(),false);
 
+const defaultOn=load({timeZone:'America/Edmonton'});
+assert(defaultOn.window.fbq.queue.some(call=>call[0]==='track'&&call[1]==='PageView'),'Default-on visitors must get a PageView on first load.');
+assert.equal(defaultOn.window.ttwAnalytics.metaChoiceNeeded(),false);
+assert.equal(defaultOn.window.ttwAnalytics.metaNoticeNeeded(),true);
+assert.equal(defaultOn.window.ttwAnalytics.isMetaOptedIn(),true);
+defaultOn.window.ttwAnalytics.track('account_created');
+assert(defaultOn.window.fbq.queue.some(call=>call[0]==='track'&&call[1]==='CompleteRegistration'));
+defaultOn.window.ttwAnalytics.metaNoticeShown('signin');
+defaultOn.window.ttwAnalytics.metaNoticeShown('signin');
+const notices=defaultOn.window.posthog.filter(call=>call[0]==='capture'&&call[1]==='meta_notice_shown');
+assert.equal(notices.length,1,'A notice must be counted at most once per placement.');
+assert.equal(notices[0][2].placement,'signin');
+defaultOn.window.ttwAnalytics.optOut();
+assert(defaultOn.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='revoke'));
+defaultOn.window.ttwAnalytics.optIn();
+assert(defaultOn.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='grant'),'Restoring usage analytics must resume an eligible default-on pixel.');
+
+const defaultOnStorage=new Map();
+const defaultOnBeforeDecline=load({timeZone:'America/Edmonton',storage:defaultOnStorage});
+defaultOnBeforeDecline.window.ttwAnalytics.metaOptOut('signin');
+assert.equal(defaultOnStorage.get('through-the-wall-meta-measurement'),'declined');
+assert(defaultOnBeforeDecline.window.fbq.queue.some(call=>call[0]==='consent'&&call[1]==='revoke'));
+assert(defaultOnBeforeDecline.window.posthog.some(call=>call[0]==='capture'&&call[1]==='meta_choice_made'&&call[2].choice==='decline'&&call[2].placement==='signin'));
+const defaultOnAfterDecline=load({timeZone:'America/Edmonton',storage:defaultOnStorage});
+assert.equal(defaultOnAfterDecline.window.fbq,undefined,'A stored decline must prevent the pixel on reload.');
+assert.equal(defaultOnAfterDecline.window.ttwAnalytics.metaNoticeNeeded(),false);
+assert.equal(defaultOnAfterDecline.window.ttwAnalytics.metaChoiceNeeded(),false);
+
+const priorDecline=load({timeZone:'America/Edmonton',storage:new Map([['through-the-wall-meta-measurement','declined']])});
+assert.equal(priorDecline.window.fbq,undefined);
+assert.equal(priorDecline.window.ttwAnalytics.metaNoticeNeeded(),false);
+assert.equal(priorDecline.window.ttwAnalytics.metaChoiceNeeded(),false);
+const priorAllow=load({timeZone:'Europe/Paris',storage:new Map([['through-the-wall-meta-measurement','allowed']])});
+assert(priorAllow.window.fbq,'An explicit allow must take precedence over the regional default.');
+
 const production=load();
 assert.equal(production.window.ttwAnalytics.enabled,true);
 assert.equal(production.window.posthog._i.length,1);
 assert.equal(production.window.fbq,undefined,'Meta must not load before a separate advertising choice.');
 assert.equal(production.window.ttwAnalytics.metaChoiceNeeded(),true);
+assert.equal(production.window.ttwAnalytics.metaNoticeNeeded(),false);
 production.window.ttwAnalytics.metaChoiceShown('signin');
 production.window.ttwAnalytics.metaChoiceShown('signin');
 const shown=production.window.posthog.filter(call=>call[0]==='capture'&&call[1]==='meta_choice_shown');
@@ -79,6 +117,39 @@ production.window.ttwAnalytics.optOut();
 assert.equal(production.storage.get('through-the-wall-analytics-opt-out'),'1');
 production.window.ttwAnalytics.optIn();
 assert.equal(production.storage.has('through-the-wall-analytics-opt-out'),false);
+
+const quebecFrench=load({timeZone:'America/Toronto',languages:['fr-CA','en-CA']});
+assert.equal(quebecFrench.window.fbq,undefined);
+assert.equal(quebecFrench.window.ttwAnalytics.metaChoiceNeeded(),true);
+const torontoEnglish=load({timeZone:'America/Toronto',languages:['en-CA']});
+assert(torontoEnglish.window.fbq);
+assert.equal(torontoEnglish.window.ttwAnalytics.metaNoticeNeeded(),true);
+
+const gpcVisitor=load({timeZone:'America/Edmonton',gpc:true});
+assert.equal(gpcVisitor.window.fbq,undefined);
+assert.equal(gpcVisitor.window.ttwAnalytics.metaChoiceNeeded(),false);
+assert.equal(gpcVisitor.window.ttwAnalytics.metaNoticeNeeded(),false);
+gpcVisitor.window.ttwAnalytics.metaOptIn('settings');
+assert(gpcVisitor.window.fbq,'An explicit Settings choice must override GPC.');
+
+for(const timeZone of ['',null,'throw']){
+  const unknownZone=load({timeZone});
+  assert.equal(unknownZone.window.fbq,undefined);
+  assert.equal(unknownZone.window.ttwAnalytics.metaChoiceNeeded(),true);
+  assert.equal(unknownZone.window.ttwAnalytics.metaNoticeNeeded(),false);
+}
+
+for(const options of [
+  {search:'?join=pool.private-token'},
+  {search:'?private_token=secret'},
+  {hash:'#account-details'},
+  {hostname:'localhost'},
+  {optedOut:true},
+]){
+  const guarded=load({...options,timeZone:'America/Edmonton'});
+  assert.equal(guarded.window.fbq,undefined,`The default-on pixel must respect ${JSON.stringify(options)}.`);
+  assert.equal(guarded.window.ttwAnalytics.metaNoticeNeeded(),false);
+}
 
 const sensitivePage=load({search:'?join=pool.private-token'});
 assert.equal(sensitivePage.window.ttwAnalytics.metaChoiceNeeded(),false);

@@ -26,6 +26,22 @@
   let metaChoice=readStorage(META_MEASUREMENT_KEY)||'';
   let metaPixelLoaded=false;
   const metaChoiceShownPlacements=new Set();
+  const metaNoticeShownPlacements=new Set();
+  const metaGpcSignal=()=>{
+    try{return typeof navigator!=='undefined'&&navigator.globalPrivacyControl===true;}
+    catch(error){return false;}
+  };
+  const metaRegionRequiresOptIn=()=>{
+    try{
+      const timeZone=Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if(!timeZone)return true;
+      if(timeZone.startsWith('Europe/')||['Atlantic/Reykjavik','Atlantic/Canary','Atlantic/Madeira','Atlantic/Azores','Atlantic/Faroe','America/Montreal','America/Blanc-Sablon'].includes(timeZone))return true;
+      if(timeZone==='America/Toronto')return typeof navigator!=='undefined'&&Array.isArray(navigator.languages)&&navigator.languages.some(language=>typeof language==='string'&&language.toLowerCase().startsWith('fr'));
+      return false;
+    }catch(error){return true;}
+  };
+  const metaDefaultOn=metaAvailable&&!metaGpcSignal()&&!metaRegionRequiresOptIn();
+  const isMetaOptedIn=()=>metaChoice==='allowed'||(metaChoice===''&&metaDefaultOn);
   if(optedOut)writeStorage('plausible_ignore','true');
 
   const safeSlug=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,48);
@@ -67,9 +83,9 @@
     return Array.from(params.keys()).every(key=>allowedKeys.has(key))&&!(window.location.hash||'');
   };
   const loadMetaPixel=()=>{
-    if(!metaAvailable||capturingStopped||metaChoice!=='allowed'||!safeMetaPage())return false;
+    if(!metaAvailable||capturingStopped||!isMetaOptedIn()||!safeMetaPage())return false;
     if(metaPixelLoaded)return true;
-    // The pixel is loaded only after a separate advertising-measurement choice.
+    // Automatic collection stays disabled even when ads measurement is on by default.
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
       if(!f._fbq)f._fbq=n;n.push=n;n.loaded=true;n.version='2.0';n.queue=[];
       t=b.createElement(e);t.async=true;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s);
@@ -81,11 +97,17 @@
     metaPixelLoaded=true;
     return true;
   };
-  const metaChoiceNeeded=()=>metaAvailable&&!metaChoice&&!capturingStopped&&safeMetaPage();
+  const metaChoiceNeeded=()=>metaAvailable&&metaChoice===''&&!metaDefaultOn&&!metaGpcSignal()&&!capturingStopped&&safeMetaPage();
+  const metaNoticeNeeded=()=>metaChoice===''&&metaDefaultOn&&!capturingStopped&&safeMetaPage();
   const metaChoiceShown=placement=>{
     if(!['signin','welcome'].includes(placement)||!metaChoiceNeeded()||metaChoiceShownPlacements.has(placement))return;
     metaChoiceShownPlacements.add(placement);
     track('meta_choice_shown',{placement});
+  };
+  const metaNoticeShown=placement=>{
+    if(!['signin','welcome'].includes(placement)||!metaNoticeNeeded()||metaNoticeShownPlacements.has(placement))return;
+    metaNoticeShownPlacements.add(placement);
+    track('meta_notice_shown',{placement});
   };
   const metaChoiceMade=(choice,placement)=>{
     if(['signin','welcome','settings'].includes(placement))track('meta_choice_made',{choice,placement});
@@ -102,8 +124,7 @@
     if(metaPixelLoaded)window.fbq('consent','revoke');
     metaChoiceMade('decline',placement);
   };
-  const isMetaOptedIn=()=>metaChoice==='allowed';
-  if(metaAvailable&&metaChoice==='allowed'&&!capturingStopped&&safeMetaPage())loadMetaPixel();
+  if(metaAvailable&&isMetaOptedIn()&&!capturingStopped&&safeMetaPage())loadMetaPixel();
 
   window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments);};
   if(!window.__TTW_PLAUSIBLE_BRIDGE__){
@@ -227,7 +248,7 @@
     removeStorage(ANALYTICS_OPT_OUT_KEY);removeStorage('plausible_ignore');
     if(configured){
       capturingStopped=false;window.posthog?.opt_in_capturing?.();
-      if(metaPixelLoaded&&metaChoice==='allowed'&&safeMetaPage()){window.fbq('consent','grant');window.fbq('track','PageView');}
+      if(metaPixelLoaded&&isMetaOptedIn()&&safeMetaPage()){window.fbq('consent','grant');window.fbq('track','PageView');}
       else loadMetaPixel();
     }
     else if(posthogAvailable)writeStorage(ANALYTICS_OPT_IN_PENDING_KEY,'1');
@@ -268,6 +289,8 @@
     isMetaOptedIn,
     metaChoiceNeeded,
     metaChoiceShown,
+    metaNoticeNeeded,
+    metaNoticeShown,
     capturePageview,
     onPriceVariant,
   });
