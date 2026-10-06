@@ -49,6 +49,7 @@
         <div class="microcopy"><a class="app-link" href="../">Flying solo? Sign in and join the Global Pool to play against everyone.</a></div>
         <div class="microcopy">Free to play · No spoilers · 18+ · Public beta open now</div>
         <div class="meta-choice-inline" id="meta-choice-welcome" hidden>Help us measure our ads? <button type="button" data-choice="allow">Allow</button><span aria-hidden="true">·</span><button type="button" data-choice="decline">No thanks</button><span aria-hidden="true">·</span><a href="../privacy.html#meta-ads-measurement">Details</a></div>
+        <div class="meta-choice-inline" id="meta-notice-welcome" hidden>We use Meta ads measurement to see which ads bring people in. <button type="button">Turn off</button><span aria-hidden="true">·</span><a href="../privacy.html#meta-ads-measurement">Details</a></div>
       </div>
       <div class="phone-stage" id="demo">
         <div class="floating floating-one">You predicted it <b>first</b> ✦</div>
@@ -112,6 +113,17 @@
         metaChoice.setAttribute('aria-hidden','true');
         metaChoice.querySelectorAll('button,a').forEach(control=>control.tabIndex=-1);
       }));
+    }
+    const metaNotice=document.getElementById('meta-notice-welcome');
+    if(window.ttwAnalytics?.metaNoticeNeeded?.()){
+      metaNotice.hidden=false;
+      window.ttwAnalytics.metaNoticeShown('welcome');
+      metaNotice.querySelector('button').addEventListener('click',()=>{
+        window.ttwAnalytics.metaOptOut('welcome');
+        metaNotice.classList.add('is-hidden');
+        metaNotice.setAttribute('aria-hidden','true');
+        metaNotice.querySelectorAll('button,a').forEach(control=>control.tabIndex=-1);
+      });
     }
     document.querySelectorAll('[data-event]').forEach(element=>element.addEventListener('click',()=>track(element.dataset.event,{placement:element.dataset.placement||''})));
     const slider=document.getElementById('heart-slider'),value=document.getElementById('heart-value'),left=document.getElementById('hearts-left'),fill=document.getElementById('budget-fill'),lock=document.getElementById('demo-lock');
